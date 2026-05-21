@@ -1,15 +1,21 @@
 # Helper Utilities
 
+## `antigravity-launcher.sh`
 
-## `aurupgrade.sh`
 
-A helper script for automating the upgrade of all out-of-date AUR packages on the system in the correct dependency order.
+A wrapper for running the Antigravity IDE (and other Electron apps) inside a **Bubblewrap (`bwrap`)** sandbox with a persistent, isolated home directory.
 
 ```bash
-./scripts/aurupgrade.sh
+./scripts/antigravity-launcher.sh
 ```
 
-It parses available AUR updates via `pamac upgrade -a --dry-run`, sorts them to respect package dependency ordering, and builds/updates each package sequentially using `pamac build`.
+Documentation: [antigravity-launcher.md](antigravity-launcher.md]
+
+## `llama-cache-test.py`
+
+A Python utility designed to measure the Key-Value (KV) cache performance, time-to-first-token (TTFT), and context processing speeds of a running `llama.cpp` server (or any OpenAI-compatible `/v1/completions` API).
+
+Documentation: [llama-cache-test.md](llama-cache-test.md]
 
 ## `run-on-screen.sh`
 
