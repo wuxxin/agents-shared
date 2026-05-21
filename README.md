@@ -1,6 +1,17 @@
-# Assistants and Integrations
+# Local Agent Ecosystem & Assistant Orchestrator
 
-This document describes information about several AI assistants, their sandboxing requirements, default port allocations, and external integrations (Local Inference and Signal) managed within this repository.
+This repository is a centralized orchestration hub for deploying, sandboxing, and monitoring local AI assistants, speech-to-text engines, local inference models, and communication integrations. It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure secure and isolated agent execution on Linux while facilitating structured inter-agent collaboration.
+
+## Assistant Software
+
+- [Hermes](#hermes)
+- [Moltis](#moltis)
+- [NanoBot](#nanobot)
+- [NanoClaw](#nanoclaw)
+- [OpenFang](#openfang)
+- [PicoClaw](#picoclaw)
+- [ZeroClaw](#zeroclaw)
+
 
 ## Integrations
 

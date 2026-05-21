@@ -6,12 +6,17 @@
 
 ## Repository Structure
 
-```
-agents-shared/
-├── assistants/           # assistant software control scripts and configuration documentation
-├── scripts/              # other utility scripts and their documentation
-|__ scratch/              # scratch space for agents work (e.g. cloned assistant source code for configuration research, or testing)
-```
+- `assistants/`:
+
+Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for running various agents (Hermes, Moltis, NanoBot, NanoClaw, OpenFang, PicoClaw, ZeroClaw) and core local services (Inference, Speech-to-Text, and Signal gateways).
+
+- `scripts/`:
+
+Helper utilities for sandboxed execution (e.g., Bubblewrap-based GUI launcher), caching/throughput benchmarking, token counting, and terminal screen management.
+
+- `scratch/`:
+
+Safe workspace directory for configuration testing, source code cloning, and developmental research.
 
 ## Build/Lint/Test Commands
 
