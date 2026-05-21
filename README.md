@@ -8,11 +8,11 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[Hermes](#hermes)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
 | **[Moltis](#moltis)** | Go (Source) <br> Go Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
+| **[OpenFang](#openfang)** | Go/TypeScript (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
+| **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
 | **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
 | **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
-| **[OpenFang](#openfang)** | Go/TypeScript (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
 | **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
-| **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
 
 
 ## Integrations
