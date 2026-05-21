@@ -240,8 +240,8 @@ LI_ALIAS=qwen3
 #   Free headroom: ~2,264 MiB
 #   n_ctx: 240,000  (per slot: 120,000)
 LI_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
-LI_MMPROJ_ARGS=--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
-LI_CHAT_TEMPLATE_ARGS=--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+LI_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
+LI_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
 LI_N_CTX=240000
 
 # --- Dense: Qwen3.6-27B Q5_K_L (~20 GiB file, no vision) ---
@@ -258,8 +258,8 @@ LI_N_CTX=240000
 #   Free headroom:  ~1,221 MiB
 #   n_ctx: 240,000  (per slot: 120,000)
 #LI_MODEL=/data/public/machine-learning/models/vision-text/Qwen_Qwen3.6-27B-Q5_K_L.gguf
-#LI_MMPROJ_ARGS=
-#LI_CHAT_TEMPLATE_ARGS=--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+#LI_MMPROJ_ARGS=""
+#LI_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
 #LI_N_CTX=240000
 
 # ---------------------------------------------------------------------------

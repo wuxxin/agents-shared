@@ -12,7 +12,7 @@ Houses lifecycle management control wrappers (`*-ctl`) and configuration documen
 
 - `scripts/`:
 
-Helper utilities for sandboxed execution (e.g., Bubblewrap-based GUI launcher), caching/throughput benchmarking, token counting, and terminal screen management.
+Helper utilities for caching/throughput benchmarking, token counting and token speed simulation.
 
 - `scratch/`:
 
