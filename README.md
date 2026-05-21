@@ -51,11 +51,11 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
     - `signal-cli-rest-api-git` (private package `signal-cli-rest-api` in repo https://github.com/wuxxin/aur-packages , Go-based REST API wrapper)
 
 The following assistants have native Signal channel integration available in their source code:
-- [Hermes](hermes-ctl.md)
-- [Moltis](moltis-ctl.md)
-- [OpenFang](openfang-ctl.md)
-- [ZeroClaw](zeroclaw-ctl.md)
-- [NanoBot](nanobot-ctl.md)
+- [Hermes](assistants/hermes-ctl.md)
+- [Moltis](assistants/moltis-ctl.md)
+- [OpenFang](assistants/openfang-ctl.md)
+- [ZeroClaw](assistants/zeroclaw-ctl.md)
+- [NanoBot](assistants/nanobot-ctl.md)
 
 To configure them, refer to their specific configuration sections in their respective control guides.
 
@@ -113,7 +113,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
 - **Embedding Options**: Supports remote embedding API providers (OpenAI, Cohere, Jina, Voyage AI) and local embedding models served via `llama.cpp` (local-inference) or Ollama.
 - **Reranking Support**: Native — via auxiliary model slots and QMD hybrid engine. Can route to local reranker at `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [hermes-ctl.md](hermes-ctl.md)
+- **Detailed Guide & Onboarding**: [hermes-ctl.md](assistants/hermes-ctl.md)
 
 ### Moltis
 - **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
@@ -125,7 +125,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword search. Direct vector embedding storage inside SQLite. Supports an optional **QMD** sidecar that adds high-performance **BM25** keyword search, vector similarity search, and hybrid retrieval with LLM reranking. Automatically extracts facts and summarizes history when approaching context limits.
 - **Embedding Options**: Remote OpenAI-compatible embedding API endpoints. Local vector search using local GGUF models served via local inference servers or Ollama, or built-in QMD model processing.
 - **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-inference reranker endpoint.
-- **Detailed Guide & Onboarding**: [moltis-ctl.md](moltis-ctl.md)
+- **Detailed Guide & Onboarding**: [moltis-ctl.md](assistants/moltis-ctl.md)
 
 ### OpenFang
 - **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows.
@@ -137,7 +137,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
 - **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
 - **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [openfang-ctl.md](openfang-ctl.md)
+- **Detailed Guide & Onboarding**: [openfang-ctl.md](assistants/openfang-ctl.md)
 
 ### ZeroClaw
 - **Major Features**: Rust-based agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
@@ -149,7 +149,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: Native SQLite-based hybrid memory system. Integrates vector search and Full-Text Search (FTS) directly into SQLite. No external database infrastructure (like Pinecone or Elasticsearch) is required, keeping the runtime completely self-contained. Persistent memory handles context compression, conversation history, and user preferences.
 - **Embedding Options**: Supports OpenAI-compatible embedding APIs. Can route to local embedding models using system-wide local inference (`local-inference`) or Ollama.
 - **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](zeroclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
 
 ### NanoBot
 - **Major Features**: Lightweight python service built with `uv` featuring an onboarding setup wizard, a structured two-stage memory system ("Dream"), and Bubblewrap tool confinement.
@@ -161,7 +161,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: Structured two-stage memory system ("Dream") that separates active conversation buffers from long-term memory. Long-term memory store uses vector similarity search (RAG) to remember facts across sessions. Built-in Document Store allows indexing, chunking, and retrieving context from local files (PDFs, TXT, markdown). Model Context Protocol (MCP) integrations can execute external search tools (e.g. Brave Search) dynamically.
 - **Embedding Options**: OpenAI-compatible embedding endpoints or local embeddings. Integrates with local embedding models via Ollama or `llama.cpp` / local-inference instances.
 - **Reranking Support**: Via MCP — no native reranking; requires a custom MCP tool wrapping the local `/v1/rerank` endpoint.
-- **Detailed Guide & Onboarding**: [nanobot-ctl.md](nanobot-ctl.md)
+- **Detailed Guide & Onboarding**: [nanobot-ctl.md](assistants/nanobot-ctl.md)
 
 ### NanoClaw
 - **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
@@ -173,7 +173,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: Uses SQLite databases within the Node.js process to maintain state. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories. RAG or vector retrieval is typically handled by custom agent tools or external MCP databases.
 - **Embedding Options**: Uses APIs (e.g. Anthropic, OpenAI) for remote embeddings. Local embeddings can be fetched via tools querying `local-inference` or Ollama servers.
 - **Reranking Support**: Via custom skills — no native reranking; requires a custom skill or MCP tool wrapping the local `/v1/rerank` endpoint.
-- **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](nanoclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](assistants/nanoclaw-ctl.md)
 
 ### PicoClaw
 - **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
@@ -185,7 +185,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Search & Retrieval**: No native built-in vector database or complex memory engine due to its ultra-lightweight design (<10MB memory). Local state and conversation histories are stored in simple JSON files. Supports the Model Context Protocol (MCP) to delegate search and retrieval tasks to external databases or RAG servers (e.g. SQLite-vec MCP, Qdrant MCP, Chroma MCP).
 - **Embedding Options**: No native embedding models. Leverages external embedding API endpoints (OpenAI, Anthropic) or local embedding models via Ollama/llama-server via MCP tools or API routing.
 - **Reranking Support**: Via MCP — no native reranking; delegates via MCP reranker tool wrapping the local `/v1/rerank` endpoint.
-- **Detailed Guide & Onboarding**: [picoclaw-ctl.md](picoclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [picoclaw-ctl.md](assistants/picoclaw-ctl.md)
 
 ---
 
