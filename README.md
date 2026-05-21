@@ -4,13 +4,15 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 
 ## Assistant Software covered in this repository
 
-- [Hermes](#hermes)
-- [Moltis](#moltis)
-- [NanoBot](#nanobot)
-- [NanoClaw](#nanoclaw)
-- [OpenFang](#openfang)
-- [PicoClaw](#picoclaw)
-- [ZeroClaw](#zeroclaw)
+| Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **[Hermes](#hermes)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
+| **[Moltis](#moltis)** | Go (Source) <br> Go Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
+| **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
+| **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
+| **[OpenFang](#openfang)** | Go/TypeScript (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
+| **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
+| **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
 
 
 ## Integrations
@@ -102,7 +104,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 
 ### Hermes
 - **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
-- **Language/Runtime**: Compiled binary.
+- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
+- **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
 - **Requirements**: `~/.local/share/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
 - **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
 - **Arch/AUR Packages**: `hermes-agent` (AUR, standard source), `hermes-agent-git` (AUR, latest git source), `hermes-agent-desktop-bin` (AUR, desktop prebuilt binary).
@@ -112,8 +115,9 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Detailed Guide & Onboarding**: [hermes-ctl.md](hermes-ctl.md)
 
 ### Moltis
-- **Major Features**: Agent server based on the openfang-ctl architecture. Web-based configuration and administration, persistent plugin/provider support, capable of privileged port binding.
-- **Language/Runtime**: Compiled binary.
+- **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
+- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Config GUI).
+- **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
 - **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/share/moltis` for data.
 - **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
 - **Arch/AUR Packages**: `moltis` (AUR package built from the current workspace directory, source compilation). Alternatives: `moltis-bin` (AUR, precompiled binary) or `moltis-git` (AUR, latest git source build).
@@ -122,9 +126,34 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-inference reranker endpoint.
 - **Detailed Guide & Onboarding**: [moltis-ctl.md](moltis-ctl.md)
 
+### OpenFang
+- **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows.
+- **Language/Runtime**: Go/TypeScript (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
+- **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
+- **Requirements**: `~/.local/share/openfang` and `~/agent-shared`.
+- **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
+- **Arch/AUR Packages**: `openfang-cli` (AUR, provides both CLI client and the main server binary `/usr/bin/openfang`). Alternatives: `openfang-cli-git` (AUR, git-based).
+- **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
+- **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
+- **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
+- **Detailed Guide & Onboarding**: [openfang-ctl.md](openfang-ctl.md)
+
+### ZeroClaw
+- **Major Features**: Rust-based agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
+- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend, no Web GUI).
+- **Signal Support**: Yes — Native integration (communicates via the Go REST API wrapper).
+- **Requirements**: Support for Linux namespace isolation or Landlock.
+- **Sandboxing**: **Relaxed Namespaces Profile** is enforced via the systemd unit so that ZeroClaw can spawn secure nested sub-sandboxes via `bwrap` internally.
+- **Arch/AUR Packages**: `zeroclaw` (AUR, Rust source compilation), `zeroclaw-bin` (AUR, prebuilt binary distribution), `zeroclaw-git` (AUR, git-based).
+- **Search & Retrieval**: Native SQLite-based hybrid memory system. Integrates vector search and Full-Text Search (FTS) directly into SQLite. No external database infrastructure (like Pinecone or Elasticsearch) is required, keeping the runtime completely self-contained. Persistent memory handles context compression, conversation history, and user preferences.
+- **Embedding Options**: Supports OpenAI-compatible embedding APIs. Can route to local embedding models using system-wide local inference (`local-inference`) or Ollama.
+- **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50080/v1/rerank`.
+- **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](zeroclaw-ctl.md)
+
 ### NanoBot
-- **Major Features**: Lightweight python service built with `uv`. Features an onboarding wizard for simple configuration.
-- **Language/Runtime**: Python. Uses isolated virtual environments managed by `uv`.
+- **Major Features**: Lightweight python service built with `uv` featuring an onboarding setup wizard, a structured two-stage memory system ("Dream"), and Bubblewrap tool confinement.
+- **Language/Runtime**: Python (Source) / Python runtime managed by `uv` (Python CLI + Setup Wizard, no Web GUI).
+- **Signal Support**: Yes — Native integration (interfaces via HTTP Server-Sent Events).
 - **Requirements**: `uv` package manager installed.
 - **Sandboxing**: Relies on the **Relaxed Namespaces Profile** because it natively spawns agent code wrapped in nested `bwrap` isolation. Isolated `HOME`.
 - **Arch/AUR Packages**: No system-wide AUR packages are available for NanoBot. It is a lightweight Python framework designed to be installed inside a virtual environment using `uv` (pip package: `nanobot-ai`).
@@ -134,8 +163,9 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Detailed Guide & Onboarding**: [nanobot-ctl.md](nanobot-ctl.md)
 
 ### NanoClaw
-- **Major Features**: Webhook server capable of securely executing containers for runtime tools.
-- **Language/Runtime**: Container-based (`nanoclaw-agent:latest`).
+- **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
+- **Language/Runtime**: TypeScript/Node.js (Source) / Node.js containerized (Node.js Webhook Backend, no Web GUI).
+- **Signal Support**: No — Not natively supported.
 - **Requirements**: Requires Docker/Podman running locally to spawn tool environments.
 - **Sandboxing**: **Relaxed Namespaces Profile** with `PrivateDevices=no`. Strict profiles are dropped to allow the agent to launch local Docker/Podman containers successfully.
 - **Arch/AUR Packages**: `nanoclaw-git` (AUR, git-based source compilation). Alternatives: `nanoclaw`, `nanoclaw-bin`.
@@ -144,20 +174,10 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Via custom skills — no native reranking; requires a custom skill or MCP tool wrapping the local `/v1/rerank` endpoint.
 - **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](nanoclaw-ctl.md)
 
-### OpenFang
-- **Major Features**: Agent OS daemon that provides a hardened execution environment and orchestrates complex agentic workloads.
-- **Language/Runtime**: Compiled binary.
-- **Requirements**: `~/.local/share/openfang` and `~/agent-shared`.
-- **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
-- **Arch/AUR Packages**: `openfang-cli` (AUR, provides both CLI client and the main server binary `/usr/bin/openfang`). Alternatives: `openfang-cli-git` (AUR, git-based).
-- **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
-- **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
-- **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [openfang-ctl.md](openfang-ctl.md)
-
 ### PicoClaw
-- **Major Features**: HTTP/Webhook gateway and a dedicated Web UI launcher. Built-in web console and CLI integration.
-- **Language/Runtime**: Compiled binary (`picoclaw`).
+- **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
+- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Console GUI).
+- **Signal Support**: No — Not natively supported.
 - **Requirements**: `~/.local/share/picoclaw` for persistent configuration.
 - **Sandboxing**: **Strict Confinement Profile**. It hides other processes, prevents new namespaces, and denies writable/executable memory mappings. 
 - **Arch/AUR Packages**: `picoclaw` (AUR, source-based Go compilation). Alternatives: `picoclaw-bin` (AUR, pre-built binary), `picoclaw-git` (AUR, git-based).
@@ -165,17 +185,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Embedding Options**: No native embedding models. Leverages external embedding API endpoints (OpenAI, Anthropic) or local embedding models via Ollama/llama-server via MCP tools or API routing.
 - **Reranking Support**: Via MCP — no native reranking; delegates via MCP reranker tool wrapping the local `/v1/rerank` endpoint.
 - **Detailed Guide & Onboarding**: [picoclaw-ctl.md](picoclaw-ctl.md)
-
-### ZeroClaw
-- **Major Features**: Gateway and agent runtime supporting multiple sandbox backends (auto-prefers Landlock or Bubblewrap).
-- **Language/Runtime**: Compiled binary.
-- **Requirements**: Support for Linux namespace isolation or Landlock.
-- **Sandboxing**: **Relaxed Namespaces Profile** is enforced via the systemd unit so that ZeroClaw can spawn secure nested sub-sandboxes via `bwrap` internally.
-- **Arch/AUR Packages**: `zeroclaw` (AUR, Rust source compilation), `zeroclaw-bin` (AUR, prebuilt binary distribution), `zeroclaw-git` (AUR, git-based).
-- **Search & Retrieval**: Native SQLite-based hybrid memory system. Integrates vector search and Full-Text Search (FTS) directly into SQLite. No external database infrastructure (like Pinecone or Elasticsearch) is required, keeping the runtime completely self-contained. Persistent memory handles context compression, conversation history, and user preferences.
-- **Embedding Options**: Supports OpenAI-compatible embedding APIs. Can route to local embedding models using system-wide local inference (`local-inference`) or Ollama.
-- **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](zeroclaw-ctl.md)
 
 ---
 
