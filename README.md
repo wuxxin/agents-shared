@@ -2,7 +2,7 @@
 
 This repository is a centralized orchestration hub for deploying, sandboxing, and monitoring local AI assistants, speech-to-text engines, local inference models, and communication integrations. It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure secure and isolated agent execution on Linux while facilitating structured inter-agent collaboration.
 
-## Assistant Software
+## Assistant Software covered in this repository
 
 - [Hermes](#hermes)
 - [Moltis](#moltis)
@@ -15,38 +15,38 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 
 ## Integrations
 
-### Local Inference
+### Local Embedding, Reranking, and Inference Service
 - **Description**: Manages a persistent `llama-server` instance in **router mode** (`--models-preset`), serving an LLM, an embedding model, and an optional reranker from a single process on one port. Optimized for AMD ROCm hardware (tested on Radeon Pro W6800). All models are kept warm simultaneously in VRAM.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Flash Attention, layer GPU offloading, hardware-specific concurrency parameters, integrated `/v1/embeddings` and `/v1/rerank` endpoints.
-- **Arch/AUR Packages**:
+- **Needed Arch/AUR Package**:
   - `llama.cpp` (Official extra repository, CPU-only/OpenBLAS fallback)
   - `llama.cpp-cuda` (AUR, with CUDA acceleration for NVIDIA GPUs)
   - `llama.cpp-hip` (AUR, with HIP/ROCm acceleration for AMD GPUs)
   - `llama.cpp-git` (AUR, latest git source build, CPU)
   - `llama.cpp-git-cuda` (AUR, latest git source build with CUDA)
   - `llama.cpp-git-hip` (AUR, latest git source build with HIP/ROCm)
-  - Local package built in this workspace: `llama.cpp-git-ggml-hip` (depends on `libggml-git-hip`), providing and conflicting with `llama.cpp` and `llama.cpp-hip`.
+  - `llama.cpp-git-ggml-hip` (private package `libggml-git-hip` in repo https://github.com/wuxxin/aur-packages )
 
 ### Local Speech-to-Text
 - **Description**: Manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. Serves an OpenAI-compatible audio transcription API on port 50090.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated transcription. Enforces `ProtectSystem=strict` while allowing read-write access to the home directory (for temporary ffmpeg transcoded files) and read-only access to `/data/public/machine-learning`.
 - **Features**: Flash Attention, GPU offloading, audio transcoding using `ffmpeg`.
-- **Arch/AUR Packages**:
+- **Needed Arch/AUR Package**:
   - `whisper.cpp` (AUR, standard source package)
   - `whisper.cpp-git` (AUR, latest git source build)
-  - Local package built in this workspace: `whisper.cpp-git-ggml-hip` (depends on `libggml-git-hip`), providing the `whisper-server` executable with ROCm GPU acceleration.
+  - `whisper.cpp-git-ggml-hip` (private package `libggml-git-hip` in repo https://github.com/wuxxin/aur-packages 
 
 ### Signal Integration
 - **Description**: Connects agents to Signal. Runs a `signal-cli` daemon exposing both TCP and HTTP JSON-RPC interfaces. It also provides an optional Go-based REST API wrapper for robust, HTTP-based polling/webhook integrations (like linking OpenFang).
 - **Sandboxing**: Standard filesystem hardening, but disables `MemoryDenyWriteExecute` because the underlying JVM (Java) requires it for JIT compilation. 
 - **Features**: Account linking via QR code, dual daemon interfaces, and isolated home directory execution to prevent contamination.
-- **Arch/AUR Packages**:
+- **Needed Arch/AUR Package**:
   - `signal-cli` (AUR / Official, Java-based commandline interface)
   - `signal-cli-bin` (AUR, precompiled binary distribution)
   - `signal-cli-git` (AUR, latest git build)
-  - `signal-cli-rest-api` (AUR, Go-based REST API wrapper)
-  - Local package built in this workspace: `signal-cli-rest-api-git` (custom patch for HTTP polling).
+  - and (optional):
+    - `signal-cli-rest-api-git` (private package `signal-cli-rest-api` in repo https://github.com/wuxxin/aur-packages , Go-based REST API wrapper)
 
 The following assistants have native Signal channel integration available in their source code:
 - [Hermes](hermes-ctl.md)
