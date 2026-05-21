@@ -11,7 +11,7 @@
 | `install` | Sets up the service, generates default configuration and models INI. |
 | `uninstall` | Stops and removes the service. |
 | `edit` | Edit model selection and server parameters. |
-| `logs` | View the inference server output. |
+| `logs [args...]` | View the inference server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |
 | `exec` | Run `llama-server` in a transient unit with the same GPU access. |
 | `shell` | Spawn an interactive shell in the inference sandbox (useful for `rocm-smi`). |
 

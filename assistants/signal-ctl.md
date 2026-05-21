@@ -45,7 +45,7 @@ exit
 | `install` | Full dual-service setup. |
 | `uninstall` | Stops and removes services (preserves account data). |
 | `edit` | Opens both `.env` files and restarts services on exit. |
-| `logs` | Combined logs for the daemon and the REST API. |
+| `logs [args...]` | Combined logs for the daemon and the REST API. Pass `-f` to tail/follow. Supports any `journalctl` options. |
 | `exec` | Run `signal-cli` commands (e.g. `listGroups`) in the sandbox. |
 | `shell` | Interactive shell for manual account management. |
 

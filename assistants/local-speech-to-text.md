@@ -11,7 +11,7 @@
 | `install` | Sets up the service, generates default configuration env file. |
 | `uninstall` | Stops and removes the service. |
 | `edit` | Edit model selection and server parameters. |
-| `logs` | View the transcription server output. |
+| `logs [args...]` | View the transcription server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |
 | `exec` | Run `whisper-server` in a transient unit with the same GPU access. |
 | `shell` | Spawn an interactive shell in the speech sandbox (useful for manual testing). |
 

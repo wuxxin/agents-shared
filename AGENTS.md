@@ -71,4 +71,6 @@ shfmt -w scripts/*.sh
 ### Agent Software Configuration 
 
 - document all agent software default ports and isolation requirements in `README.md`
+- update documentation whenever any changes are made to scripts, `README.md`  for overall structure and `assistants/*-ctl.md`  for individual agent documentation, same for `scripts/`.
+- always check configuration changes by verify with the source code in `scratch/*-sources`.
 

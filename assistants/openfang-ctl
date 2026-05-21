@@ -166,7 +166,7 @@ cmd_disable() {
 }
 
 cmd_logs() {
-    journalctl --user -u openfang.service -f
+    journalctl --user -u openfang.service "$@"
 }
 
 cmd_edit() {
@@ -325,7 +325,7 @@ restart) cmd_restart ;;
 status) cmd_status ;;
 enable) cmd_enable ;;
 disable) cmd_disable ;;
-logs) cmd_logs ;;
+logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;

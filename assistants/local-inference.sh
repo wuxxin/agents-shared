@@ -386,9 +386,12 @@ cmd_restart() {
 }
 
 cmd_status() { systemctl --user status "${SERVICE_NAME}.service"; }
-cmd_enable() { write_service_file; systemctl --user enable "${SERVICE_NAME}.service"; }
+cmd_enable() {
+    write_service_file
+    systemctl --user enable "${SERVICE_NAME}.service"
+}
 cmd_disable() { systemctl --user disable "${SERVICE_NAME}.service"; }
-cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" -f; }
+cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" "$@"; }
 
 cmd_edit() {
     mkdir -p "$(dirname "${ENV_FILE}")"
@@ -524,7 +527,7 @@ restart) cmd_restart ;;
 status) cmd_status ;;
 enable) cmd_enable ;;
 disable) cmd_disable ;;
-logs) cmd_logs ;;
+logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
