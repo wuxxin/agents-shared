@@ -26,7 +26,7 @@
 #   Compute overhead (per LLM)                :    ~990 MiB
 #   Dense recurrent state (Qwen 27B only)     :    ~299 MiB
 #
-# Config A — MoE + Embedding + Reranker:
+# Config A — MoE + Vision + Embedding + Reranker:
 #   30704 - 17408 - 861 - 990 - 700 - 450 = 10,295 MiB free for KV
 #   KV @ 240,000 tokens = ~8,031 MiB  →  free headroom: ~2,264 MiB
 #   n_ctx = 240,000  (per slot: 120,000)
