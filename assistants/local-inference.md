@@ -3,6 +3,14 @@
 `local-inference.sh` manages a persistent `llama-server` instance in **router mode**, serving an LLM, an embedding model, and an optional reranker from a single process on one port. Optimized for AMD ROCm hardware (specifically tested on Radeon Pro W6800).
 
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
+- **Arch/AUR Package**:
+  - `llama.cpp` (Official extra repository, CPU-only/OpenBLAS fallback)
+  - `llama.cpp-cuda` (AUR, with CUDA acceleration for NVIDIA GPUs)
+  - `llama.cpp-hip` (AUR, with HIP/ROCm acceleration for AMD GPUs)
+  - `llama.cpp-git` (AUR, latest git source build, CPU)
+  - `llama.cpp-git-cuda` (AUR, latest git source build with CUDA)
+  - `llama.cpp-git-hip` (AUR, latest git source build with HIP/ROCm)
+  - `llama.cpp-git-ggml-hip` (private package `libggml-git-hip` in repo https://github.com/wuxxin/aur-packages )
 
 ## Usage
 

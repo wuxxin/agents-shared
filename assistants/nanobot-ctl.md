@@ -3,6 +3,7 @@
 `nanobot-ctl` is a lightweight, virtual environment based installation and management script designed to deploy the `nanobot` python service. It utilizes `uv` to manage an isolated virtual environment and integrates seamlessly with `systemd` user services.
 
 - **Source Code**: [GitHub - HKUDS/nanobot](https://github.com/HKUDS/nanobot)
+- **Arch/AUR Packages**: No system-wide AUR packages are available for NanoBot. It is a lightweight Python framework designed to be installed inside a virtual environment using `uv` (pip package: `nanobot-ai`).
 
 ## Installation
 

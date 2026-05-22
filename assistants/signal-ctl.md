@@ -5,6 +5,12 @@
 - **Source Code**: 
   - `signal-cli`: [GitHub - AsamK/signal-cli](https://github.com/AsamK/signal-cli)
   - `signal-cli-rest-api`: [GitHub - bbernhard/signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
+- **Arch/AUR Package**:
+  - `signal-cli` (AUR / Official, Java-based commandline interface)
+  - `signal-cli-bin` (AUR, precompiled binary distribution)
+  - `signal-cli-git` (AUR, latest git build)
+  - and (optional):
+    - `signal-cli-rest-api-git` (private package `signal-cli-rest-api` in repo https://github.com/wuxxin/aur-packages , Go-based REST API wrapper)
 
 ## Installation
 

@@ -3,6 +3,10 @@
 `local-speech-to-text.sh` manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. It serves an OpenAI-compatible audio transcription endpoint, enabling local, private, and high-performance voice processing. Optimized for AMD ROCm hardware (specifically tested on Radeon Pro W6800).
 
 - **Source Code**: [GitHub - ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+- **Arch/AUR Package**:
+  - `whisper.cpp` (AUR, standard source package)
+  - `whisper.cpp-git` (AUR, latest git source build)
+  - `whisper.cpp-git-ggml-hip` (private package `libggml-git-hip` in repo https://github.com/wuxxin/aur-packages )
 
 ## Usage
 

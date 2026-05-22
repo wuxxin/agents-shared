@@ -3,6 +3,7 @@
 `openfang-ctl` manages the OpenFang Agent OS daemon, providing a hardened execution environment for agentic workloads.
 
 - **Source Code**: [GitHub - RightNow-AI/openfang](https://github.com/RightNow-AI/openfang)
+- **Arch/AUR Packages**: `openfang-cli` (AUR, provides both CLI client and the main server binary `/usr/bin/openfang`). Alternatives: `openfang-cli-git` (AUR, git-based).
 
 ## Installation
 

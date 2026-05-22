@@ -3,6 +3,7 @@
 `picoclaw-ctl` is a control script for the PicoClaw agent and its launcher, designed similarly to the `openfang-ctl` and `moltis-ctl` architecture.
 
 - **Source Code**: [GitHub - sipeed/picoclaw](https://github.com/sipeed/picoclaw)
+- **Arch/AUR Packages**: `picoclaw` (AUR, source-based Go compilation). Alternatives: `picoclaw-bin` (AUR, pre-built binary), `picoclaw-git` (AUR, git-based).
 
 ## Installation
 

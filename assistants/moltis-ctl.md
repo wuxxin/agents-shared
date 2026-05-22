@@ -3,6 +3,7 @@
 `moltis-ctl` is a control script for the Moltis Agent server, based on the `openfang-ctl` architecture.
 
 - **Source Code**: [GitHub - moltis-org/moltis](https://github.com/moltis-org/moltis)
+- **Arch/AUR Packages**: `moltis` (AUR package built from the current workspace directory, source compilation). Alternatives: `moltis-bin` (AUR, precompiled binary) or `moltis-git` (AUR, latest git source build).
 
 ## Installation
 

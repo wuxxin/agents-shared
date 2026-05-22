@@ -17,38 +17,23 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 
 ## Integrations
 
-### Local Embedding, Reranking, and Inference Service
+### Local LLM Inference, Embedding and Reranking Service
 - **Description**: Manages a persistent `llama-server` instance in **router mode** (`--models-preset`), serving an LLM, an embedding model, and an optional reranker from a single process on one port. Optimized for AMD ROCm hardware (tested on Radeon Pro W6800). All models are kept warm simultaneously in VRAM.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Flash Attention, layer GPU offloading, hardware-specific concurrency parameters, integrated `/v1/embeddings` and `/v1/rerank` endpoints.
-- **Needed Arch/AUR Package**:
-  - `llama.cpp` (Official extra repository, CPU-only/OpenBLAS fallback)
-  - `llama.cpp-cuda` (AUR, with CUDA acceleration for NVIDIA GPUs)
-  - `llama.cpp-hip` (AUR, with HIP/ROCm acceleration for AMD GPUs)
-  - `llama.cpp-git` (AUR, latest git source build, CPU)
-  - `llama.cpp-git-cuda` (AUR, latest git source build with CUDA)
-  - `llama.cpp-git-hip` (AUR, latest git source build with HIP/ROCm)
-  - `llama.cpp-git-ggml-hip` (private package `libggml-git-hip` in repo https://github.com/wuxxin/aur-packages )
+- Documentation: [local-inference.md](assistants/local-inference.md)
 
 ### Local Speech-to-Text
 - **Description**: Manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. Serves an OpenAI-compatible audio transcription API on port 50090.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated transcription. Enforces `ProtectSystem=strict` while allowing read-write access to the home directory (for temporary ffmpeg transcoded files) and read-only access to `/data/public/machine-learning`.
 - **Features**: Flash Attention, GPU offloading, audio transcoding using `ffmpeg`.
-- **Needed Arch/AUR Package**:
-  - `whisper.cpp` (AUR, standard source package)
-  - `whisper.cpp-git` (AUR, latest git source build)
-  - `whisper.cpp-git-ggml-hip` (private package `libggml-git-hip` in repo https://github.com/wuxxin/aur-packages 
+- Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
 
 ### Signal Integration
 - **Description**: Connects agents to Signal. Runs a `signal-cli` daemon exposing both TCP and HTTP JSON-RPC interfaces. It also provides an optional Go-based REST API wrapper for robust, HTTP-based polling/webhook integrations (like linking OpenFang).
 - **Sandboxing**: Standard filesystem hardening, but disables `MemoryDenyWriteExecute` because the underlying JVM (Java) requires it for JIT compilation. 
 - **Features**: Account linking via QR code, dual daemon interfaces, and isolated home directory execution to prevent contamination.
-- **Needed Arch/AUR Package**:
-  - `signal-cli` (AUR / Official, Java-based commandline interface)
-  - `signal-cli-bin` (AUR, precompiled binary distribution)
-  - `signal-cli-git` (AUR, latest git build)
-  - and (optional):
-    - `signal-cli-rest-api-git` (private package `signal-cli-rest-api` in repo https://github.com/wuxxin/aur-packages , Go-based REST API wrapper)
+- Documentation: [signal-ctl.md](assistants/signal-ctl.md)
 
 The following assistants have native Signal channel integration available in their source code:
 - [Hermes](assistants/hermes-ctl.md)
@@ -85,14 +70,14 @@ Agent runtimes in this repository operate under strict, layered sandboxing confi
 
 Two primary isolation profiles are used across all assistants:
 
-### 1. Strict Confinement Profile
+### Strict Confinement Profile
 Used by agents that execute tools directly or do not require creating new user namespaces for their internal sandboxing.
 - `ProtectProc=invisible` and `ProcSubset=pid`: Hides other system processes.
 - `RestrictNamespaces=yes`: Prevents the creation of new namespaces.
 - `MemoryDenyWriteExecute=yes`: Prevents W^X memory mappings (unless specifically required by an interpreter).
 - `PrivateTmp=yes`, `ProtectSystem=strict`, `PrivateDevices=yes`: Standard filesystem hardening.
 
-### 2. Relaxed Namespaces Profile
+### Relaxed Namespaces Profile
 Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`), Rootless Podman, or Docker for internal sandboxing.
 - `RestrictNamespaces=yes` is **omitted** to allow `bwrap` or Podman to create `CLONE_NEWUSER` and `CLONE_NEWNS` unprivileged namespaces.
 - `ProtectProc=invisible` and `ProcSubset=pid` are **omitted** so `bwrap` can securely bind its own `/proc` filesystem.
@@ -109,7 +94,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
 - **Requirements**: `~/.local/share/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
 - **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
-- **Arch/AUR Packages**: `hermes-agent` (AUR, standard source), `hermes-agent-git` (AUR, latest git source), `hermes-agent-desktop-bin` (AUR, desktop prebuilt binary).
 - **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
 - **Embedding Options**: Supports remote embedding API providers (OpenAI, Cohere, Jina, Voyage AI) and local embedding models served via `llama.cpp` (local-inference) or Ollama.
 - **Reranking Support**: Native — via auxiliary model slots and QMD hybrid engine. Can route to local reranker at `http://localhost:50080/v1/rerank`.
@@ -121,7 +105,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
 - **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/share/moltis` for data.
 - **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
-- **Arch/AUR Packages**: `moltis` (AUR package built from the current workspace directory, source compilation). Alternatives: `moltis-bin` (AUR, precompiled binary) or `moltis-git` (AUR, latest git source build).
 - **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword search. Direct vector embedding storage inside SQLite. Supports an optional **QMD** sidecar that adds high-performance **BM25** keyword search, vector similarity search, and hybrid retrieval with LLM reranking. Automatically extracts facts and summarizes history when approaching context limits.
 - **Embedding Options**: Remote OpenAI-compatible embedding API endpoints. Local vector search using local GGUF models served via local inference servers or Ollama, or built-in QMD model processing.
 - **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-inference reranker endpoint.
@@ -133,7 +116,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
 - **Requirements**: `~/.local/share/openfang` and `~/agent-shared`.
 - **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
-- **Arch/AUR Packages**: `openfang-cli` (AUR, provides both CLI client and the main server binary `/usr/bin/openfang`). Alternatives: `openfang-cli-git` (AUR, git-based).
 - **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
 - **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
 - **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
@@ -145,7 +127,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: Yes — Native integration (communicates via the Go REST API wrapper).
 - **Requirements**: Support for Linux namespace isolation or Landlock.
 - **Sandboxing**: **Relaxed Namespaces Profile** is enforced via the systemd unit so that ZeroClaw can spawn secure nested sub-sandboxes via `bwrap` internally.
-- **Arch/AUR Packages**: `zeroclaw` (AUR, Rust source compilation), `zeroclaw-bin` (AUR, prebuilt binary distribution), `zeroclaw-git` (AUR, git-based).
 - **Search & Retrieval**: Native SQLite-based hybrid memory system. Integrates vector search and Full-Text Search (FTS) directly into SQLite. No external database infrastructure (like Pinecone or Elasticsearch) is required, keeping the runtime completely self-contained. Persistent memory handles context compression, conversation history, and user preferences.
 - **Embedding Options**: Supports OpenAI-compatible embedding APIs. Can route to local embedding models using system-wide local inference (`local-inference`) or Ollama.
 - **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50080/v1/rerank`.
@@ -157,7 +138,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: Yes — Native integration (interfaces via HTTP Server-Sent Events).
 - **Requirements**: `uv` package manager installed.
 - **Sandboxing**: Relies on the **Relaxed Namespaces Profile** because it natively spawns agent code wrapped in nested `bwrap` isolation. Isolated `HOME`.
-- **Arch/AUR Packages**: No system-wide AUR packages are available for NanoBot. It is a lightweight Python framework designed to be installed inside a virtual environment using `uv` (pip package: `nanobot-ai`).
 - **Search & Retrieval**: Structured two-stage memory system ("Dream") that separates active conversation buffers from long-term memory. Long-term memory store uses vector similarity search (RAG) to remember facts across sessions. Built-in Document Store allows indexing, chunking, and retrieving context from local files (PDFs, TXT, markdown). Model Context Protocol (MCP) integrations can execute external search tools (e.g. Brave Search) dynamically.
 - **Embedding Options**: OpenAI-compatible embedding endpoints or local embeddings. Integrates with local embedding models via Ollama or `llama.cpp` / local-inference instances.
 - **Reranking Support**: Via MCP — no native reranking; requires a custom MCP tool wrapping the local `/v1/rerank` endpoint.
@@ -169,7 +149,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: No — Not natively supported.
 - **Requirements**: Requires Docker/Podman running locally to spawn tool environments.
 - **Sandboxing**: **Relaxed Namespaces Profile** with `PrivateDevices=no`. Strict profiles are dropped to allow the agent to launch local Docker/Podman containers successfully.
-- **Arch/AUR Packages**: `nanoclaw-git` (AUR, git-based source compilation). Alternatives: `nanoclaw`, `nanoclaw-bin`.
 - **Search & Retrieval**: Uses SQLite databases within the Node.js process to maintain state. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories. RAG or vector retrieval is typically handled by custom agent tools or external MCP databases.
 - **Embedding Options**: Uses APIs (e.g. Anthropic, OpenAI) for remote embeddings. Local embeddings can be fetched via tools querying `local-inference` or Ollama servers.
 - **Reranking Support**: Via custom skills — no native reranking; requires a custom skill or MCP tool wrapping the local `/v1/rerank` endpoint.
@@ -181,7 +160,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Signal Support**: No — Not natively supported.
 - **Requirements**: `~/.local/share/picoclaw` for persistent configuration.
 - **Sandboxing**: **Strict Confinement Profile**. It hides other processes, prevents new namespaces, and denies writable/executable memory mappings. 
-- **Arch/AUR Packages**: `picoclaw` (AUR, source-based Go compilation). Alternatives: `picoclaw-bin` (AUR, pre-built binary), `picoclaw-git` (AUR, git-based).
 - **Search & Retrieval**: No native built-in vector database or complex memory engine due to its ultra-lightweight design (<10MB memory). Local state and conversation histories are stored in simple JSON files. Supports the Model Context Protocol (MCP) to delegate search and retrieval tasks to external databases or RAG servers (e.g. SQLite-vec MCP, Qdrant MCP, Chroma MCP).
 - **Embedding Options**: No native embedding models. Leverages external embedding API endpoints (OpenAI, Anthropic) or local embedding models via Ollama/llama-server via MCP tools or API routing.
 - **Reranking Support**: Via MCP — no native reranking; delegates via MCP reranker tool wrapping the local `/v1/rerank` endpoint.
