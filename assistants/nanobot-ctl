@@ -40,10 +40,11 @@ After=network.target
 Type=simple
 Environment=HOME=%h/.local/share/nanobot
 Environment=NANOBOT_CONFIG=$CONFIG_FILE
+Environment=NANOBOT_PORT=8790
 # Allow user to override variables
 EnvironmentFile=-%h/.config/systemd/user/nanobot.env
 WorkingDirectory=%h/.local/share/nanobot
-ExecStart=$VENV_DIR/bin/nanobot gateway --config $CONFIG_FILE --port \${NANOBOT_PORT:-8790}
+ExecStart=$VENV_DIR/bin/nanobot gateway --config $CONFIG_FILE --port \$NANOBOT_PORT
 Restart=on-failure
 RestartSec=5s
 

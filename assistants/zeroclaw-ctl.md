@@ -17,7 +17,15 @@
 ## Configuration & Ports
 
 - **Default Port**: `42617` (ZeroClaw Gateway)
-- **Environment**: Loaded from `~/.config/systemd/user/zeroclaw.env` and passed to the `zeroclaw gateway --port $ZEROCLAW_PORT` command.
+- **Port Customization Options**:
+  If the default port (`42617`) needs to be modified, you can configure the new port using one of the following methods:
+  1. **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the gateway with the `zeroclaw gateway start --port $ZEROCLAW_PORT` command (since `--port` is a parameter on the `start` subcommand, not the base `gateway` command).
+  2. **Config File**: Set the port directly inside the ZeroClaw configuration file (`~/.local/share/zeroclaw/.zeroclaw/config.toml`):
+     ```toml
+     [gateway]
+     port = 42617
+     ```
+  3. **Global Environment Variable**: Set the `ZEROCLAW_gateway__port` environment variable (e.g., `ZEROCLAW_gateway__port=42617`), which ZeroClaw's configuration engine automatically parses and applies as an override to the `gateway.port` setting.
 
 ## Signal Channel Configuration
 

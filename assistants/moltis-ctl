@@ -32,9 +32,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Environment=MOLTIS_PORT=13131
 EnvironmentFile=-%h/.config/systemd/user/moltis.env
 WorkingDirectory=%h/.local/share/moltis
-ExecStart=/usr/bin/moltis --bind 0.0.0.0 --port \${MOLTIS_PORT:-13131}
+ExecStart=/usr/bin/moltis --bind 0.0.0.0 --port \$MOLTIS_PORT
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30

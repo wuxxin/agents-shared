@@ -31,9 +31,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=HOME=%h/.local/share/zeroclaw
+Environment=ZEROCLAW_PORT=42617
 EnvironmentFile=-%h/.config/systemd/user/zeroclaw.env
 WorkingDirectory=%h/.local/share/zeroclaw
-ExecStart=/usr/bin/zeroclaw gateway --port \${ZEROCLAW_PORT:-42617}
+ExecStart=/usr/bin/zeroclaw gateway start --port \$ZEROCLAW_PORT
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30
