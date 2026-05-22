@@ -74,13 +74,26 @@ NanoClaw does not have native, built-in speech-to-text processing in its core ru
    - **Endpoint**: `http://localhost:50090/v1/audio/transcriptions`
    - **Form Fields**: `file` (the audio binary), `model` (default model configuration)
 
-## Implementation Considerations
+## Implementation & Security Considerations
 
-### Configuration & Ports
-- **Default Port**: `3000` (NanoClaw Webhook server, overridable via `WEBHOOK_PORT`).
-- **Environment**: Loaded from `~/.config/systemd/user/nanoclaw.env`.
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `nanoclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
 ### Sandboxing Profile
-NanoClaw runs the **Relaxed Namespaces Profile** alongside disabled `PrivateDevices=yes` (`PrivateDevices=no`). This relaxed setup is required because NanoClaw spins up local Docker/Podman containers (`nanoclaw-agent:latest`) for isolated tool execution.
-- `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes` are disabled to allow nested container isolation.
-- `PrivateDevices=no` is set to ensure the agent has visibility to resources (like `/dev`) required to interact with local container runtimes.
+NanoClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
+
+1. **Namespace Support & Container Runtimes (Docker/Podman)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: NanoClaw orchestrates local container runtimes (such as Docker or Podman) to launch helper agents and execute sandboxed scripts. Standard systemd namespace isolation or proc limits would prevent the runtime from communicating with container daemons or creating nested namespaces.
+
+2. **Writable & Executable Memory (Node.js/V8 JIT)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: NanoClaw is written in TypeScript/JavaScript and runs under Node.js, which depends on V8 JIT code generation. Rejecting W^X memory regions would prevent Node.js from running correctly.
+
+3. **Physical Devices & Sockets**
+   - **Property Set**: `PrivateDevices=no`.
+   - **Rationale**: NanoClaw requires access to host device paths (such as container socket paths `/run/user/...` or `/var/run/docker.sock`) to communicate with container daemon backends.
+
+4. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: Redirection of `HOME` to `~/.local/share/nanoclaw` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.

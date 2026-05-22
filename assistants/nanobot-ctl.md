@@ -19,7 +19,7 @@ During installation, `nanobot-ctl` will set up the isolated environment and gene
 
 `nanobot-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
 
-## Implementation Considerations
+## Initialization & Ports
 
 ### Initialization
 If the configuration is empty, the installer will prompt you to run the onboarding wizard:
@@ -191,15 +191,22 @@ Alternatively, you can configure it inside `~/.local/share/nanobot/config.json`:
 
 OpenClaw migration is not natively supported by NanoBot. Configuration must be set up manually using the configuration wizard (`onboard --wizard`) or by editing the JSON configuration.
 
-### Security and Isolation
-- **Isolated HOME**: `HOME` is redirected to `~/.local/share/nanobot` within the service.
-- **Sandboxing**: Uses `ProtectSystem=strict` and `TemporaryFileSystem=%h` to prevent unauthorized home directory access.
-- **Persistent Bindings**:
-    - `~/.local/share/nanobot`: Primary configuration and state.
-    - `~/agent-shared`: Shared integration directory.
+## Implementation & Security Considerations
 
-### Nested Sandboxing (Bubblewrap Support)
-Nanobot is designed to run its own agent code wrapped in **bubblewrap (`bwrap`)** nested isolation. To support this:
-- `RestrictNamespaces=yes` is **omitted**.
-- `ProtectProc=invisible` and `ProcSubset=pid` are **omitted**.
-- `NoNewPrivileges=yes` is retained as it naturally supports `bwrap`'s internal capability drop patterns.
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `nanobot-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
+
+### Sandboxing Profile
+Nanobot utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
+
+1. **Namespace Support (Bubblewrap)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: Nanobot runs tools and sub-agents that require their own isolation using bubblewrap (`bwrap`). `bwrap` relies on unprivileged user namespaces (`CLONE_NEWUSER` and `CLONE_NEWNS`) to build its sandbox; restricting namespaces or procfs traversal inside the systemd service would block this ability.
+
+2. **Writable & Executable Memory (Python Runtimes)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: Nanobot is written in Python and compiles dynamic objects or loads third-party native extensions that require W^X allocation permissions.
+
+3. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: Redirection of `HOME` to `~/.local/share/nanobot` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.

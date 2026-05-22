@@ -136,26 +136,29 @@ Hermes supports importing configuration from an existing OpenClaw setup. To migr
 ```
 This utility will parse your legacy config formats and migrate them to the Hermes gateway structure.
 
-## Implementation Considerations
+## Implementation & Security Considerations
 
-### Graceful Shutdown and Restarts
-Hermes uses a graceful drain mechanism. The service is configured with:
-- `KillMode=mixed`: Ensures that if the gateway is interrupted, child processes (like tool-call subshells) are correctly handled.
-- `KillSignal=SIGTERM`: Standard termination signal.
-- `ExecReload=/bin/kill -USR1 $MAINPID`: Triggers the gateway's internal graceful restart logic.
-- `TimeoutStopSec=210`: Provides a budget for the 180s default drain timeout plus cleanup headroom.
-- `RestartForceExitStatus=75`: Hermes exits with status 75 when a planned restart is requested; systemd is configured to always restart on this status.
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `hermes-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
-### Security and Sandboxing
-The service runs with `ProtectSystem=strict` and `TemporaryFileSystem=%h`. Only the following paths are writable:
-- `~/.local/share/hermes`: The persistent home for config, logs, and state.
-- `~/agent-shared`: Shared directory for agent-to-agent or agent-to-human integration.
+### Sandboxing Profile
+Hermes utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
 
-### Environment and Isolation
-- **Isolated HOME**: The `HOME` environment variable is redirected to `~/.local/share/hermes` within the service to ensure that any tools called by the agent (pip, git, etc.) do not leak state into the user's real home.
-- **Secrets Management**: API keys and secrets are stored in `~/.config/systemd/user/hermes-gateway.env` and loaded via `EnvironmentFile`.
+1. **Namespace Support (Bubblewrap / Docker Runtimes)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: Hermes executes tools and sub-agents that may require user-namespace-based sandboxes (e.g. `bwrap`). Restricting namespaces or procfs traversal inside the systemd service would block this ability.
 
-### Container Backend Support
-If you plan to use `docker` or `podman` as a terminal backend from within the gateway:
-- The default `NoNewPrivileges=yes` and `PrivateDevices=yes` may need to be relaxed.
-- Rootless podman specifically requires access to `/dev/fuse` and certain namespaces that are restricted by default systemd hardening. See the comments in `hermes-ctl` for suggested overrides.
+2. **Writable & Executable Memory (Python JIT & Runtimes)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: Hermes is written in Python and invokes diverse JIT runtimes or compilers for dynamic tool execution, requiring memory-denied execution filters to be turned off.
+
+3. **Graceful Shutdown & Restarts**
+   - **Properties Set**: `KillMode=mixed`, `KillSignal=SIGTERM`, `ExecReload=/bin/kill -USR1 \$MAINPID`, and `TimeoutStopSec=210`.
+   - **Rationale**: Allows the gateway to perform a graceful drain of active messaging sessions and correctly handle child processes. Exiting with status `75` (force exit code) triggers systemd restart via `RestartForceExitStatus=75`.
+
+4. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: Redirection of `HOME` to `~/.local/share/hermes` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+
+5. **Container Backend Support**
+   - **Warning**: If using docker or podman as a terminal backend inside the gateway, `NoNewPrivileges=yes` and `PrivateDevices=yes` must be relaxed, and access to `/dev/fuse` and namespace capabilities must be permitted.

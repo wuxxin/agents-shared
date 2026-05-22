@@ -17,20 +17,71 @@ require_uv() {
     fi
 }
 
-write_service_file() {
+get_shared_options() {
+    local mode="$1" # "service" or "transient"
+    local home_spec
+    if [ "$mode" = "service" ]; then
+        home_spec="%h"
+    else
+        home_spec="$HOME"
+    fi
+
     local AGENT_PRIVATE_MOUNTS=""
     if [ -f "$ENV_FILE" ]; then
         set +u
+        # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
     fi
 
-    local mount_binds=""
+    # Environment & Working Directory
+    echo "Environment=HOME=${home_spec}/.local/share/nanobot"
+    echo "Environment=NANOBOT_CONFIG=${home_spec}/.local/share/nanobot/config.json"
+    echo "Environment=NANOBOT_PORT=8790"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/nanobot.env"
+    echo "WorkingDirectory=${home_spec}/.local/share/nanobot"
+
+    # Security measures
+    echo "NoNewPrivileges=yes"
+    echo "CapabilityBoundingSet="
+    echo "AmbientCapabilities="
+
+    # Filesystem isolation
+    echo "ProtectSystem=strict"
+    echo "TemporaryFileSystem=${home_spec}"
+    # Retain changes by bind mounting the explicit nanobot home directory
+    echo "BindPaths=${home_spec}/.local/share/nanobot:${home_spec}/.local/share/nanobot"
+    # Allow access to agent-shared as requested
+    echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
+
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
         mkdir -p "$HOME/agent-private/$m"
-        mount_binds="${mount_binds}BindPaths=%h/agent-private/$m:%h/agent-private/$m"$'\n'
+        echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
     done
 
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "PrivateTmp=yes"
+    echo "PrivateDevices=yes"
+    echo "PrivateMounts=yes"
+
+    # Kernel and IPC constraints
+    echo "ProtectKernelTunables=yes"
+    echo "ProtectKernelModules=yes"
+    echo "ProtectKernelLogs=yes"
+    echo "ProtectControlGroups=yes"
+    echo "ProtectClock=yes"
+    echo "ProtectHostname=yes"
+    echo "LockPersonality=yes"
+    echo "MemoryDenyWriteExecute=no"
+    echo "SystemCallArchitectures=native"
+    echo "PrivateIPC=yes"
+    echo "RestrictSUIDSGID=yes"
+    echo "RestrictRealtime=yes"
+    echo "KeyringMode=private"
+    echo "UMask=0077"
+}
+
+write_service_file() {
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=Nanobot Service
@@ -38,12 +89,7 @@ After=network.target
 
 [Service]
 Type=simple
-Environment=HOME=%h/.local/share/nanobot
-Environment=NANOBOT_CONFIG=$CONFIG_FILE
-Environment=NANOBOT_PORT=8790
-# Allow user to override variables
-EnvironmentFile=-%h/.config/systemd/user/nanobot.env
-WorkingDirectory=%h/.local/share/nanobot
+$(get_shared_options service)
 ExecStart=$VENV_DIR/bin/nanobot gateway --config $CONFIG_FILE --port \$NANOBOT_PORT
 Restart=on-failure
 RestartSec=5s
@@ -52,38 +98,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=nanobot
 
-# Security measures (similar to picoclaw, but modified to permit bwrap unprivileged user namespace usage)
-NoNewPrivileges=yes
-CapabilityBoundingSet=
-AmbientCapabilities=
-
-# Filesystem hiding
-ProtectSystem=strict
-TemporaryFileSystem=%h
-BindPaths=%h/.local/share/nanobot:%h/.local/share/nanobot
-BindPaths=%h/agent-shared:%h/agent-shared
-${mount_binds}ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf
-PrivateTmp=yes
-PrivateDevices=yes
-PrivateMounts=yes
-
-# Kernel and IPC constraints
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-ProtectClock=yes
-ProtectHostname=yes
-LockPersonality=yes
-MemoryDenyWriteExecute=no
-SystemCallArchitectures=native
-PrivateIPC=yes
-RestrictSUIDSGID=yes
-RestrictRealtime=yes
-KeyringMode=private
-UMask=0077
-
-# Note: ProtectProc=invisible and ProcSubset=pid are omitted 
+# Note: ProtectProc=invisible and ProcSubset=pid are omitted
 # because they can cause bwrap's /proc bind to fail.
 # RestrictNamespaces=yes is also omitted since bwrap fundamentally relies on CLONE_NEWUSER and CLONE_NEWNS.
 
@@ -231,51 +246,13 @@ cmd_shell() {
         --collect
         --quiet
         -p "Type=exec"
-        -p "Environment=HOME=$NANOBOT_HOME"
-        -p "Environment=NANOBOT_CONFIG=$CONFIG_FILE"
-        -p "EnvironmentFile=-$HOME/.config/systemd/user/nanobot.env"
-        -p "WorkingDirectory=$NANOBOT_HOME"
-        -p "NoNewPrivileges=yes"
-        -p "CapabilityBoundingSet="
-        -p "AmbientCapabilities="
-        -p "ProtectSystem=strict"
-        -p "TemporaryFileSystem=$HOME"
-        -p "BindPaths=$NANOBOT_HOME:$NANOBOT_HOME"
-        -p "BindPaths=$HOME/.local/share/nanobot:$HOME/.local/share/nanobot"
-        -p "BindPaths=$HOME/agent-shared:$HOME/agent-shared"
     )
 
-    local AGENT_PRIVATE_MOUNTS=""
-    if [ -f "$ENV_FILE" ]; then
-        set +u
-        source "$ENV_FILE"
-        set -u
-    fi
-    for m in ${AGENT_PRIVATE_MOUNTS:-}; do
-        mkdir -p "$HOME/agent-private/$m"
-        opts+=(-p "BindPaths=$HOME/agent-private/$m:$HOME/agent-private/$m")
-    done
-
-    opts+=(
-        -p "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-        -p "PrivateTmp=yes"
-        -p "PrivateDevices=yes"
-        -p "PrivateMounts=yes"
-        -p "ProtectKernelTunables=yes"
-        -p "ProtectKernelModules=yes"
-        -p "ProtectKernelLogs=yes"
-        -p "ProtectControlGroups=yes"
-        -p "ProtectClock=yes"
-        -p "ProtectHostname=yes"
-        -p "LockPersonality=yes"
-        -p "MemoryDenyWriteExecute=no"
-        -p "SystemCallArchitectures=native"
-        -p "PrivateIPC=yes"
-        -p "RestrictSUIDSGID=yes"
-        -p "RestrictRealtime=yes"
-        -p "KeyringMode=private"
-        -p "UMask=0077"
-    )
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
     systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
@@ -294,51 +271,13 @@ cmd_exec() {
         --collect
         --quiet
         -p "Type=exec"
-        -p "Environment=HOME=$NANOBOT_HOME"
-        -p "Environment=NANOBOT_CONFIG=$CONFIG_FILE"
-        -p "EnvironmentFile=-$HOME/.config/systemd/user/nanobot.env"
-        -p "WorkingDirectory=$NANOBOT_HOME"
-        -p "NoNewPrivileges=yes"
-        -p "CapabilityBoundingSet="
-        -p "AmbientCapabilities="
-        -p "ProtectSystem=strict"
-        -p "TemporaryFileSystem=$HOME"
-        -p "BindPaths=$NANOBOT_HOME:$NANOBOT_HOME"
-        -p "BindPaths=$HOME/.local/share/nanobot:$HOME/.local/share/nanobot"
-        -p "BindPaths=$HOME/agent-shared:$HOME/agent-shared"
     )
 
-    local AGENT_PRIVATE_MOUNTS=""
-    if [ -f "$ENV_FILE" ]; then
-        set +u
-        source "$ENV_FILE"
-        set -u
-    fi
-    for m in ${AGENT_PRIVATE_MOUNTS:-}; do
-        mkdir -p "$HOME/agent-private/$m"
-        opts+=(-p "BindPaths=$HOME/agent-private/$m:$HOME/agent-private/$m")
-    done
-
-    opts+=(
-        -p "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-        -p "PrivateTmp=yes"
-        -p "PrivateDevices=yes"
-        -p "PrivateMounts=yes"
-        -p "ProtectKernelTunables=yes"
-        -p "ProtectKernelModules=yes"
-        -p "ProtectKernelLogs=yes"
-        -p "ProtectControlGroups=yes"
-        -p "ProtectClock=yes"
-        -p "ProtectHostname=yes"
-        -p "LockPersonality=yes"
-        -p "MemoryDenyWriteExecute=no"
-        -p "SystemCallArchitectures=native"
-        -p "PrivateIPC=yes"
-        -p "RestrictSUIDSGID=yes"
-        -p "RestrictRealtime=yes"
-        -p "KeyringMode=private"
-        -p "UMask=0077"
-    )
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
     # Use the full path to the binary in the VENV
     systemd-run "${opts[@]}" "$VENV_DIR/bin/nanobot" "$@"

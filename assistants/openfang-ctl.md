@@ -129,21 +129,22 @@ OpenFang supports automatic migration from an existing OpenClaw installation. Wh
 ```
 OpenFang will scan your system for legacy OpenClaw directories (such as `~/.openclaw`), read your configuration, and import existing data, agent specifications, and credentials into `openfang.toml`.
 
-## Implementation Considerations
+## Implementation & Security Considerations
 
-### Nested Sandboxing (Bubblewrap Support)
-OpenFang often orchestrates sub-agents that require their own isolation. To support **bubblewrap (`bwrap`)** nested sandboxing:
-- **Namespaces**: `RestrictNamespaces=yes` is **omitted**. `bwrap` relies on unprivileged user namespaces (`CLONE_NEWUSER` and `CLONE_NEWNS`) to build its sandbox.
-- **Process Info**: `ProtectProc=invisible` and `ProcSubset=pid` are **omitted**. This allows `bwrap` to securely bind its own `/proc` filesystem without crashing due to lack of visibility.
-- **Elevation**: `NoNewPrivileges=yes` is maintained as it is compatible with modern `bwrap` and enhances overall security.
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `openfang-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
-### Filesystem Hardening
-- **Strict Protection**: Uses `ProtectSystem=strict` and `TemporaryFileSystem=%h` to ensure the daemon cannot see or modify the user's real home directory by default.
-- **Explicit Mounts**:
-    - `~/.local/share/openfang`: Persistent data and state store.
-    - `~/agent-shared`: Shared integration directory.
-- **Read-Only System Paths**: SSL certificates and network configuration are mounted as read-only.
+### Sandboxing Profile
+OpenFang utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
 
-### Environment
-- **HOME Redirection**: `HOME` is set to `%h/.local/share/openfang` within the service to isolate user-level configuration (like `.ssh` or `.gitconfig`).
-- **Secrets**: Environment variables are loaded from `~/.config/systemd/user/openfang.env`.
+1. **Namespace Support (Bubblewrap)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: OpenFang orchestrates tools and sub-agents that require their own isolation using bubblewrap (`bwrap`). `bwrap` relies on unprivileged user namespaces (`CLONE_NEWUSER` and `CLONE_NEWNS`) to build its sandbox; restricting namespaces or procfs traversal inside the systemd service would block this ability.
+
+2. **Writable & Executable Memory (Execution Runtimes)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: Required for runtime code generators, JITs, and executing dynamically compiled Python/Javascript code blocks during tool workflows.
+
+3. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: The agent's persistent directories (`~/.local/share/openfang`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.

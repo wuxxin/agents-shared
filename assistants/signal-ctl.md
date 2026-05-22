@@ -62,10 +62,13 @@ exit
 - **Optional REST API**: A Go-based `signal-cli-rest-api` (HTTP port 50889) can be enabled/disabled via `SIGNAL_REST_API_ENABLED`.
 - **Communication**: The REST API connects to the daemon via the TCP JSON-RPC interface on port 50887.
 
-### Security
-- **Hardening**: `signal-cli` runs with `ProtectSystem=strict` and `TemporaryFileSystem=%h`.
-- **JVM Requirements**: `MemoryDenyWriteExecute` is **disabled** because the JVM requires writable and executable memory for JIT compilation.
+### Security & Sandboxing
+
+- **Centralized Sandboxing**: All systemd security and namespace options are centralized in the `get_shared_options` function within `signal-ctl`. This ensures that the persistent background service (`signal-cli.service`) and any transient runs (`exec` / `shell` commands) run with identical sandbox profiles, preventing configuration drift.
+- **Hardening**: Runs with a very strict profile including `ProtectSystem=strict`, `TemporaryFileSystem=%h` (transient home mount point), and `RestrictNamespaces=yes`.
+- **JVM Requirements**: `MemoryDenyWriteExecute` is **intentionally omitted** because the Java Virtual Machine requires writable and executable memory mappings for its JIT compiler.
 - **Isolation**: The data directory `~/.local/share/signal-cli` is bind-mounted, but the rest of the home directory is hidden.
+- **Process Isolation**: Confinement is tightened with `ProtectProc=invisible`, `ProcSubset=pid`, and restrictive system call filtering (`SystemCallArchitectures=native`).
 
 ### Configuration
 - `signal-cli.env`: Controls the phone number (`SC_ACCOUNT`), TCP/HTTP ports (`SC_TCP_PORT`, `SC_HTTP_PORT`), and extra flags (e.g. `--ignore-stories`).

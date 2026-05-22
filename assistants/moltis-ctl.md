@@ -152,17 +152,30 @@ language = "en"
 
 Moltis supports OpenClaw data and setting imports directly through the Web UI. During the initial onboarding steps (at `https://localhost:13131`), if a legacy OpenClaw workspace is detected, Moltis will prompt you to import settings and agent configurations.
 
-## Implementation Considerations
+## Implementation & Security Considerations
 
-### Network Access
-- **Privileged Binding**: `CapabilityBoundingSet=CAP_NET_BIND_SERVICE` and `AmbientCapabilities=CAP_NET_BIND_SERVICE` are set to allow Moltis to bind to privileged ports if necessary.
-- **Bind Address**: The default `ExecStart` uses `--bind 0.0.0.0`, making the server accessible across the local network.
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `moltis-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
-### Storage and Isolation
-- **Persistent Data**: All state is stored in `~/.local/share/moltis`.
-- **HOME Redirection**: The service redirects `HOME` to `%h/.local/share/moltis` to ensure all application state stays within the designated data directory.
-- **Integration**: Explicitly binds `~/agent-shared` to allow cross-agent data sharing.
+### Sandboxing Profile
+Moltis utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the source code of Moltis, these permissions are required:
 
-### Security
-- **Hardening**: Uses `NoNewPrivileges=yes`, `ProtectSystem=strict`, and `PrivateTmp=yes`.
-- **Devices**: `PrivateDevices=no` is set to allow potential hardware-backed operations if required by specific plugins.
+1. **Namespace Support (Bubblewrap)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: Moltis features a built-in user namespace-based tool execution sandbox. Restricting namespaces or procfs traversal inside the systemd service would block the agent's ability to spawn nested sandboxes using `bwrap`.
+
+2. **Writable & Executable Memory (WASM Plugins)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: Moltis supports WebAssembly plugins. Blocks or strict JIT filters in systemd would prevent the WASM compiler (e.g. Wasmtime) and Python/JIT tool dependencies from allocating writeable/executable memory ranges.
+
+3. **Network Access (Privileged Ports)**
+   - **Properties Set**: `CapabilityBoundingSet=CAP_NET_BIND_SERVICE` and `AmbientCapabilities=CAP_NET_BIND_SERVICE`.
+   - **Rationale**: This allows Moltis to bind to privileged ports (ports < 1024 like 80/443) if configured by the user, while dropping all other Linux capabilities.
+
+4. **Physical Devices (Hardware Integrations)**
+   - **Property Set**: `PrivateDevices=no` by default.
+   - **Rationale**: Allows potential hardware-backed operations or microcontroller access if required by specific plugins.
+
+5. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: The agent's persistent directories (`~/.local/share/moltis`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.

@@ -45,6 +45,53 @@ load_env() {
 }
 
 # ---------------------------------------------------------------------------
+# Shared Sandboxing Configuration
+# ---------------------------------------------------------------------------
+get_shared_options() {
+    local mode="$1" # "service" or "transient"
+    local home_spec
+    if [ "$mode" = "service" ]; then
+        home_spec="%h"
+    else
+        home_spec="$HOME"
+    fi
+
+    # Environment file & Working directory
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-speech-to-text.env"
+    echo "WorkingDirectory=${home_spec}"
+
+    # Basic hardening (kept minimal for GPU access)
+    echo "NoNewPrivileges=yes"
+    echo "CapabilityBoundingSet="
+    echo "AmbientCapabilities="
+
+    # GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
+    echo "PrivateDevices=no"
+    echo "PrivateTmp=yes"
+    echo "PrivateMounts=yes"
+    echo "PrivateIPC=yes"
+
+    echo "ProtectSystem=strict"
+    # Allow read-write access to home-based paths (for temp ffmpeg files)
+    echo "BindPaths=${home_spec}"
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "ReadWritePaths=/data/public/machine-learning"
+
+    echo "ProtectKernelTunables=yes"
+    echo "ProtectKernelModules=yes"
+    echo "ProtectKernelLogs=yes"
+    echo "ProtectControlGroups=yes"
+    echo "ProtectClock=yes"
+    echo "ProtectHostname=yes"
+
+    echo "LockPersonality=yes"
+    echo "RestrictSUIDSGID=yes"
+    echo "RestrictRealtime=yes"
+    echo "KeyringMode=private"
+    echo "UMask=0077"
+}
+
+# ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
 # ---------------------------------------------------------------------------
 generate_service_file() {
@@ -58,14 +105,7 @@ After=network.target
 
 [Service]
 Type=simple
-
-# Load model/runtime configuration from env file
-EnvironmentFile=${ENV_FILE}
-
-# Working directory
-WorkingDirectory=%h
-
-# ExecStart running whisper-server with ROCm GPU acceleration and OpenAI compat path
+\$(get_shared_options service)
 ExecStart=whisper-server \\
     --model ${LSTT_MODEL} \\
     --host ${LSTT_HOST} \\
@@ -83,36 +123,6 @@ RestartSec=10s
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=local-speech-to-text
-
-# --- Basic hardening (kept minimal for GPU access) ---
-NoNewPrivileges=yes
-CapabilityBoundingSet=
-AmbientCapabilities=
-
-# GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
-PrivateDevices=no
-PrivateTmp=yes
-PrivateMounts=yes
-PrivateIPC=yes
-
-ProtectSystem=strict
-# Allow read-write access to home-based paths (for temp ffmpeg files)
-BindPaths=%h
-ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf
-ReadWritePaths=/data/public/machine-learning
-
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-ProtectClock=yes
-ProtectHostname=yes
-
-LockPersonality=yes
-RestrictSUIDSGID=yes
-RestrictRealtime=yes
-KeyringMode=private
-UMask=0077
 
 [Install]
 WantedBy=default.target
@@ -265,31 +275,13 @@ cmd_exec() {
         --collect
         --quiet
         -p "Type=exec"
-        -p "EnvironmentFile=-${ENV_FILE}"
-        -p "WorkingDirectory=$HOME"
-        -p "NoNewPrivileges=yes"
-        -p "CapabilityBoundingSet="
-        -p "AmbientCapabilities="
-        -p "PrivateDevices=no"
-        -p "PrivateTmp=yes"
-        -p "PrivateMounts=yes"
-        -p "PrivateIPC=yes"
-        -p "ProtectSystem=strict"
-        -p "BindPaths=$HOME"
-        -p "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-        -p "ReadWritePaths=/data/public/machine-learning"
-        -p "ProtectKernelTunables=yes"
-        -p "ProtectKernelModules=yes"
-        -p "ProtectKernelLogs=yes"
-        -p "ProtectControlGroups=yes"
-        -p "ProtectClock=yes"
-        -p "ProtectHostname=yes"
-        -p "LockPersonality=yes"
-        -p "RestrictSUIDSGID=yes"
-        -p "RestrictRealtime=yes"
-        -p "KeyringMode=private"
-        -p "UMask=0077"
     )
+
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
@@ -319,31 +311,13 @@ cmd_shell() {
         --collect
         --quiet
         -p "Type=exec"
-        -p "EnvironmentFile=-${ENV_FILE}"
-        -p "WorkingDirectory=$HOME"
-        -p "NoNewPrivileges=yes"
-        -p "CapabilityBoundingSet="
-        -p "AmbientCapabilities="
-        -p "PrivateDevices=no"
-        -p "PrivateTmp=yes"
-        -p "PrivateMounts=yes"
-        -p "PrivateIPC=yes"
-        -p "ProtectSystem=strict"
-        -p "BindPaths=$HOME"
-        -p "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-        -p "ReadWritePaths=/data/public/machine-learning"
-        -p "ProtectKernelTunables=yes"
-        -p "ProtectKernelModules=yes"
-        -p "ProtectKernelLogs=yes"
-        -p "ProtectControlGroups=yes"
-        -p "ProtectClock=yes"
-        -p "ProtectHostname=yes"
-        -p "LockPersonality=yes"
-        -p "RestrictSUIDSGID=yes"
-        -p "RestrictRealtime=yes"
-        -p "KeyringMode=private"
-        -p "UMask=0077"
     )
+
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
     systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }

@@ -136,31 +136,26 @@ Add the following sections to `~/.local/share/picoclaw/config.json`:
 }
 ```
 
-## Implementation Considerations
+## Implementation & Security Considerations
 
-### Configuration & Ports
-- **Default Ports**:
-  - **Gateway (HTTP/Webhook channels)**: `18790`
-  - **Launcher Web UI**: `18800`
-- **Secrets & Configuration**: Loaded from `~/.config/systemd/user/picoclaw.env` and defined via config settings in `~/.local/share/picoclaw/config.json`.
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `picoclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
-### Strict Sandboxing
-Unlike OpenFang, which relaxes some system restrictions to allow nested `bwrap` sandboxing, PicoClaw uses a stricter confinement profile as recommended by the upstream maintainers:
-- **Process Info**: `ProtectProc=invisible` and `ProcSubset=pid` are enabled to hide other system processes from the daemon.
-- **Namespaces**: `RestrictNamespaces=yes` is enforced, preventing the creation of new namespaces.
-- **Memory Protection**: `MemoryDenyWriteExecute=yes` is enabled to prevent the creation of memory mappings that are writable and executable at the same time.
+### Sandboxing Profile
+PicoClaw utilizes a **Strict Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
 
-### Storage and Isolation
-- **Persistent Data**: All state is stored in `~/.local/share/picoclaw` (which is mapped to `PICOCLAW_HOME`).
-- **Integration**: Explicitly binds `~/agent-shared` to allow cross-agent data sharing and integration.
-- **Hardening**: Standard systemd sandbox features such as `NoNewPrivileges=yes`, `ProtectSystem=strict`, and `PrivateTmp=yes` are strictly applied.
+1. **Go Runtime & Strict Memory Protection**
+   - **Property Set**: `MemoryDenyWriteExecute=yes`.
+   - **Rationale**: PicoClaw is written in Go, which compiles to a static native binary. It does not require dynamic JIT compilation or writable/executable memory mappings, allowing the strict enforcement of `MemoryDenyWriteExecute=yes` to mitigate JIT exploitation risks.
 
-### Launcher vs CLI
-- **Service Execution**: The systemd background service uses `picoclaw-launcher -no-browser` as its `ExecStart` target, running the built-in web console service.
-- **CLI Execution**: The `picoclaw-ctl exec` command specifically targets the `/usr/bin/picoclaw` executable rather than the launcher, providing direct access to the core agent CLI binary.
+2. **Strict Namespaces & Process Isolation**
+   - **Properties Enforced**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: Unlike agents that execute nested Bubblewrap/Docker tool sandboxes, PicoClaw runs completely self-contained tasks. It can thus block namespace creation and restrict `/proc` filesystem visibility to maximize host isolation.
 
-### Environment Context
-Environment variables are securely loaded from `~/.config/systemd/user/picoclaw.env`. The systemd service implicitly passes essential context to the underlying agent using specific environment variables:
-- `PICOCLAW_HOME=%h/.local/share/picoclaw`
-- `PICOCLAW_CONFIG=%h/.local/share/picoclaw/config.json`
-- `PICOCLAW_BINARY=/usr/bin/picoclaw`
+3. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: Redirection of `HOME` to `%h` ensures correct user-level context pathing. The persistent home (`~/.local/share/picoclaw`), `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+
+4. **Launcher vs CLI**
+   - **Service Execution**: The systemd background service uses `picoclaw-launcher -no-browser` as its `ExecStart` target, running the built-in web console service.
+   - **CLI Execution**: The `picoclaw-ctl exec` command specifically targets the `/usr/bin/picoclaw` executable rather than the launcher, providing direct access to the core agent CLI binary.

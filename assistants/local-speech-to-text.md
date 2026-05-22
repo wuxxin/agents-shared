@@ -53,7 +53,10 @@ Hardware: AMD Radeon Pro W6800 — **30,704 MiB** usable VRAM.
 
 The service requires approximately **1.4 GiB** of VRAM when loaded. It runs entirely on the GPU, ensuring sub-second transcription response times for short speech snippets.
 
-## Implementation Considerations
+## Implementation & Security Considerations
+
+### Centralized Sandboxing Configuration
+All systemd security and namespace options are centralized in the `get_shared_options` function within the control script. This ensures that the persistent background service (`local-speech-to-text.service`) and any transient runs (`exec` / `shell` commands) run with identical sandbox profiles, preventing configuration drift.
 
 ### ROCm / GPU Access
 Because `whisper-server` requires direct access to GPU device nodes:
@@ -65,7 +68,7 @@ Because `whisper-server` requires direct access to GPU device nodes:
 - **Models**: Read-write access to `/data/public/machine-learning` is configured (required to read the GGML model).
 - **Sandboxing**: Uses `ProtectSystem=strict`.
 - **Audio Conversion**: The server automatically transcodes input audio files (e.g. MP3, AAC, FLAC) to the required format (16kHz WAV) using `ffmpeg`. Therefore, the script configures `BindPaths=%h` to allow the server to write transient temporary transcoded files in the home directory sandbox.
-- **Isolation**: The home directory `%h` is bind-mounted, and system paths are kept read-only.
+- **Isolation**: The home directory (`%h` / `$HOME`) is bind-mounted, and system paths are kept read-only.
 
 ### Configuration & Ports
 - **Default Port**: `50090`

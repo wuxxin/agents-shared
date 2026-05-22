@@ -124,7 +124,10 @@ Running the `local-speech-to-text` service (`whisper-server` using `ggml-large-v
 - Adjusted Free Headroom: **~1,134 MiB** (Safe)
 
 
-## Implementation Considerations
+## Implementation & Security Considerations
+
+### Centralized Sandboxing Configuration
+All systemd security and namespace options are centralized in the `get_shared_options` function within the control script. This ensures that the persistent background service (`local-inference.service`) and any transient runs (`exec` / `shell` commands) run with identical sandbox profiles, preventing configuration drift.
 
 ### ROCm / GPU Access
 Because `llama-server` requires direct access to GPU device nodes:
@@ -135,7 +138,7 @@ Because `llama-server` requires direct access to GPU device nodes:
 ### Filesystem and Data Access
 - **Models**: Read-write access to `/data/public/machine-learning` is configured.
 - **Sandboxing**: Uses `ProtectSystem=strict`.
-- **Isolation**: The user's home directory `%h` is bind-mounted to allow the server to read its configurations, while system paths are protected.
+- **Isolation**: The user's home directory (`%h` / `$HOME`) is bind-mounted to allow the server to read its configurations, while system paths are protected.
 
 ### Configuration & Ports
 - **Default Port**: `50080` (llama-server OpenAI-compatible API — LLM, embeddings, reranking)

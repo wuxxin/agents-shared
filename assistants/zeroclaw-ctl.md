@@ -147,9 +147,26 @@ ZeroClaw supports importing history and conversation memory logs from an existin
 ```
 This command imports the legacy SQLite database memory logs directly into ZeroClaw's memory format.
 
-## Implementation Considerations
+## Implementation & Security Considerations
+
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `zeroclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
 ### Sandboxing Profile
-ZeroClaw utilizes the **Relaxed Namespaces Profile** in its systemd unit. This is necessary because ZeroClaw supports nested sandboxing mechanisms (Bubblewrap) for its tool executions.
-- `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes` are omitted.
-- Provides standard system filesystem isolation while preserving the ability for the agent to spawn secure sub-sandboxes via `bwrap`.
+ZeroClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the source code of ZeroClaw (`v0.8.0-beta-1`), these permissions are required:
+
+1. **Namespace Support (Bubblewrap)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: ZeroClaw features a built-in user namespace-based tool execution sandbox (`crates/zeroclaw-runtime/src/security/bubblewrap.rs`). Restricting namespaces or procfs traversal inside the systemd service would block the agent's ability to spawn nested sandboxes using `bwrap`.
+
+2. **Writable & Executable Memory (WASM Plugins)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: ZeroClaw supports WebAssembly plugins (`plugins-wasm` feature in the runtime). Blocks or strict JIT filters in systemd would prevent the WASM compiler (e.g. Wasmtime) and Python/JIT tool dependencies from allocating writeable/executable memory ranges.
+
+3. **Physical Devices (USB / Microcontrollers)**
+   - **Property Set**: `PrivateDevices=yes` by default.
+   - **Rationale**: For security, physical hardware devices are hidden. However, if you are actively using hardware discovery (`zeroclaw hardware discover`) or board flashing (`zeroclaw peripheral flash-nucleo`) over serial/USB, you must configure `PrivateDevices=no` to allow device node access under `/dev`.
+
+4. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: The agent's persistent directories (`~/.local/share/zeroclaw`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
