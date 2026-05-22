@@ -19,3 +19,12 @@ python3 scripts/tiktoken_count.py <file_or_string>
 ## `tiktoken_tps_sim.py`
 
 Simulates token-per-second (TPS) throughput for various models to help calibrate timeout settings and performance expectations.
+
+## `local-download.sh`
+
+An intelligent Bash utility to download local AI models (LLM, Embeddings, Reranker, Whisper Speech-to-Text) to a target directory. It utilizes local cache fallbacks, Hugging Face Hub (`hf download`) integration, and handles local GGUF conversion & quantization for the reranker if pre-converted assets are unavailable.
+
+```bash
+./scripts/local-download.sh <target_model_dir> --all
+```
+
