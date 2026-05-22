@@ -105,7 +105,7 @@ After=network.target
 
 [Service]
 Type=simple
-\$(get_shared_options service)
+$(get_shared_options service)
 ExecStart=whisper-server \\
     --model ${LSTT_MODEL} \\
     --host ${LSTT_HOST} \\

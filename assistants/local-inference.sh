@@ -193,7 +193,7 @@ After=network.target
 
 [Service]
 Type=simple
-\$(get_shared_options service)
+$(get_shared_options service)
 ExecStart=llama-server \\
     --models-preset ${INI_FILE} \\
     --models-max ${MODELS_MAX} \\

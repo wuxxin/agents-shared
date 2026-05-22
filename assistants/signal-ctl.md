@@ -26,21 +26,34 @@ This command:
 
 ## Account Setup
 
-Before starting the service for the first time, you must link or register an account. Use the `shell` command to perform this in the restricted environment:
+Before starting the service, you must link an account. Run the interactive shell in the sandbox environment:
 
 ```bash
 ./assistants/signal-ctl stop
 ./assistants/signal-ctl shell
+```
 
-# Link an existing account (shows a QR code)
-signal-cli --config "$SC_CONFIG_DIR" link --name "$(hostname)" | \
+Choose one of the following methods:
+
+### Method A: Link an Existing Account (Recommended)
+This links the daemon to your existing Signal account on your mobile phone as a secondary linked device:
+
+```bash
+# Link the account (this will output a QR code in the terminal)
+signal-cli --config "$SC_CONFIG_DIR" link --name "noben" | \
     tee >(head -1 | qrencode -t ANSIUTF8 >&2)
+```
+Scan the QR code with your phone's Signal app (**Settings -> Linked Devices -> Add Device**).
 
-# Verify if prompted
-signal-cli --config "$SC_CONFIG_DIR" verify <code>
-
-# Exit shell and start services
+```bash
+# Exit the sandbox shell
 exit
+
+# Configure the phone number in the environment file
+./assistants/signal-ctl edit
+# (Set SC_ACCOUNT=+your_phone_number, then save and exit)
+
+# Start services
 ./assistants/signal-ctl start
 ```
 

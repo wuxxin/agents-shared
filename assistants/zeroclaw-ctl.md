@@ -19,14 +19,25 @@
 
 - **Default Port**: `42617` (ZeroClaw Gateway)
 - **Port Customization Options**:
-  If the default port (`42617`) needs to be modified, you can configure the new port using one of the following methods:
-  1. **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the gateway with the `zeroclaw gateway start --port $ZEROCLAW_PORT` command (since `--port` is a parameter on the `start` subcommand, not the base `gateway` command).
-  2. **Config File**: Set the port directly inside the ZeroClaw configuration file (`~/.local/share/zeroclaw/.zeroclaw/config.toml`):
-     ```toml
-     [gateway]
-     port = 42617
-     ```
-  3. **Global Environment Variable**: Set the `ZEROCLAW_gateway__port` environment variable (e.g., `ZEROCLAW_gateway__port=42617`), which ZeroClaw's configuration engine automatically parses and applies as an override to the `gateway.port` setting.
+  If the default port (`42617`) needs to be modified, you can configure the new port using:
+  **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the gateway with the `zeroclaw gateway start --port $ZEROCLAW_PORT` command (since `--port` is a parameter on the `start` subcommand, not the base `gateway` command).
+
+## Onboarding
+
+1. **Install Service**: Run `./assistants/zeroclaw-ctl install` to initialize `~/.local/share/zeroclaw` and register the systemd user service.
+2. **Interactive Onboarding**: Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/share/zeroclaw/.zeroclaw/config.toml`.
+3. **Verify Connection**: Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model fallback status. Test chat via `./assistants/zeroclaw-ctl exec agent -a <agent_alias>`.
+4. **Start Gateway**: Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
+5. **Switch to Local Inference & Qwen3**: Edit `~/.local/share/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
+```toml
+[providers.models.openai.local]
+uri = "http://127.0.0.1:50080/v1"
+model = "qwen3"
+api_key = "unused"
+```
+Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
+```
+
 
 ## Signal Channel Configuration
 
@@ -37,10 +48,15 @@ ZeroClaw supports native Signal integration. It communicates with the daemon via
 Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/share/zeroclaw/.zeroclaw/config.toml`):
 
 ```toml
-[channels.signal]
+[channels.signal.default]
+approval_timeout_secs = 0
+dm_only = true
 enabled = true
-phone_number = "+1234567890"                  # Your registered Signal phone number
-signal_cli_rest_url = "http://localhost:50889" # Endpoint of the signal-cli-rest-api service
+ignore_attachments = false
+ignore_stories = true
+http_url = "http://localhost:50889"
+# account = Your registered Signal phone number
+account = "+1234567890"                  
 ```
 
 Make sure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. ZeroClaw will retrieve message payloads and send messages through this endpoint.
@@ -57,41 +73,15 @@ Add the following to your `config.toml` configuration file (located in the sandb
 [memory]
 # Native hybrid (keyword FTS + vector similarity) SQLite backend
 backend = "sqlite-hybrid"
-db_path = "~/.zeroclaw/memory.db"
 
-# Enable automatic context compression when reaching limit
-context_compression = true
+embedding_model = "qwen3-embedding"
+embedding_provider = "custom:http://127.0.0.1:50080/v1"
 
-# Maximum conversational turns to hold in active context before compressing
-history_limit = 100
-
-[embeddings]
-# Embedding provider (OpenAI-compatible)
-provider = "openai"
-model = "text-embedding-3-small"
-
-# Local Inference (llama-server) or Ollama endpoint mapping
-api_base = "http://localhost:50080/v1"
-api_key = "unused"
 ```
 
 ### Reranking Configuration
 
-ZeroClaw includes a built-in weighted hybrid search (0.7 vector similarity / 0.3 keyword FTS) that does not require an external reranker. However, you can optionally integrate an external reranker for improved precision on large retrieval sets. Add the following to `~/.local/share/zeroclaw/.zeroclaw/config.toml`:
-
-```toml
-[reranker]
-# External reranker: "local" (OpenAI-compatible /v1/rerank), or "disabled" (use built-in hybrid)
-provider = "local"
-model = "qwen3-reranker"
-
-# Local reranker endpoint (served by local-inference on port 50080)
-api_base = "http://localhost:50080/v1"
-api_key = "unused"
-
-# Number of top candidates to rerank
-top_k = 30
-```
+ZeroClaw includes a built-in weighted hybrid search (0.7 vector similarity / 0.3 keyword FTS) that does not require an external reranker. 
 
 ## Speech-to-Text Integration
 
@@ -123,21 +113,6 @@ enabled = true
 url = "http://localhost:50090/v1/audio/transcriptions"
 bearer_token = "dummy"
 ```
-
-## Onboarding
-
-1. **Install Service**: Run `./assistants/zeroclaw-ctl install` to initialize `~/.local/share/zeroclaw` and register the systemd user service.
-2. **Interactive Onboarding**: Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/share/zeroclaw/.zeroclaw/config.toml`.
-3. **Verify Connection**: Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model fallback status. Test chat via `./assistants/zeroclaw-ctl exec agent -a <agent_alias>`.
-4. **Start Gateway**: Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
-5. **Switch to Local Inference & Qwen3**: Edit `~/.local/share/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
-   ```toml
-   [providers.models.openai.local]
-   model = "qwen3"
-   uri = "http://localhost:50080/v1"
-   api_key = "unused"
-   ```
-   Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
 
 ### OpenClaw Migration
 

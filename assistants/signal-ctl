@@ -50,12 +50,15 @@ get_shared_options() {
     echo "ProtectClock=yes"
     echo "ProtectHostname=yes"
     echo "ProtectProc=invisible"
-    echo "ProcSubset=pid"
     echo "RestrictNamespaces=yes"
     echo "LockPersonality=yes"
 
-    # Note: MemoryDenyWriteExecute is intentionally omitted.
-    # The JVM requires the ability to create W+X memory mappings (JIT compilation).
+    # Note: MemoryDenyWriteExecute is intentionally omitted because the JVM
+    # requires the ability to create W+X memory mappings (JIT compilation).
+    #
+    # Note: ProcSubset=pid is intentionally omitted because the JVM requires
+    # access to global /proc files (like /proc/meminfo and /proc/cpuinfo)
+    # to inspect system resource limits and initialize garbage collection / JIT threads.
 
     echo "SystemCallArchitectures=native"
     echo "PrivateIPC=yes"
@@ -80,20 +83,20 @@ After=network.target
 
 [Service]
 Type=simple
-\$(get_shared_options service)
+$(get_shared_options service)
 
 # signal-cli daemon with JSON-RPC TCP endpoint.
 # SC_ACCOUNT may be empty to run in multi-account mode (all registered accounts).
 # SC_EXTRA_SUFFIXES can hold additional flags like --send-read-receipts, --ignore-stories.
-ExecStart=/bin/sh -c 'exec signal-cli \\
-    \${SC_EXTRA_PREFIXES} \\
-    --config "\${SC_CONFIG_DIR}" \\
-    \${SC_ACCOUNT:+--account "\${SC_ACCOUNT}"} \\
+ExecStart=/bin/sh -c 'SC_CONFIG_DIR_RESOLVED=\$(eval echo "\$\$SC_CONFIG_DIR") && exec signal-cli \\
+    \$\$SC_EXTRA_PREFIXES \\
+    --config "\$\$SC_CONFIG_DIR_RESOLVED" \\
+    \$\${SC_ACCOUNT:+--account "\$\$SC_ACCOUNT"} \\
     daemon \\
-    --tcp "\${SC_TCP_HOST}:\${SC_TCP_PORT}" \\
-    --http "\${SC_TCP_HOST}:\${SC_HTTP_PORT}" \\
+    --tcp "\$\$SC_TCP_HOST:\$\$SC_TCP_PORT" \\
+    --http "\$\$SC_TCP_HOST:\$\$SC_HTTP_PORT" \\
     --receive-mode on-start \\
-    \${SC_EXTRA_SUFFIXES}'
+    \$\$SC_EXTRA_SUFFIXES'
 
 Restart=on-failure
 RestartSec=10s
@@ -171,12 +174,12 @@ SC_HTTP_PORT=50888
 #   --ignore-avatars       Don't download avatars of received messages.
 #   --ignore-stickers      Don't download sticker packs of received messages.
 # ---------------------------------------------------------------------------
-SC_EXTRA_SUFFIXES="--ignore-stories"
+SC_EXTRA_SUFFIXES="--ignore-stories --ignore-stickers"
 
 # Valid options: 
 #   --verbose for debug, can be repeated for more verbosity
 # ---------------------------------------------------------------------------
-SC_EXTRA_PREFIXES="--verbose"
+SC_EXTRA_PREFIXES=""
 
 EOF
         chmod 600 "$ENV_FILE"
@@ -198,7 +201,7 @@ PORT=50889
 
 # Execution mode. 'json-rpc' connects to the external signal-cli daemon.
 MODE=json-rpc
-LOG_LEVEL=info
+LOG_LEVEL=warning
 
 # Set to false to disable starting the REST API service automatically
 SIGNAL_REST_API_ENABLED=true
