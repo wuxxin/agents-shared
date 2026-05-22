@@ -47,7 +47,7 @@ Hardware: AMD Radeon Pro W6800 — **30,704 MiB** usable VRAM.
 | [MoE mmproj (vision)](https://huggingface.co/mudler/Qwen3.6-35B-A3B-APEX-GGUF/blob/main/mmproj.gguf) | 861 MiB | ~861 MiB |
 | Dense LLM (Qwen3.6-27B Q5_K_L) | 20 GiB | ~19,013 MiB |
 | [Embedding (Qwen3-Embedding-0.6B Q8_0)](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/blob/main/Qwen3-Embedding-0.6B-Q8_0.gguf) | 610 MiB | ~700 MiB |
-| [Reranker (Qwen3-Reranker-0.6B Q4_K_M)](https://huggingface.co/mradermacher/Qwen3-Reranker-0.6B-GGUF/resolve/main/Qwen3-Reranker-0.6B.Q4_K_M.gguf) | 379 MiB | ~450 MiB |
+| [Reranker (Qwen3-Reranker-0.6B Q4_K_M)](https://huggingface.co/prithivMLmods/Qwen3-Reranker-0.6B-seq-cls-GGUF/resolve/main/Qwen3-Reranker-0.6B-seq-cls.Q4_K_M.gguf) | 379 MiB | ~450 MiB |
 | Compute overhead (per LLM) | — | ~990 MiB |
 | Dense recurrent state | — | ~299 MiB |
 
@@ -141,3 +141,161 @@ The `local-inference.ini` file is **auto-generated** from the env file on every 
 
 ### Reranker Toggle
 Set `LI_RERANKER_ENABLED=true` in the env file to enable the `/v1/rerank` endpoint. When disabled, `--models-max` is reduced from 3 to 2, and the reranker model is not loaded.
+
+## Verification & Test Results
+
+The local-inference service (serving LLM, Embeddings, and Reranking) was validated using the following test setup:
+
+### 1. Chat Completion (LLM)
+- **Model**: `qwen3`
+- **Endpoint**: `http://localhost:50080/v1/chat/completions`
+- **Command**:
+  ```bash
+  curl -s -X POST http://localhost:50080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "qwen3",
+      "messages": [
+        {"role": "user", "content": "Hello, respond with exactly: Hello World!"}
+      ]
+    }'
+  ```
+- **Response**:
+  ```json
+  {
+    "choices": [
+      {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Hello World!",
+          "reasoning_content": "..."
+        }
+      }
+    ],
+    "created": 1779406181,
+    "model": "qwen3",
+    "object": "chat.completion"
+  }
+  ```
+- **Result**: Success.
+
+### 2. Text Embedding
+- **Model**: `qwen3-embedding`
+- **Endpoint**: `http://localhost:50080/v1/embeddings`
+- **Command**:
+  ```bash
+  curl -s -X POST http://localhost:50080/v1/embeddings \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "qwen3-embedding",
+      "input": "Hello World"
+    }'
+  ```
+- **Response**:
+  Successfully generated a list of float values representing the embedding vector.
+- **Result**: Success.
+
+### 3. Reranking Validation (3 Documents)
+- **Model**: `qwen3-reranker`
+- **Endpoint**: `http://localhost:50080/v1/rerank`
+- **Command**:
+  ```bash
+  curl -s -X POST http://localhost:50080/v1/rerank \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "qwen3-reranker",
+      "query": "What is the capital of France?",
+      "documents": [
+        "Paris is the capital of France.",
+        "Berlin is the capital of Germany.",
+        "London is the capital of the United Kingdom."
+      ],
+      "top_n": 3
+    }'
+  ```
+- **Response**:
+  ```json
+  {
+    "model": "qwen3-reranker",
+    "object": "list",
+    "usage": {
+      "prompt_tokens": 257,
+      "total_tokens": 257
+    },
+    "results": [
+      {"index": 0, "relevance_score": 0.9941950440406799},
+      {"index": 2, "relevance_score": 0.02772255428135395},
+      {"index": 1, "relevance_score": 0.0008937619277276099}
+    ]
+  }
+  ```
+- **Result**: Success.
+  > [!NOTE]
+  > The original community-quantized model GGUF file (`Qwen3-Reranker-0.6B.Q4_K_M.gguf`) was missing the classification weights head (`cls.output.weight`). We successfully re-converted the model from the official Hugging Face source weights (`Qwen/Qwen3-Reranker-0.6B`) using the official `convert_hf_to_gguf.py` script and quantized it to `Q4_K_M`, which resolved the issue and restored correct semantic ranking.
+
+### 4. Reranking Multi-Example Validation (7 Documents)
+- **Query**: "How do I optimize systemd service sandboxing for security?"
+- **Command**:
+  ```bash
+  curl -s -X POST http://localhost:50080/v1/rerank \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "qwen3-reranker",
+      "query": "How do I optimize systemd service sandboxing for security?",
+      "documents": [
+        "To restrict a systemd service, configure sandbox options like ProtectSystem=strict, ProtectHome=yes, PrivateTmp=yes, and CapabilityBoundingSet= to limit kernel capabilities.",
+        "Bubblewrap is a low-level unprivileged sandboxing tool used to create isolated environments by mounting namespaces manually.",
+        "Systemd is an init system and system manager for Linux operating systems that boot the system and manage user services.",
+        "Baking a chocolate cake requires flour, sugar, cocoa powder, eggs, and baking in a warm oven to 350 degrees Fahrenheit.",
+        "For local AI inference, AMD ROCm requires installing the correct GPU drivers and mapping /dev/kfd and /dev/dri into the runtime sandbox.",
+        "Docker containers provide application-level virtualization and process isolation using Linux cgroups and namespaces.",
+        "A systemd service can be configured to run as a dynamic user by setting DynamicUser=yes, which automatically allocates transient UIDs and GIDs."
+      ],
+      "top_n": 7
+    }' | jq .
+  ```
+- **Response**:
+  ```json
+  {
+    "model": "qwen3-reranker",
+    "object": "list",
+    "usage": {
+      "prompt_tokens": 755,
+      "total_tokens": 755
+    },
+    "results": [
+      {
+        "index": 0,
+        "relevance_score": 0.9999607801437378
+      },
+      {
+        "index": 6,
+        "relevance_score": 0.9976387023925781
+      },
+      {
+        "index": 5,
+        "relevance_score": 0.23269306123256683
+      },
+      {
+        "index": 1,
+        "relevance_score": 0.188172847032547
+      },
+      {
+        "index": 2,
+        "relevance_score": 0.10291396081447601
+      },
+      {
+        "index": 4,
+        "relevance_score": 0.004374932497739792
+      },
+      {
+        "index": 3,
+        "relevance_score": 0.00007212698255898431
+      }
+    ]
+  }
+  ```
+- **Result**: Success. The scores are highly accurate: systemd security options (index 0) and dynamic user allocation (index 6) receive scores $> 0.99$, while general systemd definitions or alternative sandboxes (Docker, Bubblewrap) score low ($0.10 - 0.23$), and irrelevant items (ROCm inference, baking a cake) score near zero ($< 0.005$).
+

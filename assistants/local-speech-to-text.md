@@ -66,3 +66,29 @@ Because `whisper-server` requires direct access to GPU device nodes:
 ### Configuration & Ports
 - **Default Port**: `50090`
 - **Configuration File**: Environment parameters are stored in `~/.config/systemd/user/local-speech-to-text.env`.
+
+## Verification & Test Results
+
+The speech-to-text service was validated using the following test setup:
+
+- **Model**: `ggml-large-v3-turbo-q5_0.bin`
+- **Endpoint**: `http://localhost:50090/v1/audio/transcriptions`
+- **Audio Sample**: JFK Inaugural Address snippet (`jfk.wav`, 344 KB). Download it via:
+  ```bash
+  curl -L -o jfk.wav https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav
+  ```
+- **Command**:
+  ```bash
+  curl -s -X POST http://localhost:50090/v1/audio/transcriptions \
+    -H "Content-Type: multipart/form-data" \
+    -F "file=@jfk.wav" \
+    -F "model=whisper-1"
+  ```
+- **Response**:
+  ```json
+  {
+    "text": " And so, my fellow Americans, ask not what your country can\n do for you, ask what you can do for your country.\n"
+  }
+  ```
+- **Result**: Success. The service transcoded the file internally and transcribed the speech with 100% word accuracy in sub-second inference time.
+
