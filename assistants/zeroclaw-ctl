@@ -32,9 +32,10 @@ Wants=network-online.target
 Type=simple
 Environment=HOME=%h/.local/share/zeroclaw
 Environment=ZEROCLAW_PORT=42617
+Environment=ZEROCLAW_HOST=127.0.0.1
 EnvironmentFile=-%h/.config/systemd/user/zeroclaw.env
 WorkingDirectory=%h/.local/share/zeroclaw
-ExecStart=/usr/bin/zeroclaw gateway start --port \$ZEROCLAW_PORT
+ExecStart=/usr/bin/zeroclaw daemon --host \$ZEROCLAW_HOST --port \$ZEROCLAW_PORT
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30
@@ -97,6 +98,8 @@ cmd_install() {
 # ---------------------------------------------------------------------------
 # ZEROCLAW_PORT: Gateway port for ZeroClaw (default 42617)
 ZEROCLAW_PORT=42617
+# ZEROCLAW_HOST: Gateway host for ZeroClaw (default *)
+ZEROCLAW_HOST=127.0.0.1
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
