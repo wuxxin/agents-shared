@@ -8,7 +8,7 @@
 
 - `assistants/`:
 
-Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for running various agents (Hermes, Moltis, NanoBot, NanoClaw, OpenFang, PicoClaw, ZeroClaw) and core local services (Inference, Speech-to-Text, and Signal gateways).
+Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for running various agents (Hermes, LibreFang, Moltis, NanoBot, NanoClaw, PicoClaw, ZeroClaw) and core local services (Inference, Speech-to-Text, and Signal gateways).
 
 - `scripts/`:
 

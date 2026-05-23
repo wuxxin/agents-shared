@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # moltis-ctl - installation and management wrapper for moltis
-# Inspired by openfang-ctl
 
 SERVICE_NAME="moltis"
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"

@@ -1,0 +1,167 @@
+# LibreFang Agent OS Management Guide
+
+`librefang-ctl` manages the LibreFang Agent OS daemon, providing a hardened execution environment for agentic workloads. LibreFang is the community-governed successor to OpenFang.
+
+- **Source Code**: [GitHub - librefang/librefang](https://github.com/librefang/librefang)
+- **Arch/AUR Packages**: `librefang-cli` (provides the client and server binary `/usr/bin/librefang`), `librefang-git` (latest git-based server package).
+
+## Installation
+
+```bash
+./assistants/librefang-ctl install
+```
+
+## Commands
+
+`librefang-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
+
+## Configuration & Ports
+
+- **Default Port**: `4545` (LibreFang daemon API)
+- **Secrets & Configuration**: Loaded from `~/.config/systemd/user/librefang.env` and defined via config settings in the configuration file (`~/.librefang/config.toml`).
+
+## OpenFang Migration
+
+LibreFang includes a native migration utility to transition configuration, keys, and agent databases from an existing OpenFang installation.
+
+To run the migration under the sandboxed environment directories:
+
+```bash
+# Preview the migration (Dry Run)
+./assistants/librefang-ctl migrate --dry-run
+
+# Run the migration
+./assistants/librefang-ctl migrate
+```
+
+This will automatically copy and translate your old configuration from `~/.local/share/openfang/.openfang` to the new LibreFang path `~/.local/share/librefang/.librefang`.
+
+---
+
+## Signal Channel Configuration
+
+LibreFang supports native Signal integration. In this environment, it interfaces with the Go-based REST API wrapper.
+
+### Configuration
+
+Add the following to your `~/.librefang/config.toml` config file (located in the sandboxed home directory at `~/.local/share/librefang/.librefang/config.toml`):
+
+```toml
+[channels.signal]
+api_url = "http://localhost:50889"  # Endpoint of the signal-cli REST API
+phone_number = "+1234567890"        # Your registered Signal phone number
+allowed_users = ["+1987654321"]     # Optional: List of allowed phone numbers/UUIDs (empty = allow all)
+default_agent = "my-agent"          # Optional: Default agent name to route messages to
+```
+
+Ensure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. LibreFang will connect to the REST wrapper to retrieve message updates and send replies.
+
+---
+
+## Search, Retrieval & Embedding Configuration
+
+LibreFang features native SQLite and vector memory stores for persistent agent memory, task scheduling, and background search/research. Embedding models from different providers (including local and OpenAI endpoints) can be registered to populate vector databases. Agents can also query external search APIs or databases using MCP (Model Context Protocol).
+
+### Configuration
+
+Add the following sections to `~/.librefang/config.toml` (located under the isolated home at `~/.local/share/librefang/.librefang/config.toml`):
+
+```toml
+[memory]
+backend = "sqlite"                    # Default SQLite backend
+vector_storage_enabled = true         # Enable vector search
+db_path = "~/.librefang/memory.db"
+
+[embeddings]
+provider = "local"
+model = "text-embedding-3-small"
+
+# Local Inference (llama-server) or Ollama endpoint mapping
+base_url = "http://localhost:50080/v1"
+api_key = "unused"
+
+[mcp]
+# Connect to external vector DB or search servers via Model Context Protocol
+[mcp.servers.qdrant]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-qdrant"]
+env = { QDRANT_URL = "http://localhost:6333" }
+```
+
+### Reranking Configuration
+
+LibreFang supports reranking via configurable provider endpoints (Cohere-compatible API). Add the following to `~/.librefang/config.toml` (located under `~/.local/share/librefang/.librefang/config.toml`):
+
+```toml
+[reranker]
+# Reranker provider: "local" (OpenAI-compatible /v1/rerank), "cohere", or "disabled"
+provider = "local"
+model = "qwen3-reranker"
+
+# Local reranker endpoint (served by local-inference on port 50080)
+base_url = "http://localhost:50080/v1"
+api_key = "unused"
+
+# Number of top candidates to rerank
+top_k = 30
+```
+
+---
+
+## Speech-to-Text Integration
+
+LibreFang supports local transcription for audio assets processed during workflows (such as transcribing voice memos or Signal audio events). You can configure your hands to call the `local-speech-to-text` service.
+
+### Configuration
+
+Add the transcription provider configuration to `~/.librefang/config.toml` (located at `~/.local/share/librefang/.librefang/config.toml`):
+
+```toml
+[transcription]
+# Set provider to local_stt or openai-compatible
+provider = "openai"
+model = "whisper"
+
+# Point to local-speech-to-text service
+base_url = "http://localhost:50090/v1"
+api_key = "dummy"
+```
+
+---
+
+## Onboarding
+
+1. **Install Service**: Run `./assistants/librefang-ctl install` to set up the LibreFang home directory (`~/.local/share/librefang`) and register the systemd user service.
+2. **Initialize Workspace**: Run `./assistants/librefang-ctl exec init` to initialize the configuration workspace and prompt you interactively for LLM API keys to build `config.toml`.
+3. **Start Service**: Start the daemon with `./assistants/librefang-ctl start`. Verify it is running by checking the dashboard at `http://localhost:4545`.
+4. **Activate Hands**: Run `./assistants/librefang-ctl exec hand activate researcher` (or your hand of choice) to start autonomous background execution. Or run `./assistants/librefang-ctl exec chat <hand_name>` to converse directly.
+5. **Switch to Local Inference & Qwen3**: Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/share/librefang/.librefang/config.toml`):
+   ```toml
+   [providers.models.openai.local]
+   model = "qwen3"
+   uri = "http://localhost:50080/v1"
+   api_key = "unused"
+   ```
+   Update your default agent profile's routing to target `openai.local`.
+
+---
+
+## Implementation & Security Considerations
+
+### Centralized Sandbox Options
+To guarantee parity across all execution modes, `librefang-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
+
+### Sandboxing Profile
+LibreFang utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
+
+1. **Namespace Support (Bubblewrap)**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: LibreFang orchestrates tools and sub-agents that require their own isolation using bubblewrap (`bwrap`). `bwrap` relies on unprivileged user namespaces (`CLONE_NEWUSER` and `CLONE_NEWNS`) to build its sandbox; restricting namespaces or procfs traversal inside the systemd service would block this ability.
+
+2. **Writable & Executable Memory (Execution Runtimes)**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: Required for runtime code generators, JITs, and executing dynamically compiled Python/Javascript code blocks during tool workflows.
+
+3. **Strict Filesystem Isolation**
+   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
+   - **Rationale**: The agent's persistent directories (`~/.local/share/librefang`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.

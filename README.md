@@ -8,12 +8,11 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[Hermes](#hermes)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
 | **[Moltis](#moltis)** | Go (Source) <br> Go Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
-| **[OpenFang](#openfang)** | Go/TypeScript (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
+| **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
 | **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
 | **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
 | **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
 | **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
-
 
 ## Integrations
 
@@ -30,7 +29,7 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 - Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
 
 ### Signal Integration
-- **Description**: Connects agents to Signal. Runs a `signal-cli` daemon exposing both TCP and HTTP JSON-RPC interfaces. It also provides an optional Go-based REST API wrapper for robust, HTTP-based polling/webhook integrations (like linking OpenFang).
+- **Description**: Connects agents to Signal. Runs a `signal-cli` daemon exposing both TCP and HTTP JSON-RPC interfaces. It also provides an optional Go-based REST API wrapper for robust, HTTP-based polling/webhook integrations (like linking LibreFang).
 - **Sandboxing**: Standard filesystem hardening, but disables `MemoryDenyWriteExecute` because the underlying JVM (Java) requires it for JIT compilation. 
 - **Features**: Account linking via QR code, dual daemon interfaces, and isolated home directory execution to prevent contamination.
 - Documentation: [signal-ctl.md](assistants/signal-ctl.md)
@@ -38,8 +37,8 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 The following assistants have native Signal channel integration available in their source code:
 - [Hermes](assistants/hermes-ctl.md)
 - [Moltis](assistants/moltis-ctl.md)
-- [OpenFang](assistants/openfang-ctl.md)
 - [ZeroClaw](assistants/zeroclaw-ctl.md)
+- [LibreFang](assistants/librefang-ctl.md)
 - [NanoBot](assistants/nanobot-ctl.md)
 
 To configure them, refer to their specific configuration sections in their respective control guides.
@@ -57,7 +56,7 @@ The following default ports are used by various agent systems and services to av
 ||||
 | **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
 | **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
-| **OpenFang** | [4200](http://localhost:4200) | OpenFang daemon API (HTTP) |
+| **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
 | **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
 | **NanoBot** | [8790](http://localhost:8790) | NanoBot Gateway API |
 | **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
@@ -110,16 +109,16 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-inference reranker endpoint.
 - **Detailed Guide & Onboarding**: [moltis-ctl.md](assistants/moltis-ctl.md)
 
-### OpenFang
-- **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows.
-- **Language/Runtime**: Go/TypeScript (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
+### LibreFang
+- **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project (which had 17,623 stars and 2,252 forks before going stale).
+- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Dashboard GUI).
 - **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
-- **Requirements**: `~/.local/share/openfang` and `~/agent-shared`.
+- **Requirements**: `~/.local/share/librefang` and `~/agent-shared`.
 - **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
 - **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
 - **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
 - **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [openfang-ctl.md](assistants/openfang-ctl.md)
+- **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
 
 ### ZeroClaw
 - **Major Features**: Rust-based agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # hermes-ctl - installation and management wrapper for hermes-agent
-# Inspired by openfang-ctl and moltis-ctl
 
 SERVICE_NAME="hermes-gateway"
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"

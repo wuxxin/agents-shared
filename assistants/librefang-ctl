@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# openfang-ctl - installation and management wrapper for openfang
+# librefang-ctl - installation and management wrapper for librefang
 
-SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/openfang.service"
-ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/openfang.env"
-OPENFANG_HOME="$HOME/.local/share/openfang"
+SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/librefang.service"
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/librefang.env"
+LIBREFANG_HOME="$HOME/.local/share/librefang"
 
 get_shared_options() {
     local mode="$1" # "service" or "transient"
@@ -25,9 +25,9 @@ get_shared_options() {
     fi
 
     # Environment & Working Directory
-    echo "Environment=HOME=${home_spec}/.local/share/openfang"
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/openfang.env"
-    echo "WorkingDirectory=${home_spec}/.local/share/openfang"
+    echo "Environment=HOME=${home_spec}/.local/share/librefang"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/librefang.env"
+    echo "WorkingDirectory=${home_spec}/.local/share/librefang"
 
     # Security measures
     echo "NoNewPrivileges=yes"
@@ -37,8 +37,8 @@ get_shared_options() {
     # Filesystem hiding
     echo "ProtectSystem=strict"
     echo "TemporaryFileSystem=${home_spec}"
-    # Retain changes by bind mounting the explicit openfang home directory
-    echo "BindPaths=${home_spec}/.local/share/openfang:${home_spec}/.local/share/openfang"
+    # Retain changes by bind mounting the explicit librefang home directory
+    echo "BindPaths=${home_spec}/.local/share/librefang:${home_spec}/.local/share/librefang"
     # Allow access to agent-shared as requested
     echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
 
@@ -72,22 +72,22 @@ get_shared_options() {
 write_service_file() {
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
-Description=OpenFang Agent OS Daemon
-Documentation=https://github.com/RightNow-AI/openfang
+Description=LibreFang Agent OS Daemon
+Documentation=https://github.com/librefang/librefang
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=/usr/bin/openfang start
+ExecStart=/usr/bin/librefang start
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=openfang
+SyslogIdentifier=librefang
 
 # Note: ProtectProc=invisible, ProcSubset=pid, and RestrictNamespaces=yes
 # are explicitly omitted to allow child processes to use bwrap (which needs
@@ -101,17 +101,17 @@ EOF
 }
 
 cmd_install() {
-    echo "Setting up openfang home directory at $OPENFANG_HOME..."
-    mkdir -p "$OPENFANG_HOME"
+    echo "Setting up librefang home directory at $LIBREFANG_HOME..."
+    mkdir -p "$LIBREFANG_HOME"
 
     echo "Generating systemd user service..."
     mkdir -p "$(dirname "$SERVICE_FILE")"
 
     if [ ! -f "$ENV_FILE" ]; then
         cat >"$ENV_FILE" <<'EOF'
-# openfang.env
+# librefang.env
 # ---------------------------------------------------------------------------
-# OpenFang Environment Configuration
+# LibreFang Environment Configuration
 # ---------------------------------------------------------------------------
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
@@ -125,56 +125,56 @@ EOF
     write_service_file
 
     echo "Reloading systemd and enabling service..."
-    systemctl --user enable openfang.service
+    systemctl --user enable librefang.service
 
     echo "Starting service automatically..."
-    systemctl --user start openfang.service
+    systemctl --user start librefang.service
 
     echo "Done! Type '$0 logs' to see the output."
 }
 
 cmd_uninstall() {
-    echo "Uninstalling openfang systemd service..."
-    systemctl --user stop openfang.service || true
-    systemctl --user disable openfang.service || true
+    echo "Uninstalling librefang systemd service..."
+    systemctl --user stop librefang.service || true
+    systemctl --user disable librefang.service || true
 
     if [ -f "$SERVICE_FILE" ]; then
         rm "$SERVICE_FILE"
         systemctl --user daemon-reload
         echo "Removed service file."
     fi
-    echo "Uninstalled successfully. Data in $OPENFANG_HOME is preserved."
+    echo "Uninstalled successfully. Data in $LIBREFANG_HOME is preserved."
 }
 
 cmd_start() {
     write_service_file
-    systemctl --user start openfang.service
+    systemctl --user start librefang.service
 }
 
 cmd_stop() {
-    systemctl --user stop openfang.service
+    systemctl --user stop librefang.service
 }
 
 cmd_restart() {
     write_service_file
-    systemctl --user restart openfang.service
+    systemctl --user restart librefang.service
 }
 
 cmd_status() {
-    systemctl --user status openfang.service
+    systemctl --user status librefang.service
 }
 
 cmd_enable() {
     write_service_file
-    systemctl --user enable openfang.service
+    systemctl --user enable librefang.service
 }
 
 cmd_disable() {
-    systemctl --user disable openfang.service
+    systemctl --user disable librefang.service
 }
 
 cmd_logs() {
-    journalctl --user -u openfang.service "$@"
+    journalctl --user -u librefang.service "$@"
 }
 
 cmd_edit() {
@@ -186,7 +186,7 @@ cmd_edit() {
 }
 
 cmd_exec() {
-    echo "Starting openfang as a transient systemd service with args: $*"
+    echo "Starting librefang as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -203,7 +203,7 @@ cmd_exec() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" /usr/bin/openfang "$@"
+    systemd-run "${opts[@]}" /usr/bin/librefang "$@"
 }
 
 cmd_shell() {
@@ -227,10 +227,24 @@ cmd_shell() {
     systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
+cmd_migrate() {
+    local source_dir="$HOME/.local/share/openfang/.openfang"
+    if [ ! -d "$source_dir" ]; then
+        echo "Error: OpenFang data directory not found at $source_dir"
+        echo "Nothing to migrate."
+        exit 1
+    fi
+    echo "Migrating OpenFang data from $source_dir to LibreFang..."
+    mkdir -p "$LIBREFANG_HOME"
+
+    # Run librefang migrate with targeted HOME to capture correct paths
+    HOME="$LIBREFANG_HOME" /usr/bin/librefang migrate --from openfang --source-dir "$source_dir" "$@"
+}
+
 usage() {
     echo "Usage: $0 <command>"
     echo "Commands:"
-    echo "  install   - Setup service and openfang home directory"
+    echo "  install   - Setup service and librefang home directory"
     echo "  uninstall - Stop and remove systemd service"
     echo "  start     - Start the systemd service"
     echo "  stop      - Stop the systemd service"
@@ -240,8 +254,9 @@ usage() {
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run openfang as a transient systemd user service with args"
-    echo "  shell     - Spawn an interactive shell in the openfang systemd environment"
+    echo "  exec      - Run librefang as a transient systemd user service with args"
+    echo "  shell     - Spawn an interactive shell in the librefang systemd environment"
+    echo "  migrate   - Migrate data from OpenFang to LibreFang (accepts extra args like --dry-run)"
 }
 
 if [ $# -lt 1 ]; then
@@ -265,6 +280,7 @@ logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
+migrate) cmd_migrate "$@" ;;
 *)
     echo "Unknown command: $COMMAND"
     usage
