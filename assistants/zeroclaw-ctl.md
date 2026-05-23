@@ -15,15 +15,15 @@
 ./assistants/zeroclaw-ctl install --no-start
 ```
 
-to initialize `~/.local/share/zeroclaw` and register the systemd user service but do not start it.
+to initialize `~/.local/sandbox/zeroclaw` and register the systemd user service but do not start it.
 
 ### Interactive Onboarding
 
-Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/share/zeroclaw/.zeroclaw/config.toml`.
+Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`.
 
 ### Switch to Local Inference & Qwen3
 
-Edit `~/.local/share/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
+Edit `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
 ```toml
 [providers.models.openai.local]
 uri = "http://127.0.0.1:50080/v1"
@@ -64,7 +64,7 @@ ZeroClaw supports native Signal integration. It communicates with the daemon via
 
 ### Configuration
 
-Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/share/zeroclaw/.zeroclaw/config.toml`):
+Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`):
 
 ```toml
 [channels.signal.default]
@@ -86,7 +86,7 @@ ZeroClaw contains a self-contained, native SQLite-based hybrid memory system. It
 
 ### Configuration
 
-Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/share/zeroclaw/.zeroclaw/config.toml`):
+Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`):
 
 ```toml
 [memory]
@@ -108,7 +108,7 @@ ZeroClaw supports speech-to-text (STT) transcription by routing voice payloads t
 
 ### Configuration
 
-Add the transcription provider configuration to `~/.local/share/zeroclaw/.zeroclaw/config.toml`:
+Add the transcription provider configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
 
 ```toml
 # 1. Define the transcription provider
@@ -156,4 +156,4 @@ ZeroClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based 
 
 4. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: The agent's persistent directories (`~/.local/share/zeroclaw`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
+   - **Rationale**: The agent's persistent directories (`~/.local/sandbox/zeroclaw`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.

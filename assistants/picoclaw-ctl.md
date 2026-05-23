@@ -14,12 +14,12 @@
 ```bash
 ./assistants/picoclaw-ctl install --no-start
 ```
-to create the home directory (`~/.local/share/picoclaw`) 
+to create the home directory (`~/.local/sandbox/picoclaw`) 
 
 ### Using the CLI to Onboard
 
 1. **Onboard Configuration**: Run `./assistants/picoclaw-ctl exec onboard` to generate `config.json` and initialize the workspace directory.
-2. **Define Config**: Configure model providers and channel rules in `~/.local/share/picoclaw/config.json`.
+2. **Define Config**: Configure model providers and channel rules in `~/.local/sandbox/picoclaw/config.json`.
 3. **Test & Run**: Run `./assistants/picoclaw-ctl exec agent -m "Hello"` to test connection. Launch background messaging gateway with `./assistants/picoclaw-ctl exec gateway`.
 
 ### Using the WebUI to Onboard
@@ -29,7 +29,7 @@ to create the home directory (`~/.local/share/picoclaw`)
 
 
 ### Switch to Local Inference & Qwen3
-In the WebUI, add a Custom OpenAI provider with endpoint `http://localhost:50080/v1`, model `qwen3`, and key `unused`. Alternatively, configure `~/.local/share/picoclaw/config.json` manually:
+In the WebUI, add a Custom OpenAI provider with endpoint `http://localhost:50080/v1`, model `qwen3`, and key `unused`. Alternatively, configure `~/.local/sandbox/picoclaw/config.json` manually:
 ```json
 {
   "providers": {
@@ -55,7 +55,7 @@ PicoClaw supports migrating configuration and secure details from an existing Op
 ```bash
 ./assistants/picoclaw-ctl exec migrate
 ```
-This maps your legacy files and `.security.yml` details directly into the PicoClaw configurations under `~/.local/share/picoclaw/`.
+This maps your legacy files and `.security.yml` details directly into the PicoClaw configurations under `~/.local/sandbox/picoclaw/`.
 
 ## Search, Retrieval & Embedding Configuration
 
@@ -63,7 +63,7 @@ PicoClaw is an ultra-lightweight agent gateway and does not include a native bui
 
 ### Configuration
 
-Add the following to `~/.local/share/picoclaw/config.json`:
+Add the following to `~/.local/sandbox/picoclaw/config.json`:
 
 ```json
 {
@@ -83,7 +83,7 @@ Add the following to `~/.local/share/picoclaw/config.json`:
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-sqlite-vec"],
         "env": {
-          "DB_PATH": "/home/wuxxin/.local/share/picoclaw/mcp-vectors.db"
+          "DB_PATH": "/home/wuxxin/.local/sandbox/picoclaw/mcp-vectors.db"
         }
       }
     }
@@ -93,7 +93,7 @@ Add the following to `~/.local/share/picoclaw/config.json`:
 
 ### Reranking Configuration
 
-PicoClaw does not include native reranking due to its ultra-lightweight design. Reranking can be delegated via MCP to the local-inference reranker endpoint. Add a reranker MCP server to `~/.local/share/picoclaw/config.json`:
+PicoClaw does not include native reranking due to its ultra-lightweight design. Reranking can be delegated via MCP to the local-inference reranker endpoint. Add a reranker MCP server to `~/.local/sandbox/picoclaw/config.json`:
 
 ```json
 {
@@ -120,7 +120,7 @@ PicoClaw supports speech-to-text (ASR) transcription by configuring a model prov
 
 ### Configuration
 
-Add the following sections to `~/.local/share/picoclaw/config.json`:
+Add the following sections to `~/.local/sandbox/picoclaw/config.json`:
 
 ```json
 {
@@ -155,7 +155,7 @@ PicoClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation, consis
 
 3. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: `HOME` is redirected to `%h/.local/share/picoclaw` (the persistent bind-mounted data directory). The `~/agent-shared` and `AGENT_PRIVATE_MOUNTS` directories are bind-mounted read-write, while other system directories are read-only.
+   - **Rationale**: `HOME` is redirected to `%h/.local/sandbox/picoclaw` (the persistent bind-mounted data directory). The `~/agent-shared` and `AGENT_PRIVATE_MOUNTS` directories are bind-mounted read-write, while other system directories are read-only.
 
 4. **Launcher vs CLI**
    - **Service Execution**: The systemd background service uses `picoclaw-launcher -no-browser` as its `ExecStart` target, running the built-in web console service.

@@ -13,7 +13,7 @@
 ```bash
 ./assistants/nanoclaw-ctl install --no-start
 ```
- to set up `~/.local/share/nanoclaw` and register the systemd user service without starting it.
+ to set up `~/.local/sandbox/nanoclaw` and register the systemd user service without starting it.
 
 ### Switch to Local Inference & Qwen3
 
@@ -51,7 +51,7 @@ Environment and embedding API options can be configured in `~/.config/systemd/us
 
 ```bash
 # SQLite DB state path
-DATABASE_URL="file:~/.local/share/nanoclaw/nanoclaw.db"
+DATABASE_URL="file:~/.local/sandbox/nanoclaw/nanoclaw.db"
 
 # Embedding Provider (options: openai, anthropic, local, ollama)
 EMBEDDING_PROVIDER="local"
@@ -62,7 +62,7 @@ EMBEDDING_BASE_URL="http://localhost:50080/v1"
 EMBEDDING_API_KEY="unused"
 
 # MCP-based Retrieval Configuration (if running sqlite-vec or Qdrant MCP server)
-MCP_SQLITE_VEC_DB_PATH="~/.local/share/nanoclaw/mcp-vectors.db"
+MCP_SQLITE_VEC_DB_PATH="~/.local/sandbox/nanoclaw/mcp-vectors.db"
 ```
 
 ### Reranking Configuration
@@ -107,4 +107,4 @@ NanoClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based 
 
 4. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `~/.local/share/nanoclaw` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/nanoclaw` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.

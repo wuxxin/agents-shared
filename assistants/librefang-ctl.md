@@ -14,7 +14,7 @@
 ./assistants/librefang-ctl install --no-start
 ```
 
-to set up the LibreFang home directory (`~/.local/share/librefang`) and register the systemd user service.
+to set up the LibreFang home directory (`~/.local/sandbox/librefang`) and register the systemd user service.
 
 ### Initialize Workspace
 
@@ -30,7 +30,7 @@ Run `./assistants/librefang-ctl exec hand activate researcher` (or your hand of 
 
 ### Switch to Local Inference & Qwen3
 
-Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/share/librefang/.librefang/config.toml`):
+Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/sandbox/librefang/.librefang/config.toml`):
    ```toml
    [providers.models.openai.local]
    model = "qwen3"
@@ -45,23 +45,6 @@ Add a local OpenAI provider to `~/.librefang/config.toml` (located under the iso
 - **Default Port**: `4545` (LibreFang daemon API)
 - **Secrets & Configuration**: Loaded from `~/.config/systemd/user/librefang.env` and defined via config settings in the configuration file (`~/.librefang/config.toml`).
 
-## OpenFang Migration
-
-LibreFang includes a native migration utility to transition configuration, keys, and agent databases from an existing OpenFang installation.
-
-To run the migration under the sandboxed environment directories:
-
-```bash
-# Preview the migration (Dry Run)
-./assistants/librefang-ctl migrate --dry-run
-
-# Run the migration
-./assistants/librefang-ctl migrate
-```
-
-This will automatically copy and translate your old configuration from `~/.local/share/openfang/.openfang` to the new LibreFang path `~/.local/share/librefang/.librefang`.
-
----
 
 ## Signal Channel Configuration
 
@@ -69,7 +52,7 @@ LibreFang supports native Signal integration. In this environment, it interfaces
 
 ### Configuration
 
-Add the following to your `~/.librefang/config.toml` config file (located in the sandboxed home directory at `~/.local/share/librefang/.librefang/config.toml`):
+Add the following to your `~/.librefang/config.toml` config file (located in the sandboxed home directory at `~/.local/sandbox/librefang/.librefang/config.toml`):
 
 ```toml
 [channels.signal]
@@ -89,7 +72,7 @@ LibreFang features native SQLite and vector memory stores for persistent agent m
 
 ### Configuration
 
-Add the following sections to `~/.librefang/config.toml` (located under the isolated home at `~/.local/share/librefang/.librefang/config.toml`):
+Add the following sections to `~/.librefang/config.toml` (located under the isolated home at `~/.local/sandbox/librefang/.librefang/config.toml`):
 
 ```toml
 [memory]
@@ -115,7 +98,7 @@ env = { QDRANT_URL = "http://localhost:6333" }
 
 ### Reranking Configuration
 
-LibreFang supports reranking via configurable provider endpoints (Cohere-compatible API). Add the following to `~/.librefang/config.toml` (located under `~/.local/share/librefang/.librefang/config.toml`):
+LibreFang supports reranking via configurable provider endpoints (Cohere-compatible API). Add the following to `~/.librefang/config.toml` (located under `~/.local/sandbox/librefang/.librefang/config.toml`):
 
 ```toml
 [reranker]
@@ -139,7 +122,7 @@ LibreFang supports local transcription for audio assets processed during workflo
 
 ### Configuration
 
-Add the transcription provider configuration to `~/.librefang/config.toml` (located at `~/.local/share/librefang/.librefang/config.toml`):
+Add the transcription provider configuration to `~/.librefang/config.toml` (located at `~/.local/sandbox/librefang/.librefang/config.toml`):
 
 ```toml
 [transcription]
@@ -172,4 +155,4 @@ LibreFang utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based
 
 3. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: The agent's persistent directories (`~/.local/share/librefang`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
+   - **Rationale**: The agent's persistent directories (`~/.local/sandbox/librefang`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.

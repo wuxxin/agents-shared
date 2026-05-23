@@ -33,7 +33,7 @@ Then visit `https://localhost:13131` to enter the code and create your admin acc
 
 ## Switch to Local Inference & Qwen3
 
-Edit `~/.local/share/moltis/moltis.toml` (or via the Web UI) to configure a local OpenAI-compatible provider:
+Edit `~/.local/sandbox/moltis/moltis.toml` (or via the Web UI) to configure a local OpenAI-compatible provider:
    ```toml
    [providers.models.openai.local]
    model = "qwen3"
@@ -53,7 +53,7 @@ Moltis has native support for receiving and sending Signal messages through an e
 
 ### Configuration
 
-Add a `[channels.signal.<account-id>]` section to `~/.local/share/moltis/moltis.toml`:
+Add a `[channels.signal.<account-id>]` section to `~/.local/sandbox/moltis/moltis.toml`:
 
 ```toml
 [channels.signal.personal]
@@ -76,7 +76,7 @@ Moltis provides a built-in SQLite database with Full-Text Search (FTS5) for keyw
 
 ### Configuration
 
-Add the following to `~/.local/share/moltis/moltis.toml`:
+Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 
 ```toml
 [retrieval]
@@ -108,7 +108,7 @@ api_key = "unused"
 
 ### Reranking Configuration
 
-Moltis natively supports reranking via the QMD sidecar, which uses `qwen3-reranker-0.6b` by default for LLM-based reranking of retrieval candidates. Add the following to `~/.local/share/moltis/moltis.toml`:
+Moltis natively supports reranking via the QMD sidecar, which uses `qwen3-reranker-0.6b` by default for LLM-based reranking of retrieval candidates. Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 
 ```toml
 [retrieval.reranker]
@@ -132,7 +132,7 @@ Moltis has built-in support for local voice transcription using an external Open
 
 ### Configuration
 
-Add the following to `~/.local/share/moltis/moltis.toml`:
+Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 
 ```toml
 [voice.stt]
@@ -177,4 +177,4 @@ Moltis utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on
 
 5. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: The agent's persistent directories (`~/.local/share/moltis`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
+   - **Rationale**: The agent's persistent directories (`~/.local/sandbox/moltis`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.

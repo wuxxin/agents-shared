@@ -16,7 +16,7 @@ Ensure you have `uv` installed, then simply run the script's `install` command:
 ```bash
 ./assistants/nanobot-ctl install --no-start
 ```
-to initialize `~/.local/share/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and register the systemd unit without starting it.
+to initialize `~/.local/sandbox/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and register the systemd unit without starting it.
 
 During installation, `nanobot-ctl` will set up the isolated environment and generate standard service files.
 
@@ -25,7 +25,7 @@ During installation, `nanobot-ctl` will set up the isolated environment and gene
 Run the interactive onboarding wizard via `./assistants/nanobot-ctl exec onboard --wizard` to generate the default configuration.
 
 ### Switch to Local Inference & Qwen3
-Edit `~/.local/share/nanobot/config.json` (via `./assistants/nanobot-ctl config`) to configure the local OpenAI-compatible endpoint and default models (under `agents.defaults`):
+Edit `~/.local/sandbox/nanobot/config.json` (via `./assistants/nanobot-ctl config`) to configure the local OpenAI-compatible endpoint and default models (under `agents.defaults`):
 ```json
 {
   "providers": {
@@ -57,7 +57,7 @@ Run `./assistants/nanobot-ctl start`. Verify status with `./assistants/nanobot-c
 
 
 ## Configuration & Ports
-- **Configuration File**: Stored at `~/.local/share/nanobot/config.json`.
+- **Configuration File**: Stored at `~/.local/sandbox/nanobot/config.json`.
 - **Default Port**: The gateway service runs on port `8790` (set via `--port 8790` in the systemd service unit) to prevent conflicts with other services.
 
 ## OpenClaw Migration
@@ -71,7 +71,7 @@ NanoBot supports native Signal integration. It communicates with a local `signal
 
 ### Configuration
 
-Add the following to your `~/.local/share/nanobot/config.json` configuration file under the `"channels"` block (via `nanobot-ctl config`):
+Add the following to your `~/.local/sandbox/nanobot/config.json` configuration file under the `"channels"` block (via `nanobot-ctl config`):
 
 ```json
 {
@@ -103,7 +103,7 @@ NanoBot implements a structured two-stage memory system ("Dream") that separates
 
 ### Configuration
 
-Add the following configuration blocks to `~/.local/share/nanobot/config.json` (via `./assistants/nanobot-ctl config`):
+Add the following configuration blocks to `~/.local/sandbox/nanobot/config.json` (via `./assistants/nanobot-ctl config`):
 
 ```json
 {
@@ -177,7 +177,7 @@ OPENAI_TRANSCRIPTION_BASE_URL="http://localhost:50090/v1/audio/transcriptions"
 OPENAI_API_KEY="dummy"  # Required placeholder to activate the provider
 ```
 
-Alternatively, you can configure it inside `~/.local/share/nanobot/config.json`:
+Alternatively, you can configure it inside `~/.local/sandbox/nanobot/config.json`:
 
 ```json
 {
@@ -210,4 +210,4 @@ Nanobot utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based o
 
 3. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `~/.local/share/nanobot` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/nanobot` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.

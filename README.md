@@ -91,7 +91,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
 - **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
 - **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
-- **Requirements**: `~/.local/share/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
+- **Requirements**: `~/.local/sandbox/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
 - **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
 - **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
 - **Embedding Options**: Supports remote embedding API providers (OpenAI, Cohere, Jina, Voyage AI) and local embedding models served via `llama.cpp` (local-inference) or Ollama.
@@ -102,7 +102,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
 - **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Config GUI).
 - **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
-- **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/share/moltis` for data.
+- **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/sandbox/moltis` for data.
 - **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
 - **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword search. Direct vector embedding storage inside SQLite. Supports an optional **QMD** sidecar that adds high-performance **BM25** keyword search, vector similarity search, and hybrid retrieval with LLM reranking. Automatically extracts facts and summarizes history when approaching context limits.
 - **Embedding Options**: Remote OpenAI-compatible embedding API endpoints. Local vector search using local GGUF models served via local inference servers or Ollama, or built-in QMD model processing.
@@ -113,7 +113,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project (which had 17,623 stars and 2,252 forks before going stale).
 - **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Dashboard GUI).
 - **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
-- **Requirements**: `~/.local/share/librefang` and `~/agent-shared`.
+- **Requirements**: `~/.local/sandbox/librefang` and `~/agent-shared`.
 - **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
 - **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
 - **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
@@ -157,7 +157,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
 - **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Console GUI).
 - **Signal Support**: No — Not natively supported.
-- **Requirements**: `~/.local/share/picoclaw` for persistent configuration.
+- **Requirements**: `~/.local/sandbox/picoclaw` for persistent configuration.
 - **Sandboxing**: **Relaxed Namespaces Profile**. Uses standard agent isolation with redirected `HOME` and strict filesystem protection. Isolated `HOME`.
 - **Search & Retrieval**: No native built-in vector database or complex memory engine due to its ultra-lightweight design (<10MB memory). Local state and conversation histories are stored in simple JSON files. Supports the Model Context Protocol (MCP) to delegate search and retrieval tasks to external databases or RAG servers (e.g. SQLite-vec MCP, Qdrant MCP, Chroma MCP).
 - **Embedding Options**: No native embedding models. Leverages external embedding API endpoints (OpenAI, Anthropic) or local embedding models via Ollama/llama-server via MCP tools or API routing.
@@ -174,7 +174,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 
 | Command | Action | Description |
 |---|---|---|
-| `install` | Install | Set up local directory structures under `~/.local/share/<assistant>`, generate environment file `.env` if missing, and create/register the systemd user unit. |
+| `install` | Install | Set up local directory structures under `~/.local/sandbox/<assistant>`, generate environment file `.env` if missing, and create/register the systemd user unit. |
 | `install --no-start` | Install | Same as install, but do not start (or stop it if already running) the service after installation for further configuration (e.g. editing `.env`). |
 | `uninstall` | Uninstall | Stop and disable the systemd service, and clean up the systemd service files. (Data is preserved). |
 | `start` / `stop` / `restart` | Lifecycle | Standard controls to start, stop, or restart the systemd user service. |
@@ -188,7 +188,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 
 - **Service File**: `~/.config/systemd/user/<assistant>.service` (or `hermes-gateway.service`)
 - **Environment File**: `~/.config/systemd/user/<assistant>.env` (or `hermes-gateway.env`)
-- **Data Home**: `~/.local/share/<assistant>` (the service forces an isolated `HOME` environment variable to this location to keep configurations and cached libraries contained).
+- **Data Home**: `~/.local/sandbox/<assistant>` (the service forces an isolated `HOME` environment variable to this location to keep configurations and cached libraries contained).
 - **Shared Space (`agent-shared`)**: `~/agent-shared` is bind-mounted in read-write mode to the sandbox of all assistants by default. This enables cross-assistant sharing of outputs, databases, and logs.
 - **Private Submounts (`agent-private`)**: To easily share specific directories from your host's private workspace (`~/agent-private/*`) to an assistant's sandbox without exposing the entire home directory, configure the `AGENT_PRIVATE_MOUNTS` environment variable inside the assistant's `.env` environment file.
   - **Syntax**: `AGENT_PRIVATE_MOUNTS="health diary"`

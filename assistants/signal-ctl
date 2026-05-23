@@ -13,75 +13,75 @@ SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-cli.service"
 SERVICE_REST_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-rest-api.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-cli.env"
 ENV_REST_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-api.env"
-SIGNAL_DATA_DIR="$HOME/.local/share/signal-cli"
+SIGNAL_DATA_DIR="$HOME/.local/sandbox/signal-cli"
 JSONRPC_CONFIG_FILE="$SIGNAL_DATA_DIR/jsonrpc2.yml"
 
 # Shared Sandboxing Configuration
 get_shared_options() {
-    local mode="$1" # "service" or "transient"
-    local home_spec
-    if [ "$mode" = "service" ]; then
-        home_spec="%h"
-    else
-        home_spec="$HOME"
-    fi
+	local mode="$1" # "service" or "transient"
+	local home_spec
+	if [ "$mode" = "service" ]; then
+		home_spec="%h"
+	else
+		home_spec="$HOME"
+	fi
 
-    # Environment & Working Directory
-    echo "Environment=HOME=${home_spec}/.local/share/signal-cli"
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/signal-cli.env"
-    echo "WorkingDirectory=/tmp"
+	# Environment & Working Directory
+	echo "Environment=HOME=${home_spec}/.local/sandbox/signal-cli"
+	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/signal-cli.env"
+	echo "WorkingDirectory=/tmp"
 
-    # Basic hardening (no bwrap/podman needed)
-    echo "NoNewPrivileges=yes"
-    echo "CapabilityBoundingSet="
-    echo "AmbientCapabilities="
+	# Basic hardening (no bwrap/podman needed)
+	echo "NoNewPrivileges=yes"
+	echo "CapabilityBoundingSet="
+	echo "AmbientCapabilities="
 
-    echo "ProtectSystem=strict"
-    echo "TemporaryFileSystem=${home_spec}"
-    echo "BindPaths=${home_spec}/.local/share/signal-cli:${home_spec}/.local/share/signal-cli"
-    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "PrivateTmp=yes"
-    echo "PrivateDevices=yes"
-    echo "PrivateMounts=yes"
+	echo "ProtectSystem=strict"
+	echo "TemporaryFileSystem=${home_spec}"
+	echo "BindPaths=${home_spec}/.local/sandbox/signal-cli:${home_spec}/.local/sandbox/signal-cli"
+	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+	echo "PrivateTmp=yes"
+	echo "PrivateDevices=yes"
+	echo "PrivateMounts=yes"
 
-    echo "ProtectKernelTunables=yes"
-    echo "ProtectKernelModules=yes"
-    echo "ProtectKernelLogs=yes"
-    echo "ProtectControlGroups=yes"
-    echo "ProtectClock=yes"
-    echo "ProtectHostname=yes"
-    echo "ProtectProc=invisible"
-    echo "RestrictNamespaces=yes"
-    echo "LockPersonality=yes"
+	echo "ProtectKernelTunables=yes"
+	echo "ProtectKernelModules=yes"
+	echo "ProtectKernelLogs=yes"
+	echo "ProtectControlGroups=yes"
+	echo "ProtectClock=yes"
+	echo "ProtectHostname=yes"
+	echo "ProtectProc=invisible"
+	echo "RestrictNamespaces=yes"
+	echo "LockPersonality=yes"
 
-    # Note: MemoryDenyWriteExecute is intentionally omitted because the JVM
-    # requires the ability to create W+X memory mappings (JIT compilation).
-    #
-    # Note: ProcSubset=pid is intentionally omitted because the JVM requires
-    # access to global /proc files (like /proc/meminfo and /proc/cpuinfo)
-    # to inspect system resource limits and initialize garbage collection / JIT threads.
+	# Note: MemoryDenyWriteExecute is intentionally omitted because the JVM
+	# requires the ability to create W+X memory mappings (JIT compilation).
+	#
+	# Note: ProcSubset=pid is intentionally omitted because the JVM requires
+	# access to global /proc files (like /proc/meminfo and /proc/cpuinfo)
+	# to inspect system resource limits and initialize garbage collection / JIT threads.
 
-    echo "SystemCallArchitectures=native"
-    echo "PrivateIPC=yes"
-    echo "RestrictSUIDSGID=yes"
-    echo "RestrictRealtime=yes"
-    echo "KeyringMode=private"
-    echo "UMask=0077"
+	echo "SystemCallArchitectures=native"
+	echo "PrivateIPC=yes"
+	echo "RestrictSUIDSGID=yes"
+	echo "RestrictRealtime=yes"
+	echo "KeyringMode=private"
+	echo "UMask=0077"
 }
 
 cmd_install() {
-    local no_start=false
-    if [ "${1:-}" = "--no-start" ]; then
-        no_start=true
-    fi
+	local no_start=false
+	if [ "${1:-}" = "--no-start" ]; then
+		no_start=true
+	fi
 
-    echo "Setting up signal-cli data directory at $SIGNAL_DATA_DIR..."
-    mkdir -p "$SIGNAL_DATA_DIR"
+	echo "Setting up signal-cli data directory at $SIGNAL_DATA_DIR..."
+	mkdir -p "$SIGNAL_DATA_DIR"
 
-    echo "Generating systemd user service..."
-    mkdir -p "$(dirname "$SERVICE_FILE")"
+	echo "Generating systemd user service..."
+	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-    cat >"$SERVICE_FILE" <<EOF
+	cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=Signal CLI daemon (JSON-RPC over TCP)
 Documentation=https://github.com/AsamK/signal-cli
@@ -116,8 +116,8 @@ SyslogIdentifier=signal-cli
 WantedBy=default.target
 EOF
 
-    echo "Generating Signal REST API systemd user service..."
-    cat >"$SERVICE_REST_FILE" <<EOF
+	echo "Generating Signal REST API systemd user service..."
+	cat >"$SERVICE_REST_FILE" <<EOF
 [Unit]
 Description=Signal CLI REST API Wrapper
 After=signal-cli.service
@@ -126,7 +126,7 @@ After=signal-cli.service
 Type=simple
 $(get_shared_options service)
 EnvironmentFile=-%h/.config/systemd/user/signal-api.env
-ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config %h/.local/share/signal-cli
+ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config %h/.local/sandbox/signal-cli
 Restart=on-failure
 RestartSec=5s
 
@@ -134,12 +134,12 @@ RestartSec=5s
 WantedBy=default.target
 EOF
 
-    if [ -f "$ENV_FILE" ]; then
-        echo "Env file already exists, skipping: $ENV_FILE"
-        echo "Remove it manually if you want to regenerate the defaults."
-    else
-        echo "Writing default env file: $ENV_FILE"
-        cat >"$ENV_FILE" <<'EOF'
+	if [ -f "$ENV_FILE" ]; then
+		echo "Env file already exists, skipping: $ENV_FILE"
+		echo "Remove it manually if you want to regenerate the defaults."
+	else
+		echo "Writing default env file: $ENV_FILE"
+		cat >"$ENV_FILE" <<'EOF'
 # signal-cli.env
 # ---------------------------------------------------------------------------
 # Configuration for the signal-cli.service daemon instance.
@@ -153,7 +153,7 @@ EOF
 
 # Path where signal-cli stores its data (accounts, keys, attachments).
 # Points to the real home path (systemd expands %h before sandbox applies).
-SC_CONFIG_DIR=%h/.local/share/signal-cli
+SC_CONFIG_DIR=%h/.local/sandbox/signal-cli
 
 # Your registered Signal phone number in E.164 format, e.g. +491234567890.
 # Leave empty to run in multi-account mode (serves all registered accounts).
@@ -188,14 +188,14 @@ SC_EXTRA_SUFFIXES="--ignore-stories --ignore-stickers"
 SC_EXTRA_PREFIXES=""
 
 EOF
-        chmod 600 "$ENV_FILE"
-    fi
+		chmod 600 "$ENV_FILE"
+	fi
 
-    if [ -f "$ENV_REST_FILE" ]; then
-        echo "REST API env file already exists, skipping: $ENV_REST_FILE"
-    else
-        echo "Writing default REST API env file: $ENV_REST_FILE"
-        cat >"$ENV_REST_FILE" <<EOF
+	if [ -f "$ENV_REST_FILE" ]; then
+		echo "REST API env file already exists, skipping: $ENV_REST_FILE"
+	else
+		echo "Writing default REST API env file: $ENV_REST_FILE"
+		cat >"$ENV_REST_FILE" <<EOF
 # signal-api.env
 # ---------------------------------------------------------------------------
 # Configuration for the signal-cli-rest-api.service wrapper.
@@ -215,94 +215,94 @@ SIGNAL_REST_API_ENABLED=true
 # Webhook for incoming messages (optional)
 # RECEIVE_WEBHOOK_URL=http://localhost:port/webhook
 EOF
-        chmod 600 "$ENV_REST_FILE"
-    fi
+		chmod 600 "$ENV_REST_FILE"
+	fi
 
-    if [ -f "$JSONRPC_CONFIG_FILE" ]; then
-        echo "JSON-RPC bridge config already exists, skipping: $JSONRPC_CONFIG_FILE"
-    else
-        echo "Writing JSON-RPC bridge config: $JSONRPC_CONFIG_FILE"
-        cat >"$JSONRPC_CONFIG_FILE" <<EOF
+	if [ -f "$JSONRPC_CONFIG_FILE" ]; then
+		echo "JSON-RPC bridge config already exists, skipping: $JSONRPC_CONFIG_FILE"
+	else
+		echo "Writing JSON-RPC bridge config: $JSONRPC_CONFIG_FILE"
+		cat >"$JSONRPC_CONFIG_FILE" <<EOF
 config:
   "<multi-account>":
     tcp_port: 50887
 EOF
-    fi
+	fi
 
-    echo "Reloading systemd and enabling services..."
-    systemctl --user daemon-reload
-    systemctl --user enable signal-cli.service
+	echo "Reloading systemd and enabling services..."
+	systemctl --user daemon-reload
+	systemctl --user enable signal-cli.service
 
-    # Load rest api enabled status from env file
-    local rest_enabled="true"
-    if [ -f "$ENV_REST_FILE" ]; then
-        rest_enabled=$(grep "^SIGNAL_REST_API_ENABLED=" "$ENV_REST_FILE" | cut -d'=' -f2 | tr -d ' "' || echo "true")
-    fi
+	# Load rest api enabled status from env file
+	local rest_enabled="true"
+	if [ -f "$ENV_REST_FILE" ]; then
+		rest_enabled=$(grep "^SIGNAL_REST_API_ENABLED=" "$ENV_REST_FILE" | cut -d'=' -f2 | tr -d ' "' || echo "true")
+	fi
 
-    if [ "$rest_enabled" = "true" ]; then
-        systemctl --user enable signal-rest-api.service
-    else
-        echo "REST API is disabled in $ENV_REST_FILE, skipping enable."
-    fi
+	if [ "$rest_enabled" = "true" ]; then
+		systemctl --user enable signal-rest-api.service
+	else
+		echo "REST API is disabled in $ENV_REST_FILE, skipping enable."
+	fi
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping services if running (--no-start specified)..."
-        systemctl --user stop signal-rest-api.service 2>/dev/null || true
-        systemctl --user stop signal-cli.service 2>/dev/null || true
-    else
-        echo "Starting services..."
-        systemctl --user start signal-cli.service
-        if [ "$rest_enabled" = "true" ]; then
-            systemctl --user start signal-rest-api.service
-        fi
-    fi
+	if [ "$no_start" = "true" ]; then
+		echo "Stopping services if running (--no-start specified)..."
+		systemctl --user stop signal-rest-api.service 2>/dev/null || true
+		systemctl --user stop signal-cli.service 2>/dev/null || true
+	else
+		echo "Starting services..."
+		systemctl --user start signal-cli.service
+		if [ "$rest_enabled" = "true" ]; then
+			systemctl --user start signal-rest-api.service
+		fi
+	fi
 
-    echo ""
-    echo "Done! signal-cli service is configured."
-    if [ "$no_start" = "true" ]; then
-        echo "Services were NOT started (--no-start specified)."
-    else
-        echo "signal-cli service is running."
-        if [ "$rest_enabled" = "true" ]; then
-            echo "signal-rest-api service is running."
-            echo "  REST API endpoint: http://127.0.0.1:50889"
-        fi
-    fi
-    echo ""
-    echo "  TCP RPC endpoint:  ${SC_TCP_HOST:-127.0.0.1}:${SC_TCP_PORT:-50887}"
-    echo "  HTTP RPC endpoint: ${SC_TCP_HOST:-127.0.0.1}:${SC_HTTP_PORT:-50888}"
-    echo "  Logs: signal-ctl logs"
+	echo ""
+	echo "Done! signal-cli service is configured."
+	if [ "$no_start" = "true" ]; then
+		echo "Services were NOT started (--no-start specified)."
+	else
+		echo "signal-cli service is running."
+		if [ "$rest_enabled" = "true" ]; then
+			echo "signal-rest-api service is running."
+			echo "  REST API endpoint: http://127.0.0.1:50889"
+		fi
+	fi
+	echo ""
+	echo "  TCP RPC endpoint:  ${SC_TCP_HOST:-127.0.0.1}:${SC_TCP_PORT:-50887}"
+	echo "  HTTP RPC endpoint: ${SC_TCP_HOST:-127.0.0.1}:${SC_HTTP_PORT:-50888}"
+	echo "  Logs: signal-ctl logs"
 }
 
 cmd_uninstall() {
-    echo "Uninstalling signal-cli and REST API systemd services..."
-    systemctl --user stop signal-rest-api.service 2>/dev/null || true
-    systemctl --user stop signal-cli.service 2>/dev/null || true
-    systemctl --user disable signal-rest-api.service 2>/dev/null || true
-    systemctl --user disable signal-cli.service 2>/dev/null || true
+	echo "Uninstalling signal-cli and REST API systemd services..."
+	systemctl --user stop signal-rest-api.service 2>/dev/null || true
+	systemctl --user stop signal-cli.service 2>/dev/null || true
+	systemctl --user disable signal-rest-api.service 2>/dev/null || true
+	systemctl --user disable signal-cli.service 2>/dev/null || true
 
-    [ -f "$SERVICE_FILE" ] && rm "$SERVICE_FILE"
-    [ -f "$SERVICE_REST_FILE" ] && rm "$SERVICE_REST_FILE"
+	[ -f "$SERVICE_FILE" ] && rm "$SERVICE_FILE"
+	[ -f "$SERVICE_REST_FILE" ] && rm "$SERVICE_REST_FILE"
 
-    systemctl --user daemon-reload
-    echo "Removed service files."
+	systemctl --user daemon-reload
+	echo "Removed service files."
 
-    echo ""
-    echo "Uninstalled successfully."
-    echo "Note: Env files and signal-cli data were NOT removed."
+	echo ""
+	echo "Uninstalled successfully."
+	echo "Note: Env files and signal-cli data were NOT removed."
 }
 
 _run_service_cmd() {
-    local cmd="$1"
-    local rest_enabled="true"
-    if [ -f "$ENV_REST_FILE" ]; then
-        rest_enabled=$(grep "^SIGNAL_REST_API_ENABLED=" "$ENV_REST_FILE" | cut -d'=' -f2 | tr -d ' "' || echo "true")
-    fi
+	local cmd="$1"
+	local rest_enabled="true"
+	if [ -f "$ENV_REST_FILE" ]; then
+		rest_enabled=$(grep "^SIGNAL_REST_API_ENABLED=" "$ENV_REST_FILE" | cut -d'=' -f2 | tr -d ' "' || echo "true")
+	fi
 
-    systemctl --user "$cmd" signal-cli.service
-    if [ "$rest_enabled" = "true" ]; then
-        systemctl --user "$cmd" signal-rest-api.service
-    fi
+	systemctl --user "$cmd" signal-cli.service
+	if [ "$rest_enabled" = "true" ]; then
+		systemctl --user "$cmd" signal-rest-api.service
+	fi
 }
 
 cmd_start() { _run_service_cmd start; }
@@ -312,82 +312,82 @@ cmd_status() { _run_service_cmd status; }
 cmd_enable() { _run_service_cmd enable; }
 cmd_disable() { _run_service_cmd disable; }
 cmd_logs() {
-    local rest_enabled="true"
-    if [ -f "$ENV_REST_FILE" ]; then
-        rest_enabled=$(grep "^SIGNAL_REST_API_ENABLED=" "$ENV_REST_FILE" | cut -d'=' -f2 | tr -d ' "' || echo "true")
-    fi
+	local rest_enabled="true"
+	if [ -f "$ENV_REST_FILE" ]; then
+		rest_enabled=$(grep "^SIGNAL_REST_API_ENABLED=" "$ENV_REST_FILE" | cut -d'=' -f2 | tr -d ' "' || echo "true")
+	fi
 
-    if [ "$rest_enabled" = "true" ]; then
-        journalctl --user -u signal-cli.service -u signal-rest-api.service "$@"
-    else
-        journalctl --user -u signal-cli.service "$@"
-    fi
+	if [ "$rest_enabled" = "true" ]; then
+		journalctl --user -u signal-cli.service -u signal-rest-api.service "$@"
+	else
+		journalctl --user -u signal-cli.service "$@"
+	fi
 }
 
 cmd_edit() {
-    local files=("$ENV_FILE" "$ENV_REST_FILE")
-    local editor
-    editor="${VISUAL:-${EDITOR:-}}"
-    if [ -z "$editor" ]; then
-        for e in sensible-editor nano vim vi; do
-            if command -v "$e" &>/dev/null; then
-                editor="$e"
-                break
-            fi
-        done
-    fi
-    if [ -z "$editor" ]; then
-        echo "No editor found. Set \$VISUAL or \$EDITOR."
-        exit 1
-    fi
-    "$editor" "${files[@]}"
-    echo "Reloading daemon and restarting services to apply updated environment..."
-    systemctl --user daemon-reload
-    cmd_restart
+	local files=("$ENV_FILE" "$ENV_REST_FILE")
+	local editor
+	editor="${VISUAL:-${EDITOR:-}}"
+	if [ -z "$editor" ]; then
+		for e in sensible-editor nano vim vi; do
+			if command -v "$e" &>/dev/null; then
+				editor="$e"
+				break
+			fi
+		done
+	fi
+	if [ -z "$editor" ]; then
+		echo "No editor found. Set \$VISUAL or \$EDITOR."
+		exit 1
+	fi
+	"$editor" "${files[@]}"
+	echo "Reloading daemon and restarting services to apply updated environment..."
+	systemctl --user daemon-reload
+	cmd_restart
 }
 
 cmd_exec() {
-    echo "Starting signal-cli as a transient systemd service with args: $*"
-    local opts=(
-        --user
-        --pty
-        --wait
-        --collect
-        --quiet
-        -p "Type=exec"
-    )
+	echo "Starting signal-cli as a transient systemd service with args: $*"
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
 
-    while IFS= read -r opt; do
-        if [ -n "$opt" ]; then
-            opts+=(-p "$opt")
-        fi
-    done < <(get_shared_options transient)
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" signal-cli "$@"
+	systemd-run "${opts[@]}" signal-cli "$@"
 }
 
 cmd_shell() {
-    echo "Starting interactive shell in the signal-cli systemd environment..."
-    local opts=(
-        --user
-        --pty
-        --wait
-        --collect
-        --quiet
-        -p "Type=exec"
-    )
+	echo "Starting interactive shell in the signal-cli systemd environment..."
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
 
-    while IFS= read -r opt; do
-        if [ -n "$opt" ]; then
-            opts+=(-p "$opt")
-        fi
-    done < <(get_shared_options transient)
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 usage() {
-    cat <<EOF
+	cat <<EOF
 Usage: $(basename "$0") <command>
 
 Manage the signal-cli systemd user service (JSON-RPC daemon over TCP/HTTP).
@@ -415,7 +415,7 @@ Files managed:
 
 Environment variables (set in the env file):
   SC_CONFIG_DIR   Path to signal-cli data directory
-                  (default: \$HOME/.local/share/signal-cli)
+                  (default: \$HOME/.local/sandbox/signal-cli)
   SC_ACCOUNT      Phone number in E.164 format (+49...) for single-account mode.
                   Leave empty to serve all registered accounts (multi-account).
   SC_TCP_HOST     TCP/HTTP bind address (default: 127.0.0.1)
@@ -458,8 +458,8 @@ EOF
 }
 
 if [ $# -lt 1 ]; then
-    usage
-    exit 1
+	usage
+	exit 1
 fi
 
 COMMAND="$1"
@@ -479,8 +479,8 @@ edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
 *)
-    echo "Unknown command: $COMMAND"
-    usage
-    exit 1
-    ;;
+	echo "Unknown command: $COMMAND"
+	usage
+	exit 1
+	;;
 esac

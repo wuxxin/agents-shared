@@ -15,7 +15,7 @@
 ./assistants/hermes-ctl install --no-start
 ```
 
-to set up the home directory (`~/.local/share/hermes`) and register the systemd user service without starting it.
+to set up the home directory (`~/.local/sandbox/hermes`) and register the systemd user service without starting it.
 
 ### Set Environment
 
@@ -171,7 +171,7 @@ Hermes utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on
 
 4. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `~/.local/share/hermes` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/hermes` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
 
 5. **Container Backend Support**
    - **Warning**: If using docker or podman as a terminal backend inside the gateway, `NoNewPrivileges=yes` and `PrivateDevices=yes` must be relaxed, and access to `/dev/fuse` and namespace capabilities must be permitted.

@@ -5,72 +5,72 @@ set -euo pipefail
 
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nanoclaw.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nanoclaw.env"
-NANOCLAW_HOME="$HOME/.local/share/nanoclaw"
+NANOCLAW_HOME="$HOME/.local/sandbox/nanoclaw"
 
 get_shared_options() {
-    local mode="$1" # "service" or "transient"
-    local home_spec
-    if [ "$mode" = "service" ]; then
-        home_spec="%h"
-    else
-        home_spec="$HOME"
-    fi
+	local mode="$1" # "service" or "transient"
+	local home_spec
+	if [ "$mode" = "service" ]; then
+		home_spec="%h"
+	else
+		home_spec="$HOME"
+	fi
 
-    local AGENT_PRIVATE_MOUNTS=""
-    if [ -f "$ENV_FILE" ]; then
-        set +u
-        # shellcheck disable=SC1090
-        source "$ENV_FILE"
-        set -u
-    fi
+	local AGENT_PRIVATE_MOUNTS=""
+	if [ -f "$ENV_FILE" ]; then
+		set +u
+		# shellcheck disable=SC1090
+		source "$ENV_FILE"
+		set -u
+	fi
 
-    # Environment & Working Directory
-    echo "Environment=HOME=${home_spec}/.local/share/nanoclaw"
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/nanoclaw.env"
-    echo "WorkingDirectory=${home_spec}/.local/share/nanoclaw"
+	# Environment & Working Directory
+	echo "Environment=HOME=${home_spec}/.local/sandbox/nanoclaw"
+	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/nanoclaw.env"
+	echo "WorkingDirectory=${home_spec}/.local/sandbox/nanoclaw"
 
-    # Security measures
-    echo "NoNewPrivileges=yes"
-    echo "CapabilityBoundingSet="
-    echo "AmbientCapabilities="
+	# Security measures
+	echo "NoNewPrivileges=yes"
+	echo "CapabilityBoundingSet="
+	echo "AmbientCapabilities="
 
-    # Filesystem isolation
-    echo "ProtectSystem=strict"
-    echo "TemporaryFileSystem=${home_spec}"
-    # Retain changes by bind mounting the explicit nanoclaw home directory
-    echo "BindPaths=${home_spec}/.local/share/nanoclaw:${home_spec}/.local/share/nanoclaw"
-    # Allow access to agent-shared as requested
-    echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
+	# Filesystem isolation
+	echo "ProtectSystem=strict"
+	echo "TemporaryFileSystem=${home_spec}"
+	# Retain changes by bind mounting the explicit nanoclaw home directory
+	echo "BindPaths=${home_spec}/.local/sandbox/nanoclaw:${home_spec}/.local/sandbox/nanoclaw"
+	# Allow access to agent-shared as requested
+	echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
 
-    for m in ${AGENT_PRIVATE_MOUNTS:-}; do
-        mkdir -p "$HOME/agent-private/$m"
-        echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
-    done
+	for m in ${AGENT_PRIVATE_MOUNTS:-}; do
+		mkdir -p "$HOME/agent-private/$m"
+		echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
+	done
 
-    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "PrivateTmp=yes"
-    echo "PrivateDevices=no"
-    echo "PrivateMounts=yes"
+	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+	echo "PrivateTmp=yes"
+	echo "PrivateDevices=no"
+	echo "PrivateMounts=yes"
 
-    # Kernel and IPC constraints
-    echo "ProtectKernelTunables=yes"
-    echo "ProtectKernelModules=yes"
-    echo "ProtectKernelLogs=yes"
-    echo "ProtectControlGroups=yes"
-    echo "ProtectClock=yes"
-    echo "ProtectHostname=yes"
-    echo "LockPersonality=yes"
-    echo "MemoryDenyWriteExecute=no"
-    echo "SystemCallArchitectures=native"
-    echo "PrivateIPC=yes"
-    echo "RestrictSUIDSGID=yes"
-    echo "RestrictRealtime=yes"
-    echo "KeyringMode=private"
-    echo "UMask=0077"
+	# Kernel and IPC constraints
+	echo "ProtectKernelTunables=yes"
+	echo "ProtectKernelModules=yes"
+	echo "ProtectKernelLogs=yes"
+	echo "ProtectControlGroups=yes"
+	echo "ProtectClock=yes"
+	echo "ProtectHostname=yes"
+	echo "LockPersonality=yes"
+	echo "MemoryDenyWriteExecute=no"
+	echo "SystemCallArchitectures=native"
+	echo "PrivateIPC=yes"
+	echo "RestrictSUIDSGID=yes"
+	echo "RestrictRealtime=yes"
+	echo "KeyringMode=private"
+	echo "UMask=0077"
 }
 
 write_service_file() {
-    cat >"$SERVICE_FILE" <<EOF
+	cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=NanoClaw Webhook Server and Agent Runner
 Documentation=https://github.com/nanocoai/nanoclaw
@@ -96,23 +96,23 @@ SyslogIdentifier=nanoclaw
 WantedBy=default.target
 EOF
 
-    systemctl --user daemon-reload
+	systemctl --user daemon-reload
 }
 
 cmd_install() {
-    local no_start=false
-    if [ "${1:-}" = "--no-start" ]; then
-        no_start=true
-    fi
+	local no_start=false
+	if [ "${1:-}" = "--no-start" ]; then
+		no_start=true
+	fi
 
-    echo "Setting up nanoclaw home directory at $NANOCLAW_HOME..."
-    mkdir -p "$NANOCLAW_HOME"
+	echo "Setting up nanoclaw home directory at $NANOCLAW_HOME..."
+	mkdir -p "$NANOCLAW_HOME"
 
-    echo "Generating systemd user service..."
-    mkdir -p "$(dirname "$SERVICE_FILE")"
+	echo "Generating systemd user service..."
+	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-    if [ ! -f "$ENV_FILE" ]; then
-        cat >"$ENV_FILE" <<'EOF'
+	if [ ! -f "$ENV_FILE" ]; then
+		cat >"$ENV_FILE" <<'EOF'
 # nanoclaw.env
 # ---------------------------------------------------------------------------
 # WEBHOOK_PORT: Webhook port for NanoClaw (default 3000)
@@ -122,139 +122,139 @@ WEBHOOK_PORT=3000
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 EOF
-        chmod 600 "$ENV_FILE"
-    fi
+		chmod 600 "$ENV_FILE"
+	fi
 
-    write_service_file
+	write_service_file
 
-    echo "Reloading systemd and enabling service..."
-    systemctl --user enable nanoclaw.service
+	echo "Reloading systemd and enabling service..."
+	systemctl --user enable nanoclaw.service
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping service if running (--no-start specified)..."
-        systemctl --user stop nanoclaw.service || true
-    else
-        echo "Starting service automatically..."
-        systemctl --user start nanoclaw.service
-    fi
+	if [ "$no_start" = "true" ]; then
+		echo "Stopping service if running (--no-start specified)..."
+		systemctl --user stop nanoclaw.service || true
+	else
+		echo "Starting service automatically..."
+		systemctl --user start nanoclaw.service
+	fi
 
-    echo "Done! Type '$0 logs' to see the output."
+	echo "Done! Type '$0 logs' to see the output."
 }
 
 cmd_uninstall() {
-    echo "Uninstalling nanoclaw systemd service..."
-    systemctl --user stop nanoclaw.service || true
-    systemctl --user disable nanoclaw.service || true
+	echo "Uninstalling nanoclaw systemd service..."
+	systemctl --user stop nanoclaw.service || true
+	systemctl --user disable nanoclaw.service || true
 
-    if [ -f "$SERVICE_FILE" ]; then
-        rm "$SERVICE_FILE"
-        systemctl --user daemon-reload
-        echo "Removed service file."
-    fi
-    echo "Uninstalled successfully. Data in $NANOCLAW_HOME is preserved."
+	if [ -f "$SERVICE_FILE" ]; then
+		rm "$SERVICE_FILE"
+		systemctl --user daemon-reload
+		echo "Removed service file."
+	fi
+	echo "Uninstalled successfully. Data in $NANOCLAW_HOME is preserved."
 }
 
 cmd_start() {
-    write_service_file
-    systemctl --user start nanoclaw.service
+	write_service_file
+	systemctl --user start nanoclaw.service
 }
 
 cmd_stop() {
-    systemctl --user stop nanoclaw.service
+	systemctl --user stop nanoclaw.service
 }
 
 cmd_restart() {
-    write_service_file
-    systemctl --user restart nanoclaw.service
+	write_service_file
+	systemctl --user restart nanoclaw.service
 }
 
 cmd_status() {
-    systemctl --user status nanoclaw.service
+	systemctl --user status nanoclaw.service
 }
 
 cmd_enable() {
-    write_service_file
-    systemctl --user enable nanoclaw.service
+	write_service_file
+	systemctl --user enable nanoclaw.service
 }
 
 cmd_disable() {
-    systemctl --user disable nanoclaw.service
+	systemctl --user disable nanoclaw.service
 }
 
 cmd_logs() {
-    journalctl --user -u nanoclaw.service "$@"
+	journalctl --user -u nanoclaw.service "$@"
 }
 
 cmd_edit() {
-    mkdir -p "$(dirname "$ENV_FILE")"
-    touch "$ENV_FILE"
-    ${EDITOR:-nano} "$ENV_FILE"
-    echo "Restarting service to apply updated environment..."
-    cmd_restart
+	mkdir -p "$(dirname "$ENV_FILE")"
+	touch "$ENV_FILE"
+	${EDITOR:-nano} "$ENV_FILE"
+	echo "Restarting service to apply updated environment..."
+	cmd_restart
 }
 
 cmd_exec() {
-    echo "Starting nanoclaw as a transient systemd service with args: $*"
+	echo "Starting nanoclaw as a transient systemd service with args: $*"
 
-    local opts=(
-        --user
-        --pty
-        --wait
-        --collect
-        --quiet
-        -p "Type=exec"
-    )
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
 
-    while IFS= read -r opt; do
-        if [ -n "$opt" ]; then
-            opts+=(-p "$opt")
-        fi
-    done < <(get_shared_options transient)
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" /usr/bin/nanoclaw "$@"
+	systemd-run "${opts[@]}" /usr/bin/nanoclaw "$@"
 }
 
 cmd_shell() {
-    echo "Starting interactive shell as a transient systemd service..."
+	echo "Starting interactive shell as a transient systemd service..."
 
-    local opts=(
-        --user
-        --pty
-        --wait
-        --collect
-        --quiet
-        -p "Type=exec"
-    )
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
 
-    while IFS= read -r opt; do
-        if [ -n "$opt" ]; then
-            opts+=(-p "$opt")
-        fi
-    done < <(get_shared_options transient)
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 usage() {
-    echo "Usage: $0 <command>"
-    echo "Commands:"
-    echo "  install [--no-start] - Setup service and nanoclaw home directory (do not start service if --no-start is specified)"
-    echo "  uninstall - Stop and remove systemd service"
-    echo "  start     - Start the systemd service"
-    echo "  stop      - Stop the systemd service"
-    echo "  restart   - Restart the systemd service"
-    echo "  status    - View systemd service status"
-    echo "  enable    - Enable systemd service on boot"
-    echo "  disable   - Disable systemd service on boot"
-    echo "  logs      - Tail the systemd service logs"
-    echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run nanoclaw as a transient systemd user service with args"
-    echo "  shell     - Spawn an interactive shell in the nanoclaw systemd environment"
+	echo "Usage: $0 <command>"
+	echo "Commands:"
+	echo "  install [--no-start] - Setup service and nanoclaw home directory (do not start service if --no-start is specified)"
+	echo "  uninstall - Stop and remove systemd service"
+	echo "  start     - Start the systemd service"
+	echo "  stop      - Stop the systemd service"
+	echo "  restart   - Restart the systemd service"
+	echo "  status    - View systemd service status"
+	echo "  enable    - Enable systemd service on boot"
+	echo "  disable   - Disable systemd service on boot"
+	echo "  logs      - Tail the systemd service logs"
+	echo "  edit      - Edit the .env file and restart the service upon exit"
+	echo "  exec      - Run nanoclaw as a transient systemd user service with args"
+	echo "  shell     - Spawn an interactive shell in the nanoclaw systemd environment"
 }
 
 if [ $# -lt 1 ]; then
-    usage
-    exit 1
+	usage
+	exit 1
 fi
 
 COMMAND="$1"
@@ -274,8 +274,8 @@ edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
 *)
-    echo "Unknown command: $COMMAND"
-    usage
-    exit 1
-    ;;
+	echo "Unknown command: $COMMAND"
+	usage
+	exit 1
+	;;
 esac

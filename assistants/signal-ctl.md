@@ -19,7 +19,7 @@
 ```
 
 This command:
-1. Initializes `~/.local/share/signal-cli`.
+1. Initializes `~/.local/sandbox/signal-cli`.
 2. Generates environment files for both the CLI daemon and the REST API.
 3. Configures a JSON-RPC bridge.
 4. Enables both services (`signal-cli.service` and `signal-rest-api.service`) but does not start them.
@@ -79,7 +79,7 @@ exit
 - **Centralized Sandboxing**: All systemd security and namespace options are centralized in the `get_shared_options` function within `signal-ctl`. This ensures that the persistent background service (`signal-cli.service`) and any transient runs (`exec` / `shell` commands) run with identical sandbox profiles, preventing configuration drift.
 - **Hardening**: Runs with a very strict profile including `ProtectSystem=strict`, `TemporaryFileSystem=%h` (transient home mount point), and `RestrictNamespaces=yes`.
 - **JVM Requirements**: `MemoryDenyWriteExecute` is **intentionally omitted** because the Java Virtual Machine requires writable and executable memory mappings for its JIT compiler.
-- **Isolation**: The data directory `~/.local/share/signal-cli` is bind-mounted, but the rest of the home directory is hidden.
+- **Isolation**: The data directory `~/.local/sandbox/signal-cli` is bind-mounted, but the rest of the home directory is hidden.
 - **Process Isolation**: Confinement is tightened with `ProtectProc=invisible`, `ProcSubset=pid`, and restrictive system call filtering (`SystemCallArchitectures=native`).
 
 ### Configuration
