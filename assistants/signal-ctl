@@ -19,16 +19,19 @@ JSONRPC_CONFIG_FILE="$SIGNAL_DATA_DIR/jsonrpc2.yml"
 
 # Shared Sandboxing Configuration
 get_shared_options() {
-	local mode="$1" # "service" or "transient"
+	local mode="${1:-}" # "service" or "transient"
+	: "$mode"
 	local home_spec
-	if [ "$mode" = "service" ]; then
-		home_spec="%h"
-	else
+	home_spec="$(getent passwd "$(whoami)" | cut -d: -f6)"
+	if [ -z "$home_spec" ]; then
 		home_spec="$HOME"
 	fi
 
 	# Environment & Working Directory
-	echo "Environment=HOME=${home_spec}/.local/sandbox/signal-cli"
+	echo "Environment=HOME=${home_spec}"
+	echo "Environment=XDG_DATA_HOME=${home_spec}/.local/share"
+	echo "Environment=XDG_CONFIG_HOME=${home_spec}/.config"
+	echo "Environment=XDG_CACHE_HOME=${home_spec}/.cache"
 	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/signal-cli.env"
 	echo "WorkingDirectory=/tmp"
 
@@ -39,7 +42,7 @@ get_shared_options() {
 
 	echo "ProtectSystem=strict"
 	echo "TemporaryFileSystem=${home_spec}"
-	echo "BindPaths=${home_spec}/.local/sandbox/signal-cli:${home_spec}/.local/sandbox/signal-cli"
+	echo "BindPaths=${home_spec}/.local/sandbox/signal-cli:${home_spec}"
 	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
 	echo "PrivateTmp=yes"
 	echo "PrivateDevices=yes"
@@ -99,7 +102,7 @@ ExecStart=/bin/sh -c 'exec signal-cli \\
     \$\$SC_EXTRA_PREFIXES \\
     \$\${SC_ACCOUNT:+--account "\$\$SC_ACCOUNT"} \\
     daemon \\
-    \$\${SC_SOCKET_PATH:+--socket "\$\$SC_SOCKET_PATH"} \\
+    --socket "\$\${SC_SOCKET_PATH:-\$\$HOME/signal.sock}" \\
     \$\${SC_HOST:+\$\${SC_TCP_PORT:+--tcp "\$\$SC_HOST:\$\$SC_TCP_PORT"}} \\
     \$\${SC_HOST:+\$\${SC_HTTP_PORT:+--http "\$\$SC_HOST:\$\$SC_HTTP_PORT"}} \\
     --receive-mode on-start \\
@@ -126,8 +129,8 @@ After=signal-cli.service
 [Service]
 Type=simple
 $(get_shared_options service)
-EnvironmentFile=-%h/.config/systemd/user/signal-api.env
-ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config %h/.local/sandbox/signal-cli/.local/share/signal-cli
+EnvironmentFile=-$HOME/.config/systemd/user/signal-api.env
+ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config $HOME/.local/share/signal-cli
 Restart=on-failure
 RestartSec=5s
 
@@ -162,7 +165,8 @@ SC_ACCOUNT=
 
 # UNIX domain socket path (recommended for security; isolates daemon access).
 # Real path on host: ~/.local/sandbox/signal-cli/signal.sock
-SC_SOCKET_PATH=%h/.local/sandbox/signal-cli/signal.sock
+# Leave empty to default to $HOME/signal.sock
+SC_SOCKET_PATH=
 
 # TCP/HTTP bind address and ports (optional).
 # Keep these empty to disable TCP/HTTP JSON-RPC and use UNIX socket only.
@@ -224,16 +228,12 @@ EOF
 		chmod 600 "$ENV_REST_FILE"
 	fi
 
-	if [ -f "$JSONRPC_CONFIG_FILE" ]; then
-		echo "JSON-RPC bridge config already exists, skipping: $JSONRPC_CONFIG_FILE"
-	else
-		echo "Writing JSON-RPC bridge config: $JSONRPC_CONFIG_FILE"
-		cat >"$JSONRPC_CONFIG_FILE" <<EOF
+	echo "Writing JSON-RPC bridge config: $JSONRPC_CONFIG_FILE"
+	cat >"$JSONRPC_CONFIG_FILE" <<EOF
 config:
   "<multi-account>":
-    socket_path: "%h/.local/sandbox/signal-cli/signal.sock"
+    socket_path: "$HOME/signal.sock"
 EOF
-	fi
 
 	echo "Reloading systemd and enabling services..."
 	systemctl --user daemon-reload
@@ -275,7 +275,11 @@ EOF
 		fi
 	fi
 	echo ""
-	echo "  UNIX RPC socket:   ${SC_SOCKET_PATH:-%h/.local/sandbox/signal-cli/signal.sock}"
+	local socket_path="${SC_SOCKET_PATH:-}"
+	if [ -z "$socket_path" ] || [ "$socket_path" = "%h/signal.sock" ] || [ "$socket_path" = "\$HOME/signal.sock" ]; then
+		socket_path="$SANDBOX_HOME/signal.sock"
+	fi
+	echo "  UNIX RPC socket:   $socket_path"
 	if [ -n "${SC_HOST:-}" ]; then
 		echo "  TCP RPC endpoint:  $SC_HOST:${SC_TCP_PORT:-50887}"
 		echo "  HTTP RPC endpoint: $SC_HOST:${SC_HTTP_PORT:-50888}"
@@ -425,7 +429,7 @@ Files managed:
 Environment variables (set in the env file):
   SC_ACCOUNT      Phone number in E.164 format (+49...) for single-account mode.
                   Leave empty to serve all registered accounts (multi-account).
-  SC_SOCKET_PATH  UNIX domain socket path (default: %h/.local/sandbox/signal-cli/signal.sock)
+  SC_SOCKET_PATH  UNIX domain socket path (default: %h/signal.sock)
   SC_HOST         TCP/HTTP bind address (default: empty / disabled)
   SC_TCP_PORT     TCP bind port    (default: empty / disabled)
   SC_HTTP_PORT    HTTP bind port   (default: empty / disabled)
@@ -436,12 +440,8 @@ Environment variables (set in the env file):
   SC_EXTRA_PREFIXES Additional daemon flags, space-separated, e.g.:
                     --verbose
 
-Fixed parameters (hardcoded in ExecStart):
-  daemon                    Run in long-running daemon mode
-  --receive-mode on-start   Begin receiving messages immediately on launch
-
 JSON-RPC socket (internal):
-  %h/.local/sandbox/signal-cli/signal.sock
+  %h/signal.sock
 
 REST API endpoint:
   http://127.0.0.1:50889

@@ -39,8 +39,7 @@ This links the daemon to your existing Signal account on your mobile phone as a 
 
 ```bash
 # Link the account (this will output a QR code in the terminal)
-signal-cli link --name "noben" | \
-    tee >(head -1 | qrencode -t ANSIUTF8 >&2)
+signal-cli link --name "this-linked-device-name" | tee >(head -1 | qrencode -t ANSIUTF8 >&2)
 ```
 Scan the QR code with your phone's Signal app (**Settings -> Linked Devices -> Add Device**).
 
