@@ -52,7 +52,7 @@ The following default ports are used by various agent systems and services to av
 |---------------|-----------------|------------------------|
 | **Local-Inference** | [50080](http://localhost:50080) | Llama-server router (LLM + embeddings + reranker) |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
-| **Signal-CLI** | `50887`, [50888](http://localhost:50888), [50889](http://localhost:50889) | TCP JSON-RPC, HTTP JSON-RPC, REST API |
+| **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
 ||||
 | **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
 | **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |

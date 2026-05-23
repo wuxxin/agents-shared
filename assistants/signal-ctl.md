@@ -39,7 +39,7 @@ This links the daemon to your existing Signal account on your mobile phone as a 
 
 ```bash
 # Link the account (this will output a QR code in the terminal)
-signal-cli --config "$SC_CONFIG_DIR" link --name "noben" | \
+signal-cli link --name "noben" | \
     tee >(head -1 | qrencode -t ANSIUTF8 >&2)
 ```
 Scan the QR code with your phone's Signal app (**Settings -> Linked Devices -> Add Device**).
@@ -70,9 +70,9 @@ exit
 ## Implementation Considerations
 
 ### Architecture
-- **Dual Interfaces**: Runs the Java-based `signal-cli` as a daemon with both TCP (port 50887) and HTTP (port 50888) JSON-RPC interfaces enabled.
-- **Optional REST API**: A Go-based `signal-cli-rest-api` (HTTP port 50889) can be enabled/disabled via `SIGNAL_REST_API_ENABLED`.
-- **Communication**: The REST API connects to the daemon via the TCP JSON-RPC interface on port 50887.
+- **Secure Local Socket**: Runs the Java-based `signal-cli` as a daemon exposing a UNIX domain socket (`~/.local/sandbox/signal-cli/signal.sock`) for secure local IPC, with TCP (port 50887) and HTTP (port 50888) JSON-RPC interfaces disabled by default.
+- **Optional REST API**: A Go-based `signal-cli-rest-api` (HTTP port 50889) can be enabled/disabled via `SIGNAL_REST_API_ENABLED`. It can be secured with token-based authentication using `AUTH_TOKEN`.
+- **Communication**: The REST API connects to the daemon via the Unix Domain Socket file, ensuring no raw TCP port is exposed.
 
 ### Security & Sandboxing
 
@@ -83,5 +83,5 @@ exit
 - **Process Isolation**: Confinement is tightened with `ProtectProc=invisible`, `ProcSubset=pid`, and restrictive system call filtering (`SystemCallArchitectures=native`).
 
 ### Configuration
-- `signal-cli.env`: Controls the phone number (`SC_ACCOUNT`), TCP/HTTP ports (`SC_TCP_PORT`, `SC_HTTP_PORT`), and extra flags (e.g. `--ignore-stories`).
-- `signal-api.env`: Controls the REST API bind address, `MODE=json-rpc`, and `SIGNAL_REST_API_ENABLED`.
+- `signal-cli.env`: Controls the phone number (`SC_ACCOUNT`), UNIX socket path (`SC_SOCKET_PATH`), optional TCP/HTTP host and ports (`SC_HOST`, `SC_TCP_PORT`, `SC_HTTP_PORT`), and extra flags (e.g. `--ignore-stories`).
+- `signal-api.env`: Controls the REST API bind address, `MODE=json-rpc`, security token (`AUTH_TOKEN`), and `SIGNAL_REST_API_ENABLED`.

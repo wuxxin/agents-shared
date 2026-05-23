@@ -13,7 +13,8 @@ SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-cli.service"
 SERVICE_REST_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-rest-api.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-cli.env"
 ENV_REST_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/signal-api.env"
-SIGNAL_DATA_DIR="$HOME/.local/sandbox/signal-cli"
+SANDBOX_HOME="$HOME/.local/sandbox/signal-cli"
+SIGNAL_DATA_DIR="$SANDBOX_HOME/.local/share/signal-cli"
 JSONRPC_CONFIG_FILE="$SIGNAL_DATA_DIR/jsonrpc2.yml"
 
 # Shared Sandboxing Configuration
@@ -83,7 +84,7 @@ cmd_install() {
 
 	cat >"$SERVICE_FILE" <<EOF
 [Unit]
-Description=Signal CLI daemon (JSON-RPC over TCP)
+Description=Signal CLI daemon
 Documentation=https://github.com/AsamK/signal-cli
 After=network.target
 
@@ -91,16 +92,16 @@ After=network.target
 Type=simple
 $(get_shared_options service)
 
-# signal-cli daemon with JSON-RPC TCP endpoint.
+# signal-cli daemon with JSON-RPC over UNIX socket or TCP/HTTP ports.
 # SC_ACCOUNT may be empty to run in multi-account mode (all registered accounts).
 # SC_EXTRA_SUFFIXES can hold additional flags like --send-read-receipts, --ignore-stories.
-ExecStart=/bin/sh -c 'SC_CONFIG_DIR_RESOLVED=\$(eval echo "\$\$SC_CONFIG_DIR") && exec signal-cli \\
+ExecStart=/bin/sh -c 'exec signal-cli \\
     \$\$SC_EXTRA_PREFIXES \\
-    --config "\$\$SC_CONFIG_DIR_RESOLVED" \\
     \$\${SC_ACCOUNT:+--account "\$\$SC_ACCOUNT"} \\
     daemon \\
-    --tcp "\$\$SC_TCP_HOST:\$\$SC_TCP_PORT" \\
-    --http "\$\$SC_TCP_HOST:\$\$SC_HTTP_PORT" \\
+    \$\${SC_SOCKET_PATH:+--socket "\$\$SC_SOCKET_PATH"} \\
+    \$\${SC_HOST:+\$\${SC_TCP_PORT:+--tcp "\$\$SC_HOST:\$\$SC_TCP_PORT"}} \\
+    \$\${SC_HOST:+\$\${SC_HTTP_PORT:+--http "\$\$SC_HOST:\$\$SC_HTTP_PORT"}} \\
     --receive-mode on-start \\
     \$\$SC_EXTRA_SUFFIXES'
 
@@ -126,7 +127,7 @@ After=signal-cli.service
 Type=simple
 $(get_shared_options service)
 EnvironmentFile=-%h/.config/systemd/user/signal-api.env
-ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config %h/.local/sandbox/signal-cli
+ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config %h/.local/sandbox/signal-cli/.local/share/signal-cli
 Restart=on-failure
 RestartSec=5s
 
@@ -151,10 +152,6 @@ EOF
 # ACCOUNT SETTINGS
 # ---------------------------------------------------------------------------
 
-# Path where signal-cli stores its data (accounts, keys, attachments).
-# Points to the real home path (systemd expands %h before sandbox applies).
-SC_CONFIG_DIR=%h/.local/sandbox/signal-cli
-
 # Your registered Signal phone number in E.164 format, e.g. +491234567890.
 # Leave empty to run in multi-account mode (serves all registered accounts).
 SC_ACCOUNT=
@@ -163,11 +160,15 @@ SC_ACCOUNT=
 # NETWORK SETTINGS
 # ---------------------------------------------------------------------------
 
-# TCP/HTTP bind address and ports for the internal JSON-RPC interface.
-# The REST API wrapper connects here. MUST be 127.0.0.1 for the Go wrapper.
-SC_TCP_HOST=127.0.0.1
-SC_TCP_PORT=50887
-SC_HTTP_PORT=50888
+# UNIX domain socket path (recommended for security; isolates daemon access).
+# Real path on host: ~/.local/sandbox/signal-cli/signal.sock
+SC_SOCKET_PATH=%h/.local/sandbox/signal-cli/signal.sock
+
+# TCP/HTTP bind address and ports (optional).
+# Keep these empty to disable TCP/HTTP JSON-RPC and use UNIX socket only.
+SC_HOST=
+SC_TCP_PORT=
+SC_HTTP_PORT=
 
 # ---------------------------------------------------------------------------
 # EXTRA FLAGS (optional, space-separated)
@@ -180,7 +181,7 @@ SC_HTTP_PORT=50888
 #   --ignore-avatars       Don't download avatars of received messages.
 #   --ignore-stickers      Don't download sticker packs of received messages.
 # ---------------------------------------------------------------------------
-SC_EXTRA_SUFFIXES="--ignore-stories --ignore-stickers"
+SC_EXTRA_SUFFIXES="--no-receive-stdout --ignore-stories --ignore-stickers"
 
 # Valid options:
 #   --verbose for debug, can be repeated for more verbosity
@@ -212,6 +213,11 @@ LOG_LEVEL=warning
 # Set to false to disable starting the REST API service automatically
 SIGNAL_REST_API_ENABLED=true
 
+# Security token for the REST API. If set, clients must provide this token
+# via "Authorization: Bearer <token>" header or "?token=<token>" query parameter.
+# Leave empty to disable authentication.
+AUTH_TOKEN=
+
 # Webhook for incoming messages (optional)
 # RECEIVE_WEBHOOK_URL=http://localhost:port/webhook
 EOF
@@ -225,7 +231,7 @@ EOF
 		cat >"$JSONRPC_CONFIG_FILE" <<EOF
 config:
   "<multi-account>":
-    tcp_port: 50887
+    socket_path: "%h/.local/sandbox/signal-cli/signal.sock"
 EOF
 	fi
 
@@ -269,8 +275,11 @@ EOF
 		fi
 	fi
 	echo ""
-	echo "  TCP RPC endpoint:  ${SC_TCP_HOST:-127.0.0.1}:${SC_TCP_PORT:-50887}"
-	echo "  HTTP RPC endpoint: ${SC_TCP_HOST:-127.0.0.1}:${SC_HTTP_PORT:-50888}"
+	echo "  UNIX RPC socket:   ${SC_SOCKET_PATH:-%h/.local/sandbox/signal-cli/signal.sock}"
+	if [ -n "${SC_HOST:-}" ]; then
+		echo "  TCP RPC endpoint:  $SC_HOST:${SC_TCP_PORT:-50887}"
+		echo "  HTTP RPC endpoint: $SC_HOST:${SC_HTTP_PORT:-50888}"
+	fi
 	echo "  Logs: signal-ctl logs"
 }
 
@@ -390,7 +399,7 @@ usage() {
 	cat <<EOF
 Usage: $(basename "$0") <command>
 
-Manage the signal-cli systemd user service (JSON-RPC daemon over TCP/HTTP).
+Manage the signal-cli systemd user service (JSON-RPC daemon).
 
 Commands:
   install [--no-start] - Install service file, create default env file (if not present),
@@ -414,13 +423,12 @@ Files managed:
   Data:     $SIGNAL_DATA_DIR
 
 Environment variables (set in the env file):
-  SC_CONFIG_DIR   Path to signal-cli data directory
-                  (default: \$HOME/.local/sandbox/signal-cli)
   SC_ACCOUNT      Phone number in E.164 format (+49...) for single-account mode.
                   Leave empty to serve all registered accounts (multi-account).
-  SC_TCP_HOST     TCP/HTTP bind address (default: 127.0.0.1)
-  SC_TCP_PORT     TCP bind port    (default: 50887)
-  SC_HTTP_PORT    HTTP bind port   (default: 50888)
+  SC_SOCKET_PATH  UNIX domain socket path (default: %h/.local/sandbox/signal-cli/signal.sock)
+  SC_HOST         TCP/HTTP bind address (default: empty / disabled)
+  SC_TCP_PORT     TCP bind port    (default: empty / disabled)
+  SC_HTTP_PORT    HTTP bind port   (default: empty / disabled)
   SC_EXTRA_SUFFIXES Additional daemon flags, space-separated, e.g.:
                     --send-read-receipts
                     --ignore-attachments
@@ -430,12 +438,10 @@ Environment variables (set in the env file):
 
 Fixed parameters (hardcoded in ExecStart):
   daemon                    Run in long-running daemon mode
-  --http HOST:PORT          JSON-RPC over HTTP
   --receive-mode on-start   Begin receiving messages immediately on launch
 
-JSON-RPC endpoints (internal):
-  127.0.0.1:50887 (raw TCP)
-  127.0.0.1:50888 (HTTP)
+JSON-RPC socket (internal):
+  %h/.local/sandbox/signal-cli/signal.sock
 
 REST API endpoint:
   http://127.0.0.1:50889
@@ -445,9 +451,9 @@ Account setup (one-time, before first start):
   signal-ctl stop
   signal-ctl shell
 
-    signal-cli --config "\$SC_CONFIG_DIR" link --name "$(hostname)" | \
+    signal-cli link --name "$(hostname)" | \
         tee >(head -1 | qrencode -t ANSIUTF8 >&2)
-    signal-cli --config "\$SC_CONFIG_DIR" verify <code>
+    signal-cli verify <code>
 
     # or: signal-cli register --account +49...    # register new number
     # then: signal-cli verify --account +49... <CODE>
