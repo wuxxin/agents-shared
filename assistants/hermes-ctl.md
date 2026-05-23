@@ -5,15 +5,43 @@
 - **Source Code**: [GitHub - NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
 - **Arch/AUR Packages**: `hermes-agent` (AUR, standard source), `hermes-agent-git` (AUR, latest git source), `hermes-agent-desktop-bin` (AUR, desktop prebuilt binary).
 
+## Commands
+
+`hermes-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+
 ## Installation
 
 ```bash
 ./assistants/hermes-ctl install
 ```
 
-## Commands
+to set up the home directory (`~/.local/share/hermes`) and generate/enable the systemd user service.
 
-`hermes-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
+### Set Environment
+
+Run `./assistants/hermes-ctl edit` (or edit `~/.config/systemd/user/hermes-gateway.env`) to configure necessary provider environment variables (e.g. `OPENROUTER_API_KEY`).
+
+#### Switch to Local Inference & Qwen3
+
+Set `OPENAI_API_BASE=http://localhost:50080/v1` and `OPENAI_API_KEY=unused`. Then, configure the default model to `qwen3` in the Setup Wizard or Web UI.
+
+### Setup Wizard
+
+Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
+
+### Start & Verify
+
+Start the service with `./assistants/hermes-ctl start`. Monitor its logs via `./assistants/hermes-ctl logs -f` and access the Web UI at `http://localhost:9119`.
+
+
+### OpenClaw Migration
+
+Hermes supports importing configuration from an existing OpenClaw setup. To migrate your setup, run:
+```bash
+./assistants/hermes-ctl exec claw migrate
+```
+This utility will parse your legacy config formats and migrate them to the Hermes gateway structure.
+
 
 ## Configuration & Ports
 
@@ -120,21 +148,6 @@ stt:
     model: "whisper"
 ```
 
-## Onboarding
-
-1. **Install Service**: Run `./assistants/hermes-ctl install` to set up the home directory (`~/.local/share/hermes`) and generate/enable the systemd user service.
-2. **Set Environment**: Run `./assistants/hermes-ctl edit` (or edit `~/.config/systemd/user/hermes-gateway.env`) to configure necessary provider environment variables (e.g. `OPENROUTER_API_KEY`).
-3. **Setup Wizard**: Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
-4. **Start & Verify**: Start the service with `./assistants/hermes-ctl start`. Monitor its logs via `./assistants/hermes-ctl logs -f` and access the Web UI at `http://localhost:9119`.
-5. **Switch to Local Inference & Qwen3**: Run `./assistants/hermes-ctl edit` to set `OPENAI_API_BASE=http://localhost:50080/v1` and `OPENAI_API_KEY=unused`. Run `./assistants/hermes-ctl exec setup` and configure the default model to `qwen3` (or whatever model name is served by your local instance).
-
-### OpenClaw Migration
-
-Hermes supports importing configuration from an existing OpenClaw setup. To migrate your setup, run:
-```bash
-./assistants/hermes-ctl exec claw migrate
-```
-This utility will parse your legacy config formats and migrate them to the Hermes gateway structure.
 
 ## Implementation & Security Considerations
 

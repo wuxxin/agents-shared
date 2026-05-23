@@ -5,15 +5,40 @@
 - **Source Code**: [GitHub - librefang/librefang](https://github.com/librefang/librefang)
 - **Arch/AUR Packages**: `librefang-cli` (provides the client and server binary `/usr/bin/librefang`), `librefang-git` (latest git-based server package).
 
+## Commands
+
+`librefang-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
 ## Installation
 
 ```bash
-./assistants/librefang-ctl install
+./assistants/librefang-ctl install --no-start
 ```
 
-## Commands
+to set up the LibreFang home directory (`~/.local/share/librefang`) and register the systemd user service.
 
-`librefang-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
+### Initialize Workspace
+
+Run `./assistants/librefang-ctl exec init` to initialize the configuration workspace and prompt you interactively for LLM API keys to build `config.toml`.
+
+### Start Service
+
+Start the daemon with `./assistants/librefang-ctl start`. Verify it is running by checking the dashboard at `http://localhost:4545`.
+
+### Activate Hands
+
+Run `./assistants/librefang-ctl exec hand activate researcher` (or your hand of choice) to start autonomous background execution. Or run `./assistants/librefang-ctl exec chat <hand_name>` to converse directly.
+
+### Switch to Local Inference & Qwen3
+
+Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/share/librefang/.librefang/config.toml`):
+   ```toml
+   [providers.models.openai.local]
+   model = "qwen3"
+   uri = "http://localhost:50080/v1"
+   api_key = "unused"
+   ```
+   Update your default agent profile's routing to target `openai.local`.
+
 
 ## Configuration & Ports
 
@@ -126,23 +151,6 @@ model = "whisper"
 base_url = "http://localhost:50090/v1"
 api_key = "dummy"
 ```
-
----
-
-## Onboarding
-
-1. **Install Service**: Run `./assistants/librefang-ctl install` to set up the LibreFang home directory (`~/.local/share/librefang`) and register the systemd user service.
-2. **Initialize Workspace**: Run `./assistants/librefang-ctl exec init` to initialize the configuration workspace and prompt you interactively for LLM API keys to build `config.toml`.
-3. **Start Service**: Start the daemon with `./assistants/librefang-ctl start`. Verify it is running by checking the dashboard at `http://localhost:4545`.
-4. **Activate Hands**: Run `./assistants/librefang-ctl exec hand activate researcher` (or your hand of choice) to start autonomous background execution. Or run `./assistants/librefang-ctl exec chat <hand_name>` to converse directly.
-5. **Switch to Local Inference & Qwen3**: Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/share/librefang/.librefang/config.toml`):
-   ```toml
-   [providers.models.openai.local]
-   model = "qwen3"
-   uri = "http://localhost:50080/v1"
-   api_key = "unused"
-   ```
-   Update your default agent profile's routing to target `openai.local`.
 
 ---
 

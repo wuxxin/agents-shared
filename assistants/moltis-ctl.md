@@ -5,6 +5,11 @@
 - **Source Code**: [GitHub - moltis-org/moltis](https://github.com/moltis-org/moltis)
 - **Arch/AUR Packages**: `moltis` (AUR package built from the current workspace directory, source compilation). Alternatives: `moltis-bin` (AUR, precompiled binary) or `moltis-git` (AUR, latest git source build).
 
+## Commands
+
+`moltis-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+
+
 ## Installation
 
 ```bash
@@ -18,14 +23,29 @@ On the first run, Moltis generates a unique setup code. You must retrieve this f
 ```
 Then visit `https://localhost:13131` to enter the code and create your admin account.
 
-## Commands
+> [!TIP]
+> For unattended deployments, edit `~/.config/systemd/user/moltis.env` via `./assistants/moltis-ctl edit` and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
 
-`moltis-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
-
-## Configuration & Ports
+### Configuration & Ports
 
 - **Default Port**: `13131` (Moltis Agent Server Web UI/API)
 - **Secrets & Configuration**: Loaded from `~/.config/systemd/user/moltis.env`. Key variables include `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY`.
+
+## Switch to Local Inference & Qwen3
+
+Edit `~/.local/share/moltis/moltis.toml` (or via the Web UI) to configure a local OpenAI-compatible provider:
+   ```toml
+   [providers.models.openai.local]
+   model = "qwen3"
+   uri = "http://localhost:50080/v1"
+   api_key = "unused"
+   ```
+   Then point your target agent to use `model_provider = "openai.local"`.
+
+
+## OpenClaw Migration
+
+Moltis supports OpenClaw data and setting imports directly through the Web UI. During the initial onboarding steps (at `https://localhost:13131`), if a legacy OpenClaw workspace is detected, Moltis will prompt you to import settings and agent configurations.
 
 ## Signal Channel Configuration
 
@@ -130,27 +150,6 @@ endpoint = "http://localhost:50090"
 model = "whisper"
 language = "en"
 ```
-
-## Onboarding
-
-1. **Install Service**: Run `./assistants/moltis-ctl install` to initialize `~/.local/share/moltis`, compile assets, and generate the systemd user service.
-2. **Launch Daemon**: Start the service via `./assistants/moltis-ctl start`. On first run, a unique setup token is printed to the service output logs.
-3. **Extract Setup Token**: Run `./assistants/moltis-ctl logs | grep "setup code"` to retrieve the unique authentication code.
-4. **Initialize Web UI**: Navigate to `https://localhost:13131` in your browser, enter the setup code, and configure your administrator password or WebAuthn passkey.
-> [!TIP]
-> For unattended deployments, edit `~/.config/systemd/user/moltis.env` via `./assistants/moltis-ctl edit` and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
-5. **Switch to Local Inference & Qwen3**: Edit `~/.local/share/moltis/moltis.toml` (or via the Web UI) to configure a local OpenAI-compatible provider:
-   ```toml
-   [providers.models.openai.local]
-   model = "qwen3"
-   uri = "http://localhost:50080/v1"
-   api_key = "unused"
-   ```
-   Then point your target agent to use `model_provider = "openai.local"`.
-
-### OpenClaw Migration
-
-Moltis supports OpenClaw data and setting imports directly through the Web UI. During the initial onboarding steps (at `https://localhost:13131`), if a legacy OpenClaw workspace is detected, Moltis will prompt you to import settings and agent configurations.
 
 ## Implementation & Security Considerations
 

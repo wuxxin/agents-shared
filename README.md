@@ -158,7 +158,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Console GUI).
 - **Signal Support**: No — Not natively supported.
 - **Requirements**: `~/.local/share/picoclaw` for persistent configuration.
-- **Sandboxing**: **Strict Confinement Profile**. It hides other processes, prevents new namespaces, and denies writable/executable memory mappings. 
+- **Sandboxing**: **Relaxed Namespaces Profile**. Uses standard agent isolation with redirected `HOME` and strict filesystem protection. Isolated `HOME`.
 - **Search & Retrieval**: No native built-in vector database or complex memory engine due to its ultra-lightweight design (<10MB memory). Local state and conversation histories are stored in simple JSON files. Supports the Model Context Protocol (MCP) to delegate search and retrieval tasks to external databases or RAG servers (e.g. SQLite-vec MCP, Qdrant MCP, Chroma MCP).
 - **Embedding Options**: No native embedding models. Leverages external embedding API endpoints (OpenAI, Anthropic) or local embedding models via Ollama/llama-server via MCP tools or API routing.
 - **Reranking Support**: Via MCP — no native reranking; delegates via MCP reranker tool wrapping the local `/v1/rerank` endpoint.
@@ -175,6 +175,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 | Command | Action | Description |
 |---|---|---|
 | `install` | Install | Set up local directory structures under `~/.local/share/<assistant>`, generate environment file `.env` if missing, and create/register the systemd user unit. |
+| `install --no-start` | Install | Same as install, but do not start (or stop it if already running) the service after installation for further configuration (e.g. editing `.env`). |
 | `uninstall` | Uninstall | Stop and disable the systemd service, and clean up the systemd service files. (Data is preserved). |
 | `start` / `stop` / `restart` | Lifecycle | Standard controls to start, stop, or restart the systemd user service. |
 | `status` | Status | Show the current runtime status of the systemd service. |

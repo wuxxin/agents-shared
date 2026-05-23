@@ -5,15 +5,42 @@
 - **Source Code**: [GitHub - zeroclaw-labs/zeroclaw](https://github.com/zeroclaw-labs/zeroclaw)
 - **Arch/AUR Packages**: `zeroclaw` (AUR, Rust source compilation), `zeroclaw-bin` (AUR, prebuilt binary distribution), `zeroclaw-git` (AUR, git-based).
 
+## Commands
+
+`zeroclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+
 ## Installation
 
 ```bash
-./assistants/zeroclaw-ctl install
+./assistants/zeroclaw-ctl install --no-start
 ```
 
-## Commands
+to initialize `~/.local/share/zeroclaw` and register the systemd user service but do not start it.
 
-`zeroclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
+### Interactive Onboarding
+
+Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/share/zeroclaw/.zeroclaw/config.toml`.
+
+### Switch to Local Inference & Qwen3
+
+Edit `~/.local/share/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
+```toml
+[providers.models.openai.local]
+uri = "http://127.0.0.1:50080/v1"
+model = "qwen3"
+api_key = "unused"
+```
+Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
+
+
+### Verify Connection
+
+Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model fallback status. Test chat via `./assistants/zeroclaw-ctl exec agent -a <agent_alias>`.
+
+### Start Gateway
+
+**Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
+
 
 ## Configuration & Ports
 
@@ -22,22 +49,14 @@
   If the default port (`42617`) needs to be modified, you can configure the new port using:
   **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the gateway with the `zeroclaw gateway start --port $ZEROCLAW_PORT` command (since `--port` is a parameter on the `start` subcommand, not the base `gateway` command).
 
-## Onboarding
 
-1. **Install Service**: Run `./assistants/zeroclaw-ctl install` to initialize `~/.local/share/zeroclaw` and register the systemd user service.
-2. **Interactive Onboarding**: Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/share/zeroclaw/.zeroclaw/config.toml`.
-3. **Verify Connection**: Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model fallback status. Test chat via `./assistants/zeroclaw-ctl exec agent -a <agent_alias>`.
-4. **Start Gateway**: Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
-5. **Switch to Local Inference & Qwen3**: Edit `~/.local/share/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
-```toml
-[providers.models.openai.local]
-uri = "http://127.0.0.1:50080/v1"
-model = "qwen3"
-api_key = "unused"
-```
-Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
-```
+## OpenClaw Migration
 
+ZeroClaw supports importing history and conversation memory logs from an existing OpenClaw installation. To perform the migration, run:
+```bash
+./assistants/zeroclaw-ctl exec migrate openclaw
+```
+This command imports the legacy SQLite database memory logs directly into ZeroClaw's memory format.
 
 ## Signal Channel Configuration
 
@@ -114,14 +133,7 @@ url = "http://localhost:50090/v1/audio/transcriptions"
 bearer_token = "dummy"
 ```
 
-### OpenClaw Migration
-
-ZeroClaw supports importing history and conversation memory logs from an existing OpenClaw installation. To perform the migration, run:
-```bash
-./assistants/zeroclaw-ctl exec migrate openclaw
-```
-This command imports the legacy SQLite database memory logs directly into ZeroClaw's memory format.
-
+#
 ## Implementation & Security Considerations
 
 ### Centralized Sandbox Options

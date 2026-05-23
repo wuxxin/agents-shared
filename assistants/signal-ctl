@@ -26,7 +26,8 @@ get_shared_options() {
         home_spec="$HOME"
     fi
 
-    # Environment file & Working directory
+    # Environment & Working Directory
+    echo "Environment=HOME=${home_spec}/.local/share/signal-cli"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/signal-cli.env"
     echo "WorkingDirectory=/tmp"
 
@@ -118,9 +119,9 @@ After=signal-cli.service
 
 [Service]
 Type=simple
-EnvironmentFile=%h/.config/systemd/user/signal-api.env
-WorkingDirectory=/tmp
-ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config "$SIGNAL_DATA_DIR"
+$(get_shared_options service)
+EnvironmentFile=-%h/.config/systemd/user/signal-api.env
+ExecStart=/usr/bin/signal-cli-rest-api --signal-cli-config %h/.local/share/signal-cli
 Restart=on-failure
 RestartSec=5s
 
@@ -133,12 +134,12 @@ EOF
         echo "Remove it manually if you want to regenerate the defaults."
     else
         echo "Writing default env file: $ENV_FILE"
-        cat >"$ENV_FILE" <<EOF
+        cat >"$ENV_FILE" <<'EOF'
 # signal-cli.env
 # ---------------------------------------------------------------------------
 # Configuration for the signal-cli.service daemon instance.
 # Edit this file to set your account number or adjust runtime options.
-# Reload with:  signal-cfg.sh edit   (reloads daemon and restarts automatically)
+# Reload with:  signal-ctl edit   (reloads daemon and restarts automatically)
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -146,8 +147,8 @@ EOF
 # ---------------------------------------------------------------------------
 
 # Path where signal-cli stores its data (accounts, keys, attachments).
-# Default: \$HOME/.local/share/signal-cli
-SC_CONFIG_DIR=$HOME/.local/share/signal-cli
+# Points to the real home path (systemd expands %h before sandbox applies).
+SC_CONFIG_DIR=%h/.local/share/signal-cli
 
 # Your registered Signal phone number in E.164 format, e.g. +491234567890.
 # Leave empty to run in multi-account mode (serves all registered accounts).
@@ -167,7 +168,7 @@ SC_HTTP_PORT=50888
 # EXTRA FLAGS (optional, space-separated)
 
 # Valid options:
-#   --no-receive-stdout    Don’t print received messages to stdout
+#   --no-receive-stdout    Don't print received messages to stdout
 #   --send-read-receipts   Send read receipts automatically
 #   --ignore-attachments   Skip downloading attachments
 #   --ignore-stories       Suppress story messages
@@ -176,7 +177,7 @@ SC_HTTP_PORT=50888
 # ---------------------------------------------------------------------------
 SC_EXTRA_SUFFIXES="--ignore-stories --ignore-stickers"
 
-# Valid options: 
+# Valid options:
 #   --verbose for debug, can be repeated for more verbosity
 # ---------------------------------------------------------------------------
 SC_EXTRA_PREFIXES=""

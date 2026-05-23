@@ -5,27 +5,28 @@
 - **Source Code**: [GitHub - sipeed/picoclaw](https://github.com/sipeed/picoclaw)
 - **Arch/AUR Packages**: `picoclaw` (AUR, source-based Go compilation). Alternatives: `picoclaw-bin` (AUR, pre-built binary), `picoclaw-git` (AUR, git-based).
 
+## Commands
+
+`picoclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+
 ## Installation
 
 ```bash
-./assistants/picoclaw-ctl install
+./assistants/picoclaw-ctl install --no-start
 ```
+to create the home directory (`~/.local/share/picoclaw`) 
 
-## Commands
+### Using the CLI to Onboard
 
-`picoclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
-
-## Onboarding
-
-### Using the WebUI Launcher (Recommended)
-1. **Install Service**: Run `./assistants/picoclaw-ctl install` to create the home directory (`~/.local/share/picoclaw`) and start `picoclaw-launcher -no-browser`.
-2. **Web Onboarding**: Open `http://localhost:18800` in your browser. Configure your LLM API Key under **Settings -> Providers** (credentials are saved securely in `.security.yml`) and set up a platform channel under **Settings -> Channels**.
-3. **Launch Gateway**: Click "Start Gateway" in the launcher web interface (runs on port `18790` by default) and begin chatting.
-
-### Headless CLI Alternative
 1. **Onboard Configuration**: Run `./assistants/picoclaw-ctl exec onboard` to generate `config.json` and initialize the workspace directory.
 2. **Define Config**: Configure model providers and channel rules in `~/.local/share/picoclaw/config.json`.
 3. **Test & Run**: Run `./assistants/picoclaw-ctl exec agent -m "Hello"` to test connection. Launch background messaging gateway with `./assistants/picoclaw-ctl exec gateway`.
+
+### Using the WebUI to Onboard
+
+1. **Web Onboarding**: Run `./assistants/picoclaw-ctl exec picoclaw-launcher -no-browser` and open `http://localhost:18800` in your browser. Configure your LLM API Key under **Settings -> Providers** (credentials are saved securely in `.security.yml`) and set up a platform channel under **Settings -> Channels**.
+2. **Launch Gateway**: Click "Start Gateway" in the launcher web interface (runs on port `18790` by default) and begin chatting.
+
 
 ### Switch to Local Inference & Qwen3
 In the WebUI, add a Custom OpenAI provider with endpoint `http://localhost:50080/v1`, model `qwen3`, and key `unused`. Alternatively, configure `~/.local/share/picoclaw/config.json` manually:
@@ -142,19 +143,19 @@ Add the following sections to `~/.local/share/picoclaw/config.json`:
 To guarantee parity across all execution modes, `picoclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
 ### Sandboxing Profile
-PicoClaw utilizes a **Strict Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
+PicoClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation, consistent with the other assistant sandboxing configurations. Based on auditing the packaging and runtime configuration, these permissions are set:
 
-1. **Go Runtime & Strict Memory Protection**
-   - **Property Set**: `MemoryDenyWriteExecute=yes`.
-   - **Rationale**: PicoClaw is written in Go, which compiles to a static native binary. It does not require dynamic JIT compilation or writable/executable memory mappings, allowing the strict enforcement of `MemoryDenyWriteExecute=yes` to mitigate JIT exploitation risks.
+1. **Relaxed Namespaces & Process Isolation**
+   - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+   - **Rationale**: Relaxed to match the standard agent profile, allowing compatibility with potential future MCP tool sandboxing or nested process execution.
 
-2. **Strict Namespaces & Process Isolation**
-   - **Properties Enforced**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
-   - **Rationale**: Unlike agents that execute nested Bubblewrap/Docker tool sandboxes, PicoClaw runs completely self-contained tasks. It can thus block namespace creation and restrict `/proc` filesystem visibility to maximize host isolation.
+2. **Memory Protection**
+   - **Property Set**: `MemoryDenyWriteExecute=no`.
+   - **Rationale**: Relaxed for consistency with other agent profiles. While Go doesn't require W^X allocations, the unified profile simplifies maintenance.
 
 3. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `%h` ensures correct user-level context pathing. The persistent home (`~/.local/share/picoclaw`), `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+   - **Rationale**: `HOME` is redirected to `%h/.local/share/picoclaw` (the persistent bind-mounted data directory). The `~/agent-shared` and `AGENT_PRIVATE_MOUNTS` directories are bind-mounted read-write, while other system directories are read-only.
 
 4. **Launcher vs CLI**
    - **Service Execution**: The systemd background service uses `picoclaw-launcher -no-browser` as its `ExecStart` target, running the built-in web console service.

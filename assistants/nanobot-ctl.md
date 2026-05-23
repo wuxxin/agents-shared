@@ -5,6 +5,10 @@
 - **Source Code**: [GitHub - HKUDS/nanobot](https://github.com/HKUDS/nanobot)
 - **Arch/AUR Packages**: No system-wide AUR packages are available for NanoBot. It is a lightweight Python framework designed to be installed inside a virtual environment using `uv` (pip package: `nanobot-ai`).
 
+## Commands
+
+`nanobot-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+
 ## Installation
 
 Ensure you have `uv` installed, then simply run the script's `install` command:
@@ -12,24 +16,54 @@ Ensure you have `uv` installed, then simply run the script's `install` command:
 ```bash
 ./assistants/nanobot-ctl install
 ```
+to initialize `~/.local/share/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and create the systemd unit.
 
 During installation, `nanobot-ctl` will set up the isolated environment and generate standard service files.
 
-## Commands
+### Configuration Wizard
 
-`nanobot-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](file:///home/wuxxin/agent-shared/code/aur-packages/assistants/assistants.md#standard-control-wrappers-assistant-ctl).
+Run the interactive onboarding wizard via `./assistants/nanobot-ctl exec onboard --wizard` to generate the default configuration.
 
-## Initialization & Ports
-
-### Initialization
-If the configuration is empty, the installer will prompt you to run the onboarding wizard:
-```bash
-./assistants/nanobot-ctl exec onboard --wizard
+### Switch to Local Inference & Qwen3
+Edit `~/.local/share/nanobot/config.json` (via `./assistants/nanobot-ctl config`) to configure the local OpenAI-compatible endpoint and default models (under `agents.defaults`):
+```json
+{
+  "providers": {
+    "openai_compatible": {
+      "local": {
+        "api_key": "unused",
+        "base_url": "http://localhost:50080/v1"
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "openai_compatible/local",
+      "model": "qwen3"
+    }
+  }
+}
 ```
 
-### Configuration & Ports
+### Enable WebUI
+
+In the config, ensure the WebSocket channel is enabled:
+   ```json
+   { "channels": { "websocket": { "enabled": true } } }
+   ```
+### Start & Verify
+Run `./assistants/nanobot-ctl start`. Verify status with `./assistants/nanobot-ctl status` and access the WebUI console at `http://localhost:8790`.
+
+
+
+## Configuration & Ports
 - **Configuration File**: Stored at `~/.local/share/nanobot/config.json`.
 - **Default Port**: The gateway service runs on port `8790` (set via `--port 8790` in the systemd service unit) to prevent conflicts with other services.
+
+## OpenClaw Migration
+
+OpenClaw migration is not natively supported by NanoBot. Configuration must be set up manually using the configuration wizard (`onboard --wizard`) or by editing the JSON configuration.
+
 
 ## Signal Channel Configuration
 
@@ -157,39 +191,6 @@ Alternatively, you can configure it inside `~/.local/share/nanobot/config.json`:
 }
 ```
 
-## Onboarding
-
-1. **Install Service**: Run `./assistants/nanobot-ctl install` to initialize `~/.local/share/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and create the systemd unit.
-2. **Configuration Wizard**: Run the interactive onboarding wizard via `./assistants/nanobot-ctl exec onboard --wizard` to generate the default configuration.
-3. **Configure API & Model**: Edit `~/.local/share/nanobot/config.json` (via `./assistants/nanobot-ctl config`) to configure your API keys (e.g. OpenRouter/Anthropic under `providers`) and default models (under `agents.defaults`).
-4. **Enable WebUI**: In the config, ensure the WebSocket channel is enabled:
-   ```json
-   { "channels": { "websocket": { "enabled": true } } }
-   ```
-5. **Start & Verify**: Run `./assistants/nanobot-ctl start`. Verify status with `./assistants/nanobot-ctl status` and access the WebUI console at `http://localhost:8790`.
-6. **Switch to Local Inference & Qwen3**: Edit `~/.local/share/nanobot/config.json` to configure the local OpenAI-compatible endpoint:
-   ```json
-   {
-     "providers": {
-       "openai_compatible": {
-         "local": {
-           "api_key": "unused",
-           "base_url": "http://localhost:50080/v1"
-         }
-       }
-     },
-     "agents": {
-       "defaults": {
-         "provider": "openai_compatible/local",
-         "model": "qwen3"
-       }
-     }
-   }
-   ```
-
-### OpenClaw Migration
-
-OpenClaw migration is not natively supported by NanoBot. Configuration must be set up manually using the configuration wizard (`onboard --wizard`) or by editing the JSON configuration.
 
 ## Implementation & Security Considerations
 

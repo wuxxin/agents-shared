@@ -28,9 +28,9 @@ get_shared_options() {
     echo "Environment=PICOCLAW_HOME=${home_spec}/.local/share/picoclaw"
     echo "Environment=PICOCLAW_CONFIG=${home_spec}/.local/share/picoclaw/config.json"
     echo "Environment=PICOCLAW_BINARY=/usr/bin/picoclaw"
-    echo "Environment=HOME=${home_spec}"
+    echo "Environment=HOME=${home_spec}/.local/share/picoclaw"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/picoclaw.env"
-    echo "WorkingDirectory=${home_spec}"
+    echo "WorkingDirectory=${home_spec}/.local/share/picoclaw"
 
     # Security measures
     echo "NoNewPrivileges=yes"
@@ -62,12 +62,8 @@ get_shared_options() {
     echo "ProtectControlGroups=yes"
     echo "ProtectClock=yes"
     echo "ProtectHostname=yes"
-    echo "ProtectProc=invisible"
-    echo "ProcSubset=pid"
-    echo "RestrictNamespaces=yes"
     echo "LockPersonality=yes"
-    # Go is a compiled language and doesn't need W^X allocations
-    echo "MemoryDenyWriteExecute=yes"
+    echo "MemoryDenyWriteExecute=no"
     echo "SystemCallArchitectures=native"
     echo "PrivateIPC=yes"
     echo "RestrictSUIDSGID=yes"

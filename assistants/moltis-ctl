@@ -26,6 +26,7 @@ get_shared_options() {
     fi
 
     # Environment & Working Directory
+    echo "Environment=HOME=${home_spec}/.local/share/moltis"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/moltis.env"
     echo "WorkingDirectory=${home_spec}/.local/share/moltis"
 
@@ -120,9 +121,9 @@ cmd_install() {
 # MOLTIS_BIND=0.0.0.0
 # MOLTIS_PORT=13131
 
-# Directories (defaults to ~/.local/share/moltis)
-MOLTIS_DATA_DIR=%h/.local/share/moltis
-MOLTIS_CONFIG_DIR=%h/.local/share/moltis
+# Directories (default to sandboxed HOME at ~/.local/share/moltis)
+# MOLTIS_DATA_DIR=
+# MOLTIS_CONFIG_DIR=
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
