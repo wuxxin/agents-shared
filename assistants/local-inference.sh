@@ -323,6 +323,11 @@ write_service_file() {
 # ---------------------------------------------------------------------------
 
 cmd_install() {
+    local no_start=false
+    if [ "${1:-}" = "--no-start" ]; then
+        no_start=true
+    fi
+
     echo "Installing ${SERVICE_NAME} systemd user service..."
 
     # Create directory if needed
@@ -345,10 +350,17 @@ cmd_install() {
     echo "Service file written."
     echo "Generated INI file: ${INI_FILE}"
 
-    # Enable and start
-    echo "Enabling and starting ${SERVICE_NAME}.service..."
+    # Enable service
+    echo "Enabling ${SERVICE_NAME}.service..."
     systemctl --user enable "${SERVICE_NAME}.service"
-    systemctl --user restart "${SERVICE_NAME}.service"
+
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping service if running (--no-start specified)..."
+        systemctl --user stop "${SERVICE_NAME}.service" || true
+    else
+        echo "Starting/Restarting service automatically..."
+        systemctl --user restart "${SERVICE_NAME}.service"
+    fi
 
     echo "Installation complete."
     echo ""
@@ -466,7 +478,7 @@ cmd_shell() {
 usage() {
     echo "Usage: $0 <command>"
     echo "Commands:"
-    echo "  install   - Setup service and default environment"
+    echo "  install [--no-start] - Setup service and default environment (do not start service if --no-start is specified)"
     echo "  uninstall - Stop and remove systemd service"
     echo "  start     - Start the systemd service"
     echo "  stop      - Stop the systemd service"
@@ -492,7 +504,7 @@ COMMAND="$1"
 shift
 
 case "$COMMAND" in
-install) cmd_install ;;
+install) cmd_install "$@" ;;
 uninstall) cmd_uninstall ;;
 start) cmd_start ;;
 stop) cmd_stop ;;

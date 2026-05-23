@@ -100,6 +100,11 @@ EOF
 }
 
 cmd_install() {
+	local no_start=false
+	if [ "${1:-}" = "--no-start" ]; then
+		no_start=true
+	fi
+
 	echo "Setting up zeroclaw home directory at $ZEROCLAW_HOME..."
 	mkdir -p "$ZEROCLAW_HOME"
 
@@ -127,8 +132,13 @@ EOF
 	echo "Reloading systemd and enabling service..."
 	systemctl --user enable zeroclaw.service
 
-	echo "Starting service automatically..."
-	systemctl --user start zeroclaw.service
+	if [ "$no_start" = "true" ]; then
+		echo "Stopping service if running (--no-start specified)..."
+		systemctl --user stop zeroclaw.service || true
+	else
+		echo "Starting service automatically..."
+		systemctl --user start zeroclaw.service
+	fi
 
 	echo "Done! Type '$0 logs' to see the output."
 }
@@ -230,7 +240,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install   - Setup service and zeroclaw home directory"
+	echo "  install [--no-start] - Setup service and zeroclaw home directory (do not start service if --no-start is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"
@@ -253,7 +263,7 @@ COMMAND="$1"
 shift
 
 case "$COMMAND" in
-install) cmd_install ;;
+install) cmd_install "$@" ;;
 uninstall) cmd_uninstall ;;
 start) cmd_start ;;
 stop) cmd_stop ;;

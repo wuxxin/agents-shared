@@ -70,6 +70,11 @@ get_shared_options() {
 }
 
 cmd_install() {
+    local no_start=false
+    if [ "${1:-}" = "--no-start" ]; then
+        no_start=true
+    fi
+
     echo "Setting up signal-cli data directory at $SIGNAL_DATA_DIR..."
     mkdir -p "$SIGNAL_DATA_DIR"
 
@@ -240,17 +245,28 @@ EOF
         echo "REST API is disabled in $ENV_REST_FILE, skipping enable."
     fi
 
-    echo "Starting services..."
-    systemctl --user start signal-cli.service
-    if [ "$rest_enabled" = "true" ]; then
-        systemctl --user start signal-rest-api.service
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping services if running (--no-start specified)..."
+        systemctl --user stop signal-rest-api.service 2>/dev/null || true
+        systemctl --user stop signal-cli.service 2>/dev/null || true
+    else
+        echo "Starting services..."
+        systemctl --user start signal-cli.service
+        if [ "$rest_enabled" = "true" ]; then
+            systemctl --user start signal-rest-api.service
+        fi
     fi
 
     echo ""
-    echo "Done! signal-cli service is running."
-    if [ "$rest_enabled" = "true" ]; then
-        echo "signal-rest-api service is running."
-        echo "  REST API endpoint: http://127.0.0.1:50889"
+    echo "Done! signal-cli service is configured."
+    if [ "$no_start" = "true" ]; then
+        echo "Services were NOT started (--no-start specified)."
+    else
+        echo "signal-cli service is running."
+        if [ "$rest_enabled" = "true" ]; then
+            echo "signal-rest-api service is running."
+            echo "  REST API endpoint: http://127.0.0.1:50889"
+        fi
     fi
     echo ""
     echo "  TCP RPC endpoint:  ${SC_TCP_HOST:-127.0.0.1}:${SC_TCP_PORT:-50887}"
@@ -377,8 +393,8 @@ Usage: $(basename "$0") <command>
 Manage the signal-cli systemd user service (JSON-RPC daemon over TCP/HTTP).
 
 Commands:
-  install   - Install service file, create default env file (if not present),
-              enable and start the service
+  install [--no-start] - Install service file, create default env file (if not present),
+              enable and start the service (do not start if --no-start is specified)
   uninstall - Stop, disable and remove the service file (data preserved)
   start     - Start the systemd service
   stop      - Stop the systemd service
@@ -450,7 +466,7 @@ COMMAND="$1"
 shift
 
 case "$COMMAND" in
-install) cmd_install ;;
+install) cmd_install "$@" ;;
 uninstall) cmd_uninstall ;;
 start) cmd_start ;;
 stop) cmd_stop ;;

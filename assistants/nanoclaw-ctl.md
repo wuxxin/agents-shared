@@ -11,9 +11,9 @@
 ## Installation
 
 ```bash
-./assistants/nanoclaw-ctl install
+./assistants/nanoclaw-ctl install --no-start
 ```
- to set up `~/.local/share/nanoclaw` and register the systemd user service.
+ to set up `~/.local/share/nanoclaw` and register the systemd user service without starting it.
 
 ### Switch to Local Inference & Qwen3
 

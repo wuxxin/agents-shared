@@ -12,10 +12,10 @@
 ## Installation
 
 ```bash
-./assistants/hermes-ctl install
+./assistants/hermes-ctl install --no-start
 ```
 
-to set up the home directory (`~/.local/share/hermes`) and generate/enable the systemd user service.
+to set up the home directory (`~/.local/share/hermes`) and register the systemd user service without starting it.
 
 ### Set Environment
 

@@ -13,7 +13,7 @@
 ## Installation
 
 ```bash
-./assistants/moltis-ctl install
+./assistants/moltis-ctl install --no-start
 ```
 
 ### Setup Code

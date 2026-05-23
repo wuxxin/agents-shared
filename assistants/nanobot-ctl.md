@@ -14,9 +14,9 @@
 Ensure you have `uv` installed, then simply run the script's `install` command:
 
 ```bash
-./assistants/nanobot-ctl install
+./assistants/nanobot-ctl install --no-start
 ```
-to initialize `~/.local/share/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and create the systemd unit.
+to initialize `~/.local/share/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and register the systemd unit without starting it.
 
 During installation, `nanobot-ctl` will set up the isolated environment and generate standard service files.
 

@@ -110,6 +110,11 @@ EOF
 }
 
 cmd_install() {
+    local no_start=false
+    if [ "${1:-}" = "--no-start" ]; then
+        no_start=true
+    fi
+
     require_uv
     echo "Installing nanobot and its virtual environment..."
 
@@ -151,7 +156,10 @@ EOF
     echo "Reloading systemd and enabling service..."
     systemctl --user enable nanobot.service
 
-    if [ "$(wc -c <"$CONFIG_FILE")" -le 5 ]; then
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping service if running (--no-start specified)..."
+        systemctl --user stop nanobot.service || true
+    elif [ "$(wc -c <"$CONFIG_FILE")" -le 5 ]; then
         echo ""
         echo "Configuration appears to be uninitialized!"
         echo "Please initialize the system by running:"
@@ -299,7 +307,7 @@ cmd_update() {
 usage() {
     echo "Usage: $0 <command>"
     echo "Commands:"
-    echo "  install   - Create virtual environment with uv, install nanobot, setup and start systemd service"
+    echo "  install [--no-start] - Create virtual environment with uv, install nanobot, setup and start systemd service (do not start service if --no-start is specified)"
     echo "  uninstall - Stop service, remove systemd service and virtual environment"
     echo "  start     - Start the systemd service"
     echo "  stop      - Stop the systemd service"
@@ -324,7 +332,7 @@ COMMAND="$1"
 shift
 
 case "$COMMAND" in
-install) cmd_install ;;
+install) cmd_install "$@" ;;
 uninstall) cmd_uninstall ;;
 start) cmd_start ;;
 stop) cmd_stop ;;

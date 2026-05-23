@@ -15,21 +15,20 @@
 ## Installation
 
 ```bash
-./assistants/signal-ctl install
+./assistants/signal-ctl install --no-start
 ```
 
 This command:
 1. Initializes `~/.local/share/signal-cli`.
 2. Generates environment files for both the CLI daemon and the REST API.
 3. Configures a JSON-RPC bridge.
-4. Enables and starts both services: `signal-cli.service` and `signal-rest-api.service`.
+4. Enables both services (`signal-cli.service` and `signal-rest-api.service`) but does not start them.
 
 ## Account Setup
 
 Before starting the service, you must link an account. Run the interactive shell in the sandbox environment:
 
 ```bash
-./assistants/signal-ctl stop
 ./assistants/signal-ctl shell
 ```
 
@@ -61,7 +60,7 @@ exit
 
 | Command | Description |
 |---|---|
-| `install` | Full dual-service setup. |
+| `install [--no-start]` | Full dual-service setup (do not start service if `--no-start` is specified). |
 | `uninstall` | Stops and removes services (preserves account data). |
 | `edit` | Opens both `.env` files and restarts services on exit. |
 | `logs [args...]` | Combined logs for the daemon and the REST API. Pass `-f` to tail/follow. Supports any `journalctl` options. |
