@@ -65,6 +65,8 @@ exit
 | `logs [args...]` | Combined logs for the daemon and the REST API. Pass `-f` to tail/follow. Supports any `journalctl` options. |
 | `exec` | Run `signal-cli` commands (e.g. `listGroups`) in the sandbox. |
 | `shell` | Interactive shell for manual account management. |
+| `relink <device-name>` | Link an account and display QR code (passes name of link for Signal GUI). |
+| `doctor [--interactive]` | Checks endpoints (REST, RPC HTTP, UNIX socket) and lists accounts. With `--interactive`, polls the REST API for a test message sent by the user. |
 
 ## Implementation Considerations
 
