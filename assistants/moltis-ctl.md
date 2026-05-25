@@ -147,7 +147,7 @@ enabled = true
 # Base URI of local-speech-to-text service (do not append '/v1/audio/transcriptions')
 endpoint = "http://localhost:50090"
 # Optional settings
-model = "whisper"
+model = "whisper-1"
 language = "en"
 ```
 

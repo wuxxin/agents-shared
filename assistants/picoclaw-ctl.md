@@ -129,7 +129,7 @@ Add the following sections to `~/.local/sandbox/picoclaw/config.json`:
   },
   "models": {
     "local_stt": {
-      "model": "whisper",
+      "model": "whisper-1",
       "api_key": "dummy",
       "base_url": "http://localhost:50090/v1"
     }

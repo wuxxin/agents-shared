@@ -115,7 +115,7 @@ Add the transcription provider configuration to `~/.local/sandbox/zeroclaw/.zero
 [providers.transcription.local_whisper.local_stt]
 uri = "http://localhost:50090/v1/audio/transcriptions"
 bearer_token = "dummy"
-model = "whisper"
+model = "whisper-1"
 
 # 2. Reference this provider in your agent configuration
 [agents.default]

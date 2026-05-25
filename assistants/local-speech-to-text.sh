@@ -29,7 +29,7 @@ load_env() {
     LSTT_HOST=127.0.0.1
     LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
     # shellcheck disable=SC2034
-    LSTT_MODEL_ALIAS=whisper
+    LSTT_MODEL_ALIAS=whisper-1
     LSTT_THREADS=4
     LSTT_DEVICE=0
     LSTT_INFERENCE_PATH=/v1/audio/transcriptions

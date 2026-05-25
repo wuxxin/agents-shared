@@ -8,46 +8,47 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: |
-| **hermes-agent** | 163,134 | 26,684 | `main` | 2026-05-22 | **776** | 14 | 1 | 846.5 | `v2026.5.16`, `v2026.5.7` | **Highly Active** |
+| **librefang** | 272 | 54 | `main` | 2026-05-22 | **308** | 0 | 2 | 355.2 | `v2026.5.17-beta.12` | **Highly Active** |
 | **moltis** | 2,700 | 315 | `main` | 2026-05-22 | **40** | 0 | 5 | 96.2 | `20260519.01`, `20260518.01` | **Highly Active** |
+| **zeroclaw** | 31,535 | 4,646 | `master` | 2026-05-22 | **56** | 0 | 1 | 72.0 | `v0.8.0-beta-1` (2026-05-21) | **Highly Active** |
+| **hermes-agent** | 163,134 | 26,684 | `main` | 2026-05-22 | **776** | 14 | 1 | 846.5 | `v2026.5.16`, `v2026.5.7` | **Highly Active** |
 | **nanobot** | 43,003 | 7,572 | `main` | 2026-05-23 | **155** | 13 | 1 | 125.5 | `v0.2.0` (2026-05-16) | **Highly Active** |
 | **nanoclaw** | 29,280 | 12,856 | `main` | 2026-05-22 | **36** | 17 | 1 | 130.8 | `v2.0.64` (2026-05-18) | **Highly Active** |
-| **librefang** | 272 | 54 | `main` | 2026-05-22 | **308** | 0 | 2 | 355.2 | `v2026.5.17-beta.12` | **Highly Active** |
 | **picoclaw** | 29,133 | 4,174 | `main` | 2026-05-22 | **31** | 5 | 2 | 62.2 | `v0.2.9` (2026-05-22) | **Highly Active** |
-| **zeroclaw** | 31,535 | 4,646 | `master` | 2026-05-22 | **56** | 0 | 1 | 72.0 | `v0.8.0-beta-1` (2026-05-21) | **Highly Active** |
 
 ---
 
 ## 🔍 Repository Breakdown
 
-### 1. LibreFang (`librefang/librefang`)
+### LibreFang (`librefang/librefang`)
 * **Status**: Highly Active (308 commits, 2 releases in the last week).
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
 * **Recent Focus**: Shifted WhatsApp integration from in-process Rust adapter to sidecar python-sdk adapter, fixed test fixture drift, and refined config-validation env-var hooks.
 
-### 2. Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (776 commits, 14 merges in the last week).
-* **Recent Focus**: Significant work on mobile/Termux optimization, access token lifecycle management (e.g., Minimax OAuth refactoring), and speedups for bare CLI prompts.
-
-### 3. Moltis (`moltis-org/moltis`)
+### Moltis (`moltis-org/moltis`)
 * **Status**: Highly Active (40 commits, 5 releases in the last week).
 * **Recent Focus**: Reasoning effort support for OpenAI Codex endpoints, splitting test suites, expanding wav metadata extraction for Piper TTS, and supporting arbitrary chat attachments.
 
-### 4. NanoBot (`HKUDS/nanobot`)
+### ZeroClaw (`zeroclaw-labs/zeroclaw`)
+* **Status**: Highly Active (56 commits, 1 release in the last week).
+* **Recent Focus**: OTel tool span enrichment with Semantic Conventions (`gen_ai.tool.*`), onboarding improvements, service templates parameterization, and Discord thread message route bugfixes.
+
+### Hermes Agent (`NousResearch/hermes-agent`)
+* **Status**: Highly Active (776 commits, 14 merges in the last week).
+* **Recent Focus**: Significant work on mobile/Termux optimization, access token lifecycle management (e.g., Minimax OAuth refactoring), and speedups for bare CLI prompts.
+### NanoBot (`HKUDS/nanobot`)
 * **Status**: Highly Active (155 commits, 13 merges, 1 release in the last week).
 * **Recent Focus**: Windows CI compatibility for CLI Apps, UI localization updates, and safety improvements for fetch preflight streaming.
 
-### 5. NanoClaw (`nanocoai/nanoclaw`)
+### NanoClaw (`nanocoai/nanoclaw`)
 * **Status**: Highly Active (36 commits, 17 merges, 1 release in the last week).
 * **Recent Focus**: WhatsApp message formatting skill, agent runner envelope drops bugfix, and documentation enhancements regarding context window scaling (reaching 177k tokens).
 
-### 6. PicoClaw (`sipeed/picoclaw`)
+### PicoClaw (`sipeed/picoclaw`)
 * **Status**: Highly Active (31 commits, 5 merges, 2 releases in the last week).
 * **Recent Focus**: Timestamps for session messages, and critical dependency updates (bumping `golang.org/x/net` to `v0.55.0` to address security advisories).
 
-### 7. ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (56 commits, 1 release in the last week).
-* **Recent Focus**: OTel tool span enrichment with Semantic Conventions (`gen_ai.tool.*`), onboarding improvements, service templates parameterization, and Discord thread message route bugfixes.
+
 
 ---
 
@@ -57,10 +58,10 @@ To perform this development activity analysis for another week, follow these ste
 
 ### Step 1: Repository Reference Map
 Here is the list of active upstream GitHub repositories:
-* **Hermes Agent**: `NousResearch/hermes-agent`
-* **Moltis**: `moltis-org/moltis`
 * **LibreFang**: `librefang/librefang`
+* **Moltis**: `moltis-org/moltis`
 * **ZeroClaw**: `zeroclaw-labs/zeroclaw`
+* **Hermes Agent**: `NousResearch/hermes-agent`
 * **NanoBot**: `HKUDS/nanobot`
 * **NanoClaw**: `nanocoai/nanoclaw`
 * **PicoClaw**: `sipeed/picoclaw`

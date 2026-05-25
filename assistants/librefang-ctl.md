@@ -18,7 +18,22 @@ to set up the LibreFang home directory (`~/.local/sandbox/librefang`) and regist
 
 ### Initialize Workspace
 
-Run `./assistants/librefang-ctl exec init` to initialize the configuration workspace and prompt you interactively for LLM API keys to build `config.toml`.
+- Run `./assistants/librefang-ctl shell -c 'printf "[user]\nname = Assistant Name\nemail = assistant@hostname" > ~/.gitconfig'` to initialize git config.
+
+- Run `./assistants/librefang-ctl exec init --quick` to initialize the configuration workspace with default values and `config.toml`.
+
+### Switch to Local Inference & Qwen3
+
+Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/sandbox/librefang/.librefang/config.toml`):
+
+```toml
+[providers.models.openai.local]
+model = "qwen3"
+uri = "http://localhost:50080/v1"
+api_key = "unused"
+```
+
+Update your default agent profile's routing to target `openai.local`.
 
 ### Start Service
 
@@ -28,16 +43,6 @@ Start the daemon with `./assistants/librefang-ctl start`. Verify it is running b
 
 Run `./assistants/librefang-ctl exec hand activate researcher` (or your hand of choice) to start autonomous background execution. Or run `./assistants/librefang-ctl exec chat <hand_name>` to converse directly.
 
-### Switch to Local Inference & Qwen3
-
-Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/sandbox/librefang/.librefang/config.toml`):
-   ```toml
-   [providers.models.openai.local]
-   model = "qwen3"
-   uri = "http://localhost:50080/v1"
-   api_key = "unused"
-   ```
-   Update your default agent profile's routing to target `openai.local`.
 
 
 ## Configuration & Ports
@@ -82,7 +87,7 @@ db_path = "~/.librefang/memory.db"
 
 [embeddings]
 provider = "local"
-model = "text-embedding-3-small"
+model = "qwen3-embedding"
 
 # Local Inference (llama-server) or Ollama endpoint mapping
 base_url = "http://localhost:50080/v1"
@@ -128,7 +133,7 @@ Add the transcription provider configuration to `~/.librefang/config.toml` (loca
 [transcription]
 # Set provider to local_stt or openai-compatible
 provider = "openai"
-model = "whisper"
+model = "whisper-1"
 
 # Point to local-speech-to-text service
 base_url = "http://localhost:50090/v1"
