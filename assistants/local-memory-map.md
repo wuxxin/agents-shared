@@ -5,16 +5,16 @@ This document aggregates detailed memory requirements and allocations for local 
 ## Component Footprints
 
 ### Local Inference (`local-inference.sh` / `llama-server`)
+Managed as three separate services (Chat, Embedding, Reranking) to allow independent startup/shutdown and resource management.
 
-| Component | GPU VRAM | Details |
+| Service / Component | GPU VRAM | Details |
 |---|---|---|
-| **MoE LLM** (Qwen3.6-35B-A3B-APEX-I-Compact) | ~17,408 MiB | 17 GiB GGUF file |
-| **MoE mmproj** (Vision projector) | ~861 MiB | 861 MiB GGUF file |
-| **Embedding** (Qwen3-Embedding-0.6B Q8_0) | ~700 MiB | 610 MiB GGUF file |
-| **Reranker** (Qwen3-Reranker-0.6B Q4_K_M) | ~450 MiB | 379 MiB GGUF file |
-| **Compute Overhead** (per LLM) | ~990 MiB | Scheduler/Activation buffers |
-| **KV Cache** (q4_0 KV, parallel=2, n_ctx=240,000) | ~8,031 MiB | ~35.1 bytes/token allocation |
-| **Total Footprint** | |
+| **Local-Chat Service** (LLM: Qwen3.6-35B-A3B) | ~19,259 MiB | Weights (~17,408 MiB) + mmproj (~861 MiB) + Compute (~990 MiB) |
+| **local-embeddings Service** (Qwen3-Embedding-0.6B) | ~700 MiB | Weights/Compute for embedding |
+| **Local-Rerank Service** (Qwen3-Reranker-0.6B) | ~450 MiB | Weights/Compute for reranking |
+| **KV Cache** (q4_0 KV, parallel=2, n_ctx=240,000) | ~8,031 MiB | LLM KV cache allocation |
+| **HIP Context Overhead** (3 processes) | ~1,800 MiB | ~600 MiB overhead per running daemon |
+| **Total Inference Footprint** | **~30,240 MiB** | Run simultaneously |
 
 ---
 

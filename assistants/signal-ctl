@@ -433,7 +433,7 @@ cmd_relink() {
     _transient_run signal-cli link --name "$device_name" | tee >(head -n 1 | tr -d '\r' | qrencode -t ANSIUTF8 >&2)
 }
 
-cmd_doctor() {
+cmd_test() {
     local interactive=false
     if [ "${1:-}" = "--interactive" ]; then
         interactive=true
@@ -459,7 +459,7 @@ cmd_doctor() {
         socket_path="$SANDBOX_HOME/signal.sock"
     fi
 
-    echo "=== Signal Service Doctor ==="
+    echo "=== Signal Service Test ==="
     echo "Checking configured service endpoints..."
     echo ""
 
@@ -650,7 +650,7 @@ Usage: $(basename "$0") <command>
 Manage the signal-cli systemd user service (JSON-RPC daemon).
 
 Commands:
-  install [--no-start] 
+  install [--no-start]
             - Install service file, create default env file (if not present),
               enable and start the service (do not start if --no-start is specified)
   uninstall - Stop, disable and remove the service file (data preserved)
@@ -664,9 +664,9 @@ Commands:
   edit      - Edit the env files (CLI and REST) in \$VISUAL/\$EDITOR and restart daemon
   exec      - Run signal-cli as a transient hardened systemd unit with args
   shell     - Spawn an interactive shell in the signal-cli systemd environment
-  relink <device-name> 
+  relink <device-name>
             - Link an account and display QR code (passes name of link for Signal GUI)
-  doctor [--interactive] 
+  test [--interactive]
             - Run health check on service endpoints (REST, HTTP RPC, UNIX socket) and list active accounts.
               If --interactive, polls the REST API for a test message sent by the user.
 
@@ -734,7 +734,7 @@ edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
 relink) cmd_relink "$@" ;;
-doctor) cmd_doctor "$@" ;;
+test) cmd_test "$@" ;;
 *)
     echo "Unknown command: $COMMAND"
     usage

@@ -58,7 +58,7 @@ EMBEDDING_PROVIDER="local"
 EMBEDDING_MODEL="text-embedding-3-small"
 
 # Local Inference or Ollama endpoint mapping
-EMBEDDING_BASE_URL="http://localhost:50080/v1"
+EMBEDDING_BASE_URL="http://localhost:50085/v1"
 EMBEDDING_API_KEY="unused"
 
 # MCP-based Retrieval Configuration (if running sqlite-vec or Qdrant MCP server)
@@ -70,8 +70,8 @@ MCP_SQLITE_VEC_DB_PATH="~/.local/sandbox/nanoclaw/mcp-vectors.db"
 NanoClaw does not include native reranking. Reranking can be added via a custom skill or by configuring an MCP tool that calls the local-inference reranker endpoint. Set the following in `~/.config/systemd/user/nanoclaw.env`:
 
 ```bash
-# Local reranker endpoint (served by local-inference on port 50080)
-RERANK_URL="http://localhost:50080/v1/rerank"
+# Local reranker endpoint (served by local-rerank on port 50086)
+RERANK_URL="http://localhost:50086/v1/rerank"
 RERANK_MODEL="qwen3-reranker"
 ```
 

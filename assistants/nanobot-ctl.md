@@ -124,7 +124,7 @@ Add the following configuration blocks to `~/.local/sandbox/nanobot/config.json`
     "provider": "openai_compatible/local",
     "model": "text-embedding-3-small",
     "api_key": "unused",
-    "base_url": "http://localhost:50080/v1"
+    "base_url": "http://localhost:50085/v1"
   },
   "mcp": {
     "servers": {
@@ -142,7 +142,7 @@ Add the following configuration blocks to `~/.local/sandbox/nanobot/config.json`
 
 ### Reranking Configuration
 
-NanoBot does not include native reranking support. To add reranking capabilities, configure a custom MCP tool that wraps the local-inference reranker endpoint. Add the following MCP server definition to `config.json`:
+NanoBot does not include native reranking support. To add reranking capabilities, configure a custom MCP tool that wraps the local-rerank reranker endpoint. Add the following MCP server definition to `config.json`:
 
 ```json
 {
@@ -152,7 +152,7 @@ NanoBot does not include native reranking support. To add reranking capabilities
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-fetch"],
         "env": {
-          "RERANK_URL": "http://localhost:50080/v1/rerank",
+          "RERANK_URL": "http://localhost:50086/v1/rerank",
           "RERANK_MODEL": "qwen3-reranker"
         }
       }

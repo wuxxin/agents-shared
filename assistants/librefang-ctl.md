@@ -90,7 +90,7 @@ provider = "local"
 model = "qwen3-embedding"
 
 # Local Inference (llama-server) or Ollama endpoint mapping
-base_url = "http://localhost:50080/v1"
+base_url = "http://localhost:50085/v1"
 api_key = "unused"
 
 [mcp]
@@ -111,8 +111,8 @@ LibreFang supports reranking via configurable provider endpoints (Cohere-compati
 provider = "local"
 model = "qwen3-reranker"
 
-# Local reranker endpoint (served by local-inference on port 50080)
-base_url = "http://localhost:50080/v1"
+# Local reranker endpoint (served by local-rerank on port 50086)
+base_url = "http://localhost:50086/v1"
 api_key = "unused"
 
 # Number of top candidates to rerank

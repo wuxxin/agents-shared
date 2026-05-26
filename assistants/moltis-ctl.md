@@ -102,7 +102,7 @@ provider = "local"
 model = "text-embedding-3-small"
 
 # Local Inference Endpoint (llama-server or Ollama)
-uri = "http://localhost:50080/v1"
+uri = "http://localhost:50085/v1"
 api_key = "unused"
 ```
 
@@ -115,8 +115,8 @@ Moltis natively supports reranking via the QMD sidecar, which uses `qwen3-rerank
 # Reranker provider: "qmd" (built-in QMD model), "local" (external endpoint), or "disabled"
 provider = "local"
 
-# Local reranker endpoint (served by local-inference on port 50080)
-uri = "http://localhost:50080/v1/rerank"
+# Local reranker endpoint (served by local-rerank on port 50086)
+uri = "http://localhost:50086/v1/rerank"
 model = "qwen3-reranker"
 
 # Number of top candidates to rerank after initial retrieval

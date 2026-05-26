@@ -74,7 +74,7 @@ Add the following to `~/.local/sandbox/picoclaw/config.json`:
   "embeddings": {
     "provider": "openai",
     "model": "text-embedding-3-small",
-    "base_url": "http://localhost:50080/v1",
+    "base_url": "http://localhost:50085/v1",
     "api_key": "unused"
   },
   "mcp": {
@@ -103,7 +103,7 @@ PicoClaw does not include native reranking due to its ultra-lightweight design. 
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-fetch"],
         "env": {
-          "RERANK_URL": "http://localhost:50080/v1/rerank",
+          "RERANK_URL": "http://localhost:50086/v1/rerank",
           "RERANK_MODEL": "qwen3-reranker"
         }
       }

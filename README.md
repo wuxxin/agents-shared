@@ -6,20 +6,25 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 
 | Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **[Hermes](#hermes)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
-| **[Moltis](#moltis)** | Go (Source) <br> Go Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
 | **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
+| **[Moltis](#moltis)** | Go (Source) <br> Go Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
 | **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
+
+also covered, but currently not point of interest:
+
+| Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **[Hermes](#hermes)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
 | **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
 | **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
 | **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
 
 ## Integrations
 
-### Local LLM Inference, Embedding and Reranking Service
-- **Description**: Manages a persistent `llama-server` instance in **router mode** (`--models-preset`), serving an LLM, an embedding model, and an optional reranker from a single process on one port. Optimized for AMD ROCm hardware (tested on Radeon Pro W6800). All models are kept warm simultaneously in VRAM.
+### Local LLM Inference, Embedding and Reranking Services
+- **Description**: Manages persistent `llama-server` instances for text completions, embeddings, and document reranking as three separate services controlled collectively by `local-inference.sh`. Optimized for AMD ROCm hardware (tested on Radeon Pro W6800).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
-- **Features**: Flash Attention, layer GPU offloading, hardware-specific concurrency parameters, integrated `/v1/embeddings` and `/v1/rerank` endpoints.
+- **Features**: Flash Attention, layer GPU offloading, separate resource allocation and endpoints for chat (`50080`), embeddings (`50085`), and rerank (`50086`).
 - Documentation: [local-inference.md](assistants/local-inference.md)
 
 ### Local Speech-to-Text
@@ -41,10 +46,10 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 - Documentation: [signal-ctl.md](assistants/signal-ctl.md)
 
 The following assistants have native Signal channel integration available in their source code:
-- [Hermes](assistants/hermes-ctl.md)
+- [LibreFang](assistants/librefang-ctl.md)
 - [Moltis](assistants/moltis-ctl.md)
 - [ZeroClaw](assistants/zeroclaw-ctl.md)
-- [LibreFang](assistants/librefang-ctl.md)
+- [Hermes](assistants/hermes-ctl.md)
 - [NanoBot](assistants/nanobot-ctl.md)
 
 To configure them, refer to their specific configuration sections in their respective control guides.
@@ -56,7 +61,9 @@ The following default ports are used by various agent systems and services to av
 
 | Agent/Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
-| **Local-Inference** | [50080](http://localhost:50080) | Llama-server router (LLM + embeddings + reranker) |
+| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM |
+| **local-embeddings** | [50085](http://localhost:50085) | Llama-server serving Text Embedding generation |
+| **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
 | **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
