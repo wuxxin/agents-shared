@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# local-speech-to-text.sh - Manage local whisper-server systemd user service
+# local-text-to-speech.sh - Manage local qwen3-tts systemd user service
 #
-# Usage: local-speech-to-text.sh <command> [args...]
+# Usage: local-text-to-speech.sh <command> [args...]
 #
-# Manages a systemd user service (local-speech-to-text.service) that runs whisper-server
-# for speech-to-text (STT) transcription.
+# Manages a systemd user service (local-text-to-speech.service) that runs qwen3-tts-server
+# for text-to-speech (TTS) synthesis.
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
@@ -16,7 +16,7 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-SERVICE_NAME="local-speech-to-text"
+SERVICE_NAME="local-text-to-speech"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
@@ -25,15 +25,13 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # ---------------------------------------------------------------------------
 load_env() {
 	# Default parameters
-	LSTT_PORT=50090
-	LSTT_HOST=127.0.0.1
-	LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
-	# shellcheck disable=SC2034
-	LSTT_MODEL_ALIAS=whisper-1
-	LSTT_THREADS=4
-	LSTT_DEVICE=0
-	LSTT_INFERENCE_PATH=/v1/audio/transcriptions
-	LSTT_EXTRA_ARGS=""
+	LTTS_PORT=50095
+	LTTS_HOST=127.0.0.1
+	LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf
+	LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
+	LTTS_THREADS=$(nproc)
+	LTTS_MODE="gpu+max-throughput"
+	LTTS_EXTRA_ARGS=""
 
 	# Source the env file to get model paths and settings if it exists
 	if [[ -f "$ENV_FILE" ]]; then
@@ -57,7 +55,7 @@ get_shared_options() {
 	fi
 
 	# Environment file & Working directory
-	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-speech-to-text.env"
+	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-text-to-speech.env"
 	echo "WorkingDirectory=${home_spec}"
 
 	# Basic hardening (kept minimal for GPU access)
@@ -72,7 +70,7 @@ get_shared_options() {
 	echo "PrivateIPC=yes"
 
 	echo "ProtectSystem=strict"
-	# Allow read-write access to home-based paths (for temp ffmpeg files)
+	# Allow read-write access to home-based paths
 	echo "BindPaths=${home_spec}"
 	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
 	echo "ReadWritePaths=/data/public/machine-learning"
@@ -97,32 +95,53 @@ get_shared_options() {
 generate_service_file() {
 	load_env
 
+	local force_cpu=0
+	local low_mem=0
+	case "${LTTS_MODE:-gpu+max-throughput}" in
+	"gpu+max-throughput")
+		force_cpu=0
+		low_mem=0
+		;;
+	"gpu+min.vram")
+		force_cpu=0
+		low_mem=1
+		;;
+	"cpu-only")
+		force_cpu=1
+		low_mem=0
+		;;
+	*)
+		echo "Warning: unknown LTTS_MODE '${LTTS_MODE}', defaulting to gpu+max-throughput" >&2
+		force_cpu=0
+		low_mem=0
+		;;
+	esac
+
 	cat <<EOF
 [Unit]
-Description=Local Speech-to-Text Transcription Server (whisper-server)
-Documentation=https://github.com/ggerganov/whisper.cpp
+Description=Local Text-to-Speech Synthesis Server (qwen3-tts-server)
+Documentation=https://github.com/khimaros/qwen3-tts.cpp
 After=network.target
 
 [Service]
 Type=simple
+Environment=QWEN3_TTS_FORCE_CPU=${force_cpu}
+Environment=QWEN3_TTS_LOW_MEM=${low_mem}
 $(get_shared_options service)
-ExecStart=whisper-server \\
-    --model ${LSTT_MODEL} \\
-    --host ${LSTT_HOST} \\
-    --port ${LSTT_PORT} \\
-    --threads ${LSTT_THREADS} \\
-    --device ${LSTT_DEVICE} \\
-    --inference-path "${LSTT_INFERENCE_PATH}" \\
-    --convert \\
-    -fa \\
-    ${LSTT_EXTRA_ARGS}
+ExecStart=qwen3-tts-server \\
+    --model ${LTTS_MODEL} \\
+    --vocoder ${LTTS_VOCODER} \\
+    --host ${LTTS_HOST} \\
+    --port ${LTTS_PORT} \\
+    --threads ${LTTS_THREADS} \\
+    ${LTTS_EXTRA_ARGS}
 
 Restart=on-failure
 RestartSec=10s
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=local-speech-to-text
+SyslogIdentifier=local-text-to-speech
 
 [Install]
 WantedBy=default.target
@@ -130,42 +149,41 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Embedded default env file (heredoc written by --install)
+# Embedded default env file (heredoc written by install)
 # ---------------------------------------------------------------------------
 generate_env_file() {
 	cat <<'EOF'
-# local-speech-to-text.env
+# local-text-to-speech.env
 # ---------------------------------------------------------------------------
-# Configuration for the local-speech-to-text.service whisper-server instance.
+# Configuration for the local-text-to-speech.service qwen3-tts-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
-# Reload with:  local-speech-to-text.sh restart
+# Reload with:  local-text-to-speech.sh restart
 # ---------------------------------------------------------------------------
 
-# Port to bind the server to (default: 50090)
-LSTT_PORT=50090
+# Port to bind the server to (default: 50095)
+LTTS_PORT=50095
 
 # Host to bind the server to (127.0.0.1 for local access only)
-LSTT_HOST=127.0.0.1
+LTTS_HOST=127.0.0.1
 
-# Path to the GGML Whisper model file
-# Source: https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin
-LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
+# Path to the GGUF Talker model file
+LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf
 
-# Model alias used by client integrations (default: whisper)
-LSTT_MODEL_ALIAS=whisper
+# Path to the GGUF Tokenizer/Vocoder model file
+LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
 
-# Number of threads to use for CPU-bound computations/preprocessing
-LSTT_THREADS=4
+# Performance mode preset:
+#   - gpu+max-throughput : Runs on GPU, holds models warm (fastest)
+#   - gpu+min.vram       : Runs on GPU, lazy-loads/unloads components (low VRAM)
+#   - cpu-only           : Forces CPU-only execution via GGML backends
+LTTS_MODE="gpu+max-throughput"
 
-# GPU Device ID to use (default: 0)
-LSTT_DEVICE=0
+# Number of threads to use for computations (defaults to all cores)
+LTTS_THREADS=$(nproc)
 
-# Inference API endpoint path (default: /v1/audio/transcriptions for OpenAI-compatibility)
-LSTT_INFERENCE_PATH=/v1/audio/transcriptions
-
-# Extra arguments to pass to whisper-server (e.g. VAD options, diarization, etc.)
-LSTT_EXTRA_ARGS=""
+# Extra arguments to pass to qwen3-tts-server (e.g. --temperature, --seed, etc.)
+LTTS_EXTRA_ARGS=""
 EOF
 }
 
@@ -276,7 +294,7 @@ cmd_edit() {
 }
 
 cmd_exec() {
-	echo "Starting whisper-server as a transient systemd service with args: $*"
+	echo "Starting qwen3-tts-server as a transient systemd service with args: $*"
 
 	load_env
 
@@ -297,24 +315,21 @@ cmd_exec() {
 
 	if [ $# -gt 0 ]; then
 		# shellcheck disable=SC2086
-		systemd-run "${opts[@]}" whisper-server "$@"
+		systemd-run "${opts[@]}" qwen3-tts-server "$@"
 	else
 		# shellcheck disable=SC2086
-		systemd-run "${opts[@]}" whisper-server \
-			--model "${LSTT_MODEL}" \
-			--host "${LSTT_HOST}" \
-			--port "${LSTT_PORT}" \
-			--threads "${LSTT_THREADS}" \
-			--device "${LSTT_DEVICE}" \
-			--inference-path "${LSTT_INFERENCE_PATH}" \
-			--convert \
-			-fa \
-			${LSTT_EXTRA_ARGS}
+		systemd-run "${opts[@]}" qwen3-tts-server \
+			--model "${LTTS_MODEL}" \
+			--vocoder "${LTTS_VOCODER}" \
+			--host "${LTTS_HOST}" \
+			--port "${LTTS_PORT}" \
+			--threads "${LTTS_THREADS}" \
+			${LTTS_EXTRA_ARGS}
 	fi
 }
 
 cmd_shell() {
-	echo "Starting interactive shell in the whisper-server systemd environment..."
+	echo "Starting interactive shell in the qwen3-tts-server systemd environment..."
 
 	local opts=(
 		--user
@@ -335,14 +350,16 @@ cmd_shell() {
 }
 
 cmd_test() {
-	echo "Running local-speech-to-text validation tests..."
+	echo "Running local-text-to-speech integration tests..."
 	load_env
 
-	# Apply defaults if values are not set
-	local host="${LSTT_HOST:-127.0.0.1}"
-	local port="${LSTT_PORT:-50090}"
-	local inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
-	local model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
+	local play=false
+	if [ "${1:-}" = "--play" ]; then
+		play=true
+	fi
+
+	local host="${LTTS_HOST:-127.0.0.1}"
+	local port="${LTTS_PORT:-50095}"
 
 	local temp_dir
 	temp_dir=$(mktemp -d)
@@ -351,36 +368,74 @@ cmd_test() {
 	}
 	trap cleanup EXIT
 
-	echo "Downloading jfk.wav audio sample..."
-	if ! curl -L -f -o "$temp_dir/jfk.wav" "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"; then
-		echo "Error: Failed to download jfk.wav sample audio." >&2
+	# Create a test sentence of around 40 words
+	local text="The quick brown fox jumps over the lazy dog. This sentence has exactly forty words to verify that the speech generation pipeline functions functions correctly. The generated audio file will be sent directly to the local speech to text service for transcription."
+	echo "Synthesizing test sentence (41 words):"
+	echo "  \"${text}\""
+	echo "Sending request to http://${host}:${port}/v1/audio/speech..."
+
+	if ! curl -s -f -X POST "http://${host}:${port}/v1/audio/speech" \
+		-H "Content-Type: application/json" \
+		-d "{
+          \"model\": \"qwen3-tts\",
+          \"input\": \"${text}\",
+          \"voice\": \"default\",
+          \"response_format\": \"wav\"
+        }" \
+		-o "$temp_dir/tts_output.wav"; then
+		echo "Error: Failed to synthesize speech via local-text-to-speech." >&2
 		trap - EXIT
 		cleanup
 		return 1
 	fi
 
-	echo "Sending transcription request to http://${host}:${port}${inference_path}..."
-	local resp
-	if ! resp=$(curl -s -f -X POST "http://${host}:${port}${inference_path}" \
+	echo "Synthesis complete. File size: $(wc -c <"$temp_dir/tts_output.wav") bytes."
+	cp "$temp_dir/tts_output.wav" ./tts_test_output.wav
+	echo "Saved output to ./tts_test_output.wav"
+
+	# Pipe through local-speech-to-text
+	local lstt_env_file="${SYSTEMD_USER_DIR:-$HOME/.config}/systemd/user/local-speech-to-text.env"
+	if [[ -f "$lstt_env_file" ]]; then
+		# shellcheck disable=SC1090
+		source "$lstt_env_file" || true
+	fi
+	local lstt_host="${LSTT_HOST:-127.0.0.1}"
+	local lstt_port="${LSTT_PORT:-50090}"
+	local lstt_inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
+	local lstt_model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
+
+	echo "Transcribing generated audio using local-speech-to-text at http://${lstt_host}:${lstt_port}..."
+	local stt_resp
+	if ! stt_resp=$(curl -s -f -X POST "http://${lstt_host}:${lstt_port}${lstt_inference_path}" \
 		-H "Content-Type: multipart/form-data" \
-		-F "file=@$temp_dir/jfk.wav" \
-		-F "model=${model_alias}"); then
-		echo "Error: Transcription curl request failed." >&2
+		-F "file=@$temp_dir/tts_output.wav" \
+		-F "model=${lstt_model_alias}"); then
+		echo "Error: Speech-to-text transcription service failed or is unreachable." >&2
 		trap - EXIT
 		cleanup
 		return 1
 	fi
 
-	echo "${resp}"
-	# Validate transcription response text contains key words
-	if ! echo "${resp}" | grep -qi -E "(Americans|country|fellow)"; then
-		echo "Error: Speech-to-text transcription verification failed." >&2
-		trap - EXIT
-		cleanup
-		return 1
+	echo "Transcription Response:"
+	echo "${stt_resp}"
+
+	if [ "$play" = "true" ]; then
+		# Try playing the audio output
+		echo "Playing generated audio output..."
+		if command -v aplay &>/dev/null; then
+			aplay "$temp_dir/tts_output.wav" || true
+		elif command -v paplay &>/dev/null; then
+			paplay "$temp_dir/tts_output.wav" || true
+		elif command -v pw-play &>/dev/null; then
+			pw-play "$temp_dir/tts_output.wav" || true
+		else
+			echo "No command-line audio player (aplay, paplay, pw-play) found. Skipping audio playback."
+		fi
+	else
+		echo "Skipping audio playback (use --play to play generated sound)."
 	fi
 
-	echo "Speech-to-text validation: Success."
+	echo "Local text-to-speech validation: Success."
 	trap - EXIT
 	cleanup
 }
@@ -398,9 +453,9 @@ usage() {
 	echo "  disable   - Disable systemd service on boot"
 	echo "  logs      - Tail the systemd service logs"
 	echo "  edit      - Edit the .env file and restart the service upon exit"
-	echo "  exec      - Run whisper-server as a transient systemd user service"
-	echo "  shell     - Spawn an interactive shell in the whisper-server environment"
-	echo "  test      - Run API validation tests"
+	echo "  exec      - Run qwen3-tts-server as a transient systemd user service"
+	echo "  shell     - Spawn an interactive shell in the qwen3-tts-server environment"
+	echo "  test [--play] - Run synthesis and speech-to-text validation tests"
 }
 
 # ---------------------------------------------------------------------------

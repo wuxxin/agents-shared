@@ -28,6 +28,12 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 - **Features**: Flash Attention, GPU offloading, audio transcoding using `ffmpeg`.
 - Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
 
+### Local Text-to-Speech
+- **Description**: Manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) synthesis. Serves an OpenAI-compatible audio synthesis API on port 50095.
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in `cpu-only` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
+- **Features**: Dynamic performance tuning modes (`gpu+max-throughput`, `gpu+min.vram`, `cpu-only`), fully parallelized CPU threading, and streaming/batch PCM generation.
+- Documentation: [local-text-to-speech.md](assistants/local-text-to-speech.md)
+
 ### Signal Integration
 - **Description**: Connects agents to Signal. Runs a `signal-cli` daemon exposing both TCP and HTTP JSON-RPC interfaces. It also provides an optional Go-based REST API wrapper for robust, HTTP-based polling/webhook integrations (like linking LibreFang).
 - **Sandboxing**: Standard filesystem hardening, but disables `MemoryDenyWriteExecute` because the underlying JVM (Java) requires it for JIT compilation. 
@@ -52,12 +58,13 @@ The following default ports are used by various agent systems and services to av
 |---------------|-----------------|------------------------|
 | **Local-Inference** | [50080](http://localhost:50080) | Llama-server router (LLM + embeddings + reranker) |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
+| **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
 | **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
 ||||
-| **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
-| **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
 | **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
+| **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
 | **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
+| **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
 | **NanoBot** | [8790](http://localhost:8790) | NanoBot Gateway API |
 | **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
 | **PicoClaw** | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
@@ -87,16 +94,16 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 
 ## Assistants
 
-### Hermes
-- **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
-- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
-- **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
-- **Requirements**: `~/.local/sandbox/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
-- **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
-- **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
-- **Embedding Options**: Supports remote embedding API providers (OpenAI, Cohere, Jina, Voyage AI) and local embedding models served via `llama.cpp` (local-inference) or Ollama.
-- **Reranking Support**: Native — via auxiliary model slots and QMD hybrid engine. Can route to local reranker at `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [hermes-ctl.md](assistants/hermes-ctl.md)
+### LibreFang
+- **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project (which had 17,623 stars and 2,252 forks before going stale).
+- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Dashboard GUI).
+- **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
+- **Requirements**: `~/.local/sandbox/librefang` and `~/agent-shared`.
+- **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
+- **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
+- **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
+- **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
+- **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
 
 ### Moltis
 - **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
@@ -109,17 +116,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-inference reranker endpoint.
 - **Detailed Guide & Onboarding**: [moltis-ctl.md](assistants/moltis-ctl.md)
 
-### LibreFang
-- **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project (which had 17,623 stars and 2,252 forks before going stale).
-- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Dashboard GUI).
-- **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
-- **Requirements**: `~/.local/sandbox/librefang` and `~/agent-shared`.
-- **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
-- **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
-- **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
-- **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
-- **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
-
 ### ZeroClaw
 - **Major Features**: Rust-based agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
 - **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend, no Web GUI).
@@ -130,6 +126,17 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Embedding Options**: Supports OpenAI-compatible embedding APIs. Can route to local embedding models using system-wide local inference (`local-inference`) or Ollama.
 - **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50080/v1/rerank`.
 - **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
+
+### Hermes
+- **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
+- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
+- **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
+- **Requirements**: `~/.local/sandbox/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
+- **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
+- **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
+- **Embedding Options**: Supports remote embedding API providers (OpenAI, Cohere, Jina, Voyage AI) and local embedding models served via `llama.cpp` (local-inference) or Ollama.
+- **Reranking Support**: Native — via auxiliary model slots and QMD hybrid engine. Can route to local reranker at `http://localhost:50080/v1/rerank`.
+- **Detailed Guide & Onboarding**: [hermes-ctl.md](assistants/hermes-ctl.md)
 
 ### NanoBot
 - **Major Features**: Lightweight python service built with `uv` featuring an onboarding setup wizard, a structured two-stage memory system ("Dream"), and Bubblewrap tool confinement.

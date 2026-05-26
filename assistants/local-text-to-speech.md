@@ -1,0 +1,94 @@
+# Local Text-to-Speech Management Guide
+
+`local-text-to-speech.sh` manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) voice synthesis. It exposes an OpenAI-compatible audio generation endpoint, enabling local, private, and high-performance speech synthesis. Optimized for AMD ROCm hardware (specifically tested on Radeon Pro W6800).
+
+- **Source Code**: [GitHub - khimaros/qwen3-tts.cpp](https://github.com/khimaros/qwen3-tts.cpp)
+- **Arch/AUR Package**:
+  - `qwen3-tts.cpp-git-ggml-hip` (private package in repo https://github.com/wuxxin/aur-packages )
+
+## Usage
+
+| Command | Description |
+|---|---|
+| `install [--no-start]` | Sets up the service, generates default configuration env file (does not start if --no-start is specified). |
+| `uninstall` | Stops and removes the service. |
+| `edit` | Edit model selection and server parameters. |
+| `logs [args...]` | View the synthesis server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |
+| `exec` | Run `qwen3-tts-server` in a transient unit with the same GPU access. |
+| `shell` | Spawn an interactive shell in the speech sandbox (useful for manual testing). |
+| `test` | Run API validation tests (synthesizes speech and transcribes it back). |
+
+## Architecture
+
+The service runs `qwen3-tts-server` which loads a Qwen3-TTS talker model and a WavTokenizer vocoder model, exposing a REST API.
+
+### Endpoints (all on port 50095)
+
+| Endpoint | Purpose |
+|---|---|
+| `/v1/audio/speech` | OpenAI-compatible text-to-speech API (POST JSON with model, input, voice, and response_format) |
+| `/v1/audio/voices` | Returns loaded voice names/presets |
+
+### Configuration Files
+
+| File | Purpose |
+|---|---|
+| `~/.config/systemd/user/local-text-to-speech.env` | Model paths, port, host, and thread configuration |
+| `~/.config/systemd/user/local-text-to-speech.service` | Auto-generated systemd unit |
+
+### Performance Tuning Presets
+
+The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`. This control toggles three primary presets:
+
+1. **`gpu+max-throughput`** (Default): Runs inference on the ROCm GPU. Keeps both the TTS transformer and the vocoder decoder models warm in VRAM, delivering maximum generation throughput.
+2. **`gpu+min.vram`**: Runs inference on the ROCm GPU but uses `QWEN3_TTS_LOW_MEM=1` to lazy-load and unload transformer and vocoder modules dynamically, significantly reducing VRAM idle footprint at the cost of slight compilation startup delay per synthesis.
+3. **`cpu-only`**: Completely bypasses ROCm GPU initialization and offloads all tensor computations to the CPU. Propagates dynamic threading settings to all GGML CPU backends.
+
+To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`).
+
+## Models & Repositories
+
+Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](https://huggingface.co/collections/khimaros/qwen3-tts) on Hugging Face:
+
+- **0.6B Base Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf`)
+- **0.6B CustomVoice Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
+- **1.7B Base Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf`)
+- **1.7B CustomVoice Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-CustomVoice-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-CustomVoice-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`)
+- **1.7B VoiceDesign Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-VoiceDesign-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-VoiceDesign-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-VoiceDesign-Q8_0.gguf`)
+- **Shared Vocoder**: [khimaros/Qwen3-TTS-Tokenizer-12Hz-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-Tokenizer-12Hz-GGUF) (File: `Qwen3-TTS-Tokenizer-12Hz-F16.gguf`)
+
+## VRAM Footprint
+
+Running the 1.7B CustomVoice GGUF + F16 Vocoder requires approximately **~3.6 GiB** of GPU VRAM (weights + compute + HIP context overhead). 
+
+For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
+
+## Implementation & Security Considerations
+
+### Centralized Sandboxing Configuration
+All systemd security and namespace options are centralized in the `get_shared_options` function within the control script, ensuring identical sandbox profiles for the persistent background service and transient runs.
+
+### ROCm / GPU Access
+Because `qwen3-tts-server` requires direct access to GPU device nodes:
+- `PrivateDevices=no` is set in the systemd unit.
+- Access to `/dev/dri` and `/dev/kfd` is mandatory.
+- The user must be in the `render` and `video` groups.
+
+### Filesystem and Data Access
+- **Models**: Read-write access to `/data/public/machine-learning` is configured (required to read the GGML models).
+- **Sandboxing**: Uses `ProtectSystem=strict`.
+- **Isolation**: The home directory (`%h` / `$HOME`) is bind-mounted, and system paths are kept read-only.
+
+### Configuration & Ports
+- **Default Port**: `50095`
+- **Configuration File**: Environment parameters are stored in `~/.config/systemd/user/local-text-to-speech.env`.
+
+## Verification & Test Results
+
+The text-to-speech service can be validated using its built-in integration test command:
+
+```bash
+./assistants/local-text-to-speech.sh test
+```
+
+This runs a complete text-to-audio synthesis cycle, pipes the generated audio file to the local transcription service, outputs the transcription, and plays the audio if a command-line player (`aplay`, `paplay`, `pw-play`) is available.

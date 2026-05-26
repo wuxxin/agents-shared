@@ -1,5 +1,15 @@
 # Helper Utilities
 
+## `antigravity-launcher.sh`
+
+
+A wrapper for running the Antigravity IDE (and other Electron apps) inside a **Bubblewrap (`bwrap`)** sandbox with a persistent, isolated home directory.
+
+```bash
+./scripts/antigravity-launcher.sh
+```
+
+Documentation: [antigravity-launcher.md](antigravity-launcher.md)
 
 ## `llama-cache-test.py`
 

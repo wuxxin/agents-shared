@@ -18,6 +18,7 @@
 | `logs [args...]` | View the transcription server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |
 | `exec` | Run `whisper-server` in a transient unit with the same GPU access. |
 | `shell` | Spawn an interactive shell in the speech sandbox (useful for manual testing). |
+| `test` | Run API validation tests (downloads jfk.wav and verifies transcription). |
 
 ## Architecture
 
@@ -37,21 +38,13 @@ The service runs `whisper-server` which loads a GGML Whisper model and exposes a
 | `~/.config/systemd/user/local-speech-to-text.env` | Model path, port, host, and thread configuration |
 | `~/.config/systemd/user/local-speech-to-text.service` | Auto-generated systemd unit |
 
-## VRAM Budget
+## VRAM Budget Summary
 
 Hardware: AMD Radeon Pro W6800 — **30,704 MiB** usable VRAM.
 
-### Model Weights & Runtime Memory Footprint
+The speech-to-text service requires approximately **~1.4 GiB** of VRAM when loaded (including weights, caches, compute buffers, and HIP context overhead). 
 
-| Component | File Size | GPU VRAM |
-|---|---|---|
-| [GGML Whisper Large v3 Turbo (Q5_0)](https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin) | 573.45 MB | ~573.45 MiB |
-| KV Caches | — | ~49.81 MiB |
-| Compute Buffers | — | ~202.35 MiB |
-| HIP Context Runtime Overhead | — | ~600.00 MiB |
-| **Combined VRAM Footprint** | — | **~1,425.61 MiB (~1.4 GiB)** |
-
-The service requires approximately **1.4 GiB** of VRAM when loaded. It runs entirely on the GPU, ensuring sub-second transcription response times for short speech snippets.
+For a detailed breakdown of all VRAM allocations, options, and scenarios (including concurrent running of all three local services), refer to [Central VRAM Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
 
 ## Implementation & Security Considerations
 
@@ -76,26 +69,11 @@ Because `whisper-server` requires direct access to GPU device nodes:
 
 ## Verification & Test Results
 
-The speech-to-text service was validated using the following test setup:
+The speech-to-text service can be validated using the built-in test command:
 
-- **Model**: `ggml-large-v3-turbo-q5_0.bin`
-- **Endpoint**: `http://localhost:50090/v1/audio/transcriptions`
-- **Audio Sample**: JFK Inaugural Address snippet (`jfk.wav`, 344 KB). Download it via:
-  ```bash
-  curl -L -o jfk.wav https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav
-  ```
-- **Command**:
-  ```bash
-  curl -s -X POST http://localhost:50090/v1/audio/transcriptions \
-    -H "Content-Type: multipart/form-data" \
-    -F "file=@jfk.wav" \
-    -F "model=whisper-1"
-  ```
-- **Response**:
-  ```json
-  {
-    "text": " And so, my fellow Americans, ask not what your country can\n do for you, ask what you can do for your country.\n"
-  }
-  ```
-- **Result**: Success. The service transcoded the file internally and transcribed the speech with 100% word accuracy in sub-second inference time.
+```bash
+./assistants/local-speech-to-text.sh test
+```
+
+This command downloads a test sample (`jfk.wav`), sends it to the running speech-to-text server, and verifies that the transcription succeeds and contains expected keywords.
 

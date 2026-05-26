@@ -14,13 +14,15 @@ Intelligently downloads local AI models into standard subdirectories:
   - <target_model_dir>/embedding
   - <target_model_dir>/reranker
   - <target_model_dir>/speech-to-text
+  - <target_model_dir>/text-to-speech
 
 Options:
-  --all             Download all models (LLM, embedding, reranker, speech-to-text)
+  --all             Download all models (LLM, embedding, reranker, speech-to-text, text-to-speech)
   --llm             Download the LLM model, vision projector, and chat template
   --embedding       Download the text embedding model
   --reranker        Download the reranker model (with working classification head)
   --speech-to-text  Download the Speech-to-Text (Whisper) model
+  --text-to-speech, --tts Download the Text-to-Speech (Qwen3-TTS) models
   -h, --help        Show this help message and exit
 
 Examples:
@@ -41,6 +43,7 @@ download_llm=false
 download_embedding=false
 download_reranker=false
 download_stt=false
+download_tts=false
 
 # Check for help
 for arg in "$@"; do
@@ -76,6 +79,10 @@ while [[ $# -gt 0 ]]; do
 		download_stt=true
 		shift
 		;;
+	--text-to-speech | --tts)
+		download_tts=true
+		shift
+		;;
 	*)
 		echo "Error: Unknown option '$1'" >&2
 		show_help >&2
@@ -84,8 +91,8 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false ]]; then
-	echo "Error: No models specified. Please use --all or select specific models (--llm, --embedding, --reranker, --speech-to-text)." >&2
+if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false ]]; then
+	echo "Error: No models specified. Please use --all or select specific models (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech)." >&2
 	exit 1
 fi
 
@@ -94,6 +101,7 @@ if [[ "$download_all" == true ]]; then
 	download_embedding=true
 	download_reranker=true
 	download_stt=true
+	download_tts=true
 fi
 
 # Resolve absolute target path
@@ -317,6 +325,48 @@ if [[ "$download_stt" == true ]]; then
 		"speech-to-text/ggml-large-v3-turbo-q5_0.bin" \
 		"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin" \
 		"${target_dir}/speech-to-text/ggml-large-v3-turbo-q5_0.bin"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Text-to-Speech
+# ---------------------------------------------------------------------------
+if [[ "$download_tts" == true ]]; then
+	echo "=== Acquiring Text-to-Speech Models ==="
+	# 5a. Base 0.6B
+	acquire_file \
+		"text-to-speech/Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf" \
+		"https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf" \
+		"${target_dir}/text-to-speech/Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf"
+
+	# 5b. CustomVoice 0.6B
+	acquire_file \
+		"text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf" \
+		"https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf" \
+		"${target_dir}/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"
+
+	# 5c. Base 1.7B
+	acquire_file \
+		"text-to-speech/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf" \
+		"https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf" \
+		"${target_dir}/text-to-speech/Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf"
+
+	# 5d. CustomVoice 1.7B
+	acquire_file \
+		"text-to-speech/Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf" \
+		"https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-CustomVoice-GGUF/resolve/main/Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf" \
+		"${target_dir}/text-to-speech/Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf"
+
+	# 5e. VoiceDesign 1.7B
+	acquire_file \
+		"text-to-speech/Qwen3-TTS-12Hz-1.7B-VoiceDesign-Q8_0.gguf" \
+		"https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-VoiceDesign-GGUF/resolve/main/Qwen3-TTS-12Hz-1.7B-VoiceDesign-Q8_0.gguf" \
+		"${target_dir}/text-to-speech/Qwen3-TTS-12Hz-1.7B-VoiceDesign-Q8_0.gguf"
+
+	# 5f. Tokenizer
+	acquire_file \
+		"text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf" \
+		"https://huggingface.co/khimaros/Qwen3-TTS-Tokenizer-12Hz-GGUF/resolve/main/Qwen3-TTS-Tokenizer-12Hz-F16.gguf" \
+		"${target_dir}/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
 fi
 
 echo "=== All requested model downloads/conversions completed. ==="
