@@ -10,12 +10,7 @@ DEFAULT_PROJECT="$WORK_DIR/default"
 AGENT_SHARED_DIR="$HOME/agent-shared"
 DOWNLOAD_DIR="/data/download"
 
-# Default flags for Electron/OpenCode
-ELECTRON_FLAGS=(
-    --disable-dev-shm-usage
-    --disable-chromium-sandbox
-    --no-sandbox
-)
+# Default flags for OpenCode
 OPENCODE_FLAGS=()
 
 # Helper: Display launcher help information
@@ -171,9 +166,9 @@ if [[ "$cmd_name" == "opencode" ]]; then
     done
 
     if [[ ${#args[@]} -eq 0 ]]; then
-        run_sandbox "$APP_BIN" "${ELECTRON_FLAGS[@]}" "${OPENCODE_FLAGS[@]}" "$DEFAULT_PROJECT"
+        run_sandbox "$APP_BIN" "${OPENCODE_FLAGS[@]}" "$DEFAULT_PROJECT"
     else
-        run_sandbox "$APP_BIN" "${ELECTRON_FLAGS[@]}" "${OPENCODE_FLAGS[@]}" "${args[@]}"
+        run_sandbox "$APP_BIN" "${OPENCODE_FLAGS[@]}" "${args[@]}"
     fi
 else
     # Called as opencode-launcher.sh (or other controls)

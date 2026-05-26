@@ -102,9 +102,14 @@ EOF
 
 cmd_install() {
 	local no_start=false
-	if [ "${1:-}" = "--no-start" ]; then
-		no_start=true
-	fi
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
 	echo "Setting up librefang home directory at $LIBREFANG_HOME..."
 	mkdir -p "$LIBREFANG_HOME"
@@ -112,7 +117,7 @@ cmd_install() {
 	echo "Generating systemd user service..."
 	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	if [ ! -f "$ENV_FILE" ]; then
+	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
 		cat >"$ENV_FILE" <<'EOF'
 # librefang.env
 # ---------------------------------------------------------------------------
@@ -122,6 +127,31 @@ cmd_install() {
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
+# Local Inference Split Services Overrides
+# Default OpenAI-compatible LLM provider
+LIBREFANG_PROVIDERS__MODELS__OPENAI__LOCAL__URI="http://localhost:50080/v1"
+LIBREFANG_PROVIDERS__MODELS__OPENAI__LOCAL__API_KEY="unused"
+LIBREFANG_PROVIDERS__MODELS__OPENAI__LOCAL__MODEL="qwen3"
+
+# Embeddings endpoint (llama-server on port 50085)
+LIBREFANG_EMBEDDINGS__BASE_URL="http://localhost:50085/v1"
+LIBREFANG_EMBEDDINGS__API_KEY="unused"
+LIBREFANG_EMBEDDINGS__PROVIDER="local"
+LIBREFANG_EMBEDDINGS__MODEL="qwen3-embedding"
+
+# Reranker endpoint (llama-server on port 50086)
+LIBREFANG_RERANKER__BASE_URL="http://localhost:50086/v1"
+LIBREFANG_RERANKER__API_KEY="unused"
+LIBREFANG_RERANKER__PROVIDER="local"
+LIBREFANG_RERANKER__MODEL="qwen3-reranker"
+LIBREFANG_RERANKER__TOP_K=30
+
+# Speech-to-Text endpoint (whisper-server on port 50090)
+LIBREFANG_TRANSCRIPTION__BASE_URL="http://localhost:50090/v1"
+LIBREFANG_TRANSCRIPTION__API_KEY="dummy"
+LIBREFANG_TRANSCRIPTION__PROVIDER="openai"
+LIBREFANG_TRANSCRIPTION__MODEL="whisper-1"
 EOF
 		chmod 600 "$ENV_FILE"
 		echo "Created default environment file at $ENV_FILE"
@@ -240,7 +270,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install [--no-start] - Setup service and librefang home directory (do not start service if --no-start is specified)"
+	echo "  install [--no-start] [--new-config] - Setup service and librefang home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"

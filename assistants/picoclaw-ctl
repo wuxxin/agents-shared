@@ -99,17 +99,72 @@ EOF
 
 cmd_install() {
 	local no_start=false
-	if [ "${1:-}" = "--no-start" ]; then
-		no_start=true
-	fi
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
 	echo "Setting up picoclaw home directory at $PICOCLAW_HOME..."
 	mkdir -p "$PICOCLAW_HOME"
 
+	if [ ! -f "$PICOCLAW_HOME/config.json" ] || [ "$new_config" = "true" ]; then
+		cat >"$PICOCLAW_HOME/config.json" <<'EOF'
+{
+  "providers": {
+    "openai": {
+      "local": {
+        "api_key": "unused",
+        "base_url": "http://localhost:50080/v1"
+      }
+    }
+  },
+  "agents": {
+    "default": {
+      "model_provider": "openai.local",
+      "model": "qwen3"
+    }
+  },
+  "embeddings": {
+    "provider": "openai",
+    "model": "text-embedding-3-small",
+    "base_url": "http://localhost:50085/v1",
+    "api_key": "unused"
+  },
+  "mcp": {
+    "servers": {
+      "local-reranker": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-fetch"],
+        "env": {
+          "RERANK_URL": "http://localhost:50086/v1/rerank",
+          "RERANK_MODEL": "qwen3-reranker"
+        }
+      }
+    }
+  },
+  "voice": {
+    "model_name": "local_stt"
+  },
+  "models": {
+    "local_stt": {
+      "model": "whisper-1",
+      "api_key": "dummy",
+      "base_url": "http://localhost:50090/v1"
+    }
+  }
+}
+EOF
+		echo "Created default config at $PICOCLAW_HOME/config.json"
+	fi
+
 	echo "Generating systemd user service..."
 	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	if [ ! -f "$ENV_FILE" ]; then
+	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
 		cat >"$ENV_FILE" <<'EOF'
 # picoclaw.env
 # ---------------------------------------------------------------------------
@@ -236,7 +291,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install [--no-start] - Setup service and picoclaw home directory (do not start service if --no-start is specified)"
+	echo "  install [--no-start] [--new-config] - Setup service and picoclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"

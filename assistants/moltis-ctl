@@ -100,9 +100,14 @@ EOF
 
 cmd_install() {
 	local no_start=false
-	if [ "${1:-}" = "--no-start" ]; then
-		no_start=true
-	fi
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
 	echo "Setting up Moltis home directory at $MOLTIS_HOME..."
 	mkdir -p "$MOLTIS_HOME"
@@ -110,8 +115,8 @@ cmd_install() {
 	echo "Generating systemd user service..."
 	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	# Write default env file if it doesn't exist
-	if [ ! -f "$ENV_FILE" ]; then
+	# Write default env file if it doesn't exist or --new-config is specified
+	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
 		cat >"$ENV_FILE" <<'EOF'
 # Moltis Environment Configuration
 # ---------------------------------------------------------------------------
@@ -133,6 +138,31 @@ cmd_install() {
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
+# Local Inference Split Services Overrides
+# Default OpenAI-compatible LLM provider
+MOLTIS_PROVIDERS__MODELS__OPENAI__LOCAL__URI="http://localhost:50080/v1"
+MOLTIS_PROVIDERS__MODELS__OPENAI__LOCAL__API_KEY="unused"
+MOLTIS_PROVIDERS__MODELS__OPENAI__LOCAL__MODEL="qwen3"
+
+# Embeddings endpoint (llama-server on port 50085)
+MOLTIS_EMBEDDINGS__URI="http://localhost:50085/v1"
+MOLTIS_EMBEDDINGS__API_KEY="unused"
+MOLTIS_EMBEDDINGS__PROVIDER="local"
+MOLTIS_EMBEDDINGS__MODEL="text-embedding-3-small"
+
+# Reranker endpoint (llama-server on port 50086)
+MOLTIS_RETRIEVAL__RERANKER__URI="http://localhost:50086/v1/rerank"
+MOLTIS_RETRIEVAL__RERANKER__PROVIDER="local"
+MOLTIS_RETRIEVAL__RERANKER__MODEL="qwen3-reranker"
+MOLTIS_RETRIEVAL__RERANKER__TOP_K=30
+
+# Speech-to-Text endpoint (whisper-server on port 50090)
+MOLTIS_VOICE__STT__LOCAL_STT__ENDPOINT="http://localhost:50090"
+MOLTIS_VOICE__STT__LOCAL_STT__MODEL="whisper-1"
+MOLTIS_VOICE__STT__LOCAL_STT__ENABLED="true"
+MOLTIS_VOICE__STT__PROVIDER="local_stt"
+MOLTIS_VOICE__STT__ENABLED="true"
 EOF
 		chmod 600 "$ENV_FILE"
 		echo "Created default environment file at $ENV_FILE"
@@ -258,7 +288,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install [--no-start] - Setup service and moltis home directory (do not start service if --no-start is specified)"
+	echo "  install [--no-start] [--new-config] - Setup service and moltis home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"

@@ -26,7 +26,7 @@ Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. T
 Edit `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
 ```toml
 [providers.models.openai.local]
-uri = "http://127.0.0.1:50080/v1"
+uri = "http://localhost:50080/v1"
 model = "qwen3"
 api_key = "unused"
 ```
@@ -94,7 +94,7 @@ Add the following to your `config.toml` configuration file (located in the sandb
 backend = "sqlite-hybrid"
 
 embedding_model = "qwen3-embedding"
-embedding_provider = "custom:http://127.0.0.1:50085/v1"
+embedding_provider = "custom:http://localhost:50085/v1"
 
 ```
 

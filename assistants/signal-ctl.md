@@ -15,7 +15,7 @@
 ## Installation
 
 ```bash
-./assistants/signal-ctl install --no-start
+./assistants/signal-ctl install [--no-start] [--new-config]
 ```
 
 This command:
@@ -59,7 +59,7 @@ exit
 
 | Command | Description |
 |---|---|
-| `install [--no-start]` | Full dual-service setup (do not start service if `--no-start` is specified). |
+| `install [--no-start] [--new-config]` | Full dual-service setup (do not start service if `--no-start` is specified, force overwrites with defaults if `--new-config` is specified). |
 | `uninstall` | Stops and removes services (preserves account data). |
 | `edit` | Opens both `.env` files and restarts services on exit. |
 | `logs [args...]` | Combined logs for the daemon and the REST API. Pass `-f` to tail/follow. Supports any `journalctl` options. |

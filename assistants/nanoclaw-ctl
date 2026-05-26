@@ -101,9 +101,14 @@ EOF
 
 cmd_install() {
 	local no_start=false
-	if [ "${1:-}" = "--no-start" ]; then
-		no_start=true
-	fi
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
 	echo "Setting up nanoclaw home directory at $NANOCLAW_HOME..."
 	mkdir -p "$NANOCLAW_HOME"
@@ -111,16 +116,33 @@ cmd_install() {
 	echo "Generating systemd user service..."
 	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	if [ ! -f "$ENV_FILE" ]; then
+	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
 		cat >"$ENV_FILE" <<'EOF'
 # nanoclaw.env
 # ---------------------------------------------------------------------------
 # WEBHOOK_PORT: Webhook port for NanoClaw (default 3000)
-WEBHOOK_PORT=3000
+# WEBHOOK_PORT=3000
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
+# Local Inference Split Services Overrides
+# Default OpenAI-compatible LLM provider
+LLM_PROVIDER="openai"
+LLM_BASE_URL="http://localhost:50080/v1"
+LLM_API_KEY="unused"
+LLM_MODEL="qwen3"
+
+# Embeddings endpoint (llama-server on port 50085)
+EMBEDDING_PROVIDER="local"
+EMBEDDING_MODEL="text-embedding-3-small"
+EMBEDDING_BASE_URL="http://localhost:50085/v1"
+EMBEDDING_API_KEY="unused"
+
+# Reranker endpoint (llama-server on port 50086)
+RERANK_URL="http://localhost:50086/v1/rerank"
+RERANK_MODEL="qwen3-reranker"
 EOF
 		chmod 600 "$ENV_FILE"
 	fi
@@ -238,7 +260,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install [--no-start] - Setup service and nanoclaw home directory (do not start service if --no-start is specified)"
+	echo "  install [--no-start] [--new-config] - Setup service and nanoclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"

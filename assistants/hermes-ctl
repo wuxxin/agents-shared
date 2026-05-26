@@ -109,9 +109,14 @@ EOF
 
 cmd_install() {
 	local no_start=false
-	if [ "${1:-}" = "--no-start" ]; then
-		no_start=true
-	fi
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
 	echo "Setting up Hermes home directory at $HERMES_HOME..."
 	mkdir -p "$HERMES_HOME"
@@ -119,8 +124,8 @@ cmd_install() {
 	echo "Generating systemd user service..."
 	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	# Write default env file if it doesn't exist
-	if [ ! -f "$ENV_FILE" ]; then
+	# Write default env file if it doesn't exist or --new-config is specified
+	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
 		cat >"$ENV_FILE" <<'EOF'
 # Hermes Agent Environment Configuration
 # ---------------------------------------------------------------------------
@@ -147,6 +152,28 @@ HERMES_DOCKER_BINARY=/usr/bin/podman
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
+# Local Inference Split Services Overrides
+# Default OpenAI-compatible LLM provider
+OPENAI_API_BASE="http://localhost:50080/v1"
+OPENAI_API_KEY="unused"
+
+# Embeddings endpoint (llama-server on port 50085)
+EMBEDDING_API_BASE="http://localhost:50085/v1"
+EMBEDDING_API_KEY="unused"
+HERMES_EMBEDDING_PROVIDER="local"
+HERMES_EMBEDDING_MODEL="text-embedding-3-small"
+
+# Reranker endpoint (llama-server on port 50086)
+HERMES_RERANK_URL="http://localhost:50086/v1/rerank"
+HERMES_RERANK_PROVIDER="local"
+HERMES_RERANK_MODEL="qwen3-reranker"
+HERMES_RERANK_TOP_K=30
+
+# Speech-to-Text endpoint (whisper-server on port 50090)
+STT_OPENAI_BASE_URL="http://localhost:50090/v1"
+STT_OPENAI_MODEL="whisper-1"
+VOICE_TOOLS_OPENAI_KEY="dummy"
 EOF
 		chmod 600 "$ENV_FILE"
 		echo "Created default environment file at $ENV_FILE"
@@ -268,7 +295,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install [--no-start] - Setup service and hermes home directory (do not start service if --no-start is specified)"
+	echo "  install [--no-start] [--new-config] - Setup service and hermes home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"

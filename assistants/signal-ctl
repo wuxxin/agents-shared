@@ -136,9 +136,14 @@ get_shared_options() {
 
 cmd_install() {
     local no_start=false
-    if [ "${1:-}" = "--no-start" ]; then
-        no_start=true
-    fi
+    local new_config=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --no-start) no_start=true ;;
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
 
     echo "Setting up signal-cli data directory at $SIGNAL_DATA_DIR..."
     mkdir -p "$SIGNAL_DATA_DIR"
@@ -199,9 +204,9 @@ RestartSec=5s
 WantedBy=default.target
 EOF
 
-    if [ -f "$ENV_FILE" ]; then
+    if [ -f "$ENV_FILE" ] && [ "${new_config}" = "false" ]; then
         echo "Env file already exists, skipping: $ENV_FILE"
-        echo "Remove it manually if you want to regenerate the defaults."
+        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
     else
         echo "Writing default env file: $ENV_FILE"
         cat >"$ENV_FILE" <<'EOF'
@@ -257,8 +262,9 @@ EOF
         chmod 600 "$ENV_FILE"
     fi
 
-    if [ -f "$ENV_REST_FILE" ]; then
+    if [ -f "$ENV_REST_FILE" ] && [ "${new_config}" = "false" ]; then
         echo "REST API env file already exists, skipping: $ENV_REST_FILE"
+        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
     else
         echo "Writing default REST API env file: $ENV_REST_FILE"
         cat >"$ENV_REST_FILE" <<EOF
@@ -650,9 +656,9 @@ Usage: $(basename "$0") <command>
 Manage the signal-cli systemd user service (JSON-RPC daemon).
 
 Commands:
-  install [--no-start]
+  install [--no-start] [--new-config]
             - Install service file, create default env file (if not present),
-              enable and start the service (do not start if --no-start is specified)
+              enable and start the service (do not start if --no-start is specified, overwrite configs with defaults if --new-config is specified)
   uninstall - Stop, disable and remove the service file (data preserved)
   start     - Start the systemd service
   stop      - Stop the systemd service

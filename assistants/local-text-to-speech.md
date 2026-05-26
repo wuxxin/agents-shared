@@ -10,7 +10,7 @@
 
 | Command | Description |
 |---|---|
-| `install [--no-start]` | Sets up the service, generates default configuration env file (does not start if --no-start is specified). |
+| `install [--no-start] [--new-config]` | Sets up the service, generates default configuration env file (does not start if `--no-start` is specified, force overwrites with defaults if `--new-config` is specified). |
 | `uninstall` | Stops and removes the service. |
 | `edit` | Edit model selection and server parameters. |
 | `logs [args...]` | View the synthesis server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |
@@ -38,13 +38,14 @@ The service runs `qwen3-tts-server` which loads a Qwen3-TTS talker model and a W
 
 ### Performance Tuning Presets
 
-The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`. This control toggles three primary presets:
+The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`. This control toggles four primary presets:
 
-1. **`gpu+max-throughput`** (Default): Runs inference on the ROCm GPU. Keeps both the TTS transformer and the vocoder decoder models warm in VRAM, delivering maximum generation throughput.
-2. **`gpu+min.vram`**: Runs inference on the ROCm GPU but uses `QWEN3_TTS_LOW_MEM=1` to lazy-load and unload transformer and vocoder modules dynamically, significantly reducing VRAM idle footprint at the cost of slight compilation startup delay per synthesis.
-3. **`cpu-only`**: Completely bypasses ROCm GPU initialization and offloads all tensor computations to the CPU. Propagates dynamic threading settings to all GGML CPU backends.
+1. **`gpu`** (Default): Runs inference on the ROCm GPU. Keeps both the TTS transformer and the vocoder decoder models warm in VRAM, delivering maximum generation throughput.
+2. **`gpu-min-vram`**: Runs inference on the ROCm GPU but uses `QWEN3_TTS_LOW_MEM=1` to lazy-load and unload transformer and vocoder modules dynamically, significantly reducing VRAM idle footprint at the cost of slight compilation startup delay per synthesis.
+3. **`hybrid`** (Performance Sweet Spot): Offloads Code Generation (`TTSTransformer`) to the CPU (setting `QWEN3_TTS_TRANSFORMER_FORCE_CPU=1`), while running Vocoder Decode (`AudioTokenizerDecoder`) on the GPU (`ROCm0`). This bypasses GEMV thread starvation and kernel launch latency on the GPU during the autoregressive stage, yielding a **1.5x to 2x speedup** over GPU-only and saving **1.5 GB to 2.7 GB of VRAM**.
+4. **`cpu-only`**: Completely bypasses ROCm GPU initialization and offloads all tensor computations to the CPU. Propagates dynamic threading settings to all GGML CPU backends.
 
-To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`).
+To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`). For CPU-bound execution (CPU-only or Hybrid), the optimal thread count is **8 threads**. Setting it to 16 threads causes a ~2.2x slowdown due to CCD boundaries and synchronization overhead.
 
 ## Models & Repositories
 
@@ -59,7 +60,7 @@ Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](http
 
 ## VRAM Footprint
 
-Running the 1.7B CustomVoice GGUF + F16 Vocoder requires approximately **~3.6 GiB** of GPU VRAM (weights + compute + HIP context overhead). 
+Running the 1.7B CustomVoice GGUF + F16 Vocoder requires approximately **~4.7 GiB** of GPU VRAM in `gpu` mode (weights + compute + HIP context overhead). 
 
 For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
 

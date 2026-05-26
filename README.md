@@ -109,12 +109,12 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
 - **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
 - **Embedding Options**: Supports embedding generation via 27 supported LLM/embedding providers (OpenAI-compatible, Cohere, Anthropic, etc.). Can leverage system-wide local embeddings via the `local-inference` server.
-- **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50080/v1/rerank`.
+- **Reranking Support**: Native — configurable reranker provider (Cohere-compatible API). Can route to local reranker at `http://localhost:50086/v1/rerank`.
 - **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
 
 ### Moltis
 - **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
-- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Config GUI).
+- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Config GUI).
 - **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
 - **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/sandbox/moltis` for data.
 - **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
@@ -131,18 +131,18 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Sandboxing**: **Relaxed Namespaces Profile** is enforced via the systemd unit so that ZeroClaw can spawn secure nested sub-sandboxes via `bwrap` internally.
 - **Search & Retrieval**: Native SQLite-based hybrid memory system. Integrates vector search and Full-Text Search (FTS) directly into SQLite. No external database infrastructure (like Pinecone or Elasticsearch) is required, keeping the runtime completely self-contained. Persistent memory handles context compression, conversation history, and user preferences.
 - **Embedding Options**: Supports OpenAI-compatible embedding APIs. Can route to local embedding models using system-wide local inference (`local-inference`) or Ollama.
-- **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50080/v1/rerank`.
+- **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50086/v1/rerank`.
 - **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
 
 ### Hermes
 - **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
-- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Dashboard GUI).
+- **Language/Runtime**: Python (Source) / private 3.11 Python Runtime /opt ( Web-based Dashboard GUI).
 - **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
 - **Requirements**: `~/.local/sandbox/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
 - **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
 - **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
 - **Embedding Options**: Supports remote embedding API providers (OpenAI, Cohere, Jina, Voyage AI) and local embedding models served via `llama.cpp` (local-inference) or Ollama.
-- **Reranking Support**: Native — via auxiliary model slots and QMD hybrid engine. Can route to local reranker at `http://localhost:50080/v1/rerank`.
+- **Reranking Support**: Native — via auxiliary model slots and QMD hybrid engine. Can route to local reranker at `http://localhost:50086/v1/rerank`.
 - **Detailed Guide & Onboarding**: [hermes-ctl.md](assistants/hermes-ctl.md)
 
 ### NanoBot
@@ -190,6 +190,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 |---|---|---|
 | `install` | Install | Set up local directory structures under `~/.local/sandbox/<assistant>`, generate environment file `.env` if missing, and create/register the systemd user unit. |
 | `install --no-start` | Install | Same as install, but do not start (or stop it if already running) the service after installation for further configuration (e.g. editing `.env`). |
+| `install --new-config` | Install | Same as install, but force overwrite any existing environment and configuration files with their default templates (useful for resetting to defaults). |
 | `uninstall` | Uninstall | Stop and disable the systemd service, and clean up the systemd service files. (Data is preserved). |
 | `start` / `stop` / `restart` | Lifecycle | Standard controls to start, stop, or restart the systemd user service. |
 | `status` | Status | Show the current runtime status of the systemd service. |

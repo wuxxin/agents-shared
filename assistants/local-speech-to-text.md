@@ -12,7 +12,7 @@
 
 | Command | Description |
 |---|---|
-| `install [--no-start]` | Sets up the service, generates default configuration env file (does not start if --no-start is specified). |
+| `install [--no-start] [--new-config]` | Sets up the service, generates default configuration env file (does not start if `--no-start` is specified, force overwrites with defaults if `--new-config` is specified). |
 | `uninstall` | Stops and removes the service. |
 | `edit` | Edit model selection and server parameters. |
 | `logs [args...]` | View the transcription server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |

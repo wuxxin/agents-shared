@@ -17,7 +17,7 @@ The primary hub script (`local-inference.sh`) delegates lifecycle commands to al
 
 ```bash
 # Install all three services
-./local-inference.sh install [--no-start]
+./local-inference.sh install [--no-start] [--new-config]
 
 # Start/Stop/Restart all services
 ./local-inference.sh start
@@ -45,7 +45,7 @@ Each service can also be managed independently:
 | **Local-Rerank** | `50086` | `/v1/rerank` | `local-rerank.sh` | Relevance reranking |
 
 Every control script (`local-chat.sh`, `local-embeddings.sh`, `local-rerank.sh`) supports standard lifecycle commands:
-- `install [--no-start]`
+- `install [--no-start] [--new-config]`
 - `uninstall`
 - `start` / `stop` / `restart` / `status`
 - `enable` / `disable`

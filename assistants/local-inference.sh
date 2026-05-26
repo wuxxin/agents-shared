@@ -16,7 +16,7 @@ SERVICES=("local-chat" "local-embeddings" "local-rerank")
 usage() {
     echo "Usage: $0 <command> [args...]"
     echo "Commands:"
-    echo "  install [--no-start] - Install all inference services"
+    echo "  install [--no-start] [--new-config] - Install all inference services (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
     echo "  uninstall            - Uninstall all inference services"
     echo "  start                - Start all inference services"
     echo "  stop                 - Stop all inference services"

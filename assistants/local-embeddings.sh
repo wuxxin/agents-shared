@@ -201,9 +201,14 @@ write_service_file() {
 
 cmd_install() {
     local no_start=false
-    if [ "${1:-}" = "--no-start" ]; then
-        no_start=true
-    fi
+    local new_config=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --no-start) no_start=true ;;
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
 
     echo "Installing ${SERVICE_NAME} systemd user service..."
 
@@ -211,9 +216,9 @@ cmd_install() {
     mkdir -p "${SYSTEMD_USER_DIR}"
 
     # Write env file only if it doesn't exist (preserve user edits)
-    if [[ -f "${ENV_FILE}" ]]; then
+    if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
         echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
-        echo "Remove it manually if you want to regenerate the defaults."
+        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
     else
         echo "Writing default env file: ${ENV_FILE}"
         generate_env_file >"${ENV_FILE}"
@@ -382,7 +387,7 @@ cmd_test() {
 usage() {
     echo "Usage: $0 <command>"
     echo "Commands:"
-    echo "  install [--no-start] - Setup service and default environment (do not start service if --no-start is specified)"
+    echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
     echo "  uninstall - Stop and remove systemd service"
     echo "  start     - Start the systemd service"
     echo "  stop      - Stop the systemd service"

@@ -101,9 +101,14 @@ EOF
 
 cmd_install() {
 	local no_start=false
-	if [ "${1:-}" = "--no-start" ]; then
-		no_start=true
-	fi
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
 	echo "Setting up zeroclaw home directory at $ZEROCLAW_HOME..."
 	mkdir -p "$ZEROCLAW_HOME"
@@ -111,7 +116,7 @@ cmd_install() {
 	echo "Generating systemd user service..."
 	mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	if [ ! -f "$ENV_FILE" ]; then
+	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
 		cat >"$ENV_FILE" <<'EOF'
 # zeroclaw.env
 # ---------------------------------------------------------------------------
@@ -123,6 +128,20 @@ ZEROCLAW_HOST=127.0.0.1
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
+# Local Inference Split Services Overrides
+# Default OpenAI-compatible LLM provider
+ZEROCLAW_providers__models__openai__local__uri="http://localhost:50080/v1"
+ZEROCLAW_providers__models__openai__local__model="qwen3"
+ZEROCLAW_providers__models__openai__local__api_key="unused"
+
+# Embeddings endpoint (llama-server on port 50085)
+ZEROCLAW_memory__embedding_provider="custom:http://localhost:50085/v1"
+
+# Speech-to-Text endpoint (whisper-server on port 50090)
+ZEROCLAW_providers__transcription__local_whisper__local_stt__uri="http://localhost:50090/v1/audio/transcriptions"
+ZEROCLAW_providers__transcription__local_whisper__local_stt__bearer_token="dummy"
+ZEROCLAW_providers__transcription__local_whisper__local_stt__model="whisper-1"
 EOF
 		chmod 600 "$ENV_FILE"
 	fi
@@ -240,7 +259,7 @@ cmd_shell() {
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
-	echo "  install [--no-start] - Setup service and zeroclaw home directory (do not start service if --no-start is specified)"
+	echo "  install [--no-start] [--new-config] - Setup service and zeroclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
 	echo "  start     - Start the systemd service"
 	echo "  stop      - Stop the systemd service"
