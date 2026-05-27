@@ -31,6 +31,7 @@ load_env() {
 	LLM_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
 	LLM_ALIAS=qwen3
 	LLM_N_CTX=240000
+	LLM_PARALLEL=3
 	LLM_N_GPU_LAYERS=99
 	LLM_THREADS=4
 	LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
@@ -145,7 +146,7 @@ generate_ini_file() {
 		ini_content+="chat-template-file = ${template_path}"$'\n'
 	fi
 	ini_content+="ctx-size = ${LLM_N_CTX:-240000}"$'\n'
-	ini_content+="parallel = 2"$'\n'
+	ini_content+="parallel = ${LLM_PARALLEL:-3}"$'\n'
 	ini_content+="cache-type-k = q4_0"$'\n'
 	ini_content+="cache-type-v = q4_0"$'\n'
 	ini_content+="batch-size = 2048"$'\n'
@@ -229,6 +230,9 @@ LLM_ALIAS=qwen3
 
 # Context size (default: 240000)
 LLM_N_CTX=240000
+
+# Parallel request slots (default: 3)
+LLM_PARALLEL=3
 
 # Multimodal projector arguments (optional)
 LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"

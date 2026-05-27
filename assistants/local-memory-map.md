@@ -10,7 +10,7 @@ Serves both chat and embeddings from a single process.
 | Component / Allocation | GPU VRAM | Details |
 |---|---|---|
 | **Model Weights & Compute** (LLM + Vision + Embedding) | ~19,959 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Embedding Weights (~700 MiB) + Compute (~990 MiB) |
-| **KV Cache** (q4_0 KV, parallel=2, n_ctx=240,000) | ~8,031 MiB | LLM KV cache allocation |
+| **KV Cache** (q4_0 KV, parallel=3, slot n_ctx=80,000) | ~8,031 MiB | LLM KV cache allocation |
 | **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
 | **Total LLM Footprint** | **~28,590 MiB** | Run on GPU |
 
@@ -76,51 +76,19 @@ The memory profile of the Text-to-Speech service depends significantly on the co
 
 ## Combined Co-running Scenario
 
-Here we map VRAM usage for running **Inference** (LLM + Vision + Embedding + Reranking), **Speech-to-Text**, and **Text-to-Speech** services concurrently on a single card (30,704 MiB usable VRAM limit).
+Here we map VRAM usage for running **Inference** (LLM + Vision, Embedding, Reranking), **Speech-to-Text**, and **Text-to-Speech** services concurrently on a single card (30,704 MiB usable VRAM limit).
 
-To maximize VRAM efficiency, we run the **Local-LLM Service** and **Speech-to-Text** on the GPU, while offloading the **Local-Rerank Service** to the CPU.
+To maximize VRAM efficiency, we run the **Local-LLM Service** and **Speech-to-Text** on the GPU, while offloading the **Local-Rerank Service** and the **Text-To-Speech Service** to the CPU.
 
 ### Baseline Allocation (LLM on GPU, Reranker on CPU, STT on GPU)
 - **Local-LLM Service** (LLM + Vision + Embedding + HIP context): **20,559 MiB** (19,959 MiB weights/compute + 600 MiB HIP context)
-- **LLM KV Cache** (n_ctx = 240,000, parallel=2): **8,031 MiB**
+- **LLM KV Cache** (n_ctx = 240,000, parallel=3, slot n_ctx=80,000): **8,031 MiB**
 - **Local-Rerank Service** (on CPU): **0 MiB** (Runs in System RAM)
 - **Speech-to-Text (Whisper on GPU)**: **1,426 MiB** (includes weights, KV, buffers, and STT HIP overhead)
-- **Subtotal (Baseline with n_ctx=240,000)**: **30,016 MiB** 
+- **TTS (Qwen3-tts 0.6B on cpu only)**: **0 MiB** VRAM (System RAM: ~3.0 GiB)
+    - **Performance**: TTS RTF is ~1.58x (acceptable for conversational interaction)
+- **Total Required VRAM**: **30,016 MiB** (with LLM `n_ctx=240,000`, parallel=3)
 - **Status**:  **Safe**. Fits within the single card footprint.
-- **Remaining Headroom**: **688 MiB** free VRAM.
-
----
-
-### Scenario A: Full Co-Running with TTS (0.6B)
-
-#### 1. TTS 0.6B in `hybrid` mode
-- **TTS VRAM Requirement**: ~2,194 MiB (active)
-- **Total Required VRAM**: 30,016 MiB + 2,194 MiB = **32,210 MiB**
-- **Status**: ❌ **OOM (Over-allocation)** by ~1,506 MiB.
-- **Remediation**: Run LLM at `n_ctx=140,000` (reduces KV cache to ~4,685 MiB, saving ~3,346 MiB VRAM).
-- **Adjusted Footprint (with n_ctx=140,000)**: 20,559 (LLM) + 4,685 (KV) + 1,426 (STT) + 2,194 (TTS hybrid) = **28,864 MiB** (Leaves **1,840 MiB** safe headroom).
-
-#### 2. TTS 0.6B in `cpu-only` mode
-- **TTS VRAM Requirement**: **0 MiB** (System RAM: ~3.0 GiB)
-- **Total Required VRAM**: **30,016 MiB** (with LLM `n_ctx=240,000`)
-- **Status**:  **Safe**. Leaves **688 MiB** safe headroom.
-- **Performance**: TTS RTF is ~1.58x (acceptable for conversational interaction).
-
----
-
-### Scenario B: Full Co-Running with TTS (1.7B)
-
-#### 1. TTS 1.7B in `hybrid` mode
-- **TTS VRAM Requirement**: ~2,104 MiB (active)
-- **Total Required VRAM**: 30,016 MiB + 2,104 MiB = **32,120 MiB**
-- **Status**: ❌ **OOM (Over-allocation)**.
-- **Remediation**: Run LLM at `n_ctx=140,000` (reduces KV cache to ~4,685 MiB, saving ~3,346 MiB VRAM).
-- **Adjusted Footprint (with n_ctx=140,000)**: 20,559 (LLM) + 4,685 (KV) + 1,426 (STT) + 2,104 (TTS hybrid) = **28,774 MiB** (Leaves **1,930 MiB** safe headroom).
-
-#### 2. TTS 1.7B in `cpu-only` mode
-- **TTS VRAM Requirement**: **0 MiB** (System RAM: ~4.4 GiB)
-- **Total Required VRAM**: **30,016 MiB** (with LLM `n_ctx=240,000`)
-- **Status**:  **Safe**. Leaves **688 MiB** safe headroom.
-- **Performance**: TTS RTF is ~3.39x. (noticeable latency for long paragraphs).
+- **Remaining Headroom**: **688 MiB** free VRAM
 
 

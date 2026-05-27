@@ -23,7 +23,7 @@ Run `./assistants/hermes-ctl edit` (or edit `~/.config/systemd/user/hermes-gatew
 
 #### Switch to Local Inference & Qwen3
 
-Set `OPENAI_API_BASE=http://localhost:50080/v1` and `OPENAI_API_KEY=unused`. Then, configure the default model to `qwen3` in the Setup Wizard or Web UI.
+Set `OPENAI_API_BASE=http://localhost:50080/v1` and `OPENAI_API_KEY=unused`. Then, configure the default model to `qwen3` in the Setup Wizard or Web UI (note that the local model runs with an 80,000 token context window).
 
 ### Setup Wizard
 

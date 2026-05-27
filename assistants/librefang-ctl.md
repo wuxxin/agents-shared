@@ -31,6 +31,7 @@ Configure the default model in `~/.librefang/config.toml` (located under the iso
 provider = "openai"
 model = "qwen3"
 api_key_env = "UNUSED_API_KEY"
+context_window = 80000
 
 [provider_urls]
 openai = "http://localhost:50080/v1"

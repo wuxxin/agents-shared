@@ -102,3 +102,12 @@ curl -s -X POST http://localhost:50080/v1/embeddings \
     "input": "Hello World"
   }'
 ```
+
+## Model Specifications & Capabilities
+
+The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model. Below are the key specifications and limits:
+
+- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**. In this local deployment, the service allocates a physical context size of **240,000 tokens**, which is divided across **3 parallel slots (80,000 tokens context window size per slot)**.
+- **Max Output (Generation) Limit**: The Qwen3.6 architecture supports a maximum output generation length of **65,536 (64K) tokens** in a single completion request.
+- **Capabilities**: Full text completion, native tool-calling, multi-modal vision inputs (using the mmproj GGUF file), and high-performance ROCm/HIP-accelerated execution on AMD GPUs.
+

@@ -134,6 +134,7 @@ ZEROCLAW_HOST=127.0.0.1
 ZEROCLAW_providers__models__openai__local__uri="http://localhost:50080/v1"
 ZEROCLAW_providers__models__openai__local__model="qwen3"
 ZEROCLAW_providers__models__openai__local__api_key="unused"
+ZEROCLAW_agents__default__max_context_tokens=80000
 
 # Embeddings endpoint (llama-server on port 50080)
 ZEROCLAW_memory__embedding_provider="custom:http://localhost:50080/v1"

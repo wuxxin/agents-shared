@@ -24,7 +24,7 @@ also covered, but currently not point of interest:
 ### Local LLM and Reranking Services
 - **Description**: Manages persistent `llama-server` instances for text completions/embeddings (`local-llm-ggml.sh`) and document reranking (`local-rerank.sh`). Optimized for AMD ROCm hardware (tested on Radeon Pro W6800).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
-- **Features**: Flash Attention, layer GPU offloading, combined chat and embeddings (`50080`), and separate rerank (`50086`) services.
+- **Features**: Flash Attention, layer GPU offloading, combined chat and embeddings (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens), and separate rerank (`50086`) services.
 - Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md)
 
 ### Local Speech-to-Text

@@ -147,7 +147,8 @@ cmd_install() {
   "agents": {
     "defaults": {
       "provider": "openai_compatible/local",
-      "model": "qwen3"
+      "model": "qwen3",
+      "context_window_tokens": 80000
     }
   },
   "embeddings": {
