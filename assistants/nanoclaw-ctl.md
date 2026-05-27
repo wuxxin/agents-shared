@@ -58,7 +58,7 @@ EMBEDDING_PROVIDER="local"
 EMBEDDING_MODEL="text-embedding-3-small"
 
 # Local Inference or Ollama endpoint mapping
-EMBEDDING_BASE_URL="http://localhost:50085/v1"
+EMBEDDING_BASE_URL="http://localhost:50080/v1"
 EMBEDDING_API_KEY="unused"
 
 # MCP-based Retrieval Configuration (if running sqlite-vec or Qdrant MCP server)

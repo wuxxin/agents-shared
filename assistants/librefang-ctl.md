@@ -24,16 +24,17 @@ to set up the LibreFang home directory (`~/.local/sandbox/librefang`) and regist
 
 ### Switch to Local Inference & Qwen3
 
-Add a local OpenAI provider to `~/.librefang/config.toml` (located under the isolated home at `~/.local/sandbox/librefang/.librefang/config.toml`):
+Configure the default model in `~/.librefang/config.toml` (located under the isolated home at `~/.local/sandbox/librefang/.librefang/config.toml`):
 
 ```toml
-[providers.models.openai.local]
+[default_model]
+provider = "openai"
 model = "qwen3"
-uri = "http://localhost:50080/v1"
-api_key = "unused"
-```
+api_key_env = "UNUSED_API_KEY"
 
-Update your default agent profile's routing to target `openai.local`.
+[provider_urls]
+openai = "http://localhost:50080/v1"
+```
 
 ### Start Service
 
@@ -49,6 +50,7 @@ Run `./assistants/librefang-ctl exec hand activate researcher` (or your hand of 
 
 - **Default Port**: `4545` (LibreFang daemon API)
 - **Secrets & Configuration**: Loaded from `~/.config/systemd/user/librefang.env` and defined via config settings in the configuration file (`~/.librefang/config.toml`).
+
 
 
 ## Signal Channel Configuration
@@ -81,17 +83,12 @@ Add the following sections to `~/.librefang/config.toml` (located under the isol
 
 ```toml
 [memory]
-backend = "sqlite"                    # Default SQLite backend
-vector_storage_enabled = true         # Enable vector search
-db_path = "~/.librefang/memory.db"
+embedding_provider = "openai"
+embedding_model = "qwen3-embedding"
+embedding_dimensions = 1536
 
-[embeddings]
-provider = "local"
-model = "qwen3-embedding"
-
-# Local Inference (llama-server) or Ollama endpoint mapping
-base_url = "http://localhost:50085/v1"
-api_key = "unused"
+[provider_urls]
+openai = "http://localhost:50080/v1"
 
 [mcp]
 # Connect to external vector DB or search servers via Model Context Protocol
@@ -101,44 +98,13 @@ args = ["-y", "@modelcontextprotocol/server-qdrant"]
 env = { QDRANT_URL = "http://localhost:6333" }
 ```
 
-### Reranking Configuration
+> [!NOTE]
+> The embedding provider can also be set to `"auto"` (the default). In this mode, the daemon automatically probes environment variables like `OLLAMA_HOST`, `VLLM_BASE_URL`, and `LMSTUDIO_BASE_URL` to select a provider, falling back to standard local ports.
 
-LibreFang supports reranking via configurable provider endpoints (Cohere-compatible API). Add the following to `~/.librefang/config.toml` (located under `~/.local/sandbox/librefang/.librefang/config.toml`):
+### Reranking, STT, and TTS Limits
 
-```toml
-[reranker]
-# Reranker provider: "local" (OpenAI-compatible /v1/rerank), "cohere", or "disabled"
-provider = "local"
-model = "qwen3-reranker"
-
-# Local reranker endpoint (served by local-rerank on port 50086)
-base_url = "http://localhost:50086/v1"
-api_key = "unused"
-
-# Number of top candidates to rerank
-top_k = 30
-```
-
----
-
-## Speech-to-Text Integration
-
-LibreFang supports local transcription for audio assets processed during workflows (such as transcribing voice memos or Signal audio events). You can configure your hands to call the `local-speech-to-text` service.
-
-### Configuration
-
-Add the transcription provider configuration to `~/.librefang/config.toml` (located at `~/.local/sandbox/librefang/.librefang/config.toml`):
-
-```toml
-[transcription]
-# Set provider to local_stt or openai-compatible
-provider = "openai"
-model = "whisper-1"
-
-# Point to local-speech-to-text service
-base_url = "http://localhost:50090/v1"
-api_key = "dummy"
-```
+- **Reranking**: Reranking is not supported or configurable in this version of the LibreFang daemon.
+- **Speech-to-Text (STT) / Text-to-Speech (TTS)**: Custom local server base URLs for transcription and speech synthesis are not supported by the upstream LibreFang daemon (endpoints are hardcoded in the codebase to cloud APIs). Patched packages (such as `librefang-git` with `feature-local-stt-tts`) are required to override STT/TTS endpoints.
 
 ---
 

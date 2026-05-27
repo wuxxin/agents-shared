@@ -135,8 +135,8 @@ ZEROCLAW_providers__models__openai__local__uri="http://localhost:50080/v1"
 ZEROCLAW_providers__models__openai__local__model="qwen3"
 ZEROCLAW_providers__models__openai__local__api_key="unused"
 
-# Embeddings endpoint (llama-server on port 50085)
-ZEROCLAW_memory__embedding_provider="custom:http://localhost:50085/v1"
+# Embeddings endpoint (llama-server on port 50080)
+ZEROCLAW_memory__embedding_provider="custom:http://localhost:50080/v1"
 
 # Speech-to-Text endpoint (whisper-server on port 50090)
 ZEROCLAW_providers__transcription__local_whisper__local_stt__uri="http://localhost:50090/v1/audio/transcriptions"

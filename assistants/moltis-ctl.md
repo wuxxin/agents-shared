@@ -102,7 +102,7 @@ provider = "local"
 model = "text-embedding-3-small"
 
 # Local Inference Endpoint (llama-server or Ollama)
-uri = "http://localhost:50085/v1"
+uri = "http://localhost:50080/v1"
 api_key = "unused"
 ```
 

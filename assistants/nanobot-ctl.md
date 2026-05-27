@@ -124,7 +124,7 @@ Add the following configuration blocks to `~/.local/sandbox/nanobot/config.json`
     "provider": "openai_compatible/local",
     "model": "text-embedding-3-small",
     "api_key": "unused",
-    "base_url": "http://localhost:50085/v1"
+    "base_url": "http://localhost:50080/v1"
   },
   "mcp": {
     "servers": {

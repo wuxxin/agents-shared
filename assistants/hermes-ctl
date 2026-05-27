@@ -158,8 +158,8 @@ HERMES_DOCKER_BINARY=/usr/bin/podman
 OPENAI_API_BASE="http://localhost:50080/v1"
 OPENAI_API_KEY="unused"
 
-# Embeddings endpoint (llama-server on port 50085)
-EMBEDDING_API_BASE="http://localhost:50085/v1"
+# Embeddings endpoint (llama-server on port 50080)
+EMBEDDING_API_BASE="http://localhost:50080/v1"
 EMBEDDING_API_KEY="unused"
 HERMES_EMBEDDING_PROVIDER="local"
 HERMES_EMBEDDING_MODEL="text-embedding-3-small"

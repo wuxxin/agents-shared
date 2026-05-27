@@ -6,11 +6,18 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ## 📊 Summary of Weekly Activity (May 20, 2026 – May 27, 2026)
 
+Rust Projects:
+
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: |
 | **librefang** | 275 | 54 | `main` | 2026-05-26 | **247** | 0 | 1 | 283.8 | `v2026.5.25-beta.13` | **Highly Active** |
 | **moltis** | 2,707 | 318 | `main` | 2026-05-26 | **50** | 0 | 5 | 76.8 | `20260526.03`, `20260525.01` | **Highly Active** |
 | **zeroclaw** | 31,594 | 4,656 | `master` | 2026-05-25 | **62** | 0 | 1 | 70.5 | `v0.8.0-beta-1` (2026-05-20) | **Highly Active** |
+
+Other Projects:
+
+| Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: |
 | **hermes-agent** | 168,630 | 27,996 | `main` | 2026-05-26 | **512** | 10 | 0 | 758.2 | `v2026.5.16` (2026-05-16) | **Highly Active** |
 | **nanobot** | 43,199 | 7,617 | `main` | 2026-05-26 | **107** | 7 | 0 | 105.2 | `v0.2.0` (2026-05-16) | **Highly Active** |
 | **nanoclaw** | 29,433 | 12,874 | `main` | 2026-05-25 | **21** | 20 | 0 | 81.2 | `v2.0.64` (2026-05-18) | **Highly Active** |
@@ -56,7 +63,9 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ## 📋 Instruction Guide: Recreating this Analysis
 
-To perform this development activity analysis for another week, follow these steps.
+To re-perform this development activity analysis, follow these steps.
+
+- Read this instructions, then follow these steps for a new analysis
 
 ### Step 1: Repository Reference Map
 Here is the list of active upstream GitHub repositories:
@@ -68,7 +77,10 @@ Here is the list of active upstream GitHub repositories:
 * **NanoClaw**: `nanocoai/nanoclaw`
 * **PicoClaw**: `sipeed/picoclaw`
 
-### Step 2: Gathering Data via Local Clone
+### Step 2: Gather local installed Package Versions
+For each assistant check if installed as system package, record version number.
+
+### Step 3: Gathering Data via Local Clone
 If you have local checkouts of the repositories under `scratch/`, make sure they are up-to-date by fetching and resetting to the latest origin tracking branches (to prevent stale local statistics):
 
 ```bash
@@ -90,6 +102,9 @@ Once updated, you can query statistics for each repository:
 # 1. Total commits in the last 7 days
 git log --since="7 days ago" --no-merges --oneline | wc -l
 
+# 1.1 and if assistant installed, commits since installed version.
+#FIXME implement and update
+# 
 # 2. Total pull request merges in the last 7 days
 git log --since="7 days ago" --merges --oneline | wc -l
 
@@ -105,9 +120,12 @@ git log --tags --since="7 days ago" --simplify-by-decoration --pretty="format:%d
 
 # 6. Show recent commit subjects to summarize focus areas
 git log --since="7 days ago" --no-merges --oneline -n 15
+
+# 6.1 If assistant is installed, show recent commit subjects since installed version
+#FIXME implement and update
 ```
 
-### Step 3: Batch Statistics Helper Script
+### Step 4: Batch Statistics Helper Script
 To gather all required metrics for all repositories at once, run the following script from the root directory of the workspace:
 
 ```bash
@@ -133,7 +151,7 @@ done
 ```
 
 
-### Step 4: Gathering Data via GitHub API
+### Step 5: Gathering Data via GitHub API
 If you do not have local clones, you can fetch the statistics using `curl` and the GitHub API. 
 *Note: Set your `GITHUB_TOKEN` environment variable if you hit rate limits.*
 
@@ -159,9 +177,12 @@ curl -s -H "Accept: application/vnd.github+json" \
   "https://api.github.com/repos/$REPO" | jq '{stargazers_count, forks_count}'
 ```
 
-### Step 5: Compiling the Summary
+### Step 6: Compiling the Summary
 1. Update the dates in the report title and column headers.
 2. Query each active repository using the commands above.
-3. Populate the weekly commits, merges, releases, and averages into the table.
-4. Review the recent commit subjects (`git log --since="7 days ago" --oneline`) to write the brief summary of recent focus areas for each repository.
+3. Populate the weekly commits, commits since systempkg version, merges, releases, and averages into the table.
+4. Review the recent commit subjects to write the brief summary of recent focus areas for each repository, also include changes since systempkg version
 
+### Step 7: Update and Cleanup of Instructions
+
+- update and cleanup from lessons learned while executing these steps

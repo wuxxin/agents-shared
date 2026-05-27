@@ -99,8 +99,8 @@ HERMES_EMBEDDING_PROVIDER="local"
 HERMES_EMBEDDING_MODEL="text-embedding-3-small"
 
 # Local Inference Endpoint (llama.cpp or Ollama)
-# Route to local-embeddings (port 50085) for system-wide local embeddings
-EMBEDDING_API_BASE="http://localhost:50085/v1"
+# Route to local-llm-ggml (port 50080) for system-wide local embeddings
+EMBEDDING_API_BASE="http://localhost:50080/v1"
 EMBEDDING_API_KEY="unused"
 ```
 

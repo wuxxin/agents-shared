@@ -80,7 +80,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=/usr/bin/librefang start
+ExecStart=/usr/bin/librefang start --foreground
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30
@@ -128,30 +128,20 @@ cmd_install() {
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 
-# Local Inference Split Services Overrides
-# Default OpenAI-compatible LLM provider
-LIBREFANG_PROVIDERS__MODELS__OPENAI__LOCAL__URI="http://localhost:50080/v1"
-LIBREFANG_PROVIDERS__MODELS__OPENAI__LOCAL__API_KEY="unused"
-LIBREFANG_PROVIDERS__MODELS__OPENAI__LOCAL__MODEL="qwen3"
 
-# Embeddings endpoint (llama-server on port 50085)
-LIBREFANG_EMBEDDINGS__BASE_URL="http://localhost:50085/v1"
-LIBREFANG_EMBEDDINGS__API_KEY="unused"
-LIBREFANG_EMBEDDINGS__PROVIDER="local"
-LIBREFANG_EMBEDDINGS__MODEL="qwen3-embedding"
+# Local Presence Detection for Embedding Auto-Detection (embedding_provider = "auto")
+# If these variables are set and non-empty, the daemon will auto-select the provider.
+# (Actual base URLs must be configured in ~/.librefang/config.toml under [provider_urls])
+# OLLAMA_HOST="http://127.0.0.1:11434"
+# VLLM_BASE_URL=""
+# LMSTUDIO_BASE_URL=""
 
-# Reranker endpoint (llama-server on port 50086)
-LIBREFANG_RERANKER__BASE_URL="http://localhost:50086/v1"
-LIBREFANG_RERANKER__API_KEY="unused"
-LIBREFANG_RERANKER__PROVIDER="local"
-LIBREFANG_RERANKER__MODEL="qwen3-reranker"
-LIBREFANG_RERANKER__TOP_K=30
-
-# Speech-to-Text endpoint (whisper-server on port 50090)
-LIBREFANG_TRANSCRIPTION__BASE_URL="http://localhost:50090/v1"
-LIBREFANG_TRANSCRIPTION__API_KEY="dummy"
-LIBREFANG_TRANSCRIPTION__PROVIDER="openai"
-LIBREFANG_TRANSCRIPTION__MODEL="whisper-1"
+# Standard Cloud API Keys (loaded by model providers at runtime)
+# OPENAI_API_KEY=""
+# ANTHROPIC_API_KEY=""
+# GEMINI_API_KEY=""
+# GROQ_API_KEY=""
+# ELEVENLABS_API_KEY=""
 EOF
 		chmod 600 "$ENV_FILE"
 		echo "Created default environment file at $ENV_FILE"

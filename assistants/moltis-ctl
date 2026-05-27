@@ -145,8 +145,8 @@ MOLTIS_PROVIDERS__MODELS__OPENAI__LOCAL__URI="http://localhost:50080/v1"
 MOLTIS_PROVIDERS__MODELS__OPENAI__LOCAL__API_KEY="unused"
 MOLTIS_PROVIDERS__MODELS__OPENAI__LOCAL__MODEL="qwen3"
 
-# Embeddings endpoint (llama-server on port 50085)
-MOLTIS_EMBEDDINGS__URI="http://localhost:50085/v1"
+# Embeddings endpoint (llama-server on port 50080)
+MOLTIS_EMBEDDINGS__URI="http://localhost:50080/v1"
 MOLTIS_EMBEDDINGS__API_KEY="unused"
 MOLTIS_EMBEDDINGS__PROVIDER="local"
 MOLTIS_EMBEDDINGS__MODEL="text-embedding-3-small"

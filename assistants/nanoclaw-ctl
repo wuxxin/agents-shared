@@ -137,7 +137,7 @@ LLM_MODEL="qwen3"
 # Embeddings endpoint (llama-server on port 50085)
 EMBEDDING_PROVIDER="local"
 EMBEDDING_MODEL="text-embedding-3-small"
-EMBEDDING_BASE_URL="http://localhost:50085/v1"
+EMBEDDING_BASE_URL="http://localhost:50080/v1"
 EMBEDDING_API_KEY="unused"
 
 # Reranker endpoint (llama-server on port 50086)
