@@ -63,12 +63,13 @@ The service stores its configuration in the systemd user configuration directory
 ### GPU and CPU Inference
 
 By default, the service offloads execution to the GPU using ROCm/HIP.
-To run the service on the CPU, run `./local-llm-ggml.sh edit` (or edit `~/.config/systemd/user/local-llm-ggml.env` directly) and uncomment the CPU parameters:
+To run the service on the CPU, run `./local-llm-ggml.sh edit` (or edit `~/.config/systemd/user/local-llm-ggml.env` directly) and edit this parameter:
 
 ```bash
-# For CPU execution, uncomment these variables:
-# LLM_N_GPU_LAYERS=0
-# LLM_EXTRA_ARGS=""
+# Number of layers to offload to GPU (all=99)
+LR_N_GPU_LAYERS=99
+# To run inference on CPU instead of GPU (none=0)
+# LR_N_GPU_LAYERS=0
 ```
 
 ## VRAM Usage
@@ -92,11 +93,8 @@ To benchmark prefill and decoding latency and throughput using `benchmark-contex
 # Run both Chat/Summarization and Embeddings benchmarks
 ./local-llm-ggml.sh test --benchmark
 
-# Run ONLY the Embeddings benchmark (mutually exclusive with --full)
+# Run ONLY the Embeddings benchmark
 ./local-llm-ggml.sh test --benchmark --only-embeddings
-
-# Run benchmarks along with the cache-hit latency evaluation script (llama-cache-test.py)
-./local-llm-ggml.sh test --benchmark --full
 
 # Specify the number of runs to compute cumulative average over (e.g. 5 runs)
 ./local-llm-ggml.sh test --benchmark --repeat 5

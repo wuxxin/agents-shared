@@ -50,9 +50,7 @@ def run_llm_chat(url: str, model: str, context_file: str, repeats: int) -> None:
         context_content = f.read()
 
     # Form user message with the full context and a summarization task
-    prompt = (
-        context_content + "\n\nTask: Summarize the text above in exactly 100 words."
-    )
+    prompt = context_content + "\n\nTask: Summarize the text above in 100 words."
     total_len = len(prompt)
 
     # Warmup phase runs once

@@ -455,13 +455,11 @@ cmd_test() {
     echo "Using endpoint base: ${base_url}"
 
     local benchmark=false
-    local full=false
     local only_embeddings=false
     local repeat=""
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
-        --full) full=true ;;
         --only-embeddings) only_embeddings=true ;;
         --repeat)
             shift
@@ -470,11 +468,6 @@ cmd_test() {
         esac
         shift
     done
-
-    if [ "$full" = "true" ] && [ "$only_embeddings" = "true" ]; then
-        echo "Error: --full and --only-embeddings are mutually exclusive." >&2
-        return 1
-    fi
 
     if [ "$benchmark" = "true" ]; then
         local context_file
@@ -517,20 +510,6 @@ cmd_test() {
             --context "${context_file}" \
             "${repeat_arg[@]}"
 
-        if [ "$full" = "true" ]; then
-            echo "=== Running Cache Hit Latency Test (llama-cache-test.py) ==="
-            python3 "$(dirname "$0")/../scripts/llama-cache-test.py" \
-                --url "${base_url}/v1" \
-                --model "${alias}" \
-                --payload "${context_file}"
-
-            echo ""
-            echo "=== Benchmark Observation ==="
-            echo "Observation: llama-cache-test.py measures KV cache hit latencies (TTFT) and"
-            echo "prefill characters-per-second, but it does NOT report token throughput metrics"
-            echo "(tokens/sec) for either prompt prefilling or token generation (decoding)."
-            echo "============================="
-        fi
         return 0
     fi
 
@@ -584,7 +563,7 @@ usage() {
     echo "  edit      - Edit the .env file and restart the service upon exit"
     echo "  exec      - Run llama-server as a transient systemd user service"
     echo "  shell     - Spawn an interactive shell in the llama-server environment"
-    echo "  test [--benchmark] [--full] [--only-embeddings] - Run validation tests or benchmarks (--full and --only-embeddings are mutually exclusive)"
+    echo "  test [--benchmark] [--only-embeddings] - Run validation tests or benchmarks"
 }
 
 # ---------------------------------------------------------------------------
