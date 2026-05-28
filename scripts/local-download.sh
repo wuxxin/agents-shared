@@ -332,6 +332,10 @@ if [[ "$download_stt" == true ]]; then
 		"speech-to-text/ggml-large-v3-turbo-q5_0.bin" \
 		"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin" \
 		"${target_dir}/speech-to-text/ggml-large-v3-turbo-q5_0.bin"
+	acquire_file \
+		"speech-to-text/speech-to-text.ogg" \
+		"https://upload.wikimedia.org/wikipedia/commons/2/23/William_McKinley_campaign_speech_1896.ogg" \
+		"${target_dir}/speech-to-text/speech-to-text.ogg"
 fi
 
 # ---------------------------------------------------------------------------

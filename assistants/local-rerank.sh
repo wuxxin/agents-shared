@@ -24,90 +24,90 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # Load environment
 # ---------------------------------------------------------------------------
 load_env() {
-    # Default parameters
-    LR_PORT=50086
-    LR_HOST=127.0.0.1
-    LR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
-    LR_ALIAS=qwen3-reranker
-    LR_N_CTX=8192
-    LR_N_GPU_LAYERS=99
-    LR_THREADS=4
-    LR_EXTRA_ARGS="--flash-attn on"
+	# Default parameters
+	LR_PORT=50086
+	LR_HOST=127.0.0.1
+	LR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+	LR_ALIAS=qwen3-reranker
+	LR_N_CTX=8192
+	LR_N_GPU_LAYERS=99
+	LR_THREADS=4
+	LR_EXTRA_ARGS="--flash-attn on"
 
-    # Source the env file to get model paths and settings if it exists
-    if [[ -f "$ENV_FILE" ]]; then
-        set +u
-        # shellcheck disable=SC1090
-        source "$ENV_FILE"
-        set -u
-    fi
+	# Source the env file to get model paths and settings if it exists
+	if [[ -f "$ENV_FILE" ]]; then
+		set +u
+		# shellcheck disable=SC1090
+		source "$ENV_FILE"
+		set -u
+	fi
 }
 
 # ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
 # ---------------------------------------------------------------------------
 run_systemctl() {
-    if systemctl --user daemon-reload >/dev/null 2>&1; then
-        systemctl --user "$@"
-    else
-        echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
-    fi
+	if systemctl --user daemon-reload >/dev/null 2>&1; then
+		systemctl --user "$@"
+	else
+		echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
+	fi
 }
 
 # ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
 # ---------------------------------------------------------------------------
 get_shared_options() {
-    local mode="$1" # "service" or "transient"
-    local home_spec
-    if [ "$mode" = "service" ]; then
-        home_spec="%h"
-    else
-        home_spec="$HOME"
-    fi
+	local mode="$1" # "service" or "transient"
+	local home_spec
+	if [ "$mode" = "service" ]; then
+		home_spec="%h"
+	else
+		home_spec="$HOME"
+	fi
 
-    # Environment file & Working directory
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-rerank.env"
-    echo "WorkingDirectory=${home_spec}"
+	# Environment file & Working directory
+	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-rerank.env"
+	echo "WorkingDirectory=${home_spec}"
 
-    # Basic hardening (minimal for GPU access)
-    echo "NoNewPrivileges=yes"
-    echo "CapabilityBoundingSet="
-    echo "AmbientCapabilities="
+	# Basic hardening (minimal for GPU access)
+	echo "NoNewPrivileges=yes"
+	echo "CapabilityBoundingSet="
+	echo "AmbientCapabilities="
 
-    # GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
-    echo "PrivateDevices=no"
-    echo "PrivateTmp=yes"
-    echo "PrivateMounts=yes"
-    echo "PrivateIPC=yes"
+	# GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
+	echo "PrivateDevices=no"
+	echo "PrivateTmp=yes"
+	echo "PrivateMounts=yes"
+	echo "PrivateIPC=yes"
 
-    echo "ProtectSystem=strict"
-    # Allow read-write access to model storage and home-based paths
-    echo "BindPaths=${home_spec}"
-    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
+	echo "ProtectSystem=strict"
+	# Allow read-write access to model storage and home-based paths
+	echo "BindPaths=${home_spec}"
+	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+	echo "ReadWritePaths=/data/public/machine-learning"
 
-    echo "ProtectKernelTunables=yes"
-    echo "ProtectKernelModules=yes"
-    echo "ProtectKernelLogs=yes"
-    echo "ProtectControlGroups=yes"
-    echo "ProtectClock=yes"
-    echo "ProtectHostname=yes"
+	echo "ProtectKernelTunables=yes"
+	echo "ProtectKernelModules=yes"
+	echo "ProtectKernelLogs=yes"
+	echo "ProtectControlGroups=yes"
+	echo "ProtectClock=yes"
+	echo "ProtectHostname=yes"
 
-    echo "LockPersonality=yes"
-    echo "RestrictSUIDSGID=yes"
-    echo "RestrictRealtime=yes"
-    echo "KeyringMode=private"
-    echo "UMask=0077"
+	echo "LockPersonality=yes"
+	echo "RestrictSUIDSGID=yes"
+	echo "RestrictRealtime=yes"
+	echo "KeyringMode=private"
+	echo "UMask=0077"
 }
 
 # ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
 # ---------------------------------------------------------------------------
 generate_service_file() {
-    load_env
+	load_env
 
-    cat <<EOF
+	cat <<EOF
 [Unit]
 Description=Local Document Reranking Server (llama-server)
 Documentation=https://github.com/ggml-org/llama.cpp
@@ -144,7 +144,7 @@ EOF
 # Embedded default env file (heredoc written by --install)
 # ---------------------------------------------------------------------------
 generate_env_file() {
-    cat <<'EOF'
+	cat <<'EOF'
 # local-rerank.env
 # ---------------------------------------------------------------------------
 # Configuration for the local-rerank.service llama-server instance.
@@ -190,9 +190,9 @@ EOF
 # Write service file
 # ---------------------------------------------------------------------------
 write_service_file() {
-    generate_service_file >"${SERVICE_FILE}"
-    chmod 644 "${SERVICE_FILE}"
-    run_systemctl daemon-reload
+	generate_service_file >"${SERVICE_FILE}"
+	chmod 644 "${SERVICE_FILE}"
+	run_systemctl daemon-reload
 }
 
 # ---------------------------------------------------------------------------
@@ -200,178 +200,213 @@ write_service_file() {
 # ---------------------------------------------------------------------------
 
 cmd_install() {
-    local no_start=false
-    local new_config=false
-    while [ $# -gt 0 ]; do
-        case "$1" in
-        --no-start) no_start=true ;;
-        --new-config) new_config=true ;;
-        esac
-        shift
-    done
+	local no_start=false
+	local new_config=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-start) no_start=true ;;
+		--new-config) new_config=true ;;
+		esac
+		shift
+	done
 
-    echo "Installing ${SERVICE_NAME} systemd user service..."
+	echo "Installing ${SERVICE_NAME} systemd user service..."
 
-    # Create directory if needed
-    mkdir -p "${SYSTEMD_USER_DIR}"
+	# Create directory if needed
+	mkdir -p "${SYSTEMD_USER_DIR}"
 
-    # Write env file only if it doesn't exist (preserve user edits)
-    if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
-        echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
-        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
-    else
-        echo "Writing default env file: ${ENV_FILE}"
-        generate_env_file >"${ENV_FILE}"
-        chmod 600 "${ENV_FILE}"
-        echo "Env file written."
-    fi
+	# Write env file only if it doesn't exist (preserve user edits)
+	if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
+		echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
+		echo "Remove it manually or use --new-config if you want to regenerate the defaults."
+	else
+		echo "Writing default env file: ${ENV_FILE}"
+		generate_env_file >"${ENV_FILE}"
+		chmod 600 "${ENV_FILE}"
+		echo "Env file written."
+	fi
 
-    # Write service file
-    echo "Writing service file: ${SERVICE_FILE}"
-    write_service_file
-    echo "Service file written."
+	# Write service file
+	echo "Writing service file: ${SERVICE_FILE}"
+	write_service_file
+	echo "Service file written."
 
-    # Enable service
-    echo "Enabling ${SERVICE_NAME}.service..."
-    run_systemctl enable "${SERVICE_NAME}.service"
+	# Enable service
+	echo "Enabling ${SERVICE_NAME}.service..."
+	run_systemctl enable "${SERVICE_NAME}.service"
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping service if running (--no-start specified)..."
-        run_systemctl stop "${SERVICE_NAME}.service" || true
-    else
-        echo "Starting/Restarting service automatically..."
-        run_systemctl restart "${SERVICE_NAME}.service"
-    fi
+	if [ "$no_start" = "true" ]; then
+		echo "Stopping service if running (--no-start specified)..."
+		run_systemctl stop "${SERVICE_NAME}.service" || true
+	else
+		echo "Starting/Restarting service automatically..."
+		run_systemctl restart "${SERVICE_NAME}.service"
+	fi
 
-    echo "Installation complete."
-    echo ""
-    echo "  Service: ${SERVICE_FILE}"
-    echo "  Env:     ${ENV_FILE}"
-    echo ""
-    echo "  Edit the env file to select model, then:"
-    echo "    $0 restart"
-    echo ""
-    echo "  Status:  $0 status"
-    echo "  Logs:    $0 logs"
+	echo "Installation complete."
+	echo ""
+	echo "  Service: ${SERVICE_FILE}"
+	echo "  Env:     ${ENV_FILE}"
+	echo ""
+	echo "  Edit the env file to select model, then:"
+	echo "    $0 restart"
+	echo ""
+	echo "  Status:  $0 status"
+	echo "  Logs:    $0 logs"
 }
 
 cmd_uninstall() {
-    echo "Uninstalling ${SERVICE_NAME} systemd user service..."
-    run_systemctl stop "${SERVICE_NAME}.service"
-    run_systemctl disable "${SERVICE_NAME}.service"
+	echo "Uninstalling ${SERVICE_NAME} systemd user service..."
+	run_systemctl stop "${SERVICE_NAME}.service"
+	run_systemctl disable "${SERVICE_NAME}.service"
 
-    if [[ -f "${SERVICE_FILE}" ]]; then
-        rm -f "${SERVICE_FILE}"
-        run_systemctl daemon-reload
-        echo "Removed service file."
-    fi
+	if [[ -f "${SERVICE_FILE}" ]]; then
+		rm -f "${SERVICE_FILE}"
+		run_systemctl daemon-reload
+		echo "Removed service file."
+	fi
 
-    echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
+	echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
 
 cmd_start() {
-    write_service_file
-    run_systemctl start "${SERVICE_NAME}.service"
+	write_service_file
+	run_systemctl start "${SERVICE_NAME}.service"
 }
 
 cmd_stop() { run_systemctl stop "${SERVICE_NAME}.service"; }
 
 cmd_restart() {
-    write_service_file
-    run_systemctl restart "${SERVICE_NAME}.service"
+	write_service_file
+	run_systemctl restart "${SERVICE_NAME}.service"
 }
 
 cmd_status() { run_systemctl status "${SERVICE_NAME}.service"; }
 cmd_enable() {
-    write_service_file
-    run_systemctl enable "${SERVICE_NAME}.service"
+	write_service_file
+	run_systemctl enable "${SERVICE_NAME}.service"
 }
 cmd_disable() { run_systemctl disable "${SERVICE_NAME}.service"; }
 cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" "$@"; }
 
 cmd_edit() {
-    mkdir -p "$(dirname "${ENV_FILE}")"
-    touch "${ENV_FILE}"
-    ${EDITOR:-nano} "${ENV_FILE}"
-    echo "Restarting service to apply updated environment..."
-    cmd_restart
+	mkdir -p "$(dirname "${ENV_FILE}")"
+	touch "${ENV_FILE}"
+	${EDITOR:-nano} "${ENV_FILE}"
+	echo "Restarting service to apply updated environment..."
+	cmd_restart
 }
 
 cmd_exec() {
-    echo "Starting llama-server as a transient systemd service with args: $*"
+	echo "Starting llama-server as a transient systemd service with args: $*"
 
-    load_env
+	load_env
 
-    local opts=(
-        --user
-        --pty
-        --wait
-        --collect
-        --quiet
-        -p "Type=exec"
-    )
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
 
-    while IFS= read -r opt; do
-        if [ -n "$opt" ]; then
-            opts+=(-p "$opt")
-        fi
-    done < <(get_shared_options transient)
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
 
-    if [ $# -gt 0 ]; then
-        # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" llama-server "$@"
-    else
-        # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" llama-server \
-            --model "${LR_MODEL}" \
-            --embedding \
-            --pooling rank \
-            --ctx-size "${LR_N_CTX}" \
-            --alias "${LR_ALIAS}" \
-            --threads "${LR_THREADS}" \
-            --n-gpu-layers "${LR_N_GPU_LAYERS}" \
-            --host "${LR_HOST}" \
-            --port "${LR_PORT}" \
-            ${LR_EXTRA_ARGS}
-    fi
+	if [ $# -gt 0 ]; then
+		# shellcheck disable=SC2086
+		systemd-run "${opts[@]}" llama-server "$@"
+	else
+		# shellcheck disable=SC2086
+		systemd-run "${opts[@]}" llama-server \
+			--model "${LR_MODEL}" \
+			--embedding \
+			--pooling rank \
+			--ctx-size "${LR_N_CTX}" \
+			--alias "${LR_ALIAS}" \
+			--threads "${LR_THREADS}" \
+			--n-gpu-layers "${LR_N_GPU_LAYERS}" \
+			--host "${LR_HOST}" \
+			--port "${LR_PORT}" \
+			${LR_EXTRA_ARGS}
+	fi
 }
 
 cmd_shell() {
-    echo "Starting interactive shell in the llama-server systemd environment..."
+	echo "Starting interactive shell in the llama-server systemd environment..."
 
-    local opts=(
-        --user
-        --pty
-        --wait
-        --collect
-        --quiet
-        -p "Type=exec"
-    )
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
 
-    while IFS= read -r opt; do
-        if [ -n "$opt" ]; then
-            opts+=(-p "$opt")
-        fi
-    done < <(get_shared_options transient)
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_test() {
-    echo "Running local-rerank validation tests..."
-    load_env
+	echo "Running local-rerank validation tests..."
+	load_env
 
-    local host="${LR_HOST:-127.0.0.1}"
-    local port="${LR_PORT:-50086}"
-    local alias="${LR_ALIAS:-qwen3-reranker}"
+	local host="${LR_HOST:-127.0.0.1}"
+	local port="${LR_PORT:-50086}"
+	local alias="${LR_ALIAS:-qwen3-reranker}"
 
-    local base_url="http://${host}:${port}"
-    echo "Using endpoint base: ${base_url}"
+	local base_url="http://${host}:${port}"
+	echo "Using endpoint base: ${base_url}"
 
-    local rerank_resp
-    rerank_resp=$(curl -s -f -X POST "${base_url}/v1/rerank" \
-        -H "Content-Type: application/json" \
-        -d "{
+	local benchmark=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--benchmark) benchmark=true ;;
+		esac
+		shift
+	done
+
+	if [ "$benchmark" = "true" ]; then
+		local context_file
+		# Try relative path in repo first
+		context_file="$(dirname "$0")/../scratch/test-models/benchmark-context.md"
+		if [[ ! -f "$context_file" ]]; then
+			context_file="$(dirname "$(dirname "$LR_MODEL")")/benchmark-context.md"
+		fi
+		if [[ ! -f "$context_file" ]]; then
+			context_file="/data/public/machine-learning/models/benchmark-context.md"
+		fi
+		if [[ ! -f "$context_file" ]]; then
+			context_file="/tmp/benchmark-context.md"
+		fi
+		if [[ ! -f "$context_file" ]]; then
+			echo "benchmark-context.md not found. Generating it via download_skills_context.py..."
+			python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
+		fi
+
+		# Run rerank benchmark
+		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+			--mode rerank \
+			--url "${base_url}" \
+			--model "${alias}" \
+			--context "${context_file}"
+		return 0
+	fi
+
+	local rerank_resp
+	rerank_resp=$(curl -s -f -X POST "${base_url}/v1/rerank" \
+		-H "Content-Type: application/json" \
+		-d "{
           \"model\": \"${alias}\",
           \"query\": \"What is the capital of France?\",
           \"documents\": [
@@ -382,38 +417,38 @@ cmd_test() {
           \"top_n\": 3
         }")
 
-    echo "${rerank_resp}"
-    if ! echo "${rerank_resp}" | grep -q "relevance_score"; then
-        echo "Error: Reranker test failed." >&2
-        return 1
-    fi
-    echo "Reranker: Success."
+	echo "${rerank_resp}"
+	if ! echo "${rerank_resp}" | grep -q "relevance_score"; then
+		echo "Error: Reranker test failed." >&2
+		return 1
+	fi
+	echo "Reranker: Success."
 }
 
 usage() {
-    echo "Usage: $0 <command>"
-    echo "Commands:"
-    echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
-    echo "  uninstall - Stop and remove systemd service"
-    echo "  start     - Start the systemd service"
-    echo "  stop      - Stop the systemd service"
-    echo "  restart   - Restart the systemd service"
-    echo "  status    - View systemd service status"
-    echo "  enable    - Enable systemd service on boot"
-    echo "  disable   - Disable systemd service on boot"
-    echo "  logs      - Tail the systemd service logs"
-    echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run llama-server as a transient systemd user service"
-    echo "  shell     - Spawn an interactive shell in the llama-server environment"
-    echo "  test      - Run API validation tests"
+	echo "Usage: $0 <command> [args...]"
+	echo "Commands:"
+	echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
+	echo "  uninstall - Stop and remove systemd service"
+	echo "  start     - Start the systemd service"
+	echo "  stop      - Stop the systemd service"
+	echo "  restart   - Restart the systemd service"
+	echo "  status    - View systemd service status"
+	echo "  enable    - Enable systemd service on boot"
+	echo "  disable   - Disable systemd service on boot"
+	echo "  logs      - Tail the systemd service logs"
+	echo "  edit      - Edit the .env file and restart the service upon exit"
+	echo "  exec      - Run llama-server as a transient systemd user service"
+	echo "  shell     - Spawn an interactive shell in the llama-server environment"
+	echo "  test [--benchmark] - Run validation tests or rerank benchmark"
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if [ $# -lt 1 ]; then
-    usage
-    exit 1
+	usage
+	exit 1
 fi
 
 COMMAND="$1"
@@ -432,10 +467,10 @@ logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
-test) cmd_test ;;
+test) cmd_test "$@" ;;
 *)
-    echo "Unknown command: $COMMAND"
-    usage
-    exit 1
-    ;;
+	echo "Unknown command: $COMMAND"
+	usage
+	exit 1
+	;;
 esac

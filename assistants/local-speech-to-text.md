@@ -77,3 +77,13 @@ The speech-to-text service can be validated using the built-in test command:
 
 This command downloads a test sample (`jfk.wav`), sends it to the running speech-to-text server, and verifies that the transcription succeeds and contains expected keywords.
 
+### Benchmarking Mode
+
+To benchmark transcription latency and throughput using a 45-second famous speech audio sample (President William McKinley's 1896 campaign address), run:
+
+```bash
+./assistants/local-speech-to-text.sh test --benchmark
+```
+
+This will automatically locate `speech-to-text.ogg` in the models directory or download it to `/tmp/speech-to-text.ogg` if the models directory is read-only.
+

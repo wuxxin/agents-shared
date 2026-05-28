@@ -93,3 +93,11 @@ The text-to-speech service can be validated using its built-in integration test 
 ```
 
 This runs a complete text-to-audio synthesis cycle, pipes the generated audio file to the local transcription service, outputs the transcription, and plays the audio if a command-line player (`aplay`, `paplay`, `pw-play`) is available.
+
+### Benchmarking Mode
+
+To benchmark synthesis latency and throughput using a fixed 45-word sentence, run:
+
+```bash
+./assistants/local-text-to-speech.sh test --benchmark
+```

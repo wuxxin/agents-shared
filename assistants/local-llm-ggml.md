@@ -81,6 +81,21 @@ You can test that the service is running and behaving correctly by running the v
 ./local-llm-ggml.sh test
 ```
 
+### Benchmarking Mode
+
+To benchmark prefill and decoding latency and throughput using `benchmark-context.md`, run:
+
+```bash
+# Run both Chat/Summarization and Embeddings benchmarks
+./local-llm-ggml.sh test --benchmark
+
+# Run ONLY the Embeddings benchmark (mutually exclusive with --full)
+./local-llm-ggml.sh test --benchmark --only-embeddings
+
+# Run benchmarks along with the cache-hit latency evaluation script (llama-cache-test.py)
+./local-llm-ggml.sh test --benchmark --full
+```
+
 Alternatively, you can test it manually using `curl`:
 
 ### 1. Chat Completion Test

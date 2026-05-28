@@ -457,6 +457,74 @@ cmd_test() {
 	local base_url="http://${host}:${port}"
 	echo "Using endpoint base: ${base_url}"
 
+	local benchmark=false
+	local full=false
+	local only_embeddings=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--benchmark) benchmark=true ;;
+		--full) full=true ;;
+		--only-embeddings) only_embeddings=true ;;
+		esac
+		shift
+	done
+
+	if [ "$full" = "true" ] && [ "$only_embeddings" = "true" ]; then
+		echo "Error: --full and --only-embeddings are mutually exclusive." >&2
+		return 1
+	fi
+
+	if [ "$benchmark" = "true" ]; then
+		local context_file
+		# Try relative path in repo first
+		context_file="$(dirname "$0")/../scratch/test-models/benchmark-context.md"
+		if [[ ! -f "$context_file" ]]; then
+			context_file="$(dirname "$(dirname "$LLM_MODEL")")/benchmark-context.md"
+		fi
+		if [[ ! -f "$context_file" ]]; then
+			context_file="/data/public/machine-learning/models/benchmark-context.md"
+		fi
+		if [[ ! -f "$context_file" ]]; then
+			context_file="/tmp/benchmark-context.md"
+		fi
+		if [[ ! -f "$context_file" ]]; then
+			echo "benchmark-context.md not found. Generating it via download_skills_context.py..."
+			python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
+		fi
+
+		if [ "$only_embeddings" = "false" ]; then
+			# Run chat benchmark
+			python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+				--mode llm-chat \
+				--url "${base_url}" \
+				--model "${alias}" \
+				--context "${context_file}"
+		fi
+
+		# Run embedding benchmark
+		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+			--mode llm-embed \
+			--url "${base_url}" \
+			--model "${embedding_alias}" \
+			--context "${context_file}"
+
+		if [ "$full" = "true" ]; then
+			echo "=== Running Cache Hit Latency Test (llama-cache-test.py) ==="
+			python3 "$(dirname "$0")/../scripts/llama-cache-test.py" \
+				--url "${base_url}/v1" \
+				--model "${alias}" \
+				--payload "${context_file}"
+
+			echo ""
+			echo "=== Benchmark Observation ==="
+			echo "Observation: llama-cache-test.py measures KV cache hit latencies (TTFT) and"
+			echo "prefill characters-per-second, but it does NOT report token throughput metrics"
+			echo "(tokens/sec) for either prompt prefilling or token generation (decoding)."
+			echo "============================="
+		fi
+		return 0
+	fi
+
 	echo "=== 1. Testing Chat Completion ==="
 	local chat_resp
 	chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
@@ -493,7 +561,7 @@ cmd_test() {
 }
 
 usage() {
-	echo "Usage: $0 <command>"
+	echo "Usage: $0 <command> [args...]"
 	echo "Commands:"
 	echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
 	echo "  uninstall - Stop and remove systemd service"
@@ -507,7 +575,7 @@ usage() {
 	echo "  edit      - Edit the .env file and restart the service upon exit"
 	echo "  exec      - Run llama-server as a transient systemd user service"
 	echo "  shell     - Spawn an interactive shell in the llama-server environment"
-	echo "  test      - Run API validation tests"
+	echo "  test [--benchmark] [--full] [--only-embeddings] - Run validation tests or benchmarks (--full and --only-embeddings are mutually exclusive)"
 }
 
 # ---------------------------------------------------------------------------
@@ -534,7 +602,7 @@ logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
-test) cmd_test ;;
+test) cmd_test "$@" ;;
 *)
 	echo "Unknown command: $COMMAND"
 	usage
