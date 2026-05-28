@@ -623,7 +623,7 @@ def main() -> None:
     repeats = (
         args.repeat
         if args.repeat is not None
-        else (10 if args.mode == "llm-embed" else 1)
+        else (10 if args.mode in ("llm-embed", "stt") else 1)
     )
 
     output_path = args.output

@@ -414,26 +414,45 @@ cmd_test() {
 		return 0
 	fi
 
+	echo "Sending validation query to http://${host}:${port}/v1/rerank..."
+	echo "Query: \"What is the speed of light in a vacuum?\""
+	echo "Documents:"
+	echo "  [Index 0] \"The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.\""
+	echo "  [Index 1] \"The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.\""
+	echo "  [Index 2] \"Light travels through glass at a speed of approximately 200,000 kilometers per second, which is slower than in a vacuum.\""
+	echo "  [Index 3] \"The speed of light in water is about 225,000 kilometers per second due to the refractive index.\""
+	echo "  [Index 4] \"The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.\""
+	echo ""
+
 	local rerank_resp
 	rerank_resp=$(curl -s -f -X POST "${base_url}/v1/rerank" \
 		-H "Content-Type: application/json" \
 		-d "{
           \"model\": \"${alias}\",
-          \"query\": \"What is the capital of France?\",
+          \"query\": \"What is the speed of light in a vacuum?\",
           \"documents\": [
-            \"Paris is the capital of France.\",
-            \"Berlin is the capital of Germany.\",
-            \"London is the capital of the United Kingdom.\"
+            \"The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.\",
+            \"The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.\",
+            \"Light travels through glass at a speed of approximately 200,000 kilometers per second, which is slower than in a vacuum.\",
+            \"The speed of light in water is about 225,000 kilometers per second due to the refractive index.\",
+            \"The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.\"
           ],
           \"top_n\": 3
         }")
 
 	echo "${rerank_resp}"
 	if ! echo "${rerank_resp}" | grep -q "relevance_score"; then
-		echo "Error: Reranker test failed." >&2
+		echo "Error: Reranker response structure is invalid." >&2
 		return 1
 	fi
-	echo "Reranker: Success."
+
+	local top_idx
+	top_idx=$(echo "${rerank_resp}" | python3 -c "import sys, json; print(json.load(sys.stdin).get('results', [{}])[0].get('index', -1))")
+	if [ "$top_idx" -ne 1 ]; then
+		echo "Error: Reranker validation failed. Top document index was $top_idx, expected 1." >&2
+		return 1
+	fi
+	echo "Reranker: Success (verified correct result with index $top_idx)."
 }
 
 usage() {

@@ -95,11 +95,13 @@ curl -s -X POST http://localhost:50086/v1/rerank \
   -H "Content-Type: application/json" \
   -d '{
     "model": "qwen3-reranker",
-    "query": "What is the capital of France?",
+    "query": "What is the speed of light in a vacuum?",
     "documents": [
-      "Paris is the capital of France.",
-      "Berlin is the capital of Germany.",
-      "London is the capital of the United Kingdom."
+      "The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.",
+      "The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.",
+      "Light travels through glass at a speed of approximately 200,000 kilometers per second, which is slower than in a vacuum.",
+      "The speed of light in water is about 225,000 kilometers per second due to the refractive index.",
+      "The Earth orbits the Sun at an average speed of about 29.78 kilometers per second."
     ],
     "top_n": 3
   }'

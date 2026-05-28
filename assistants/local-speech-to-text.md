@@ -82,7 +82,7 @@ This command downloads a test sample (`jfk.wav`), sends it to the running speech
 To benchmark transcription latency and throughput using a 45-second famous speech audio sample (President William McKinley's 1896 campaign address), run:
 
 ```bash
-# Run speech-to-text benchmark (defaults to 1 run)
+# Run speech-to-text benchmark (defaults to 10 runs)
 ./assistants/local-speech-to-text.sh test --benchmark
 
 # Run speech-to-text benchmark for multiple repeats to compute cumulative averages (e.g. 5 runs)
