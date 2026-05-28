@@ -430,6 +430,15 @@ cmd_shell() {
     _transient_run "${SHELL:-/bin/bash}" "$@"
 }
 
+cmd_run() {
+    if [ $# -lt 1 ]; then
+        echo "Error: run requires a command to execute." >&2
+        exit 1
+    fi
+    echo "Running command inside the signal-cli environment: $*"
+    _transient_run "$@"
+}
+
 cmd_relink() {
     if [ $# -lt 1 ]; then
         echo "Usage: $(basename "$0") relink <device-name>" >&2
@@ -669,6 +678,7 @@ Commands:
   logs      - Tail the systemd service logs
   edit      - Edit the env files (CLI and REST) in \$VISUAL/\$EDITOR and restart daemon
   exec      - Run signal-cli as a transient hardened systemd unit with args
+  run       - Run a command inside the signal-cli systemd environment
   shell     - Spawn an interactive shell in the signal-cli systemd environment
   relink <device-name>
             - Link an account and display QR code (passes name of link for Signal GUI)
@@ -738,6 +748,7 @@ disable) cmd_disable ;;
 logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
+run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 relink) cmd_relink "$@" ;;
 test) cmd_test "$@" ;;

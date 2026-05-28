@@ -353,6 +353,33 @@ cmd_shell() {
     systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
+cmd_run() {
+    if [ $# -lt 1 ]; then
+        echo "Error: run requires a command to execute." >&2
+        exit 1
+    fi
+    echo "Running command inside the llama-server environment: $*"
+
+    load_env
+
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
+
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
+
+    systemd-run "${opts[@]}" "$@"
+}
+
 cmd_test() {
     echo "Running local-rerank validation tests..."
     load_env
@@ -465,6 +492,7 @@ usage() {
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
     echo "  exec      - Run llama-server as a transient systemd user service"
+    echo "  run       - Run a command inside the llama-server environment"
     echo "  shell     - Spawn an interactive shell in the llama-server environment"
     echo "  test [--benchmark] - Run validation tests or rerank benchmark"
 }
@@ -492,6 +520,7 @@ disable) cmd_disable ;;
 logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
+run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 test) cmd_test "$@" ;;
 *)

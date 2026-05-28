@@ -344,6 +344,35 @@ cmd_exec() {
 	systemd-run "${opts[@]}" "$VENV_DIR/bin/nanobot" "$@"
 }
 
+cmd_run() {
+	if [ ! -d "$VENV_DIR" ]; then
+		echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
+		exit 1
+	fi
+	if [ $# -lt 1 ]; then
+		echo "Error: run requires a command to execute." >&2
+		exit 1
+	fi
+	echo "Running command inside the nanobot environment: $*"
+
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
+
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
+
+	systemd-run "${opts[@]}" "$@"
+}
+
 cmd_update() {
 	require_uv
 	if [ ! -d "$VENV_DIR" ]; then
@@ -373,6 +402,7 @@ usage() {
 	echo "  edit      - Edit the .env file and restart the service upon exit"
 	echo "  update    - Upgrade the nanobot package via uv and restart the service"
 	echo "  exec      - Run nanobot as a transient systemd user service with args"
+	echo "  run       - Run a command inside the nanobot systemd environment"
 	echo "  shell     - Spawn an interactive shell in the nanobot systemd environment"
 }
 
@@ -398,6 +428,7 @@ config) cmd_config ;;
 edit) cmd_edit ;;
 update) cmd_update ;;
 exec) cmd_exec "$@" ;;
+run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 *)
 	echo "Unknown command: $COMMAND"

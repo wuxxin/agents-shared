@@ -27,7 +27,8 @@ Usage when called as $(basename "$0"):
   $0 install          - Install launcher, symlink, and desktop entries
   $0 uninstall        - Remove launcher, symlink, and desktop entries
   $0 help             - Display this help message
-  $0 exec <cmd> [args] - Run custom command inside the Bubblewrap sandbox
+  $0 exec [args]      - Run the sandboxed Antigravity application with optional args
+  $0 run <cmd> [args] - Run custom command inside the Bubblewrap sandbox
   $0 shell            - Spawn an interactive shell inside the Bubblewrap sandbox
 EOF
 }
@@ -248,8 +249,11 @@ else
         show_help
         ;;
     exec)
+        run_sandbox "$APP_BIN" "${ELECTRON_FLAGS[@]}" "${ANTIGRAVITY_FLAGS[@]}" "$@"
+        ;;
+    run)
         if [[ $# -lt 1 ]]; then
-            echo "Error: exec requires a command to run." >&2
+            echo "Error: run requires a command to run." >&2
             exit 1
         fi
         run_sandbox "$@"

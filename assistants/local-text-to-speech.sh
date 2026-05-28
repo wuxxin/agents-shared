@@ -55,6 +55,39 @@ get_shared_options() {
     fi
 
     # Environment file & Working directory
+    load_env
+    local force_cpu=0
+    local low_mem=0
+    local transformer_force_cpu=0
+    local vocoder_force_cpu=0
+    case "${LTTS_MODE:-gpu}" in
+    "gpu")
+        force_cpu=0
+        low_mem=0
+        ;;
+    "gpu-min-vram")
+        force_cpu=0
+        low_mem=1
+        ;;
+    "hybrid")
+        force_cpu=0
+        low_mem=0
+        transformer_force_cpu=1
+        ;;
+    "cpu-only")
+        force_cpu=1
+        low_mem=0
+        ;;
+    *)
+        force_cpu=0
+        low_mem=0
+        ;;
+    esac
+
+    echo "Environment=QWEN3_TTS_FORCE_CPU=${force_cpu}"
+    echo "Environment=QWEN3_TTS_LOW_MEM=${low_mem}"
+    echo "Environment=QWEN3_TTS_TRANSFORMER_FORCE_CPU=${transformer_force_cpu}"
+    echo "Environment=QWEN3_TTS_VOCODER_FORCE_CPU=${vocoder_force_cpu}"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-text-to-speech.env"
     echo "WorkingDirectory=${home_spec}"
 
@@ -132,10 +165,6 @@ After=network.target
 
 [Service]
 Type=simple
-Environment=QWEN3_TTS_FORCE_CPU=${force_cpu}
-Environment=QWEN3_TTS_LOW_MEM=${low_mem}
-Environment=QWEN3_TTS_TRANSFORMER_FORCE_CPU=${transformer_force_cpu}
-Environment=QWEN3_TTS_VOCODER_FORCE_CPU=${vocoder_force_cpu}
 $(get_shared_options service)
 ExecStart=qwen3-tts-server \\
     --model ${LTTS_MODEL} \\
@@ -365,6 +394,33 @@ cmd_shell() {
     systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
+cmd_run() {
+    if [ $# -lt 1 ]; then
+        echo "Error: run requires a command to execute." >&2
+        exit 1
+    fi
+    echo "Running command inside the qwen3-tts-server environment: $*"
+
+    load_env
+
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
+
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
+
+    systemd-run "${opts[@]}" "$@"
+}
+
 cmd_test() {
     echo "Running local-text-to-speech validation tests..."
     load_env
@@ -496,6 +552,7 @@ usage() {
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
     echo "  exec      - Run qwen3-tts-server as a transient systemd user service"
+    echo "  run       - Run a command inside the qwen3-tts-server environment"
     echo "  shell     - Spawn an interactive shell in the qwen3-tts-server environment"
     echo "  test [--play] [--benchmark] - Run synthesis and validation tests or benchmark"
 }
@@ -523,6 +580,7 @@ disable) cmd_disable ;;
 logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
+run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 test) cmd_test "$@" ;;
 *)

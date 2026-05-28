@@ -93,13 +93,45 @@ To benchmark prefill and decoding latency and throughput using `benchmark-contex
 # Run both Chat/Summarization and Embeddings benchmarks
 ./local-llm-ggml.sh test --benchmark
 
+# Run ONLY the Chat benchmark
+./local-llm-ggml.sh test --benchmark --only-chat
+
 # Run ONLY the Embeddings benchmark
 ./local-llm-ggml.sh test --benchmark --only-embeddings
+
+# Skip Phase 1 (Sequential Prefill) of the Chat benchmark
+./local-llm-ggml.sh test --benchmark --only-chat --skip-prefill
+
+# Skip Phase 3 (Prefix Caching & Distractor Tests) of the Chat benchmark
+./local-llm-ggml.sh test --benchmark --only-chat --skip-distractor
 
 # Specify the number of runs to compute cumulative average over (e.g. 5 runs)
 ./local-llm-ggml.sh test --benchmark --repeat 5
 ```
 
+The chat completion benchmark evaluates prefill speed, generation speed, and Key-Value (KV) cache retrieval latency using a truncated ~30k token context (~115k characters) from `benchmark-context.md`. The benchmark runs in 4 distinct phases:
+
+1. **Phase 0: Warmup**
+   - Runs a quick validation query ("Hello, respond with exactly: Hello World!") to measure base TTFT/latency and ensure the server is ready.
+   - Sleeps for 10 seconds.
+
+2. **Phase 1: Sequential Prefill**
+   - Incrementally feeds context chunks (10% increments) to monitor prefill speed and new chunk parsing efficiency.
+   - Can be bypassed entirely using the `--skip-prefill` parameter (e.g. `./local-llm-ggml.sh test --benchmark --only-chat --skip-prefill`).
+   - Sleeps for 10 seconds.
+
+3. **Phase 2: Chat Generation**
+   - Loads the full prefilled context and requests a 300-word summary to evaluate decode throughput (expecting ~25+ tokens/sec).
+   - Sleeps for 10 seconds (if Phase 3 is active).
+
+4. **Phase 3: Prefix Caching & Distractor Tests**
+   - Sequentially cycles 5 times through:
+     - *3a. Half Prefill Prompt + Question* (measures prefix cache hit/latency).
+     - *3b. Distractor Prompt* (a short, unrelated question to test cache eviction/interference).
+     - *3c. Full Prefill Prompt + Question* (measures prompt re-parsing speed after distractor cache eviction).
+   - To avoid GPU overheating on target hardware (Radeon Pro W6800), a 10-second cooldown sleep is executed *only* after the full context query (`3c`). No sleeps are executed after the half-prefill or distractor queries.
+   - Can be skipped entirely using the `--skip-distractor` parameter (e.g. `./local-llm-ggml.sh test --benchmark --only-chat --skip-distractor`) to avoid overheating during extended test suites.
+  
 > [!NOTE]
 > If `--repeat` is omitted, the embedding benchmark defaults to `10` runs to calculate a stable cumulative average, while the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs for all executed benchmarks.
 

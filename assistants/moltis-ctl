@@ -27,6 +27,7 @@ get_shared_options() {
 
 	# Environment & Working Directory
 	echo "Environment=HOME=${home_spec}/.local/sandbox/moltis"
+	echo "Environment=MOLTIS_PORT=${MOLTIS_PORT:-13131}"
 	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/moltis.env"
 	echo "WorkingDirectory=${home_spec}/.local/sandbox/moltis"
 
@@ -80,7 +81,6 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-Environment=MOLTIS_PORT=13131
 $(get_shared_options service)
 ExecStart=/usr/bin/moltis --bind 0.0.0.0 --port \$MOLTIS_PORT
 Restart=on-failure
@@ -286,6 +286,31 @@ cmd_shell() {
 	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
+cmd_run() {
+	if [ $# -lt 1 ]; then
+		echo "Error: run requires a command to execute." >&2
+		exit 1
+	fi
+	echo "Running command inside the moltis environment: $*"
+
+	local opts=(
+		--user
+		--pty
+		--wait
+		--collect
+		--quiet
+		-p "Type=exec"
+	)
+
+	while IFS= read -r opt; do
+		if [ -n "$opt" ]; then
+			opts+=(-p "$opt")
+		fi
+	done < <(get_shared_options transient)
+
+	systemd-run "${opts[@]}" "$@"
+}
+
 usage() {
 	echo "Usage: $0 <command>"
 	echo "Commands:"
@@ -300,6 +325,7 @@ usage() {
 	echo "  logs      - Tail the systemd service logs"
 	echo "  edit      - Edit the .env file and restart the service upon exit"
 	echo "  exec      - Run moltis as a transient systemd user service with args"
+	echo "  run       - Run a command inside the moltis systemd environment"
 	echo "  shell     - Spawn an interactive shell in the moltis systemd environment"
 }
 
@@ -323,6 +349,7 @@ disable) cmd_disable ;;
 logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
+run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 *)
 	echo "Unknown command: $COMMAND"

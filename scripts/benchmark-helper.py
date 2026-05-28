@@ -14,7 +14,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from typing import Tuple
+from typing import Any, Dict, List, Tuple
 
 
 def post_json(url: str, payload: dict) -> dict:
@@ -41,7 +41,101 @@ def get_tmp_dir() -> str:
     return tempfile.gettempdir()
 
 
-def run_llm_chat(url: str, model: str, context_file: str, repeats: int) -> None:
+def run_streamed_query(
+    url: str, payload: dict, display_label: str, quiet: bool = False
+) -> Tuple[float, float, str, int, int]:
+    """Runs a streamed chat query. Reports progress without streaming token by token to avoid terminal scrambling."""
+    t0 = time.perf_counter()
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/v1/chat/completions",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    first_token_time = None
+    run_text = []
+    prompt_tokens = 0
+    completion_tokens = 0
+
+    if not quiet:
+        print(f"  {display_label} Prefilling... ", end="", flush=True)
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            for line in response:
+                if not line:
+                    continue
+                line_str = line.decode("utf-8").strip()
+                if not line_str.startswith("data: "):
+                    continue
+                if line_str == "data: [DONE]":
+                    break
+
+                try:
+                    chunk = json.loads(line_str[6:])
+                    if "usage" in chunk and chunk["usage"]:
+                        prompt_tokens = chunk["usage"].get("prompt_tokens", 0)
+                        completion_tokens = chunk["usage"].get("completion_tokens", 0)
+
+                    if "choices" in chunk and chunk["choices"]:
+                        delta_choice = chunk["choices"][0].get("delta", {})
+                        reasoning = delta_choice.get("reasoning_content", "")
+                        content = delta_choice.get("content", "")
+                        token_text = reasoning if reasoning else content
+                        if token_text:
+                            if first_token_time is None:
+                                first_token_time = time.perf_counter()
+                                if not quiet:
+                                    ttft = first_token_time - t0
+                                    print(
+                                        f"Completed in {ttft:.2f}s. Generating... ",
+                                        end="",
+                                        flush=True,
+                                    )
+                            run_text.append(token_text)
+                except json.JSONDecodeError:
+                    pass
+        t_end = time.perf_counter()
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        if not quiet:
+            print()
+        raise RuntimeError(f"HTTP Error {e.code}: {error_body}") from e
+    except Exception as e:
+        if not quiet:
+            print()
+        raise RuntimeError(f"Request failed: {e}") from e
+
+    if first_token_time is None:
+        first_token_time = t_end
+
+    ttft = first_token_time - t0
+    total_time = t_end - t0
+    text = "".join(run_text)
+    generation_time = total_time - ttft
+
+    if not quiet:
+        print(f"Completed in {generation_time:.2f}s.")
+
+    if prompt_tokens == 0:
+        content_len = len(payload.get("messages", [{}])[0].get("content", ""))
+        prompt_tokens = int(content_len / 3.8)
+    if completion_tokens == 0:
+        completion_tokens = int(len(text) / 3.8)
+
+    return ttft, total_time, text, prompt_tokens, completion_tokens
+
+
+def run_llm_chat(
+    url: str,
+    model: str,
+    context_file: str,
+    repeats: int,
+    skip_prefill: bool = False,
+    skip_distractor: bool = False,
+) -> None:
     """Run chat completion prefill/decode benchmark using a large context."""
     if not os.path.exists(context_file):
         raise FileNotFoundError(f"Context file not found: {context_file}")
@@ -49,175 +143,320 @@ def run_llm_chat(url: str, model: str, context_file: str, repeats: int) -> None:
     with open(context_file, "r", encoding="utf-8") as f:
         context_content = f.read()
 
-    # Form user message with the full context and a summarization task
-    prompt = (
-        context_content + "\n\nTask: Summarize the text above in exactly 100 words."
-    )
-    total_len = len(prompt)
-
-    # Warmup phase runs once
-    print("Incremental prefill (warmup) phase to report status cycles:")
-    step_chars = max(1000, total_len // 10)
-    current_len = step_chars
-    step_idx = 1
-    prefill_durations = []
-
-    while current_len < total_len:
-        subset = prompt[:current_len]
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": subset}],
-            "max_tokens": 1,
-            "temperature": 0.0,
-        }
-
-        t_start = time.perf_counter()
-        post_json(f"{url}/v1/chat/completions", payload)
-        t_end = time.perf_counter()
-
-        delta = t_end - t_start
-        prefill_durations.append(delta)
-        pct = (current_len / total_len) * 100
+    # Truncate context to ~30k tokens (~115k characters) to avoid GPU memory allocation failures
+    MAX_CONTEXT_CHARS = 115000
+    if len(context_content) > MAX_CONTEXT_CHARS:
         print(
-            f"  [Cycle {step_idx}/10] Prefilled {current_len}/{total_len} characters ({pct:.1f}%) in {delta:.2f}s"
+            f"Warning: Context file is very large ({len(context_content)} chars). "
+            f"Truncating to {MAX_CONTEXT_CHARS} chars to prevent GPU memory/caching issues."
         )
+        context_content = context_content[:MAX_CONTEXT_CHARS]
 
-        current_len += step_chars
-        step_idx += 1
-        if current_len >= total_len:
-            break
+    # Phase 0: Warmup
+    print("===================================================")
+    print("=== PHASE 0: Warmup (Validation Query) ===")
+    print("===================================================")
+    payload_p0 = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, respond with exactly: Hello World!",
+            }
+        ],
+        "stream": True,
+        "stream_options": {"include_usage": True},
+        "temperature": 0.0,
+    }
 
-    print(f"\nRunning final chat completion request with {repeats} repeats (cached)...")
-    prefill_times_ms = []
-    decode_times_ms = []
-    total_times_ms = []
-    prefill_speeds = []
-    decode_speeds = []
+    ttft_p0, total_time_p0, text_p0, prompt_tokens_p0, completion_tokens_p0 = (
+        run_streamed_query(url, payload_p0, "[Warmup]", quiet=False)
+    )
+
+    generation_time_p0 = total_time_p0 - ttft_p0
+    prefill_speed_p0 = (prompt_tokens_p0 / ttft_p0) if ttft_p0 > 0 else 0.0
+    generation_speed_p0 = (
+        (completion_tokens_p0 / generation_time_p0) if generation_time_p0 > 0 else 0.0
+    )
+
+    print(
+        f"  Metrics: TTFT={ttft_p0 * 1000:.1f}ms, Prefill={prefill_speed_p0:.2f} t/s, Gen={generation_speed_p0:.2f} t/s"
+    )
+    print(f'  Response: "{text_p0.strip()}"')
+
+    # Sleep 10 seconds between Phase 0 and next phase
+    print("\nSleeping 10 seconds between Phase 0 and next phase...")
+    time.sleep(10)
+
+    # Phase 1: Sequential Prefill
+    phase1_durations = []
+    phase1_speeds = []
+    if not skip_prefill:
+        print("\n===================================================")
+        print("=== PHASE 1: Sequential Prefill (Warmup) ===")
+        print("===================================================")
+        prompt_p1 = (
+            context_content + "\n\nTask: Summarize the text above in exactly 100 words."
+        )
+        total_len = len(prompt_p1)
+        step_chars = max(1000, total_len // 10)
+        current_len = step_chars
+        step_idx = 1
+        prev_tokens = 0
+
+        while current_len < total_len:
+            subset = prompt_p1[:current_len]
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": subset}],
+                "max_tokens": 1,
+                "temperature": 0.0,
+            }
+
+            t_start = time.perf_counter()
+            resp = post_json(f"{url}/v1/chat/completions", payload)
+            t_end = time.perf_counter()
+
+            delta = t_end - t_start
+            phase1_durations.append(delta)
+
+            usage = resp.get("usage", {})
+            current_tokens = usage.get("prompt_tokens", 0)
+            if current_tokens == 0:
+                current_tokens = int(len(subset) / 3.8)
+
+            delta_tokens = current_tokens - prev_tokens
+            if delta_tokens < 0:
+                delta_tokens = 0
+            speed_new_chunk = (delta_tokens / delta) if delta > 0 else 0.0
+            phase1_speeds.append(speed_new_chunk)
+
+            pct = (current_len / total_len) * 100
+            print(
+                f"  [Cycle {step_idx}/10] Prefilled {current_len}/{total_len} characters ({pct:.1f}%) in {delta:.2f}s "
+                f"(New chunk: {delta_tokens} tokens at {speed_new_chunk:.2f} t/s)"
+            )
+
+            prev_tokens = current_tokens
+            current_len += step_chars
+            step_idx += 1
+            if current_len >= total_len:
+                break
+
+        # Sleep 10 seconds between Phase 1 and Phase 2
+        print("\nSleeping 10 seconds between Phase 1 and Phase 2...")
+        time.sleep(10)
+    else:
+        print("\n===================================================")
+        print("=== PHASE 1: Sequential Prefill (Warmup) ===")
+        print("===================================================")
+        print("  SKIPPED")
+
+    # Phase 2: Chat Generation (300-word summary)
+    print("\n===================================================")
+    print("=== PHASE 2: Chat Generation (300-word summary) ===")
+    print("===================================================")
+    prompt_p2 = (
+        context_content + "\n\nTask: Summarize the text above in exactly 300 words."
+    )
+
+    phase2_runs = []
     generated_text = ""
-
-    # Reuse prompt_tokens and completion_tokens from first successful run
-    prompt_tokens = 0
-    completion_tokens = 0
 
     for r in range(repeats):
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": prompt_p2}],
             "stream": True,
             "stream_options": {"include_usage": True},
             "temperature": 0.0,
+            "max_tokens": 600,
         }
 
-        data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            f"{url}/v1/chat/completions",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        display_label = f"[Run {r + 1}/{repeats}]"
+        quiet = r > 0
+
+        ttft, total_time, text, prompt_tokens, completion_tokens = run_streamed_query(
+            url, payload, display_label, quiet=quiet
         )
 
-        t0 = time.perf_counter()
-        first_token_time = None
-        run_text = []
-
-        try:
-            with urllib.request.urlopen(req) as response:
-                for line in response:
-                    if not line:
-                        continue
-                    line_str = line.decode("utf-8").strip()
-                    if not line_str.startswith("data: "):
-                        continue
-                    if line_str == "data: [DONE]":
-                        break
-
-                    try:
-                        chunk = json.loads(line_str[6:])
-                        # Parse usage if returned
-                        if "usage" in chunk and chunk["usage"]:
-                            prompt_tokens = chunk["usage"].get("prompt_tokens", 0)
-                            completion_tokens = chunk["usage"].get(
-                                "completion_tokens", 0
-                            )
-
-                        # Capture time of first non-empty content chunk (TTFT)
-                        if "choices" in chunk and chunk["choices"]:
-                            delta_choice = chunk["choices"][0].get("delta", {})
-                            content = delta_choice.get("content", "")
-                            if content:
-                                if first_token_time is None:
-                                    first_token_time = time.perf_counter()
-                                run_text.append(content)
-                    except json.JSONDecodeError:
-                        pass
-
-            t2 = time.perf_counter()
-
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8")
-            raise RuntimeError(f"HTTP Error {e.code}: {error_body}") from e
-        except Exception as e:
-            raise RuntimeError(f"Request failed on repeat {r + 1}: {e}") from e
-
-        if first_token_time is None:
-            first_token_time = t2
-
-        final_ttft = first_token_time - t0
-        decode_time_ms = (t2 - first_token_time) * 1000.0
-
-        # Estimate tokens if server didn't provide usage info
-        if prompt_tokens == 0:
-            prompt_tokens = int(len(prompt) / 3.8)
-        if completion_tokens == 0:
-            completion_tokens = int(len("".join(run_text)) / 3.8)
-
-        # Calculate cumulative prefill metrics
-        total_prefill_time_sec = sum(prefill_durations) + final_ttft
-        total_prefill_time_ms = total_prefill_time_sec * 1000.0
-        prefill_speed = (
-            (prompt_tokens / total_prefill_time_sec)
-            if total_prefill_time_sec > 0
-            else 0.0
+        generation_time = total_time - ttft
+        prefill_speed = (prompt_tokens / ttft) if ttft > 0 else 0.0
+        generation_speed = (
+            (completion_tokens / generation_time) if generation_time > 0 else 0.0
         )
-        decode_speed = (
-            (completion_tokens / (decode_time_ms / 1000.0))
-            if decode_time_ms > 0
-            else 0.0
-        )
-        total_time_ms = total_prefill_time_ms + decode_time_ms
 
-        prefill_times_ms.append(total_prefill_time_ms)
-        decode_times_ms.append(decode_time_ms)
-        total_times_ms.append(total_time_ms)
-        prefill_speeds.append(prefill_speed)
-        decode_speeds.append(decode_speed)
+        phase2_runs.append(
+            {
+                "ttft": ttft,
+                "generation_time": generation_time,
+                "prefill_speed": prefill_speed,
+                "generation_speed": generation_speed,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+            }
+        )
 
         if r == 0:
-            generated_text = "".join(run_text)
+            generated_text = text
 
-        print(
-            f"    Completed repeat {r + 1}: TTFT {final_ttft * 1000:.1f} ms, Decode {decode_time_ms:.1f} ms ({decode_speed:.2f} tokens/sec)"
+        if quiet:
+            print(
+                f"  [Run {r + 1}/{repeats}] Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} tokens/sec)"
+            )
+        else:
+            print(
+                f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
+            )
+
+    # Phase 3: Prefix Caching & Distractor Tests
+    run_phase3 = not skip_distractor
+    phase3_results: Dict[str, List[Dict[str, Any]]] = {}
+
+    if run_phase3:
+        # Sleep 10 seconds between Phase 2 and Phase 3
+        print("\nSleeping 10 seconds between Phase 2 and Phase 3...")
+        time.sleep(10)
+
+        print("\n===================================================")
+        print("=== PHASE 3: Prefix Caching & Distractor Tests ===")
+        print("===================================================")
+        print("Cycling [Half Prefill, Distractor, Full Prefill] 5 times...")
+
+        half_context = context_content[: len(context_content) // 2]
+        prompt_3a = (
+            half_context
+            + "\n\nWhat human and syntax language was the above written in?"
+        )
+        prompt_3b = "What is the capital of France?"
+        prompt_3c = (
+            context_content
+            + "\n\nWhat human and syntax language was the above written in?"
         )
 
-    avg_prefill_time = sum(prefill_times_ms) / len(prefill_times_ms)
-    avg_prefill_speed = sum(prefill_speeds) / len(prefill_speeds)
-    avg_decode_time = sum(decode_times_ms) / len(decode_times_ms)
-    avg_decode_speed = sum(decode_speeds) / len(decode_speeds)
-    avg_total_time = sum(total_times_ms) / len(total_times_ms)
+        scenarios = [
+            ("3a. Half Prefill + Question", prompt_3a),
+            ("3b. Distractor (Short Question)", prompt_3b),
+            ("3c. Full Prefill + Same Question", prompt_3c),
+        ]
 
-    print("\n=== Chat Benchmark Results (Cumulative Average) ===")
+        # Store results for each scenario type
+        phase3_results = {s[0]: [] for s in scenarios}
+
+        for cycle in range(1, 6):
+            print(f"\n--- Cycle {cycle}/5 ---")
+            for name, p_text in scenarios:
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": p_text}],
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
+                    "temperature": 0.0,
+                    "max_tokens": 100,
+                }
+
+                display_label = f"[{name}]"
+                ttft, total_time, text, prompt_tokens, completion_tokens = (
+                    run_streamed_query(url, payload, display_label, quiet=False)
+                )
+
+                generation_time = total_time - ttft
+                prefill_speed = (prompt_tokens / ttft) if ttft > 0 else 0.0
+                generation_speed = (
+                    (completion_tokens / generation_time)
+                    if generation_time > 0
+                    else 0.0
+                )
+
+                result_item = {
+                    "ttft": ttft,
+                    "generation_time": generation_time,
+                    "prefill_speed": prefill_speed,
+                    "generation_speed": generation_speed,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "answer": text.strip(),
+                }
+                phase3_results[name].append(result_item)
+
+                print(
+                    f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
+                )
+                if "Full Prefill" in name:
+                    print("  Sleeping 10 seconds to let GPU cool down...")
+                    time.sleep(10)
+
+    # Compile report
+    print("\n===================================================")
+    print("=== CHAT BENCHMARK RESULTS SUMMARY ===")
+    print("===================================================")
     print(f"Context File:      {context_file}")
-    print(f"Prompt Length:     {len(prompt)} chars")
-    print(f"Prompt Tokens:     {prompt_tokens}")
-    print(f"Completion Tokens: {completion_tokens}")
-    print(f"Repeats:           {repeats}")
-    print(f"Avg Prefill Time:  {avg_prefill_time:.2f} ms")
-    print(f"Avg Prefill Speed: {avg_prefill_speed:.2f} tokens/sec")
-    print(f"Avg Decode Time:   {avg_decode_time:.2f} ms")
-    print(f"Avg Decode Speed:  {avg_decode_speed:.2f} tokens/sec")
-    print(f"Avg Total Time:    {avg_total_time:.2f} ms")
-    print("\n--- Summary Snippet (Repeat 1) ---")
-    print(generated_text.strip()[:300] + "...")
+
+    # Phase 0 Summary
+    print("\n--- Phase 0: Warmup ---")
+    print(f"  Prompt Tokens:        {prompt_tokens_p0}")
+    print(f"  Completion Tokens:    {completion_tokens_p0}")
+    print(f"  TTFT (Prefill):       {ttft_p0 * 1000:.2f} ms")
+    print(f"  Prefill Speed:        {prefill_speed_p0:.2f} tokens/sec")
+    print(f"  Generation Speed:     {generation_speed_p0:.2f} tokens/sec")
+
+    # Phase 1 Summary
+    print("\n--- Phase 1: Sequential Prefill ---")
+    if not skip_prefill:
+        avg_p1_duration = (
+            sum(phase1_durations) / len(phase1_durations) if phase1_durations else 0.0
+        )
+        avg_p1_speed = sum(phase1_speeds) / len(phase1_speeds) if phase1_speeds else 0.0
+        print(f"  Cycles:               {len(phase1_durations)}")
+        print(f"  Avg Cycle Prefill Time: {avg_p1_duration:.2f} s")
+        print(f"  Avg New Chunk Prefill Speed: {avg_p1_speed:.2f} tokens/sec")
+    else:
+        print("  SKIPPED")
+
+    # Phase 2 Summary
+    avg_p2_ttft = sum(x["ttft"] for x in phase2_runs) / len(phase2_runs)
+    avg_p2_gen_time = sum(x["generation_time"] for x in phase2_runs) / len(phase2_runs)
+    avg_p2_prefill_speed = sum(x["prefill_speed"] for x in phase2_runs) / len(
+        phase2_runs
+    )
+    avg_p2_gen_speed = sum(x["generation_speed"] for x in phase2_runs) / len(
+        phase2_runs
+    )
+    avg_p2_prompt_tokens = phase2_runs[0]["prompt_tokens"]
+    avg_p2_comp_tokens = sum(x["completion_tokens"] for x in phase2_runs) / len(
+        phase2_runs
+    )
+
+    print("\n--- Phase 2: Generation (300-word summary) ---")
+    print(f"  Runs:                 {repeats}")
+    print(f"  Prompt Tokens:        {avg_p2_prompt_tokens}")
+    print(f"  Avg Completion Tokens: {avg_p2_comp_tokens:.1f}")
+    print(f"  Avg TTFT (Prefill):   {avg_p2_ttft * 1000:.2f} ms")
+    print(f"  Avg Prefill Speed:    {avg_p2_prefill_speed:.2f} tokens/sec")
+    print(
+        f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec (Expected: ~25 t/s)"
+    )
+    print(f"  Avg Decode Time:      {avg_p2_gen_time:.2f} s")
+    print("\n--- Summary Snippet (Run 1) ---")
+    print(generated_text.strip()[:350] + "...")
+
+    # Phase 3 Summary
+    if run_phase3:
+        print("\n--- Phase 3: Prefix Caching & Distractor (Averages over 5 Cycles) ---")
+        for name in phase3_results:
+            runs = phase3_results[name]
+            avg_ttft = sum(x["ttft"] for x in runs) / len(runs)
+            avg_prefill = sum(x["prefill_speed"] for x in runs) / len(runs)
+            avg_gen = sum(x["generation_speed"] for x in runs) / len(runs)
+            last_answer = runs[-1]["answer"]
+            print(f"  {name}:")
+            print(f"    Avg TTFT:           {avg_ttft * 1000:.2f} ms")
+            print(f"    Avg Prefill Speed:  {avg_prefill:.2f} tokens/sec")
+            print(f"    Avg Gen Speed:      {avg_gen:.2f} tokens/sec")
+            print(f'    Last Answer:        "{last_answer}"')
+    else:
+        print("\n--- Phase 3: Prefix Caching & Distractor ---")
+        print("  SKIPPED")
     print("===================================================\n")
 
 
@@ -617,6 +856,16 @@ def main() -> None:
         default=None,
         help="Number of repeats to run the benchmark and compute cumulative averages",
     )
+    parser.add_argument(
+        "--skip-prefill",
+        action="store_true",
+        help="Skip Phase 1 sequential prefill",
+    )
+    parser.add_argument(
+        "--skip-distractor",
+        action="store_true",
+        help="Skip Phase 3 prefix caching & distractor tests",
+    )
 
     args = parser.parse_args()
 
@@ -633,7 +882,14 @@ def main() -> None:
     if args.mode == "llm-chat":
         if not args.context:
             parser.error("--context is required in llm-chat mode")
-        run_llm_chat(args.url, args.model, args.context, repeats)
+        run_llm_chat(
+            args.url,
+            args.model,
+            args.context,
+            repeats,
+            skip_prefill=args.skip_prefill,
+            skip_distractor=args.skip_distractor,
+        )
     elif args.mode == "llm-embed":
         if not args.context:
             parser.error("--context is required in llm-embed mode")

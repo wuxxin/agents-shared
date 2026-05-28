@@ -63,11 +63,16 @@ LibreFang supports native Signal integration. In this environment, it interfaces
 Add the following to your `~/.librefang/config.toml` config file (located in the sandboxed home directory at `~/.local/sandbox/librefang/.librefang/config.toml`):
 
 ```toml
-[channels.signal]
-api_url = "http://localhost:50889"  # Endpoint of the signal-cli REST API
-phone_number = "+1234567890"        # Your registered Signal phone number
-allowed_users = ["+1987654321"]     # Optional: List of allowed phone numbers/UUIDs (empty = allow all)
-default_agent = "my-agent"          # Optional: Default agent name to route messages to
+[[sidecar_channels]]
+command = "python3"
+args = ["-m", "librefang.sidecar.adapters.signal"]
+name = "signal"
+channel_type = "signal"
+
+[sidecar_channels.env]
+SIGNAL_API_URL = "http://localhost:50889/"
+SIGNAL_NUMBER = "+1234567890"
+SIGNAL_ALLOW_LOCAL = "1"
 ```
 
 Ensure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. LibreFang will connect to the REST wrapper to retrieve message updates and send replies.

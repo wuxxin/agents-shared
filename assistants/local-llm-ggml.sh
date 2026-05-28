@@ -442,6 +442,33 @@ cmd_shell() {
     systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
+cmd_run() {
+    if [ $# -lt 1 ]; then
+        echo "Error: run requires a command to execute." >&2
+        exit 1
+    fi
+    echo "Running command inside the llama-server environment: $*"
+
+    load_env
+
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
+
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
+
+    systemd-run "${opts[@]}" "$@"
+}
+
 cmd_test() {
     echo "Running local-llm-ggml validation tests..."
     load_env
@@ -456,11 +483,17 @@ cmd_test() {
 
     local benchmark=false
     local only_embeddings=false
+    local only_chat=false
+    local skip_prefill=false
+    local skip_distractor=false
     local repeat=""
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
         --only-embeddings) only_embeddings=true ;;
+        --only-chat) only_chat=true ;;
+        --skip-prefill) skip_prefill=true ;;
+        --skip-distractor) skip_distractor=true ;;
         --repeat)
             shift
             repeat="$1"
@@ -494,21 +527,33 @@ cmd_test() {
 
         if [ "$only_embeddings" = "false" ]; then
             # Run chat benchmark
+            local skip_prefill_arg=()
+            if [ "$skip_prefill" = "true" ]; then
+                skip_prefill_arg=(--skip-prefill)
+            fi
+            local skip_distractor_arg=()
+            if [ "$skip_distractor" = "true" ]; then
+                skip_distractor_arg=(--skip-distractor)
+            fi
             python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
                 --mode llm-chat \
                 --url "${base_url}" \
                 --model "${alias}" \
                 --context "${context_file}" \
-                "${repeat_arg[@]}"
+                "${repeat_arg[@]}" \
+                "${skip_prefill_arg[@]}" \
+                "${skip_distractor_arg[@]}"
         fi
 
         # Run embedding benchmark
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-            --mode llm-embed \
-            --url "${base_url}" \
-            --model "${embedding_alias}" \
-            --context "${context_file}" \
-            "${repeat_arg[@]}"
+        if [ "$only_chat" = "false" ]; then
+            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+                --mode llm-embed \
+                --url "${base_url}" \
+                --model "${embedding_alias}" \
+                --context "${context_file}" \
+                "${repeat_arg[@]}"
+        fi
 
         return 0
     fi
@@ -562,8 +607,9 @@ usage() {
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
     echo "  exec      - Run llama-server as a transient systemd user service"
+    echo "  run       - Run a command inside the llama-server environment"
     echo "  shell     - Spawn an interactive shell in the llama-server environment"
-    echo "  test [--benchmark] [--only-embeddings] - Run validation tests or benchmarks"
+    echo "  test [--benchmark] [--only-embeddings] [--only-chat] [--skip-prefill] [--skip-distractor] - Run validation tests or benchmarks"
 }
 
 # ---------------------------------------------------------------------------
@@ -589,6 +635,7 @@ disable) cmd_disable ;;
 logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
 exec) cmd_exec "$@" ;;
+run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 test) cmd_test "$@" ;;
 *)

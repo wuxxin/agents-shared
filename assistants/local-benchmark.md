@@ -6,6 +6,22 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### Text Chat (`local-llm-ggml`)
 
+- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+  - **GPU Offload Layers (`LLM_N_GPU_LAYERS`):** `99` (Fully offloaded, ROCm GPU)
+- **Context:** `benchmark-context.md` (truncated to 115,000 characters / ~31,041 tokens)
+- **Phase 1 (Sequential Prefill):**
+  - **Avg Cycle Prefill Time:** 3.69 s
+  - **Avg New Chunk Prefill Speed:** 1072.06 tokens/sec (10 cycles)
+- **Phase 2 (Chat Generation):** (tested with --skip-prefill)
+  - **Avg TTFT (Prefill):** 27803.68 ms
+  - **Avg Prefill Speed:** 1116.44 tokens/sec
+  - **Avg Generation Speed:** 44.71 tokens/sec
+  - **Avg Decode Time:** 13.42 s
+- **Phase 3 (Prefix Caching & Distractor - Averages over 5 Cycles):**
+  - **3a. Half Prefill + Question:** TTFT: 982.58 ms, Prefill: 16018.77 tokens/sec, Gen: 55.09 tokens/sec
+  - **3b. Distractor (Short Question):** TTFT: 44.56 ms, Prefill: 382.60 tokens/sec, Gen: 74.80 tokens/sec
+  - **3c. Full Prefill + Same Question:** TTFT: 16959.80 ms, Prefill: 1830.00 tokens/sec, Gen: 44.16 tokens/sec
+
 ### Text Embedding (`local-llm-ggml`)
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
   - **Embedding Context Size (`LLM_EMBEDDING_N_CTX`):** `8192` (Pooling: `mean`)
