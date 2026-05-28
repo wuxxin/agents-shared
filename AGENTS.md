@@ -6,6 +6,10 @@
 
 ## Repository Structure
 
+- `README.md`:
+
+Overall Readme and Instructions on how to use the Agents and Scripts
+
 - `assistants/`:
 
 Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for running various agents (Hermes, LibreFang, Moltis, NanoBot, NanoClaw, PicoClaw, ZeroClaw) and core local services (Inference, Speech-to-Text, and Signal gateways).
@@ -13,6 +17,10 @@ Houses lifecycle management control wrappers (`*-ctl`) and configuration documen
 - `scripts/`:
 
 Helper utilities for caching/throughput benchmarking, token counting and token speed simulation.
+
+- `research/`:
+
+Documentation about the assistants git repository activity, llm adapter research and other research findings.
 
 - `scratch/`:
 

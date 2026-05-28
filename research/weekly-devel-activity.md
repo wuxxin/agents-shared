@@ -4,60 +4,57 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-## 📊 Summary of Weekly Activity (May 21, 2026 – May 27, 2026)
+## 📊 Summary of Weekly Activity (May 22, 2026 – May 28, 2026)
 
 Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 276 | 54 | `main` | 2026-05-26 | **220** | 0 | 2 | 270.0 | `v2026.5.25-beta.13` | `librefang-cli-git` @ HEAD | 0 | **Highly Active** |
-| **moltis** | 2,709 | 319 | `main` | 2026-05-26 | **50** | 0 | 5 | 76.8 | `20260526.03`, `20260525.01` | `moltis-git` @ HEAD | 0 | **Highly Active** |
-| **zeroclaw** | 31,605 | 4,660 | `master` | 2026-05-25 | **61** | 0 | 1 | 64.7 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ HEAD | 0 | **Highly Active** |
+| **librefang** | 276 | 54 | `main` | 2026-05-28 | **224** | 0 | 2 | 272.2 | `v2026.5.25-beta.13` | `librefang-cli-git` @ HEAD | 37 | **Highly Active** |
+| **moltis** | 2,709 | 318 | `main` | 2026-05-26 | **48** | 0 | 5 | 73.0 | `20260526.03`, `20260525.01` | `moltis-git` @ HEAD | 0 | **Highly Active** |
+| **zeroclaw** | 31,617 | 4,661 | `master` | 2026-05-28 | **80** | 0 | 0 | 70.2 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ HEAD | 23 | **Highly Active** |
 
 Other Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **hermes-agent** | 169,810 | 28,311 | `main` | 2026-05-26 | **582** | 17 | 0 | 756.7 | `v2026.5.16` (2026-05-16) | — | — | **Highly Active** |
-| **nanobot** | 43,252 | 7,630 | `main` | 2026-05-27 | **96** | 7 | 0 | 102.2 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
-| **nanoclaw** | 29,461 | 12,876 | `main` | 2026-05-25 | **20** | 20 | 0 | 78.0 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ HEAD | 0 | **Highly Active** |
-| **picoclaw** | 29,201 | 4,181 | `main` | 2026-05-26 | **19** | 11 | 1 | 34.2 | `v0.2.9` (2026-05-22) | `picoclaw` v0.2.8 | **189** | **Highly Active** |
+| **hermes-agent** | 170,913 | 28,608 | `main` | 2026-05-25 | **608** | 15 | 0 | 747.7 | `v2026.5.16` (2026-05-16) | — | — | **Highly Active** |
+| **nanobot** | 43,300 | 7,642 | `main` | 2026-05-28 | **56** | 4 | 0 | 101.2 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
+| **nanoclaw** | 29,488 | 12,883 | `main` | 2026-05-25 | **19** | 20 | 0 | 73.0 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ HEAD | 0 | **Highly Active** |
+| **picoclaw** | 29,202 | 4,182 | `main` | 2026-05-26 | **15** | 10 | 1 | 32.5 | `v0.2.9` (2026-05-22) | `picoclaw` v0.2.8 | **189** | **Highly Active** |
 
 ---
 
 ## 🔍 Repository Breakdown
 
 ### LibreFang (`librefang/librefang`)
-* **Status**: Highly Active (220 commits, 2 releases in the last week).
+* **Status**: Highly Active (224 commits, 2 releases in the last week).
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
-* **Recent Focus**: Exposed per-provider budget caps surface in API and dashboard; propagated kernel-attested caller context to MCP servers; added per-agent proactive memory with extraction_model field for multi-provider setups; plugged agent-loop data leaks and restored lost state; hardened runtime chat-template leak detection; added bot_token fingerprinting for WeChat sidecar; integrated ESLint jsx-no-target-blank guard; multi-bot isolation via /commands account_id filtering; and resolved nix flake source filter and API migrate path containment bugs.
+* **Recent Focus**: Implemented `describe_image()` for media and wired image descriptions via channel adapters; refactored `tool_runner` dispatching and tools to use the new `ToolError` type; added strict input validation, SSRF checks, and safety/PII sanitization across tool runner stubs; resolved cross-chat image leaks by isolating attachment pre-injection per session; introduced a per-agent channel allowlist; fixed Windows-specific issues such as CI Instant subtraction panics and relative path formatting in content responses; and seeded Feishu/Lark configuration forms when the Python SDK is absent.
 
 ### Moltis (`moltis-org/moltis`)
-* **Status**: Highly Active (50 commits, 5 releases in the last week).
-* **Recent Focus**: Supported agents as capability boundaries (MCP, sandbox, skills) with per-agent runtime limits and per-turn tool controls; implemented editable presets and nonblocking spawn agents; exposed Moltis version to agent prompts and local docs; added vault password sync and option to disable encryption at rest; improved voice features (wav metadata for Piper, mp3 chat voice); supported arbitrary chat attachments; fixed Docker builds and sandbox media file reads; and added Codex reasoning effort support.
+* **Status**: Highly Active (48 commits, 5 releases in the last week).
+* **Recent Focus**: Gated release workflows on provider tests and integration testing; supported agents as capability boundaries (MCP, sandbox, skills) with per-agent runtime limits, nonblocking spawn agents, and per-turn tool controls; made sub-agent presets editable; exposed Moltis version to prompts and local docs; fixed Docker build failures; and stabilized UI command palette focus.
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (61 commits, 1 release in the last week).
-* **Recent Focus**: Hardened Canvas iframe sandboxing to prevent token theft via XSS (GHSA-f385-f6h2-3gqj); secured bubblewrap sandboxes by conditionally binding /lib and /lib64; added native extended thinking support for Anthropic and Bedrock providers; implemented Lark/Feishu request_approval channel; improved email channels (HTML body rendering, subject threading, attachment paths); resolved Discord session resumption and Homebrew config detection; and expanded maintainer, skills, and setup documentation.
+* **Status**: Highly Active (80 commits, 0 releases in the last week).
+* **Recent Focus**: Tightened Canvas iframe sandboxing to prevent token theft via XSS (GHSA-f385-f6h2-3gqj); preserved `reasoning_content` in native tool requests; declared minimum browser floor and added unsupported-browser fallback banner in Web UI; generalized the `#[secret]` attribute via `SecretField` trait; suppressed verbose INFO logs in agent interactive CLI mode; kept Discord gateway preflight 429 retries retryable; added `file_upload` tool for HTTP multipart uploads; restored legacy channel startup fallback when bindings are empty; and verified self-update downloads against SHA256SUMS.
 
 ### Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (582 commits, 17 merges in the last week).
-* **Recent Focus**: Built full dashboard OAuth authentication system (Nous plugin, PKCE flow, SPA auth widget, WS ticket auth, session cookies, audit logging, /login redesign); hardened xAI OAuth by gating slash-enum strip on model name; fixed Telegram gateway (heartbeat editing, start ping filtering, compaction noise, Codex 429 rate-limit classification); stabilized Codex adapter (foreign-issuer reasoning drop, transient replay state cleanup); improved Docker tagging and Chromium discovery; and recovered Windows Discord voice opus decoding.
+* **Status**: Highly Active (608 commits, 15 merges in the last week).
+* **Recent Focus**: Enhanced security by rejecting non-regular tar members in auto-installers and android `psutil` compatibility installer, and requiring source CIDR allowlisting for msgraph webhook bindings and `API_SERVER_KEY` for API server dispatches; fixed Kanban layout column wrapping and vertical overflows; normalized Nous Portal entitlement checks for paid/free tiers; synced manual device_code Codex pool entries on re-authorization; fixed xAI OAuth timeout manual fallback; implemented host contracts for external context engines; and pulled full ClawHub catalog into the skills index.
 
 ### NanoBot (`HKUDS/nanobot`)
-* **Status**: Highly Active (96 commits, 7 merges in the last week).
-* **Recent Focus**: Unified CLI apps and MCP; added Telegram webhook support with an ordered message queue; enhanced providers with Step Plan support, OpenAI extraBody support, and apiType validation; hardened agent loop for sustained goal continuation with maxConcurrentSubagents propagation; updated Kagi search API integration; enabled WebUI ESLint; and improved slash command actions and activity display.
+* **Status**: Highly Active (56 commits, 4 merges in the last week).
+* **Recent Focus**: Added Discord model slash command; unified CLI apps and MCP; added Telegram webhook support with an ordered message queue; enhanced OpenAI provider configuration with `extraBody` support, `apiType` validation, and preserved tool call IDs; added Step Plan support; honored `NANOBOT_STREAM_IDLE_TIMEOUT_S` and handled blank Codex transport errors; and stabilized the agent loop by making goal continuation independent and propagating `maxConcurrentSubagents`.
 
 ### NanoClaw (`nanocoai/nanoclaw`)
-* **Status**: Highly Active (20 commits, 20 merges in the last week).
-* **Recent Focus**: Documented context window scaling up to 179k tokens (89% capacity); released versions v2.0.65 through v2.0.70; improved agent runner error handling (exit on persistent database corruption, transcript rotate override, oversized session rotation before resume); added add-rtk skill for token-efficient CLI proxy; corrected Photon URL and configuration setting sources for per-group settings; and fixed signal-cli 0.13+ account listing.
+* **Status**: Highly Active (19 commits, 20 merges in the last week).
+* **Recent Focus**: Documented context window scaling up to 179k tokens (89% capacity); improved agent runner error handling by exiting on persistent `inbound.db` corruption, honoring zero/negative transcript rotate-age overrides, and rotating oversized/old sessions before resuming; corrected Photon URL to `photon.codes`; loaded per-group `CLAUDE.local.md` setting sources; mapped CLI credential names to Teams app env keys; and fixed `signal-cli` 0.13+ account listings.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Highly Active (19 commits, 11 merges, 1 release in the last week). **189 commits since installed v0.2.8.**
-* **Recent Focus**: Supported per-message created_at timestamps and session history normalization; added line numbers and wrap toggle for Web UI code blocks; implemented request-scoped context policies and DeepSeek thinking field mapping; added gpt4free OpenAI-compatible provider; fixed cron job execution missing 'action' arg and Discord attachment downloads for vision pipeline; and bumped dependencies to resolve security advisories (golang.org/x/net to v0.55.0).
-
-
-
+* **Status**: Highly Active (15 commits, 10 merges, 1 release in the last week). **189 commits since installed v0.2.8.**
+* **Recent Focus**: Supported per-message `created_at` timestamps and normalized session history; added line numbers and wrap toggle for Web UI code blocks; implemented request-scoped context policies and DeepSeek thinking field mapping; added `gpt4free` OpenAI-compatible provider; resolved cron job missing action args and Discord attachment downloads for vision pipeline; and bumped dependency versions to fix security alerts (e.g. `golang.org/x/net`).
 
 ---
 
@@ -186,6 +183,9 @@ for d in librefang moltis zeroclaw hermes-agent nanobot nanoclaw picoclaw; do
   echo "=== $d ==="
   cd "scratch/$d" 2>/dev/null || continue
   
+  # Fetch latest updates from remote to avoid stale statistics
+  git fetch origin &>/dev/null
+  
   # Ensure the correct default branch is checked out and reset
   branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
   if [ -z "$branch" ]; then
@@ -228,7 +228,6 @@ for d in librefang moltis zeroclaw hermes-agent nanobot nanoclaw picoclaw; do
 done
 ```
 
-
 ### Step 5: Gathering Data via GitHub API
 If you do not have local clones, you can fetch the statistics using `curl` and the GitHub API. 
 *Note: Set your `GITHUB_TOKEN` environment variable if you hit rate limits.*
@@ -263,4 +262,4 @@ curl -s -H "Accept: application/vnd.github+json" \
 
 ### Step 7: Update and Cleanup of Instructions
 
-- update and cleanup from lessons learned while executing these steps
+- Modified the Step 4 batch script to run `git fetch origin` directly inside the loop to ensure stats are calculated against the most up-to-date remote state.

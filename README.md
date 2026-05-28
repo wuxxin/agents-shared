@@ -25,7 +25,7 @@ also covered, but currently not point of interest:
 - **Description**: Manages persistent `llama-server` instances for text completions/embeddings (`local-llm-ggml.sh`) and document reranking (`local-rerank.sh`). Optimized for AMD ROCm hardware (tested on Radeon Pro W6800).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Flash Attention, layer GPU offloading, combined chat and embeddings (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens), and separate rerank (`50086`) services.
-- Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md)
+- Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md) / [local-rerank.md](assistants/local-rerank.md)
 
 ### Local Speech-to-Text
 - **Description**: Manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. Serves an OpenAI-compatible audio transcription API on port 50090.
@@ -103,6 +103,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project (which had 17,623 stars and 2,252 forks before going stale).
 - **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Dashboard GUI).
 - **Signal Support**: Yes — Native integration (interfaces with the Go REST API wrapper).
+- **Coding Agent Support**: Yes — Supports Claude Code, Aider, Qwen Code, Gemini CLI, and Codex CLI (spawned as subprocesses; No OpenCode support).
+- **LLM Inference via Agent Proxy**: None.
 - **Requirements**: `~/.local/sandbox/librefang` and `~/agent-shared`.
 - **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
 - **Search & Retrieval**: Native integration of SQLite and vector storage for persistent agent memories and knowledge retrieval. Built-in scheduling and task memory, which allows agents to run 24/7 and store OSINT/research search results in the native database. Can connect to external databases via MCP (Model Context Protocol).
@@ -115,6 +117,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
 - **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Config GUI).
 - **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
+- **Coding Agent Support**: Yes — Supports Alibaba Coding Plan (`acp`), Claude Code, Codex, and **OpenCode** via tmux/PTY-based external runtimes.
+- **LLM Inference via Agent Proxy**: None.
 - **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/sandbox/moltis` for data.
 - **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
 - **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword search. Direct vector embedding storage inside SQLite. Supports an optional **QMD** sidecar that adds high-performance **BM25** keyword search, vector similarity search, and hybrid retrieval with LLM reranking. Automatically extracts facts and summarizes history when approaching context limits.
@@ -127,6 +131,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Rust-based agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
 - **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend, no Web GUI).
 - **Signal Support**: Yes — Native integration (communicates via the Go REST API wrapper).
+- **Coding Agent Support**: Yes — Supports **OpenCode** as a coding worker tool (`opencode_cli`).
+- **LLM Inference via Agent Proxy**: None.
 - **Requirements**: Support for Linux namespace isolation or Landlock.
 - **Sandboxing**: **Relaxed Namespaces Profile** is enforced via the systemd unit so that ZeroClaw can spawn secure nested sub-sandboxes via `bwrap` internally.
 - **Search & Retrieval**: Native SQLite-based hybrid memory system. Integrates vector search and Full-Text Search (FTS) directly into SQLite. No external database infrastructure (like Pinecone or Elasticsearch) is required, keeping the runtime completely self-contained. Persistent memory handles context compression, conversation history, and user preferences.
@@ -139,6 +145,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
 - **Language/Runtime**: Python (Source) / private 3.11 Python Runtime /opt ( Web-based Dashboard GUI).
 - **Signal Support**: Yes — Native integration with local `signal-cli` daemon.
+- **Coding Agent Support**: Yes — Supports Claude Code, Codex, and **OpenCode** via bundled skills.
+- **LLM Inference via Agent Proxy**: None.
 - **Requirements**: `~/.local/sandbox/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
 - **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
 - **Search & Retrieval**: Built-in SQLite-based SessionDB and State management. Full-text search (FTS5) for keyword-based search. Built-in `sqlite-vec` extension support for vector search. Native integration with external vector/RAG databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho, Supermemory, RetainDB). Maintains localized context via `MEMORY.md` and `USER.md` prompt injections.
@@ -151,6 +159,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Lightweight python service built with `uv` featuring an onboarding setup wizard, a structured two-stage memory system ("Dream"), and Bubblewrap tool confinement.
 - **Language/Runtime**: Python (Source) / Python runtime managed by `uv` (Python CLI + Setup Wizard, no Web GUI).
 - **Signal Support**: Yes — Native integration (interfaces via HTTP Server-Sent Events).
+- **Coding Agent Support**: None (No OpenCode support).
+- **LLM Inference via Agent Proxy**: None.
 - **Requirements**: `uv` package manager installed.
 - **Sandboxing**: Relies on the **Relaxed Namespaces Profile** because it natively spawns agent code wrapped in nested `bwrap` isolation. Isolated `HOME`.
 - **Search & Retrieval**: Structured two-stage memory system ("Dream") that separates active conversation buffers from long-term memory. Long-term memory store uses vector similarity search (RAG) to remember facts across sessions. Built-in Document Store allows indexing, chunking, and retrieving context from local files (PDFs, TXT, markdown). Model Context Protocol (MCP) integrations can execute external search tools (e.g. Brave Search) dynamically.
@@ -163,6 +173,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
 - **Language/Runtime**: TypeScript/Node.js (Source) / Node.js containerized (Node.js Webhook Backend, no Web GUI).
 - **Signal Support**: No — Not natively supported.
+- **Coding Agent Support**: None (No OpenCode support).
+- **LLM Inference via Agent Proxy**: Yes — Supports OpenCode (local inference via optional `add-opencode` skill).
 - **Requirements**: Requires Docker/Podman running locally to spawn tool environments.
 - **Sandboxing**: **Relaxed Namespaces Profile** with `PrivateDevices=no`. Strict profiles are dropped to allow the agent to launch local Docker/Podman containers successfully.
 - **Search & Retrieval**: Uses SQLite databases within the Node.js process to maintain state. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories. RAG or vector retrieval is typically handled by custom agent tools or external MCP databases.
@@ -175,6 +187,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
 - **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Console GUI).
 - **Signal Support**: No — Not natively supported.
+- **Coding Agent Support**: Yes — Supports Claude Code, Codex, and GitHub Copilot CLI via provider-wrapped CLI execution (No OpenCode support).
+- **LLM Inference via Agent Proxy**: Yes — Natively supports Google Antigravity.
 - **Requirements**: `~/.local/sandbox/picoclaw` for persistent configuration.
 - **Sandboxing**: **Relaxed Namespaces Profile**. Uses standard agent isolation with redirected `HOME` and strict filesystem protection. Isolated `HOME`.
 - **Search & Retrieval**: No native built-in vector database or complex memory engine due to its ultra-lightweight design (<10MB memory). Local state and conversation histories are stored in simple JSON files. Supports the Model Context Protocol (MCP) to delegate search and retrieval tasks to external databases or RAG servers (e.g. SQLite-vec MCP, Qdrant MCP, Chroma MCP).

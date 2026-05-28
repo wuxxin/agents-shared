@@ -17,6 +17,8 @@ This architecture reduces process management overhead, saves VRAM by avoiding du
 ./local-llm-ggml.sh start
 ./local-llm-ggml.sh stop
 ./local-llm-ggml.sh restart
+./local-llm-ggml.sh enable
+./local-llm-ggml.sh disable
 
 # Check runtime status
 ./local-llm-ggml.sh status
