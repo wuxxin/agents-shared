@@ -460,11 +460,16 @@ cmd_test() {
 	local benchmark=false
 	local full=false
 	local only_embeddings=false
+	local repeat=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--benchmark) benchmark=true ;;
 		--full) full=true ;;
 		--only-embeddings) only_embeddings=true ;;
+		--repeat)
+			shift
+			repeat="$1"
+			;;
 		esac
 		shift
 	done
@@ -492,13 +497,19 @@ cmd_test() {
 			python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
 		fi
 
+		local repeat_arg=()
+		if [ -n "$repeat" ]; then
+			repeat_arg=(--repeat "$repeat")
+		fi
+
 		if [ "$only_embeddings" = "false" ]; then
 			# Run chat benchmark
 			python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
 				--mode llm-chat \
 				--url "${base_url}" \
 				--model "${alias}" \
-				--context "${context_file}"
+				--context "${context_file}" \
+				"${repeat_arg[@]}"
 		fi
 
 		# Run embedding benchmark
@@ -506,7 +517,8 @@ cmd_test() {
 			--mode llm-embed \
 			--url "${base_url}" \
 			--model "${embedding_alias}" \
-			--context "${context_file}"
+			--context "${context_file}" \
+			"${repeat_arg[@]}"
 
 		if [ "$full" = "true" ]; then
 			echo "=== Running Cache Hit Latency Test (llama-cache-test.py) ==="

@@ -99,5 +99,9 @@ This runs a complete text-to-audio synthesis cycle, pipes the generated audio fi
 To benchmark synthesis latency and throughput using a fixed 45-word sentence, run:
 
 ```bash
+# Run text-to-speech benchmark (defaults to 1 run)
 ./assistants/local-text-to-speech.sh test --benchmark
+
+# Run text-to-speech benchmark for multiple repeats to compute cumulative averages (e.g. 5 runs)
+./assistants/local-text-to-speech.sh test --benchmark --repeat 5
 ```

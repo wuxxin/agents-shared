@@ -370,10 +370,15 @@ cmd_test() {
 
 	local play=false
 	local benchmark=false
+	local repeat=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--play) play=true ;;
 		--benchmark) benchmark=true ;;
+		--repeat)
+			shift
+			repeat="$1"
+			;;
 		esac
 		shift
 	done
@@ -382,12 +387,18 @@ cmd_test() {
 	local port="${LTTS_PORT:-50095}"
 
 	if [ "$benchmark" = "true" ]; then
+		local repeat_arg=()
+		if [ -n "$repeat" ]; then
+			repeat_arg=(--repeat "$repeat")
+		fi
+
 		# Run TTS benchmark
 		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
 			--mode tts \
 			--url "http://${host}:${port}" \
 			--model "qwen3-tts" \
-			--output "/tmp/tts_benchmark_output.wav"
+			--output "/tmp/tts_benchmark_output.wav" \
+			"${repeat_arg[@]}"
 		return 0
 	fi
 

@@ -80,7 +80,11 @@ You can test that the service is running and behaving correctly by running the v
 To run a document reranking speed benchmark using 10 safe-length document chunks (staying within the 512 physical batch size limit), run:
 
 ```bash
+# Run reranking benchmark (defaults to 1 run)
 ./local-rerank.sh test --benchmark
+
+# Run reranking benchmark for multiple repeats to compute cumulative averages (e.g. 5 runs)
+./local-rerank.sh test --benchmark --repeat 5
 ```
 
 Alternatively, you can test it manually using `curl`:

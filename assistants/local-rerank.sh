@@ -369,9 +369,14 @@ cmd_test() {
 	echo "Using endpoint base: ${base_url}"
 
 	local benchmark=false
+	local repeat=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--benchmark) benchmark=true ;;
+		--repeat)
+			shift
+			repeat="$1"
+			;;
 		esac
 		shift
 	done
@@ -394,12 +399,18 @@ cmd_test() {
 			python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
 		fi
 
+		local repeat_arg=()
+		if [ -n "$repeat" ]; then
+			repeat_arg=(--repeat "$repeat")
+		fi
+
 		# Run rerank benchmark
 		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
 			--mode rerank \
 			--url "${base_url}" \
 			--model "${alias}" \
-			--context "${context_file}"
+			--context "${context_file}" \
+			"${repeat_arg[@]}"
 		return 0
 	fi
 

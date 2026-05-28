@@ -94,7 +94,13 @@ To benchmark prefill and decoding latency and throughput using `benchmark-contex
 
 # Run benchmarks along with the cache-hit latency evaluation script (llama-cache-test.py)
 ./local-llm-ggml.sh test --benchmark --full
+
+# Specify the number of runs to compute cumulative average over (e.g. 5 runs)
+./local-llm-ggml.sh test --benchmark --repeat 5
 ```
+
+> [!NOTE]
+> If `--repeat` is omitted, the embedding benchmark defaults to `10` runs to calculate a stable cumulative average, while the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs for all executed benchmarks.
 
 Alternatively, you can test it manually using `curl`:
 

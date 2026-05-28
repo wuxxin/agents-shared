@@ -350,9 +350,14 @@ cmd_test() {
 	local model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
 
 	local benchmark=false
+	local repeat=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--benchmark) benchmark=true ;;
+		--repeat)
+			shift
+			repeat="$1"
+			;;
 		esac
 		shift
 	done
@@ -371,12 +376,18 @@ cmd_test() {
 			fi
 		fi
 
+		local repeat_arg=()
+		if [ -n "$repeat" ]; then
+			repeat_arg=(--repeat "$repeat")
+		fi
+
 		# Run STT benchmark
 		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
 			--mode stt \
 			--url "http://${host}:${port}" \
 			--model "${model_alias}" \
-			--audio "${audio_file}"
+			--audio "${audio_file}" \
+			"${repeat_arg[@]}"
 		return 0
 	fi
 
