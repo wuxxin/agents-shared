@@ -38,9 +38,7 @@ The service runs `whisper-server` which loads a GGML Whisper model and exposes a
 | `~/.config/systemd/user/local-speech-to-text.env` | Model path, port, host, and thread configuration |
 | `~/.config/systemd/user/local-speech-to-text.service` | Auto-generated systemd unit |
 
-## VRAM Budget Summary
-
-Hardware: AMD Radeon Pro W6800 — **30,704 MiB** usable VRAM.
+## VRAM Usage
 
 The speech-to-text service requires approximately **~1.4 GiB** of VRAM when loaded (including weights, caches, compute buffers, and HIP context overhead). 
 

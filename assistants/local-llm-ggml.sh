@@ -25,154 +25,154 @@ INI_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.ini"
 # Load environment
 # ---------------------------------------------------------------------------
 load_env() {
-	# Default parameters
-	LLM_PORT=50080
-	LLM_HOST=127.0.0.1
-	LLM_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
-	LLM_ALIAS=qwen3
-	LLM_N_CTX=240000
-	LLM_PARALLEL=3
-	LLM_N_GPU_LAYERS=99
-	LLM_THREADS=4
-	LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
-	LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-	LLM_EXTRA_ARGS="--flash-attn on"
+    # Default parameters
+    LLM_PORT=50080
+    LLM_HOST=127.0.0.1
+    LLM_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+    LLM_ALIAS=qwen3
+    LLM_N_CTX=240000
+    LLM_PARALLEL=3
+    LLM_N_GPU_LAYERS=99
+    LLM_THREADS=4
+    LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
+    LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
+    LLM_EXTRA_ARGS="--flash-attn on"
 
-	# Embedding default parameters
-	LLM_EMBEDDING_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-	LLM_EMBEDDING_ALIAS=qwen3-embedding
-	LLM_EMBEDDING_N_CTX=8192
+    # Embedding default parameters
+    LLM_EMBEDDING_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    LLM_EMBEDDING_ALIAS=qwen3-embedding
+    LLM_EMBEDDING_N_CTX=8192
 
-	# Source the env file to get model paths and settings if it exists
-	if [[ -f "$ENV_FILE" ]]; then
-		set +u
-		# shellcheck disable=SC1090
-		source "$ENV_FILE"
-		set -u
-	fi
+    # Source the env file to get model paths and settings if it exists
+    if [[ -f "$ENV_FILE" ]]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set -u
+    fi
 }
 
 # ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
 # ---------------------------------------------------------------------------
 run_systemctl() {
-	if systemctl --user daemon-reload >/dev/null 2>&1; then
-		systemctl --user "$@"
-	else
-		echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
-	fi
+    if systemctl --user daemon-reload >/dev/null 2>&1; then
+        systemctl --user "$@"
+    else
+        echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
+    fi
 }
 
 # ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
 # ---------------------------------------------------------------------------
 get_shared_options() {
-	local mode="$1" # "service" or "transient"
-	local home_spec
-	if [ "$mode" = "service" ]; then
-		home_spec="%h"
-	else
-		home_spec="$HOME"
-	fi
+    local mode="$1" # "service" or "transient"
+    local home_spec
+    if [ "$mode" = "service" ]; then
+        home_spec="%h"
+    else
+        home_spec="$HOME"
+    fi
 
-	# Environment file & Working directory
-	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-llm-ggml.env"
-	echo "WorkingDirectory=${home_spec}"
+    # Environment file & Working directory
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-llm-ggml.env"
+    echo "WorkingDirectory=${home_spec}"
 
-	# Basic hardening (minimal for GPU access)
-	echo "NoNewPrivileges=yes"
-	echo "CapabilityBoundingSet="
-	echo "AmbientCapabilities="
+    # Basic hardening (minimal for GPU access)
+    echo "NoNewPrivileges=yes"
+    echo "CapabilityBoundingSet="
+    echo "AmbientCapabilities="
 
-	# GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
-	echo "PrivateDevices=no"
-	echo "PrivateTmp=yes"
-	echo "PrivateMounts=yes"
-	echo "PrivateIPC=yes"
+    # GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
+    echo "PrivateDevices=no"
+    echo "PrivateTmp=yes"
+    echo "PrivateMounts=yes"
+    echo "PrivateIPC=yes"
 
-	echo "ProtectSystem=strict"
-	# Allow read-write access to model storage and home-based paths
-	echo "BindPaths=${home_spec}"
-	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-	echo "ReadWritePaths=/data/public/machine-learning"
+    echo "ProtectSystem=strict"
+    # Allow read-write access to model storage and home-based paths
+    echo "BindPaths=${home_spec}"
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "ReadWritePaths=/data/public/machine-learning"
 
-	echo "ProtectKernelTunables=yes"
-	echo "ProtectKernelModules=yes"
-	echo "ProtectKernelLogs=yes"
-	echo "ProtectControlGroups=yes"
-	echo "ProtectClock=yes"
-	echo "ProtectHostname=yes"
+    echo "ProtectKernelTunables=yes"
+    echo "ProtectKernelModules=yes"
+    echo "ProtectKernelLogs=yes"
+    echo "ProtectControlGroups=yes"
+    echo "ProtectClock=yes"
+    echo "ProtectHostname=yes"
 
-	echo "LockPersonality=yes"
-	echo "RestrictSUIDSGID=yes"
-	echo "RestrictRealtime=yes"
-	echo "KeyringMode=private"
-	echo "UMask=0077"
+    echo "LockPersonality=yes"
+    echo "RestrictSUIDSGID=yes"
+    echo "RestrictRealtime=yes"
+    echo "KeyringMode=private"
+    echo "UMask=0077"
 }
 
 # ---------------------------------------------------------------------------
 # Generate models-preset INI file from environment variables
 # ---------------------------------------------------------------------------
 generate_ini_file() {
-	load_env
+    load_env
 
-	local ini_content=""
+    local ini_content=""
 
-	# Global defaults
-	ini_content+="version = 1"$'\n'
-	ini_content+=""$'\n'
-	ini_content+="[*]"$'\n'
-	if [ -n "${LLM_EXTRA_ARGS:-}" ]; then
-		if [[ "${LLM_EXTRA_ARGS:-}" == *"--flash-attn on"* ]]; then
-			ini_content+="flash-attn = on"$'\n'
-		fi
-	fi
-	ini_content+="n-gpu-layers = ${LLM_N_GPU_LAYERS:-99}"$'\n'
+    # Global defaults
+    ini_content+="version = 1"$'\n'
+    ini_content+=""$'\n'
+    ini_content+="[*]"$'\n'
+    if [ -n "${LLM_EXTRA_ARGS:-}" ]; then
+        if [[ "${LLM_EXTRA_ARGS:-}" == *"--flash-attn on"* ]]; then
+            ini_content+="flash-attn = on"$'\n'
+        fi
+    fi
+    ini_content+="n-gpu-layers = ${LLM_N_GPU_LAYERS:-99}"$'\n'
 
-	# --- LLM section ---
-	ini_content+=""$'\n'
-	ini_content+="[${LLM_ALIAS:-qwen3}]"$'\n'
-	ini_content+="model = ${LLM_MODEL}"$'\n'
-	if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
-		# Extract mmproj path from "--mmproj /path/to/file"
-		local mmproj_path
-		mmproj_path="${LLM_MMPROJ_ARGS#--mmproj }"
-		ini_content+="mmproj = ${mmproj_path}"$'\n'
-	fi
-	if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
-		# Extract template path from "--chat-template-file /path/to/file"
-		local template_path
-		template_path="${LLM_CHAT_TEMPLATE_ARGS#--chat-template-file }"
-		ini_content+="chat-template-file = ${template_path}"$'\n'
-	fi
-	ini_content+="ctx-size = ${LLM_N_CTX:-240000}"$'\n'
-	ini_content+="parallel = ${LLM_PARALLEL:-3}"$'\n'
-	ini_content+="cache-type-k = q4_0"$'\n'
-	ini_content+="cache-type-v = q4_0"$'\n'
-	ini_content+="batch-size = 2048"$'\n'
-	ini_content+="ubatch-size = 1024"$'\n'
-	ini_content+="threads = ${LLM_THREADS:-4}"$'\n'
+    # --- LLM section ---
+    ini_content+=""$'\n'
+    ini_content+="[${LLM_ALIAS:-qwen3}]"$'\n'
+    ini_content+="model = ${LLM_MODEL}"$'\n'
+    if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
+        # Extract mmproj path from "--mmproj /path/to/file"
+        local mmproj_path
+        mmproj_path="${LLM_MMPROJ_ARGS#--mmproj }"
+        ini_content+="mmproj = ${mmproj_path}"$'\n'
+    fi
+    if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
+        # Extract template path from "--chat-template-file /path/to/file"
+        local template_path
+        template_path="${LLM_CHAT_TEMPLATE_ARGS#--chat-template-file }"
+        ini_content+="chat-template-file = ${template_path}"$'\n'
+    fi
+    ini_content+="ctx-size = ${LLM_N_CTX:-240000}"$'\n'
+    ini_content+="parallel = ${LLM_PARALLEL:-3}"$'\n'
+    ini_content+="cache-type-k = q4_0"$'\n'
+    ini_content+="cache-type-v = q4_0"$'\n'
+    ini_content+="batch-size = 2048"$'\n'
+    ini_content+="ubatch-size = 1024"$'\n'
+    ini_content+="threads = ${LLM_THREADS:-4}"$'\n'
 
-	# --- Embedding section (always enabled) ---
-	ini_content+=""$'\n'
-	ini_content+="[${LLM_EMBEDDING_ALIAS:-qwen3-embedding}]"$'\n'
-	ini_content+="model = ${LLM_EMBEDDING_MODEL}"$'\n'
-	ini_content+="embedding = true"$'\n'
-	ini_content+="pooling = mean"$'\n'
-	ini_content+="ctx-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+    # --- Embedding section (always enabled) ---
+    ini_content+=""$'\n'
+    ini_content+="[${LLM_EMBEDDING_ALIAS:-qwen3-embedding}]"$'\n'
+    ini_content+="model = ${LLM_EMBEDDING_MODEL}"$'\n'
+    ini_content+="embedding = true"$'\n'
+    ini_content+="pooling = mean"$'\n'
+    ini_content+="ctx-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
 
-	printf '%s' "$ini_content" >"$INI_FILE"
-	chmod 600 "$INI_FILE"
+    printf '%s' "$ini_content" >"$INI_FILE"
+    chmod 600 "$INI_FILE"
 }
 
 # ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
 # ---------------------------------------------------------------------------
 generate_service_file() {
-	load_env
-	generate_ini_file
+    load_env
+    generate_ini_file
 
-	cat <<EOF
+    cat <<EOF
 [Unit]
 Description=Local LLM Chat and Embedding Inference Server (llama-server)
 Documentation=https://github.com/ggml-org/llama.cpp
@@ -203,7 +203,7 @@ EOF
 # Embedded default env file (heredoc written by --install)
 # ---------------------------------------------------------------------------
 generate_env_file() {
-	cat <<'EOF'
+    cat <<'EOF'
 # local-llm-ggml.env
 # ---------------------------------------------------------------------------
 # Configuration for the local-llm-ggml.service llama-server instance.
@@ -255,21 +255,18 @@ LLM_EMBEDDING_N_CTX=8192
 # ---------------------------------------------------------------------------
 # RUNTIME SETTINGS
 # ---------------------------------------------------------------------------
-# Number of layers to offload to GPU (default: 99)
-LLM_N_GPU_LAYERS=99
 
-# Extra arguments to pass to llama-server (default: --flash-attn on)
-LLM_EXTRA_ARGS="--flash-attn on"
+# Number of layers to offload to GPU (all=99)
+LR_N_GPU_LAYERS=99
+# To run inference on CPU instead of GPU (none=0)
+# LR_N_GPU_LAYERS=0
 
-# Number of threads to use (default: 4)
-LLM_THREADS=4
+# Number of threads to use (default: 8)
+LLM_THREADS=8
 
-# ---------------------------------------------------------------------------
-# CPU Inference Fallback:
-# To run inference on CPU instead of GPU, uncomment the parameters below.
-# ---------------------------------------------------------------------------
-# LLM_N_GPU_LAYERS=0
-# LLM_EXTRA_ARGS=""
+# Extra arguments to pass to llama-server (default: --flash-attn auto)
+LLM_EXTRA_ARGS="--flash-attn auto"
+
 EOF
 }
 
@@ -277,9 +274,9 @@ EOF
 # Write service file
 # ---------------------------------------------------------------------------
 write_service_file() {
-	generate_service_file >"${SERVICE_FILE}"
-	chmod 644 "${SERVICE_FILE}"
-	run_systemctl daemon-reload
+    generate_service_file >"${SERVICE_FILE}"
+    chmod 644 "${SERVICE_FILE}"
+    run_systemctl daemon-reload
 }
 
 # ---------------------------------------------------------------------------
@@ -287,315 +284,315 @@ write_service_file() {
 # ---------------------------------------------------------------------------
 
 cmd_install() {
-	local no_start=false
-	local new_config=false
-	while [ $# -gt 0 ]; do
-		case "$1" in
-		--no-start) no_start=true ;;
-		--new-config) new_config=true ;;
-		esac
-		shift
-	done
+    local no_start=false
+    local new_config=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --no-start) no_start=true ;;
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
 
-	echo "Installing ${SERVICE_NAME} systemd user service..."
+    echo "Installing ${SERVICE_NAME} systemd user service..."
 
-	# Create directory if needed
-	mkdir -p "${SYSTEMD_USER_DIR}"
+    # Create directory if needed
+    mkdir -p "${SYSTEMD_USER_DIR}"
 
-	# Write env file only if it doesn't exist (preserve user edits)
-	if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
-		echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
-		echo "Remove it manually or use --new-config if you want to regenerate the defaults."
-	else
-		echo "Writing default env file: ${ENV_FILE}"
-		generate_env_file >"${ENV_FILE}"
-		chmod 600 "${ENV_FILE}"
-		echo "Env file written."
-	fi
+    # Write env file only if it doesn't exist (preserve user edits)
+    if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
+        echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
+        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
+    else
+        echo "Writing default env file: ${ENV_FILE}"
+        generate_env_file >"${ENV_FILE}"
+        chmod 600 "${ENV_FILE}"
+        echo "Env file written."
+    fi
 
-	# Write service file
-	echo "Writing service file: ${SERVICE_FILE}"
-	write_service_file
-	echo "Service file written."
+    # Write service file
+    echo "Writing service file: ${SERVICE_FILE}"
+    write_service_file
+    echo "Service file written."
 
-	# Enable service
-	echo "Enabling ${SERVICE_NAME}.service..."
-	run_systemctl enable "${SERVICE_NAME}.service"
+    # Enable service
+    echo "Enabling ${SERVICE_NAME}.service..."
+    run_systemctl enable "${SERVICE_NAME}.service"
 
-	if [ "$no_start" = "true" ]; then
-		echo "Stopping service if running (--no-start specified)..."
-		run_systemctl stop "${SERVICE_NAME}.service" || true
-	else
-		echo "Starting/Restarting service automatically..."
-		run_systemctl restart "${SERVICE_NAME}.service"
-	fi
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping service if running (--no-start specified)..."
+        run_systemctl stop "${SERVICE_NAME}.service" || true
+    else
+        echo "Starting/Restarting service automatically..."
+        run_systemctl restart "${SERVICE_NAME}.service"
+    fi
 
-	echo "Installation complete."
-	echo ""
-	echo "  Service: ${SERVICE_FILE}"
-	echo "  Env:     ${ENV_FILE}"
-	echo "  INI:     ${INI_FILE}"
-	echo ""
-	echo "  Edit the env file to select model/mmproj/template, then:"
-	echo "    $0 restart"
-	echo ""
-	echo "  Status:  $0 status"
-	echo "  Logs:    $0 logs"
+    echo "Installation complete."
+    echo ""
+    echo "  Service: ${SERVICE_FILE}"
+    echo "  Env:     ${ENV_FILE}"
+    echo "  INI:     ${INI_FILE}"
+    echo ""
+    echo "  Edit the env file to select model/mmproj/template, then:"
+    echo "    $0 restart"
+    echo ""
+    echo "  Status:  $0 status"
+    echo "  Logs:    $0 logs"
 }
 
 cmd_uninstall() {
-	echo "Uninstalling ${SERVICE_NAME} systemd user service..."
-	run_systemctl stop "${SERVICE_NAME}.service" || true
-	run_systemctl disable "${SERVICE_NAME}.service" || true
+    echo "Uninstalling ${SERVICE_NAME} systemd user service..."
+    run_systemctl stop "${SERVICE_NAME}.service" || true
+    run_systemctl disable "${SERVICE_NAME}.service" || true
 
-	if [[ -f "${SERVICE_FILE}" ]]; then
-		rm -f "${SERVICE_FILE}"
-		run_systemctl daemon-reload
-		echo "Removed service file."
-	fi
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        rm -f "${SERVICE_FILE}"
+        run_systemctl daemon-reload
+        echo "Removed service file."
+    fi
 
-	if [[ -f "${INI_FILE}" ]]; then
-		rm -f "${INI_FILE}"
-		echo "Removed INI file."
-	fi
+    if [[ -f "${INI_FILE}" ]]; then
+        rm -f "${INI_FILE}"
+        echo "Removed INI file."
+    fi
 
-	echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
+    echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
 
 cmd_start() {
-	write_service_file
-	run_systemctl start "${SERVICE_NAME}.service"
+    write_service_file
+    run_systemctl start "${SERVICE_NAME}.service"
 }
 
 cmd_stop() { run_systemctl stop "${SERVICE_NAME}.service"; }
 
 cmd_restart() {
-	write_service_file
-	run_systemctl restart "${SERVICE_NAME}.service"
+    write_service_file
+    run_systemctl restart "${SERVICE_NAME}.service"
 }
 
 cmd_status() { run_systemctl status "${SERVICE_NAME}.service"; }
 cmd_enable() {
-	write_service_file
-	run_systemctl enable "${SERVICE_NAME}.service"
+    write_service_file
+    run_systemctl enable "${SERVICE_NAME}.service"
 }
 cmd_disable() { run_systemctl disable "${SERVICE_NAME}.service"; }
 cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" "$@"; }
 
 cmd_edit() {
-	mkdir -p "$(dirname "${ENV_FILE}")"
-	touch "${ENV_FILE}"
-	${EDITOR:-nano} "${ENV_FILE}"
-	echo "Restarting service to apply updated environment..."
-	cmd_restart
+    mkdir -p "$(dirname "${ENV_FILE}")"
+    touch "${ENV_FILE}"
+    ${EDITOR:-nano} "${ENV_FILE}"
+    echo "Restarting service to apply updated environment..."
+    cmd_restart
 }
 
 cmd_exec() {
-	echo "Starting llama-server as a transient systemd service with args: $*"
+    echo "Starting llama-server as a transient systemd service with args: $*"
 
-	load_env
-	generate_ini_file
+    load_env
+    generate_ini_file
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	if [ $# -gt 0 ]; then
-		# shellcheck disable=SC2086
-		systemd-run "${opts[@]}" llama-server "$@"
-	else
-		# shellcheck disable=SC2086
-		systemd-run "${opts[@]}" llama-server \
-			--models-preset "${INI_FILE}" \
-			--models-max 2 \
-			--host "${LLM_HOST}" \
-			--port "${LLM_PORT}"
-	fi
+    if [ $# -gt 0 ]; then
+        # shellcheck disable=SC2086
+        systemd-run "${opts[@]}" llama-server "$@"
+    else
+        # shellcheck disable=SC2086
+        systemd-run "${opts[@]}" llama-server \
+            --models-preset "${INI_FILE}" \
+            --models-max 2 \
+            --host "${LLM_HOST}" \
+            --port "${LLM_PORT}"
+    fi
 }
 
 cmd_shell() {
-	echo "Starting interactive shell in the llama-server systemd environment..."
+    echo "Starting interactive shell in the llama-server systemd environment..."
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_test() {
-	echo "Running local-llm-ggml validation tests..."
-	load_env
+    echo "Running local-llm-ggml validation tests..."
+    load_env
 
-	local host="${LLM_HOST:-127.0.0.1}"
-	local port="${LLM_PORT:-50080}"
-	local alias="${LLM_ALIAS:-qwen3}"
-	local embedding_alias="${LLM_EMBEDDING_ALIAS:-qwen3-embedding}"
+    local host="${LLM_HOST:-127.0.0.1}"
+    local port="${LLM_PORT:-50080}"
+    local alias="${LLM_ALIAS:-qwen3}"
+    local embedding_alias="${LLM_EMBEDDING_ALIAS:-qwen3-embedding}"
 
-	local base_url="http://${host}:${port}"
-	echo "Using endpoint base: ${base_url}"
+    local base_url="http://${host}:${port}"
+    echo "Using endpoint base: ${base_url}"
 
-	local benchmark=false
-	local full=false
-	local only_embeddings=false
-	local repeat=""
-	while [ $# -gt 0 ]; do
-		case "$1" in
-		--benchmark) benchmark=true ;;
-		--full) full=true ;;
-		--only-embeddings) only_embeddings=true ;;
-		--repeat)
-			shift
-			repeat="$1"
-			;;
-		esac
-		shift
-	done
+    local benchmark=false
+    local full=false
+    local only_embeddings=false
+    local repeat=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --benchmark) benchmark=true ;;
+        --full) full=true ;;
+        --only-embeddings) only_embeddings=true ;;
+        --repeat)
+            shift
+            repeat="$1"
+            ;;
+        esac
+        shift
+    done
 
-	if [ "$full" = "true" ] && [ "$only_embeddings" = "true" ]; then
-		echo "Error: --full and --only-embeddings are mutually exclusive." >&2
-		return 1
-	fi
+    if [ "$full" = "true" ] && [ "$only_embeddings" = "true" ]; then
+        echo "Error: --full and --only-embeddings are mutually exclusive." >&2
+        return 1
+    fi
 
-	if [ "$benchmark" = "true" ]; then
-		local context_file
-		# Try relative path in repo first
-		context_file="$(dirname "$0")/../scratch/test-models/benchmark-context.md"
-		if [[ ! -f "$context_file" ]]; then
-			context_file="$(dirname "$(dirname "$LLM_MODEL")")/benchmark-context.md"
-		fi
-		if [[ ! -f "$context_file" ]]; then
-			context_file="/data/public/machine-learning/models/benchmark-context.md"
-		fi
-		if [[ ! -f "$context_file" ]]; then
-			context_file="/tmp/benchmark-context.md"
-		fi
-		if [[ ! -f "$context_file" ]]; then
-			echo "benchmark-context.md not found. Generating it via download_skills_context.py..."
-			python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
-		fi
+    if [ "$benchmark" = "true" ]; then
+        local context_file
+        # Try relative path in repo first
+        context_file="$(dirname "$0")/../scratch/test-models/benchmark-context.md"
+        if [[ ! -f "$context_file" ]]; then
+            context_file="$(dirname "$(dirname "$LLM_MODEL")")/benchmark-context.md"
+        fi
+        if [[ ! -f "$context_file" ]]; then
+            context_file="/data/public/machine-learning/models/benchmark-context.md"
+        fi
+        if [[ ! -f "$context_file" ]]; then
+            context_file="/tmp/benchmark-context.md"
+        fi
+        if [[ ! -f "$context_file" ]]; then
+            echo "benchmark-context.md not found. Generating it via download_skills_context.py..."
+            python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
+        fi
 
-		local repeat_arg=()
-		if [ -n "$repeat" ]; then
-			repeat_arg=(--repeat "$repeat")
-		fi
+        local repeat_arg=()
+        if [ -n "$repeat" ]; then
+            repeat_arg=(--repeat "$repeat")
+        fi
 
-		if [ "$only_embeddings" = "false" ]; then
-			# Run chat benchmark
-			python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-				--mode llm-chat \
-				--url "${base_url}" \
-				--model "${alias}" \
-				--context "${context_file}" \
-				"${repeat_arg[@]}"
-		fi
+        if [ "$only_embeddings" = "false" ]; then
+            # Run chat benchmark
+            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+                --mode llm-chat \
+                --url "${base_url}" \
+                --model "${alias}" \
+                --context "${context_file}" \
+                "${repeat_arg[@]}"
+        fi
 
-		# Run embedding benchmark
-		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-			--mode llm-embed \
-			--url "${base_url}" \
-			--model "${embedding_alias}" \
-			--context "${context_file}" \
-			"${repeat_arg[@]}"
+        # Run embedding benchmark
+        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+            --mode llm-embed \
+            --url "${base_url}" \
+            --model "${embedding_alias}" \
+            --context "${context_file}" \
+            "${repeat_arg[@]}"
 
-		if [ "$full" = "true" ]; then
-			echo "=== Running Cache Hit Latency Test (llama-cache-test.py) ==="
-			python3 "$(dirname "$0")/../scripts/llama-cache-test.py" \
-				--url "${base_url}/v1" \
-				--model "${alias}" \
-				--payload "${context_file}"
+        if [ "$full" = "true" ]; then
+            echo "=== Running Cache Hit Latency Test (llama-cache-test.py) ==="
+            python3 "$(dirname "$0")/../scripts/llama-cache-test.py" \
+                --url "${base_url}/v1" \
+                --model "${alias}" \
+                --payload "${context_file}"
 
-			echo ""
-			echo "=== Benchmark Observation ==="
-			echo "Observation: llama-cache-test.py measures KV cache hit latencies (TTFT) and"
-			echo "prefill characters-per-second, but it does NOT report token throughput metrics"
-			echo "(tokens/sec) for either prompt prefilling or token generation (decoding)."
-			echo "============================="
-		fi
-		return 0
-	fi
+            echo ""
+            echo "=== Benchmark Observation ==="
+            echo "Observation: llama-cache-test.py measures KV cache hit latencies (TTFT) and"
+            echo "prefill characters-per-second, but it does NOT report token throughput metrics"
+            echo "(tokens/sec) for either prompt prefilling or token generation (decoding)."
+            echo "============================="
+        fi
+        return 0
+    fi
 
-	echo "=== 1. Testing Chat Completion ==="
-	local chat_resp
-	chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
-		-H "Content-Type: application/json" \
-		-d "{
+    echo "=== 1. Testing Chat Completion ==="
+    local chat_resp
+    chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
+        -H "Content-Type: application/json" \
+        -d "{
           \"model\": \"${alias}\",
           \"messages\": [
             {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
           ]
         }")
 
-	echo "${chat_resp}"
-	if ! echo "${chat_resp}" | grep -q "choices"; then
-		echo "Error: Chat completion test failed." >&2
-		return 1
-	fi
-	echo "Chat completion: Success."
+    echo "${chat_resp}"
+    if ! echo "${chat_resp}" | grep -q "choices"; then
+        echo "Error: Chat completion test failed." >&2
+        return 1
+    fi
+    echo "Chat completion: Success."
 
-	echo "=== 2. Testing Text Embeddings ==="
-	local embed_resp
-	embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
-		-H "Content-Type: application/json" \
-		-d "{
+    echo "=== 2. Testing Text Embeddings ==="
+    local embed_resp
+    embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
+        -H "Content-Type: application/json" \
+        -d "{
           \"model\": \"${embedding_alias}\",
           \"input\": \"Hello World\"
         }")
 
-	echo "${embed_resp}"
-	if ! echo "${embed_resp}" | grep -q "embedding"; then
-		echo "Error: Text embedding test failed." >&2
-		return 1
-	fi
-	echo "Text embedding: Success."
+    echo "${embed_resp}"
+    if ! echo "${embed_resp}" | grep -q "embedding"; then
+        echo "Error: Text embedding test failed." >&2
+        return 1
+    fi
+    echo "Text embedding: Success."
 }
 
 usage() {
-	echo "Usage: $0 <command> [args...]"
-	echo "Commands:"
-	echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
-	echo "  uninstall - Stop and remove systemd service"
-	echo "  start     - Start the systemd service"
-	echo "  stop      - Stop the systemd service"
-	echo "  restart   - Restart the systemd service"
-	echo "  status    - View systemd service status"
-	echo "  enable    - Enable systemd service on boot"
-	echo "  disable   - Disable systemd service on boot"
-	echo "  logs      - Tail the systemd service logs"
-	echo "  edit      - Edit the .env file and restart the service upon exit"
-	echo "  exec      - Run llama-server as a transient systemd user service"
-	echo "  shell     - Spawn an interactive shell in the llama-server environment"
-	echo "  test [--benchmark] [--full] [--only-embeddings] - Run validation tests or benchmarks (--full and --only-embeddings are mutually exclusive)"
+    echo "Usage: $0 <command> [args...]"
+    echo "Commands:"
+    echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
+    echo "  uninstall - Stop and remove systemd service"
+    echo "  start     - Start the systemd service"
+    echo "  stop      - Stop the systemd service"
+    echo "  restart   - Restart the systemd service"
+    echo "  status    - View systemd service status"
+    echo "  enable    - Enable systemd service on boot"
+    echo "  disable   - Disable systemd service on boot"
+    echo "  logs      - Tail the systemd service logs"
+    echo "  edit      - Edit the .env file and restart the service upon exit"
+    echo "  exec      - Run llama-server as a transient systemd user service"
+    echo "  shell     - Spawn an interactive shell in the llama-server environment"
+    echo "  test [--benchmark] [--full] [--only-embeddings] - Run validation tests or benchmarks (--full and --only-embeddings are mutually exclusive)"
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if [ $# -lt 1 ]; then
-	usage
-	exit 1
+    usage
+    exit 1
 fi
 
 COMMAND="$1"
@@ -616,8 +613,8 @@ exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
 test) cmd_test "$@" ;;
 *)
-	echo "Unknown command: $COMMAND"
-	usage
-	exit 1
-	;;
+    echo "Unknown command: $COMMAND"
+    usage
+    exit 1
+    ;;
 esac

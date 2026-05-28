@@ -43,7 +43,6 @@ This architecture enables high-performance local document reranking, which is cr
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /health`**: Returns JSON details regarding slots, queue metrics, and service health.
 
----
 
 ## Configuration Files
 
@@ -52,20 +51,23 @@ The service stores its configuration in the systemd user configuration directory
 - **Service Unit**: `~/.config/systemd/user/local-rerank.service`
 - **Environment File**: `~/.config/systemd/user/local-rerank.env`
 
-### GPU and CPU Inference
+### Switching between GPU and CPU Inference 
 
-By default, the service offloads execution to the GPU using ROCm/HIP (specifically targeting AMD Radeon Pro W6800).
-However, to conserve VRAM, running the reranker on the CPU is highly recommended. It runs entirely in System RAM, requiring approximately **450 MiB** of memory and using **0 MiB** of GPU VRAM.
+By default, the service runs the reranker on the CPU, which is highly recommended to conserve VRAM.
+or if VRAM is available, it can offload execution to the GPU using ROCm/HIP acceleration.
 
-To run the service on the CPU, run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and uncomment the CPU parameters:
+To run the service on the CPU or GPU, run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and change the parameter LR_N_GPU_LAYERS:
 
 ```bash
-# For CPU execution, uncomment these variables:
-# LR_N_GPU_LAYERS=0
-# LR_EXTRA_ARGS=""
+# For CPU execution
+LR_N_GPU_LAYERS=0
+# For GPU execution
+LR_N_GPU_LAYERS=99
 ```
 
----
+## VRAM Usage
+
+For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
 
 ## Verification & Manual Testing
 

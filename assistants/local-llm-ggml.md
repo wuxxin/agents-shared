@@ -71,7 +71,10 @@ To run the service on the CPU, run `./local-llm-ggml.sh edit` (or edit `~/.confi
 # LLM_EXTRA_ARGS=""
 ```
 
----
+## VRAM Usage
+
+For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
+
 
 ## Verification & Manual Testing
 

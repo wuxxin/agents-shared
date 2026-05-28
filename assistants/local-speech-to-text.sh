@@ -24,80 +24,80 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # Load environment
 # ---------------------------------------------------------------------------
 load_env() {
-	# Default parameters
-	LSTT_PORT=50090
-	LSTT_HOST=127.0.0.1
-	LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
-	# shellcheck disable=SC2034
-	LSTT_MODEL_ALIAS=whisper-1
-	LSTT_THREADS=4
-	LSTT_DEVICE=0
-	LSTT_INFERENCE_PATH=/v1/audio/transcriptions
-	LSTT_EXTRA_ARGS=""
+    # Default parameters
+    LSTT_PORT=50090
+    LSTT_HOST=127.0.0.1
+    LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
+    # shellcheck disable=SC2034
+    LSTT_MODEL_ALIAS=whisper-1
+    LSTT_THREADS=8
+    LSTT_DEVICE=0
+    LSTT_INFERENCE_PATH=/v1/audio/transcriptions
+    LSTT_EXTRA_ARGS=""
 
-	# Source the env file to get model paths and settings if it exists
-	if [[ -f "$ENV_FILE" ]]; then
-		set +u
-		# shellcheck disable=SC1090
-		source "$ENV_FILE"
-		set -u
-	fi
+    # Source the env file to get model paths and settings if it exists
+    if [[ -f "$ENV_FILE" ]]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set -u
+    fi
 }
 
 # ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
 # ---------------------------------------------------------------------------
 get_shared_options() {
-	local mode="$1" # "service" or "transient"
-	local home_spec
-	if [ "$mode" = "service" ]; then
-		home_spec="%h"
-	else
-		home_spec="$HOME"
-	fi
+    local mode="$1" # "service" or "transient"
+    local home_spec
+    if [ "$mode" = "service" ]; then
+        home_spec="%h"
+    else
+        home_spec="$HOME"
+    fi
 
-	# Environment file & Working directory
-	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-speech-to-text.env"
-	echo "WorkingDirectory=${home_spec}"
+    # Environment file & Working directory
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-speech-to-text.env"
+    echo "WorkingDirectory=${home_spec}"
 
-	# Basic hardening (kept minimal for GPU access)
-	echo "NoNewPrivileges=yes"
-	echo "CapabilityBoundingSet="
-	echo "AmbientCapabilities="
+    # Basic hardening (kept minimal for GPU access)
+    echo "NoNewPrivileges=yes"
+    echo "CapabilityBoundingSet="
+    echo "AmbientCapabilities="
 
-	# GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
-	echo "PrivateDevices=no"
-	echo "PrivateTmp=yes"
-	echo "PrivateMounts=yes"
-	echo "PrivateIPC=yes"
+    # GPU/DRI access requires PrivateDevices=no (ROCm needs /dev/dri, /dev/kfd)
+    echo "PrivateDevices=no"
+    echo "PrivateTmp=yes"
+    echo "PrivateMounts=yes"
+    echo "PrivateIPC=yes"
 
-	echo "ProtectSystem=strict"
-	# Allow read-write access to home-based paths (for temp ffmpeg files)
-	echo "BindPaths=${home_spec}"
-	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-	echo "ReadWritePaths=/data/public/machine-learning"
+    echo "ProtectSystem=strict"
+    # Allow read-write access to home-based paths (for temp ffmpeg files)
+    echo "BindPaths=${home_spec}"
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "ReadWritePaths=/data/public/machine-learning"
 
-	echo "ProtectKernelTunables=yes"
-	echo "ProtectKernelModules=yes"
-	echo "ProtectKernelLogs=yes"
-	echo "ProtectControlGroups=yes"
-	echo "ProtectClock=yes"
-	echo "ProtectHostname=yes"
+    echo "ProtectKernelTunables=yes"
+    echo "ProtectKernelModules=yes"
+    echo "ProtectKernelLogs=yes"
+    echo "ProtectControlGroups=yes"
+    echo "ProtectClock=yes"
+    echo "ProtectHostname=yes"
 
-	echo "LockPersonality=yes"
-	echo "RestrictSUIDSGID=yes"
-	echo "RestrictRealtime=yes"
-	echo "KeyringMode=private"
-	echo "UMask=0077"
+    echo "LockPersonality=yes"
+    echo "RestrictSUIDSGID=yes"
+    echo "RestrictRealtime=yes"
+    echo "KeyringMode=private"
+    echo "UMask=0077"
 }
 
 # ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
 # ---------------------------------------------------------------------------
 generate_service_file() {
-	load_env
+    load_env
 
-	cat <<EOF
+    cat <<EOF
 [Unit]
 Description=Local Speech-to-Text Transcription Server (whisper-server)
 Documentation=https://github.com/ggerganov/whisper.cpp
@@ -133,7 +133,7 @@ EOF
 # Embedded default env file (heredoc written by --install)
 # ---------------------------------------------------------------------------
 generate_env_file() {
-	cat <<'EOF'
+    cat <<'EOF'
 # local-speech-to-text.env
 # ---------------------------------------------------------------------------
 # Configuration for the local-speech-to-text.service whisper-server instance.
@@ -156,7 +156,7 @@ LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-tur
 LSTT_MODEL_ALIAS=whisper
 
 # Number of threads to use for CPU-bound computations/preprocessing
-LSTT_THREADS=4
+LSTT_THREADS=8
 
 # GPU Device ID to use (default: 0)
 LSTT_DEVICE=0
@@ -166,6 +166,7 @@ LSTT_INFERENCE_PATH=/v1/audio/transcriptions
 
 # Extra arguments to pass to whisper-server (e.g. VAD options, diarization, etc.)
 LSTT_EXTRA_ARGS=""
+
 EOF
 }
 
@@ -173,9 +174,9 @@ EOF
 # Write service file
 # ---------------------------------------------------------------------------
 write_service_file() {
-	generate_service_file >"${SERVICE_FILE}"
-	chmod 644 "${SERVICE_FILE}"
-	systemctl --user daemon-reload
+    generate_service_file >"${SERVICE_FILE}"
+    chmod 644 "${SERVICE_FILE}"
+    systemctl --user daemon-reload
 }
 
 # ---------------------------------------------------------------------------
@@ -183,279 +184,279 @@ write_service_file() {
 # ---------------------------------------------------------------------------
 
 cmd_install() {
-	local no_start=false
-	local new_config=false
-	while [ $# -gt 0 ]; do
-		case "$1" in
-		--no-start) no_start=true ;;
-		--new-config) new_config=true ;;
-		esac
-		shift
-	done
+    local no_start=false
+    local new_config=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --no-start) no_start=true ;;
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
 
-	echo "Installing ${SERVICE_NAME} systemd user service..."
+    echo "Installing ${SERVICE_NAME} systemd user service..."
 
-	# Create directory if needed
-	mkdir -p "${SYSTEMD_USER_DIR}"
+    # Create directory if needed
+    mkdir -p "${SYSTEMD_USER_DIR}"
 
-	# Write env file only if it doesn't exist (preserve user edits)
-	if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
-		echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
-		echo "Remove it manually or use --new-config if you want to regenerate the defaults."
-	else
-		echo "Writing default env file: ${ENV_FILE}"
-		generate_env_file >"${ENV_FILE}"
-		chmod 600 "${ENV_FILE}"
-		echo "Env file written."
-	fi
+    # Write env file only if it doesn't exist (preserve user edits)
+    if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
+        echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
+        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
+    else
+        echo "Writing default env file: ${ENV_FILE}"
+        generate_env_file >"${ENV_FILE}"
+        chmod 600 "${ENV_FILE}"
+        echo "Env file written."
+    fi
 
-	# Write service file
-	echo "Writing service file: ${SERVICE_FILE}"
-	write_service_file
-	echo "Service file written."
+    # Write service file
+    echo "Writing service file: ${SERVICE_FILE}"
+    write_service_file
+    echo "Service file written."
 
-	# Enable service
-	echo "Enabling ${SERVICE_NAME}.service..."
-	systemctl --user enable "${SERVICE_NAME}.service"
+    # Enable service
+    echo "Enabling ${SERVICE_NAME}.service..."
+    systemctl --user enable "${SERVICE_NAME}.service"
 
-	if [ "$no_start" = "true" ]; then
-		echo "Stopping service if running (--no-start specified)..."
-		systemctl --user stop "${SERVICE_NAME}.service" || true
-	else
-		echo "Starting/Restarting service automatically..."
-		systemctl --user restart "${SERVICE_NAME}.service"
-	fi
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping service if running (--no-start specified)..."
+        systemctl --user stop "${SERVICE_NAME}.service" || true
+    else
+        echo "Starting/Restarting service automatically..."
+        systemctl --user restart "${SERVICE_NAME}.service"
+    fi
 
-	echo "Installation complete."
-	echo ""
-	echo "  Service: ${SERVICE_FILE}"
-	echo "  Env:     ${ENV_FILE}"
-	echo ""
-	echo "  Edit the env file to select models, then:"
-	echo "    $0 restart"
-	echo ""
-	echo "  Status:  $0 status"
-	echo "  Logs:    $0 logs"
+    echo "Installation complete."
+    echo ""
+    echo "  Service: ${SERVICE_FILE}"
+    echo "  Env:     ${ENV_FILE}"
+    echo ""
+    echo "  Edit the env file to select models, then:"
+    echo "    $0 restart"
+    echo ""
+    echo "  Status:  $0 status"
+    echo "  Logs:    $0 logs"
 }
 
 cmd_uninstall() {
-	echo "Uninstalling ${SERVICE_NAME} systemd user service..."
-	systemctl --user stop "${SERVICE_NAME}.service" || true
-	systemctl --user disable "${SERVICE_NAME}.service" || true
+    echo "Uninstalling ${SERVICE_NAME} systemd user service..."
+    systemctl --user stop "${SERVICE_NAME}.service" || true
+    systemctl --user disable "${SERVICE_NAME}.service" || true
 
-	if [[ -f "${SERVICE_FILE}" ]]; then
-		rm -f "${SERVICE_FILE}"
-		systemctl --user daemon-reload
-		echo "Removed service file."
-	fi
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        rm -f "${SERVICE_FILE}"
+        systemctl --user daemon-reload
+        echo "Removed service file."
+    fi
 
-	echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
+    echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
 
 cmd_start() {
-	write_service_file
-	systemctl --user start "${SERVICE_NAME}.service"
+    write_service_file
+    systemctl --user start "${SERVICE_NAME}.service"
 }
 
 cmd_stop() { systemctl --user stop "${SERVICE_NAME}.service"; }
 
 cmd_restart() {
-	write_service_file
-	systemctl --user restart "${SERVICE_NAME}.service"
+    write_service_file
+    systemctl --user restart "${SERVICE_NAME}.service"
 }
 
 cmd_status() { systemctl --user status "${SERVICE_NAME}.service"; }
 cmd_enable() {
-	write_service_file
-	systemctl --user enable "${SERVICE_NAME}.service"
+    write_service_file
+    systemctl --user enable "${SERVICE_NAME}.service"
 }
 cmd_disable() { systemctl --user disable "${SERVICE_NAME}.service"; }
 cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" "$@"; }
 
 cmd_edit() {
-	mkdir -p "$(dirname "${ENV_FILE}")"
-	touch "${ENV_FILE}"
-	${EDITOR:-nano} "${ENV_FILE}"
-	echo "Restarting service to apply updated environment..."
-	cmd_restart
+    mkdir -p "$(dirname "${ENV_FILE}")"
+    touch "${ENV_FILE}"
+    ${EDITOR:-nano} "${ENV_FILE}"
+    echo "Restarting service to apply updated environment..."
+    cmd_restart
 }
 
 cmd_exec() {
-	echo "Starting whisper-server as a transient systemd service with args: $*"
+    echo "Starting whisper-server as a transient systemd service with args: $*"
 
-	load_env
+    load_env
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	if [ $# -gt 0 ]; then
-		# shellcheck disable=SC2086
-		systemd-run "${opts[@]}" whisper-server "$@"
-	else
-		# shellcheck disable=SC2086
-		systemd-run "${opts[@]}" whisper-server \
-			--model "${LSTT_MODEL}" \
-			--host "${LSTT_HOST}" \
-			--port "${LSTT_PORT}" \
-			--threads "${LSTT_THREADS}" \
-			--device "${LSTT_DEVICE}" \
-			--inference-path "${LSTT_INFERENCE_PATH}" \
-			--convert \
-			-fa \
-			${LSTT_EXTRA_ARGS}
-	fi
+    if [ $# -gt 0 ]; then
+        # shellcheck disable=SC2086
+        systemd-run "${opts[@]}" whisper-server "$@"
+    else
+        # shellcheck disable=SC2086
+        systemd-run "${opts[@]}" whisper-server \
+            --model "${LSTT_MODEL}" \
+            --host "${LSTT_HOST}" \
+            --port "${LSTT_PORT}" \
+            --threads "${LSTT_THREADS}" \
+            --device "${LSTT_DEVICE}" \
+            --inference-path "${LSTT_INFERENCE_PATH}" \
+            --convert \
+            -fa \
+            ${LSTT_EXTRA_ARGS}
+    fi
 }
 
 cmd_shell() {
-	echo "Starting interactive shell in the whisper-server systemd environment..."
+    echo "Starting interactive shell in the whisper-server systemd environment..."
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_test() {
-	echo "Running local-speech-to-text validation tests..."
-	load_env
+    echo "Running local-speech-to-text validation tests..."
+    load_env
 
-	# Apply defaults if values are not set
-	local host="${LSTT_HOST:-127.0.0.1}"
-	local port="${LSTT_PORT:-50090}"
-	local inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
-	local model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
+    # Apply defaults if values are not set
+    local host="${LSTT_HOST:-127.0.0.1}"
+    local port="${LSTT_PORT:-50090}"
+    local inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
+    local model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
 
-	local benchmark=false
-	local repeat=""
-	while [ $# -gt 0 ]; do
-		case "$1" in
-		--benchmark) benchmark=true ;;
-		--repeat)
-			shift
-			repeat="$1"
-			;;
-		esac
-		shift
-	done
+    local benchmark=false
+    local repeat=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --benchmark) benchmark=true ;;
+        --repeat)
+            shift
+            repeat="$1"
+            ;;
+        esac
+        shift
+    done
 
-	if [ "$benchmark" = "true" ]; then
-		local audio_file
-		audio_file="$(dirname "$LSTT_MODEL")/speech-to-text.ogg"
-		if [[ ! -f "$audio_file" ]]; then
-			audio_file="/tmp/speech-to-text.ogg"
-			if [[ ! -f "$audio_file" ]]; then
-				echo "Downloading speech-to-text.ogg to ${audio_file}..."
-				if ! curl -L -f -o "$audio_file" "https://upload.wikimedia.org/wikipedia/commons/2/23/William_McKinley_campaign_speech_1896.ogg"; then
-					echo "Error: Failed to download validation audio sample." >&2
-					return 1
-				fi
-			fi
-		fi
+    if [ "$benchmark" = "true" ]; then
+        local audio_file
+        audio_file="$(dirname "$LSTT_MODEL")/speech-to-text.ogg"
+        if [[ ! -f "$audio_file" ]]; then
+            audio_file="/tmp/speech-to-text.ogg"
+            if [[ ! -f "$audio_file" ]]; then
+                echo "Downloading speech-to-text.ogg to ${audio_file}..."
+                if ! curl -L -f -o "$audio_file" "https://upload.wikimedia.org/wikipedia/commons/2/23/William_McKinley_campaign_speech_1896.ogg"; then
+                    echo "Error: Failed to download validation audio sample." >&2
+                    return 1
+                fi
+            fi
+        fi
 
-		local repeat_arg=()
-		if [ -n "$repeat" ]; then
-			repeat_arg=(--repeat "$repeat")
-		fi
+        local repeat_arg=()
+        if [ -n "$repeat" ]; then
+            repeat_arg=(--repeat "$repeat")
+        fi
 
-		# Run STT benchmark
-		python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-			--mode stt \
-			--url "http://${host}:${port}" \
-			--model "${model_alias}" \
-			--audio "${audio_file}" \
-			"${repeat_arg[@]}"
-		return 0
-	fi
+        # Run STT benchmark
+        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+            --mode stt \
+            --url "http://${host}:${port}" \
+            --model "${model_alias}" \
+            --audio "${audio_file}" \
+            "${repeat_arg[@]}"
+        return 0
+    fi
 
-	local temp_dir
-	temp_dir=$(mktemp -d)
-	cleanup() {
-		rm -rf "$temp_dir"
-	}
-	trap cleanup EXIT
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    cleanup() {
+        rm -rf "$temp_dir"
+    }
+    trap cleanup EXIT
 
-	echo "Downloading jfk.wav audio sample..."
-	if ! curl -L -f -o "$temp_dir/jfk.wav" "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"; then
-		echo "Error: Failed to download jfk.wav sample audio." >&2
-		trap - EXIT
-		cleanup
-		return 1
-	fi
+    echo "Downloading jfk.wav audio sample..."
+    if ! curl -L -f -o "$temp_dir/jfk.wav" "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"; then
+        echo "Error: Failed to download jfk.wav sample audio." >&2
+        trap - EXIT
+        cleanup
+        return 1
+    fi
 
-	echo "Sending transcription request to http://${host}:${port}${inference_path}..."
-	local resp
-	if ! resp=$(curl -s -f -X POST "http://${host}:${port}${inference_path}" \
-		-H "Content-Type: multipart/form-data" \
-		-F "file=@$temp_dir/jfk.wav" \
-		-F "model=${model_alias}"); then
-		echo "Error: Transcription curl request failed." >&2
-		trap - EXIT
-		cleanup
-		return 1
-	fi
+    echo "Sending transcription request to http://${host}:${port}${inference_path}..."
+    local resp
+    if ! resp=$(curl -s -f -X POST "http://${host}:${port}${inference_path}" \
+        -H "Content-Type: multipart/form-data" \
+        -F "file=@$temp_dir/jfk.wav" \
+        -F "model=${model_alias}"); then
+        echo "Error: Transcription curl request failed." >&2
+        trap - EXIT
+        cleanup
+        return 1
+    fi
 
-	echo "${resp}"
-	# Validate transcription response text contains key words
-	if ! echo "${resp}" | grep -qi -E "(Americans|country|fellow)"; then
-		echo "Error: Speech-to-text transcription verification failed." >&2
-		trap - EXIT
-		cleanup
-		return 1
-	fi
+    echo "${resp}"
+    # Validate transcription response text contains key words
+    if ! echo "${resp}" | grep -qi -E "(Americans|country|fellow)"; then
+        echo "Error: Speech-to-text transcription verification failed." >&2
+        trap - EXIT
+        cleanup
+        return 1
+    fi
 
-	echo "Speech-to-text validation: Success."
-	trap - EXIT
-	cleanup
+    echo "Speech-to-text validation: Success."
+    trap - EXIT
+    cleanup
 }
 
 usage() {
-	echo "Usage: $0 <command> [args...]"
-	echo "Commands:"
-	echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
-	echo "  uninstall - Stop and remove systemd service"
-	echo "  start     - Start the systemd service"
-	echo "  stop      - Stop the systemd service"
-	echo "  restart   - Restart the systemd service"
-	echo "  status    - View systemd service status"
-	echo "  enable    - Enable systemd service on boot"
-	echo "  disable   - Disable systemd service on boot"
-	echo "  logs      - Tail the systemd service logs"
-	echo "  edit      - Edit the .env file and restart the service upon exit"
-	echo "  exec      - Run whisper-server as a transient systemd user service"
-	echo "  shell     - Spawn an interactive shell in the whisper-server environment"
-	echo "  test [--benchmark] - Run validation tests or speech-to-text benchmark"
+    echo "Usage: $0 <command> [args...]"
+    echo "Commands:"
+    echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
+    echo "  uninstall - Stop and remove systemd service"
+    echo "  start     - Start the systemd service"
+    echo "  stop      - Stop the systemd service"
+    echo "  restart   - Restart the systemd service"
+    echo "  status    - View systemd service status"
+    echo "  enable    - Enable systemd service on boot"
+    echo "  disable   - Disable systemd service on boot"
+    echo "  logs      - Tail the systemd service logs"
+    echo "  edit      - Edit the .env file and restart the service upon exit"
+    echo "  exec      - Run whisper-server as a transient systemd user service"
+    echo "  shell     - Spawn an interactive shell in the whisper-server environment"
+    echo "  test [--benchmark] - Run validation tests or speech-to-text benchmark"
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if [ $# -lt 1 ]; then
-	usage
-	exit 1
+    usage
+    exit 1
 fi
 
 COMMAND="$1"
@@ -476,8 +477,8 @@ exec) cmd_exec "$@" ;;
 shell) cmd_shell "$@" ;;
 test) cmd_test "$@" ;;
 *)
-	echo "Unknown command: $COMMAND"
-	usage
-	exit 1
-	;;
+    echo "Unknown command: $COMMAND"
+    usage
+    exit 1
+    ;;
 esac
