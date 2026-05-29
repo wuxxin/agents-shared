@@ -4,57 +4,57 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-## 📊 Summary of Weekly Activity (May 22, 2026 – May 28, 2026)
+## 📊 Summary of Weekly Activity (May 23, 2026 – May 29, 2026)
 
 Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 276 | 54 | `main` | 2026-05-28 | **224** | 0 | 2 | 272.2 | `v2026.5.25-beta.13` | `librefang-cli-git` @ HEAD | 37 | **Highly Active** |
-| **moltis** | 2,709 | 318 | `main` | 2026-05-26 | **48** | 0 | 5 | 73.0 | `20260526.03`, `20260525.01` | `moltis-git` @ HEAD | 0 | **Highly Active** |
-| **zeroclaw** | 31,617 | 4,661 | `master` | 2026-05-28 | **80** | 0 | 0 | 70.2 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ HEAD | 23 | **Highly Active** |
+| **librefang** | 278 | 54 | `main` | 2026-05-29 | **199** | 0 | 2 | 250.7 | `v2026.5.28-beta.14`, `v2026.5.25-beta.13` | `librefang-cli-git` @ HEAD | 83 | **Highly Active** |
+| **moltis** | 2,710 | 318 | `main` | 2026-05-28 | **53** | 0 | 5 | 67.0 | `20260526.03`, `20260526.02` | `moltis-git` @ HEAD | 6 | **Highly Active** |
+| **zeroclaw** | 31,627 | 4,660 | `master` | 2026-05-28 | **81** | 0 | 0 | 66.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ HEAD | 1 | **Highly Active** |
 
 Other Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **hermes-agent** | 170,913 | 28,608 | `main` | 2026-05-25 | **608** | 15 | 0 | 747.7 | `v2026.5.16` (2026-05-16) | — | — | **Highly Active** |
-| **nanobot** | 43,300 | 7,642 | `main` | 2026-05-28 | **56** | 4 | 0 | 101.2 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
-| **nanoclaw** | 29,488 | 12,883 | `main` | 2026-05-25 | **19** | 20 | 0 | 73.0 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ HEAD | 0 | **Highly Active** |
-| **picoclaw** | 29,202 | 4,182 | `main` | 2026-05-26 | **15** | 10 | 1 | 32.5 | `v0.2.9` (2026-05-22) | `picoclaw` v0.2.8 | **189** | **Highly Active** |
+| **hermes-agent** | 172,238 | 28,936 | `main` | 2026-05-29 | **690** | 16 | 2 | 734.5 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
+| **nanobot** | 43,353 | 7,650 | `main` | 2026-05-29 | **64** | 4 | 0 | 105.2 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
+| **nanoclaw** | 29,522 | 12,883 | `main` | 2026-05-28 | **20** | 21 | 0 | 65.5 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ HEAD | 2 | **Highly Active** |
+| **picoclaw** | 29,212 | 4,186 | `main` | 2026-05-29 | **15** | 13 | 0 | 33.7 | `v0.2.9` (2026-05-22) | `picoclaw` @ HEAD | **8** | **Highly Active** |
 
 ---
 
 ## 🔍 Repository Breakdown
 
 ### LibreFang (`librefang/librefang`)
-* **Status**: Highly Active (224 commits, 2 releases in the last week).
+* **Status**: Highly Active (199 commits, 2 releases in the last week).
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
-* **Recent Focus**: Implemented `describe_image()` for media and wired image descriptions via channel adapters; refactored `tool_runner` dispatching and tools to use the new `ToolError` type; added strict input validation, SSRF checks, and safety/PII sanitization across tool runner stubs; resolved cross-chat image leaks by isolating attachment pre-injection per session; introduced a per-agent channel allowlist; fixed Windows-specific issues such as CI Instant subtraction panics and relative path formatting in content responses; and seeded Feishu/Lark configuration forms when the Python SDK is absent.
+* **Recent Focus**: Unified the three out-of-process sidecar bridges onto a shared transport crate (`engine = "sidecar"`); completed a comprehensive security audit sweep of the memory subsystem fixing 5 critical and 7 high vulnerabilities (split-brain, RBAC, decay, prompt budget, async consolidation); added a Tools tab with grouped views and source attribution to the dashboard UI; added search filtering to the FangHub skills grid; implemented a Kanban task board page in the dashboard; tightened runtime tool runners (filesystem protection via backslash rejection, canonicalization, and TOCTOU fixes, and Canvas security via XSS escapes and data URI blocking); and routed `auto_evolve` creations through the `skill_workshop` pending queue.
 
 ### Moltis (`moltis-org/moltis`)
-* **Status**: Highly Active (48 commits, 5 releases in the last week).
-* **Recent Focus**: Gated release workflows on provider tests and integration testing; supported agents as capability boundaries (MCP, sandbox, skills) with per-agent runtime limits, nonblocking spawn agents, and per-turn tool controls; made sub-agent presets editable; exposed Moltis version to prompts and local docs; fixed Docker build failures; and stabilized UI command palette focus.
+* **Status**: Highly Active (53 commits, 5 releases in the last week).
+* **Recent Focus**: Enforced release gates and isolated `qmd` installs in CI pipelines; stripped user names for the MiniMax provider; preserved host execution targets in cron jobs; supported message forks in the Web UI by including clicked responses; logged silent voice message drops in the Discord channel adapter; and prepared releases up to `20260526.03`.
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (80 commits, 0 releases in the last week).
-* **Recent Focus**: Tightened Canvas iframe sandboxing to prevent token theft via XSS (GHSA-f385-f6h2-3gqj); preserved `reasoning_content` in native tool requests; declared minimum browser floor and added unsupported-browser fallback banner in Web UI; generalized the `#[secret]` attribute via `SecretField` trait; suppressed verbose INFO logs in agent interactive CLI mode; kept Discord gateway preflight 429 retries retryable; added `file_upload` tool for HTTP multipart uploads; restored legacy channel startup fallback when bindings are empty; and verified self-update downloads against SHA256SUMS.
+* **Status**: Highly Active (81 commits, 0 releases in the last week).
+* **Recent Focus**: Added Codex subscription authorization check for the OpenAI provider during onboarding; reconciled channel documentation against schemas and fixed stale CLI references; preserved `reasoning_content` in native tool requests; used platform-agnostic paths in configuration policy tests; replaced flaky wall-clock assertions in tests with deterministic overlap checks; generalized the `#[secret]` attribute via `SecretField` trait; and declared a minimum browser floor with an unsupported-browser fallback banner in the Web UI.
 
 ### Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (608 commits, 15 merges in the last week).
-* **Recent Focus**: Enhanced security by rejecting non-regular tar members in auto-installers and android `psutil` compatibility installer, and requiring source CIDR allowlisting for msgraph webhook bindings and `API_SERVER_KEY` for API server dispatches; fixed Kanban layout column wrapping and vertical overflows; normalized Nous Portal entitlement checks for paid/free tiers; synced manual device_code Codex pool entries on re-authorization; fixed xAI OAuth timeout manual fallback; implemented host contracts for external context engines; and pulled full ClawHub catalog into the skills index.
+* **Status**: Highly Active (690 commits, 16 merges, 2 releases in the last week).
+* **Recent Focus**: Tightened security by removing vestigial Nous API auth parameters, legacy session key fallbacks, and JWT-shape fallbacks; blocked AWS SDK credentials from leaking into subprocess environments; scoped bridge catalog search and tool dispatching specifically to the current session's toolsets; implemented progressive tool disclosure for MCP and plugin tools; relaxed Codex no-byte TTFB watchdog threshold to 120s to prevent premature timeouts; and added clear diagnostic errors for media rejections at the gateway.
 
 ### NanoBot (`HKUDS/nanobot`)
-* **Status**: Highly Active (56 commits, 4 merges in the last week).
-* **Recent Focus**: Added Discord model slash command; unified CLI apps and MCP; added Telegram webhook support with an ordered message queue; enhanced OpenAI provider configuration with `extraBody` support, `apiType` validation, and preserved tool call IDs; added Step Plan support; honored `NANOBOT_STREAM_IDLE_TIMEOUT_S` and handled blank Codex transport errors; and stabilized the agent loop by making goal continuation independent and propagating `maxConcurrentSubagents`.
+* **Status**: Highly Active (64 commits, 4 merges in the last week).
+* **Recent Focus**: Introduced multi-tenant project workspaces and granular access control policies in the Web UI; added customizable context window settings; isolated signed media serving and added support for video byte-range queries and markdown previews; restructured the agent runner by moving document extraction logic out of the core loop and introducing a toggle to disable extraction; added extension registry source support and registry logos; trusted official MS Teams service hosts; and improved error messaging on billing/quota arrears.
 
 ### NanoClaw (`nanocoai/nanoclaw`)
-* **Status**: Highly Active (19 commits, 20 merges in the last week).
-* **Recent Focus**: Documented context window scaling up to 179k tokens (89% capacity); improved agent runner error handling by exiting on persistent `inbound.db` corruption, honoring zero/negative transcript rotate-age overrides, and rotating oversized/old sessions before resuming; corrected Photon URL to `photon.codes`; loaded per-group `CLAUDE.local.md` setting sources; mapped CLI credential names to Teams app env keys; and fixed `signal-cli` 0.13+ account listings.
+* **Status**: Highly Active (20 commits, 21 merges in the last week).
+* **Recent Focus**: Bumped upstream `claude-code` to version 2.1.154 and `claude-agent-sdk` to 0.3.154; updated documented context window utilization metrics up to 179k tokens; added support for reading settings from per-group `CLAUDE.local.md` files; and exited the agent runner cleanly on persistent SQLite `inbound.db` corruption errors.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Highly Active (15 commits, 10 merges, 1 release in the last week). **189 commits since installed v0.2.8.**
-* **Recent Focus**: Supported per-message `created_at` timestamps and normalized session history; added line numbers and wrap toggle for Web UI code blocks; implemented request-scoped context policies and DeepSeek thinking field mapping; added `gpt4free` OpenAI-compatible provider; resolved cron job missing action args and Discord attachment downloads for vision pipeline; and bumped dependency versions to fix security alerts (e.g. `golang.org/x/net`).
+* **Status**: Highly Active (15 commits, 13 merges, 0 releases in the last week). **8 commits since installed v0.2.9.nightly.20260528.28ec5793.**
+* **Recent Focus**: Added auto-detection for Termux SSL certificate paths; preserved `created_at` timestamps across history bootstrap; fixed command job execution failures caused by a missing `action` argument in cron jobs; and bumped dependencies such as `github.com/pion/rtp` and `github.com/caarlos0/env/v11`.
 
 ---
 
