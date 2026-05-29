@@ -9,14 +9,6 @@
 
 `zeroclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
 
-### Systemd-Free Fallback (Direct Execution)
-
-If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `zeroclaw-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
-- Environment variables are loaded directly from the generated `zeroclaw.env` file.
-- The isolated home directory (`~/.local/sandbox/zeroclaw`) is exported as `$HOME` and set as the working directory.
-- `install` and `uninstall` generate configuration/service files but bypass systemctl.
-- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
-
 ## Installation
 
 ```bash
@@ -70,8 +62,6 @@ This command imports the legacy SQLite database memory logs directly into ZeroCl
 
 ZeroClaw supports native Signal integration. It communicates with the daemon via the REST API wrapper.
 
-### Configuration
-
 Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`):
 
 ```toml
@@ -88,11 +78,11 @@ account = "+1234567890"
 
 Make sure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. ZeroClaw will retrieve message payloads and send messages through this endpoint.
 
-## Search, Retrieval & Embedding Configuration
+## Search, Retrieval, Embedding & Reranking Configuration
 
 ZeroClaw contains a self-contained, native SQLite-based hybrid memory system. It integrates Full-Text Search (FTS5) and vector search directly into its SQLite datastore, removing the need for external vector database servers. The persistent memory system automatically handles context compression, conversation history limits, and user preference storage.
 
-### Configuration
+Reranking Configuration: ZeroClaw includes a built-in weighted hybrid search (0.7 vector similarity / 0.3 keyword FTS) that does not require an external reranker. 
 
 Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`):
 
@@ -106,15 +96,9 @@ embedding_provider = "custom:http://localhost:50080/v1"
 
 ```
 
-### Reranking Configuration
-
-ZeroClaw includes a built-in weighted hybrid search (0.7 vector similarity / 0.3 keyword FTS) that does not require an external reranker. 
-
 ## Speech-to-Text Integration
 
 ZeroClaw supports speech-to-text (STT) transcription by routing voice payloads to the local `local-speech-to-text` service.
-
-### Configuration
 
 Add the transcription provider configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
 
@@ -144,8 +128,6 @@ bearer_token = "dummy"
 ## Text-to-Speech Integration
 
 ZeroClaw supports text-to-speech (TTS) synthesis through OpenAI-compatible endpoints.
-
-### Configuration
 
 Add the TTS provider configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
 
@@ -190,6 +172,14 @@ Any dotted path in `config.toml` can be overridden by setting an environment var
 ---
 
 ## Implementation & Security Considerations
+
+### Systemd-Free Fallback (Direct Execution)
+
+If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `zeroclaw-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
+- Environment variables are loaded directly from the generated `zeroclaw.env` file.
+- The isolated home directory (`~/.local/sandbox/zeroclaw`) is exported as `$HOME` and set as the working directory.
+- `install` and `uninstall` generate configuration/service files but bypass systemctl.
+- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
 
 ### Centralized Sandbox Options
 To guarantee parity across all execution modes, `zeroclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.

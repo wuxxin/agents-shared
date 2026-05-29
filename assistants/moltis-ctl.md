@@ -9,37 +9,36 @@
 
 `moltis-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
 
-### Systemd-Free Fallback (Direct Execution)
-
-If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `moltis-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
-- Environment variables are loaded directly from the generated `moltis.env` file.
-- The isolated home directory (`~/.local/sandbox/moltis`) is exported as `$HOME` and set as the working directory.
-- `install` and `uninstall` generate configuration/service files but bypass systemctl.
-- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
-
-
 ## Installation
 
 ```bash
 ./assistants/moltis-ctl install --no-start
 ```
 
-### Setup Code
+> [!TIP]
+> For unattended deployments, edit `~/.config/systemd/user/moltis.env` via `./assistants/moltis-ctl edit` and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
+
+> [!TIP]
+> use  `./assistants/moltis-ctl exec doctor` at anytime to review config validity.
+
+
 On the first run, Moltis generates a unique setup code. You must retrieve this from the logs to complete the web-based configuration:
 ```bash
 ./assistants/moltis-ctl logs
 ```
 Then visit `https://localhost:13131` to enter the code and create your admin account.
 
-> [!TIP]
-> For unattended deployments, edit `~/.config/systemd/user/moltis.env` via `./assistants/moltis-ctl edit` and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
-
 ### Configuration & Ports
 
 - **Default Port**: `13131` (Moltis Agent Server Web UI/API)
 - **Secrets & Configuration**: Loaded from `~/.config/systemd/user/moltis.env`. Key variables include `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY`.
 
-## Switch to Local Inference & Qwen3
+
+## OpenClaw Migration
+
+Moltis supports OpenClaw data and setting imports directly through the Web UI. During the initial onboarding steps (at `https://localhost:13131`), if a legacy OpenClaw workspace is detected, Moltis will prompt you to import settings and agent configurations.
+
+## Local Inference with Qwen3
 
 Edit `~/.local/sandbox/moltis/moltis.toml` (or via the Web UI) to configure a local OpenAI-compatible provider:
    ```toml
@@ -51,15 +50,9 @@ Edit `~/.local/sandbox/moltis/moltis.toml` (or via the Web UI) to configure a lo
    Then point your target agent to use `model_provider = "openai.local"`.
 
 
-## OpenClaw Migration
-
-Moltis supports OpenClaw data and setting imports directly through the Web UI. During the initial onboarding steps (at `https://localhost:13131`), if a legacy OpenClaw workspace is detected, Moltis will prompt you to import settings and agent configurations.
-
 ## Signal Channel Configuration
 
 Moltis has native support for receiving and sending Signal messages through an external `signal-cli` daemon.
-
-### Configuration
 
 Add a `[channels.signal.<account-id>]` section to `~/.local/sandbox/moltis/moltis.toml`:
 
@@ -78,11 +71,9 @@ text_chunk_limit = 4000               # Maximum UTF-8 bytes per outbound text ch
 
 Make sure `"signal"` is included in `channels.offered` in `moltis.toml` (it is included by default).
 
-## Search, Retrieval & Embedding Configuration
+## Search, Retrieval, Embedding & Reranking Configuration
 
 Moltis provides a built-in SQLite database with Full-Text Search (FTS5) for keyword-based search and direct vector storage. It can optionally offload heavy search operations to a high-performance **QMD** sidecar for BM25 keyword search, vector similarity search, and hybrid retrieval with LLM reranking.
-
-### Configuration
 
 Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 
@@ -138,8 +129,6 @@ weight = 0.7
 
 Moltis has built-in support for local voice transcription using an external OpenAI-compatible Whisper server. You can configure Moltis to use the `local-speech-to-text` service.
 
-### Configuration
-
 Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 
 ```toml
@@ -147,23 +136,20 @@ Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 # Enable Speech-to-Text globally
 enabled = true
 
-# Set active provider to local_stt
-provider = "local_stt"
+# Set active provider to whisper-local
+provider = "whisper-local"
 
-[voice.stt.local_stt]
+[voice.stt.whisper-local]
 enabled = true
 # Base URI of local-speech-to-text service (do not append '/v1/audio/transcriptions')
 endpoint = "http://localhost:50090"
 # Optional settings
 model = "whisper-1"
-language = "en"
 ```
 
 ## Text-to-Speech Integration
 
 Moltis supports text-to-speech (TTS) output through OpenAI-compatible endpoints, allowing agents to generate voice responses.
-
-### Configuration
 
 Add the following to `~/.local/sandbox/moltis/moltis.toml`:
 
@@ -206,6 +192,14 @@ Any configuration field in `moltis.toml` can be overridden by setting an environ
 ---
 
 ## Implementation & Security Considerations
+
+### Systemd-Free Fallback (Direct Execution)
+
+If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `moltis-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
+- Environment variables are loaded directly from the generated `moltis.env` file.
+- The isolated home directory (`~/.local/sandbox/moltis`) is exported as `$HOME` and set as the working directory.
+- `install` and `uninstall` generate configuration/service files but bypass systemctl.
+- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
 
 ### Centralized Sandbox Options
 To guarantee parity across all execution modes, `moltis-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
