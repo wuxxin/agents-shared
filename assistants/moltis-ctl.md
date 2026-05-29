@@ -9,6 +9,14 @@
 
 `moltis-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
 
+### Systemd-Free Fallback (Direct Execution)
+
+If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `moltis-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
+- Environment variables are loaded directly from the generated `moltis.env` file.
+- The isolated home directory (`~/.local/sandbox/moltis`) is exported as `$HOME` and set as the working directory.
+- `install` and `uninstall` generate configuration/service files but bypass systemctl.
+- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
+
 
 ## Installation
 
@@ -58,7 +66,7 @@ Add a `[channels.signal.<account-id>]` section to `~/.local/sandbox/moltis/molti
 ```toml
 [channels.signal.personal]
 account = "+1234567890"               # Your registered Signal phone number
-http_url = "http://127.0.0.1:50888"   # Local signal-cli HTTP daemon port
+http_url = "http://127.0.0.1:50889"   # Local signal-cli REST API wrapper port
 dm_policy = "allowlist"               # "open", "allowlist", or "disabled"
 allowlist = ["+1987654321"]           # Allowed sender phone numbers or UUIDs
 group_policy = "disabled"             # "open", "allowlist", or "disabled"
@@ -150,6 +158,52 @@ endpoint = "http://localhost:50090"
 model = "whisper-1"
 language = "en"
 ```
+
+## Text-to-Speech Integration
+
+Moltis supports text-to-speech (TTS) output through OpenAI-compatible endpoints, allowing agents to generate voice responses.
+
+### Configuration
+
+Add the following to `~/.local/sandbox/moltis/moltis.toml`:
+
+```toml
+[voice.tts]
+enabled = true
+provider = "openai"
+
+[voice.tts.openai]
+enabled = true
+base_url = "http://localhost:50095/v1"
+model = "qwen3-tts"
+voice = "alloy"
+api_key = "unused"
+```
+
+---
+
+## Finding Configuration Environment Variables
+
+Moltis supports environment overrides for configuration parameters.
+
+### Environment Override Syntax
+Any configuration field in `moltis.toml` can be overridden by setting an environment variable following these rules:
+- **Prefix**: `MOLTIS_`
+- **Case**: Environment variable names are case-insensitive when parsed, but are typically written in **UPPERCASE** (and converted to lowercase segments internally).
+- **Separators**: Dotted separators (`.`) in the TOML path must be replaced with double underscores (`__`).
+- **Snake case**: Unlike ZeroClaw, Moltis uses snake_case keys natively, so single underscores (`_`) are preserved (e.g. `dm_policy` remains `dm_policy`).
+- **Example**: Overriding `channels.signal.personal.dm_policy` is done via:
+  ```bash
+  export MOLTIS_CHANNELS__SIGNAL__PERSONAL__DM_POLICY="open"
+  ```
+- **Excluded**: Bootstrap settings like `MOLTIS_CONFIG_DIR`, `MOLTIS_DATA_DIR`, `MOLTIS_SHARE_DIR`, `MOLTIS_ASSETS_DIR`, `MOLTIS_TOKEN`, `MOLTIS_PASSWORD`, `MOLTIS_TAILSCALE`, and `MOLTIS_EXTERNAL_URL` are parsed separately and cannot be overridden as config properties.
+
+### Locating Configuration Properties in Source Code
+1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/moltis/crates/config/src/schema.rs) and inspect the `MoltisConfig` struct (and its nested types).
+2. **Config Validation**: Run `./assistants/moltis-ctl exec doctor` to validate the current configuration. This command parses the files and highlights errors or warnings, referencing the correct property paths.
+3. **Reference Toml**: Inspect the default/sample `moltis.toml` file to see the structure of configuration parameters.
+
+---
 
 ## Implementation & Security Considerations
 

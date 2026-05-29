@@ -10,9 +10,9 @@ Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 278 | 54 | `main` | 2026-05-29 | **199** | 0 | 2 | 250.7 | `v2026.5.28-beta.14`, `v2026.5.25-beta.13` | `librefang-cli-git` @ HEAD | 83 | **Highly Active** |
-| **moltis** | 2,710 | 318 | `main` | 2026-05-28 | **53** | 0 | 5 | 67.0 | `20260526.03`, `20260526.02` | `moltis-git` @ HEAD | 6 | **Highly Active** |
-| **zeroclaw** | 31,627 | 4,660 | `master` | 2026-05-28 | **81** | 0 | 0 | 66.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ HEAD | 1 | **Highly Active** |
+| **librefang** | 278 | 54 | `main` | 2026-05-29 | **199** | 0 | 2 | 250.7 | `v2026.5.28-beta.14`, `v2026.5.25-beta.13` | `librefang-cli-git` @ `2026.5.28beta.14.r38.g85dc15e07-1` | 9 | **Highly Active** |
+| **moltis** | 2,710 | 318 | `main` | 2026-05-28 | **53** | 0 | 5 | 67.0 | `20260526.03`, `20260526.02` | `moltis-git` @ `20260526.03.r6.g7b266a642-1` | 4 | **Highly Active** |
+| **zeroclaw** | 31,627 | 4,660 | `master` | 2026-05-28 | **81** | 0 | 0 | 66.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ `0.8.0.beta.1.r85.gf6015ab4b-1` | 0 | **Highly Active** |
 
 Other Projects:
 
@@ -20,8 +20,8 @@ Other Projects:
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
 | **hermes-agent** | 172,238 | 28,936 | `main` | 2026-05-29 | **690** | 16 | 2 | 734.5 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
 | **nanobot** | 43,353 | 7,650 | `main` | 2026-05-29 | **64** | 4 | 0 | 105.2 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
-| **nanoclaw** | 29,522 | 12,883 | `main` | 2026-05-28 | **20** | 21 | 0 | 65.5 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ HEAD | 2 | **Highly Active** |
-| **picoclaw** | 29,212 | 4,186 | `main` | 2026-05-29 | **15** | 13 | 0 | 33.7 | `v0.2.9` (2026-05-22) | `picoclaw` @ HEAD | **8** | **Highly Active** |
+| **nanoclaw** | 29,522 | 12,883 | `main` | 2026-05-28 | **20** | 21 | 0 | 65.5 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ `r1690.3601a8a1f-1` | 0 | **Highly Active** |
+| **picoclaw** | 29,212 | 4,186 | `main` | 2026-05-29 | **15** | 13 | 0 | 33.7 | `v0.2.9` (2026-05-22) | `picoclaw` @ `0.2.9.nightly.20260529.85751492-1` | 6 | **Highly Active** |
 
 ---
 
@@ -53,7 +53,7 @@ Other Projects:
 * **Recent Focus**: Bumped upstream `claude-code` to version 2.1.154 and `claude-agent-sdk` to 0.3.154; updated documented context window utilization metrics up to 179k tokens; added support for reading settings from per-group `CLAUDE.local.md` files; and exited the agent runner cleanly on persistent SQLite `inbound.db` corruption errors.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Highly Active (15 commits, 13 merges, 0 releases in the last week). **8 commits since installed v0.2.9.nightly.20260528.28ec5793.**
+* **Status**: Highly Active (15 commits, 13 merges, 0 releases in the last week). **6 commits since installed v0.2.9.nightly.20260529.85751492.**
 * **Recent Focus**: Added auto-detection for Termux SSL certificate paths; preserved `created_at` timestamps across history bootstrap; fixed command job execution failures caused by a missing `action` argument in cron jobs; and bumped dependencies such as `github.com/pion/rtp` and `github.com/caarlos0/env/v11`.
 
 ---

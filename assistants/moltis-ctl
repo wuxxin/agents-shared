@@ -95,7 +95,9 @@ SyslogIdentifier=moltis
 WantedBy=default.target
 EOF
 
-    systemctl --user daemon-reload
+    if systemctl --user is-systemd-running &>/dev/null; then
+        systemctl --user daemon-reload
+    fi
 }
 
 cmd_install() {
@@ -158,13 +160,27 @@ MOLTIS_RETRIEVAL__RERANKER__PROVIDER="local"
 MOLTIS_RETRIEVAL__RERANKER__MODEL="qwen3-reranker"
 MOLTIS_RETRIEVAL__RERANKER__TOP_K=30
 
-# FIXME Speech-to-Text endpoint (whisper-server on port 50090)
-# MOLTIS_VOICE__STT__LOCAL_STT__ENDPOINT="http://localhost:50090"
-# MOLTIS_VOICE__STT__LOCAL_STT__MODEL="whisper-1"
-# MOLTIS_VOICE__STT__LOCAL_STT__ENABLED="true"
-# MOLTIS_VOICE__STT__PROVIDER="local_stt"
-# MOLTIS_VOICE__STT__ENABLED="true"
+# Local Speech-to-Text endpoint (whisper-server on port 50090)
+MOLTIS_VOICE__STT__ENABLED="true"
+MOLTIS_VOICE__STT__PROVIDER="whisper_local"
+MOLTIS_VOICE__STT__WHISPER_LOCAL__ENABLED="true"
+MOLTIS_VOICE__STT__WHISPER_LOCAL__ENDPOINT="http://localhost:50090"
+MOLTIS_VOICE__STT__WHISPER_LOCAL__MODEL="whisper-1"
 
+# Local Text-to-Speech (TTS) endpoint (qwen3-tts on port 50095)
+MOLTIS_VOICE__TTS__ENABLED="true"
+MOLTIS_VOICE__TTS__PROVIDER="openai"
+MOLTIS_VOICE__TTS__OPENAI__ENABLED="true"
+MOLTIS_VOICE__TTS__OPENAI__BASE_URL="http://localhost:50095/v1"
+MOLTIS_VOICE__TTS__OPENAI__MODEL="qwen3-tts"
+MOLTIS_VOICE__TTS__OPENAI__VOICE="alloy"
+MOLTIS_VOICE__TTS__OPENAI__API_KEY="unused"
+
+# Signal channel configuration
+MOLTIS_CHANNELS__SIGNAL__PERSONAL__ENABLED="true"
+MOLTIS_CHANNELS__SIGNAL__PERSONAL__ACCOUNT="+1234567890"
+MOLTIS_CHANNELS__SIGNAL__PERSONAL__HTTP_URL="http://localhost:50889"
+MOLTIS_CHANNELS__SIGNAL__PERSONAL__DM_POLICY="open"
 EOF
         chmod 600 "$ENV_FILE"
         echo "Created default environment file at $ENV_FILE"
@@ -172,15 +188,19 @@ EOF
 
     write_service_file
 
-    echo "Reloading systemd and enabling service..."
-    systemctl --user enable "${SERVICE_NAME}.service"
+    if systemctl --user is-systemd-running &>/dev/null; then
+        echo "Reloading systemd and enabling service..."
+        systemctl --user enable "${SERVICE_NAME}.service"
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping service if running (--no-start specified)..."
-        systemctl --user stop "${SERVICE_NAME}.service" || true
+        if [ "$no_start" = "true" ]; then
+            echo "Stopping service if running (--no-start specified)..."
+            systemctl --user stop "${SERVICE_NAME}.service" || true
+        else
+            echo "Starting service automatically..."
+            systemctl --user start "${SERVICE_NAME}.service"
+        fi
     else
-        echo "Starting service automatically..."
-        systemctl --user start "${SERVICE_NAME}.service"
+        echo "Systemd is not running. Service file generated but not started/enabled."
     fi
 
     echo "---------------------------------------------------------------------------"
@@ -195,45 +215,77 @@ EOF
 
 cmd_uninstall() {
     echo "Uninstalling moltis systemd service..."
-    systemctl --user stop "${SERVICE_NAME}.service" || true
-    systemctl --user disable "${SERVICE_NAME}.service" || true
+    if systemctl --user is-systemd-running &>/dev/null; then
+        systemctl --user stop "${SERVICE_NAME}.service" || true
+        systemctl --user disable "${SERVICE_NAME}.service" || true
+    fi
 
     if [ -f "$SERVICE_FILE" ]; then
         rm "$SERVICE_FILE"
-        systemctl --user daemon-reload
+        if systemctl --user is-systemd-running &>/dev/null; then
+            systemctl --user daemon-reload
+        fi
         echo "Removed service file."
     fi
     echo "Uninstalled successfully. Data in $MOLTIS_HOME and configuration in $ENV_FILE are preserved."
 }
 
 cmd_start() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running. Use 'exec' to run the assistant directly." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user start "${SERVICE_NAME}.service"
 }
 
 cmd_stop() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user stop "${SERVICE_NAME}.service"
 }
 
 cmd_restart() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running. Use 'exec' to run the assistant directly." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user restart "${SERVICE_NAME}.service"
 }
 
 cmd_status() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user status "${SERVICE_NAME}.service"
 }
 
 cmd_enable() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user enable "${SERVICE_NAME}.service"
 }
 
 cmd_disable() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user disable "${SERVICE_NAME}.service"
 }
 
 cmd_logs() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running. Check direct execution console output instead." >&2
+        exit 1
+    fi
     journalctl --user -u "${SERVICE_NAME}.service" "$@"
 }
 
@@ -246,6 +298,23 @@ cmd_edit() {
 }
 
 cmd_exec() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Systemd is not running. Running moltis directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$MOLTIS_HOME"
+        export MOLTIS_PORT="${MOLTIS_PORT:-13131}"
+        mkdir -p "$MOLTIS_HOME"
+        cd "$MOLTIS_HOME" || exit 1
+        exec /usr/bin/moltis "$@"
+    fi
+
     echo "Starting moltis as a transient systemd service with args: $*"
 
     local opts=(
@@ -267,6 +336,23 @@ cmd_exec() {
 }
 
 cmd_shell() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Systemd is not running. Running shell directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$MOLTIS_HOME"
+        export MOLTIS_PORT="${MOLTIS_PORT:-13131}"
+        mkdir -p "$MOLTIS_HOME"
+        cd "$MOLTIS_HOME" || exit 1
+        exec "${SHELL:-/bin/bash}" "$@"
+    fi
+
     echo "Starting interactive shell in the moltis systemd environment..."
 
     local opts=(
@@ -292,6 +378,24 @@ cmd_run() {
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
+
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Running command inside the moltis environment: $*"
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$MOLTIS_HOME"
+        export MOLTIS_PORT="${MOLTIS_PORT:-13131}"
+        mkdir -p "$MOLTIS_HOME"
+        cd "$MOLTIS_HOME" || exit 1
+        exec "$@"
+    fi
+
     echo "Running command inside the moltis environment: $*"
 
     local opts=(

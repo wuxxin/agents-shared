@@ -96,7 +96,9 @@ SyslogIdentifier=zeroclaw
 WantedBy=default.target
 EOF
 
-    systemctl --user daemon-reload
+    if systemctl --user is-systemd-running &>/dev/null; then
+        systemctl --user daemon-reload
+    fi
 }
 
 cmd_install() {
@@ -137,27 +139,50 @@ ZEROCLAW_providers__models__openai__local__api_key="unused"
 ZEROCLAW_agents__default__max_context_tokens=80000
 
 # Embeddings endpoint (llama-server on port 50080)
+ZEROCLAW_memory__backend="sqlite-hybrid"
 ZEROCLAW_memory__embedding_provider="custom:http://localhost:50080/v1"
+ZEROCLAW_memory__embedding_model="qwen3-embedding"
 
-# FIXME Speech-to-Text endpoint (whisper-server on port 50090)
-# ZEROCLAW_providers__transcription__local_whisper__local_stt__uri="http://localhost:50090/v1/audio/transcriptions"
-# ZEROCLAW_providers__transcription__local_whisper__local_stt__bearer_token="dummy"
-# ZEROCLAW_providers__transcription__local_whisper__local_stt__model="whisper-1"
+# Local Text-to-Speech (TTS) configuration
+ZEROCLAW_tts__enabled="true"
+ZEROCLAW_providers__tts__openai__local__uri="http://localhost:50095/v1/audio/speech"
+ZEROCLAW_providers__tts__openai__local__model="qwen3-tts"
+ZEROCLAW_providers__tts__openai__local__api_key="unused"
+ZEROCLAW_agents__default__tts_provider="openai.local"
+
+# Local Speech-to-Text endpoint (whisper-server on port 50090)
+ZEROCLAW_transcription__enabled="true"
+ZEROCLAW_providers__transcription__local_whisper__default__uri="http://localhost:50090/v1/audio/transcriptions"
+ZEROCLAW_providers__transcription__local_whisper__default__bearer_token="dummy"
+ZEROCLAW_agents__default__transcription_provider="local-whisper.default"
+
+# Signal channel configuration
+ZEROCLAW_channels__signal__default__enabled="true"
+ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
+ZEROCLAW_channels__signal__default__account="+1234567890"
+ZEROCLAW_channels__signal__default__approval_timeout_secs=0
+ZEROCLAW_channels__signal__default__dm_only="true"
+ZEROCLAW_channels__signal__default__ignore_attachments="false"
+ZEROCLAW_channels__signal__default__ignore_stories="true"
 EOF
         chmod 600 "$ENV_FILE"
     fi
 
     write_service_file
 
-    echo "Reloading systemd and enabling service..."
-    systemctl --user enable zeroclaw.service
+    if systemctl --user is-systemd-running &>/dev/null; then
+        echo "Reloading systemd and enabling service..."
+        systemctl --user enable zeroclaw.service
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping service if running (--no-start specified)..."
-        systemctl --user stop zeroclaw.service || true
+        if [ "$no_start" = "true" ]; then
+            echo "Stopping service if running (--no-start specified)..."
+            systemctl --user stop zeroclaw.service || true
+        else
+            echo "Starting service automatically..."
+            systemctl --user start zeroclaw.service
+        fi
     else
-        echo "Starting service automatically..."
-        systemctl --user start zeroclaw.service
+        echo "Systemd is not running. Service file generated but not started/enabled."
     fi
 
     echo "Done! Type '$0 logs' to see the output."
@@ -165,45 +190,77 @@ EOF
 
 cmd_uninstall() {
     echo "Uninstalling zeroclaw systemd service..."
-    systemctl --user stop zeroclaw.service || true
-    systemctl --user disable zeroclaw.service || true
+    if systemctl --user is-systemd-running &>/dev/null; then
+        systemctl --user stop zeroclaw.service || true
+        systemctl --user disable zeroclaw.service || true
+    fi
 
     if [ -f "$SERVICE_FILE" ]; then
         rm "$SERVICE_FILE"
-        systemctl --user daemon-reload
+        if systemctl --user is-systemd-running &>/dev/null; then
+            systemctl --user daemon-reload
+        fi
         echo "Removed service file."
     fi
     echo "Uninstalled successfully. Data in $ZEROCLAW_HOME is preserved."
 }
 
 cmd_start() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running. Use 'exec' to run the assistant directly." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user start zeroclaw.service
 }
 
 cmd_stop() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user stop zeroclaw.service
 }
 
 cmd_restart() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running. Use 'exec' to run the assistant directly." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user restart zeroclaw.service
 }
 
 cmd_status() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user status zeroclaw.service
 }
 
 cmd_enable() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user enable zeroclaw.service
 }
 
 cmd_disable() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user disable zeroclaw.service
 }
 
 cmd_logs() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Error: Systemd is not running. Check direct execution console output instead." >&2
+        exit 1
+    fi
     journalctl --user -u zeroclaw.service "$@"
 }
 
@@ -216,6 +273,24 @@ cmd_edit() {
 }
 
 cmd_exec() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Systemd is not running. Running zeroclaw directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$ZEROCLAW_HOME"
+        export ZEROCLAW_PORT="${ZEROCLAW_PORT:-42617}"
+        export ZEROCLAW_HOST="${ZEROCLAW_HOST:-127.0.0.1}"
+        mkdir -p "$ZEROCLAW_HOME"
+        cd "$ZEROCLAW_HOME" || exit 1
+        exec /usr/bin/zeroclaw "$@"
+    fi
+
     echo "Starting zeroclaw as a transient systemd service with args: $*"
 
     local opts=(
@@ -237,6 +312,24 @@ cmd_exec() {
 }
 
 cmd_shell() {
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Systemd is not running. Running shell directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$ZEROCLAW_HOME"
+        export ZEROCLAW_PORT="${ZEROCLAW_PORT:-42617}"
+        export ZEROCLAW_HOST="${ZEROCLAW_HOST:-127.0.0.1}"
+        mkdir -p "$ZEROCLAW_HOME"
+        cd "$ZEROCLAW_HOME" || exit 1
+        exec "${SHELL:-/bin/bash}" "$@"
+    fi
+
     echo "Starting interactive shell as a transient systemd service..."
 
     local opts=(
@@ -262,6 +355,25 @@ cmd_run() {
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
+
+    if ! systemctl --user is-systemd-running &>/dev/null; then
+        echo "Running command inside the zeroclaw environment: $*"
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$ZEROCLAW_HOME"
+        export ZEROCLAW_PORT="${ZEROCLAW_PORT:-42617}"
+        export ZEROCLAW_HOST="${ZEROCLAW_HOST:-127.0.0.1}"
+        mkdir -p "$ZEROCLAW_HOME"
+        cd "$ZEROCLAW_HOME" || exit 1
+        exec "$@"
+    fi
+
     echo "Running command inside the zeroclaw environment: $*"
 
     local opts=(

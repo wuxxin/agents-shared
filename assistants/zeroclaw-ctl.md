@@ -9,6 +9,14 @@
 
 `zeroclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
 
+### Systemd-Free Fallback (Direct Execution)
+
+If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `zeroclaw-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
+- Environment variables are loaded directly from the generated `zeroclaw.env` file.
+- The isolated home directory (`~/.local/sandbox/zeroclaw`) is exported as `$HOME` and set as the working directory.
+- `install` and `uninstall` generate configuration/service files but bypass systemctl.
+- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
+
 ## Installation
 
 ```bash
@@ -39,7 +47,7 @@ Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model 
 
 ### Start Gateway
 
-**Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
+Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
 
 
 ## Configuration & Ports
@@ -47,7 +55,7 @@ Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model 
 - **Default Port**: `42617` (ZeroClaw Gateway)
 - **Port Customization Options**:
   If the default port (`42617`) needs to be modified, you can configure the new port using:
-  **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the gateway with the `zeroclaw gateway start --port $ZEROCLAW_PORT` command (since `--port` is a parameter on the `start` subcommand, not the base `gateway` command).
+  **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the daemon with the `zeroclaw daemon --host $ZEROCLAW_HOST --port $ZEROCLAW_PORT` command.
 
 
 ## OpenClaw Migration
@@ -133,7 +141,54 @@ url = "http://localhost:50090/v1/audio/transcriptions"
 bearer_token = "dummy"
 ```
 
-#
+## Text-to-Speech Integration
+
+ZeroClaw supports text-to-speech (TTS) synthesis through OpenAI-compatible endpoints.
+
+### Configuration
+
+Add the TTS provider configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
+
+```toml
+# 1. Enable TTS globally
+[tts]
+enabled = true
+
+# 2. Define the TTS provider
+[providers.tts.openai.local]
+uri = "http://localhost:50095/v1/audio/speech"
+model = "qwen3-tts"
+api_key = "unused"
+
+# 3. Reference this provider in your agent configuration
+[agents.default]
+tts_provider = "openai.local"
+```
+
+---
+
+## Finding Configuration Environment Variables
+
+ZeroClaw supports dynamic environment overrides for all configuration fields.
+
+### Environment Override Syntax
+Any dotted path in `config.toml` can be overridden by setting an environment variable following these rules:
+- **Prefix**: `ZEROCLAW_`
+- **Case**: The tail portion must be in **lowercase** (e.g. `ZEROCLAW_providers...` overrides the config tree, while uppercase tails like `ZEROCLAW_WORKSPACE` and `ZEROCLAW_CONFIG_DIR` are reserved for bootstrap exceptions).
+- **Separators**: Dotted separators (`.`) in the TOML path must be replaced with double underscores (`__`).
+- **Snake/Kebab conversion**: Single underscores (`_`) map to kebab-case dashes (`-`) for struct field properties (e.g., `api-key` is represented as `api_key`), or act as literal characters within dynamic provider/alias keys.
+- **Example**: Overriding `providers.models.openai.default.model` is done via:
+  ```bash
+  export ZEROCLAW_providers__models__openai__default__model="qwen3"
+  ```
+
+### Locating Configuration Properties in Source Code
+1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/zeroclaw/crates/zeroclaw-config/src/schema.rs) and inspect the `Config` struct (and its nested types) that derive `Configurable`.
+2. **CLI Schema Query**: Run `./assistants/zeroclaw-ctl exec config schema` to dump the complete JSON Schema of all properties.
+3. **CLI Active Config Listing**: Run `./assistants/zeroclaw-ctl exec config list` to print a list of all currently configured dotted properties.
+
+---
+
 ## Implementation & Security Considerations
 
 ### Centralized Sandbox Options
