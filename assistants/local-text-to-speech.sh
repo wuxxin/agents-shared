@@ -376,6 +376,8 @@ cmd_exec() {
 cmd_shell() {
     echo "Starting interactive shell in the qwen3-tts-server systemd environment..."
 
+    load_env
+
     local opts=(
         --user
         --pty

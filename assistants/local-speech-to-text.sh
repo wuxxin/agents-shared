@@ -322,6 +322,8 @@ cmd_exec() {
 cmd_shell() {
     echo "Starting interactive shell in the whisper-server systemd environment..."
 
+    load_env
+
     local opts=(
         --user
         --pty

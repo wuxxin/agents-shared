@@ -335,6 +335,8 @@ cmd_exec() {
 cmd_shell() {
     echo "Starting interactive shell in the llama-server systemd environment..."
 
+    load_env
+
     local opts=(
         --user
         --pty

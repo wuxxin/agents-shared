@@ -8,69 +8,69 @@ ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/zeroclaw.env"
 ZEROCLAW_HOME="$HOME/.local/sandbox/zeroclaw"
 
 get_shared_options() {
-	local mode="$1" # "service" or "transient"
-	local home_spec
-	if [ "$mode" = "service" ]; then
-		home_spec="%h"
-	else
-		home_spec="$HOME"
-	fi
+    local mode="$1" # "service" or "transient"
+    local home_spec
+    if [ "$mode" = "service" ]; then
+        home_spec="%h"
+    else
+        home_spec="$HOME"
+    fi
 
-	local AGENT_PRIVATE_MOUNTS=""
-	if [ -f "$ENV_FILE" ]; then
-		set +u
-		# shellcheck disable=SC1090
-		source "$ENV_FILE"
-		set -u
-	fi
+    local AGENT_PRIVATE_MOUNTS=""
+    if [ -f "$ENV_FILE" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set -u
+    fi
 
-	# Environment & Working Directory
-	echo "Environment=HOME=${home_spec}/.local/sandbox/zeroclaw"
-	echo "Environment=ZEROCLAW_PORT=${ZEROCLAW_PORT:-42617}"
-	echo "Environment=ZEROCLAW_HOST=${ZEROCLAW_HOST:-127.0.0.1}"
-	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/zeroclaw.env"
-	echo "WorkingDirectory=${home_spec}/.local/sandbox/zeroclaw"
+    # Environment & Working Directory
+    echo "Environment=HOME=${home_spec}/.local/sandbox/zeroclaw"
+    echo "Environment=ZEROCLAW_PORT=${ZEROCLAW_PORT:-42617}"
+    echo "Environment=ZEROCLAW_HOST=${ZEROCLAW_HOST:-127.0.0.1}"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/zeroclaw.env"
+    echo "WorkingDirectory=${home_spec}/.local/sandbox/zeroclaw"
 
-	# Security measures
-	echo "NoNewPrivileges=yes"
-	echo "CapabilityBoundingSet="
-	echo "AmbientCapabilities="
+    # Security measures
+    echo "NoNewPrivileges=yes"
+    echo "CapabilityBoundingSet="
+    echo "AmbientCapabilities="
 
-	# Filesystem hiding
-	echo "ProtectSystem=strict"
-	echo "TemporaryFileSystem=${home_spec}"
-	echo "BindPaths=${home_spec}/.local/sandbox/zeroclaw:${home_spec}/.local/sandbox/zeroclaw"
-	echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
+    # Filesystem hiding
+    echo "ProtectSystem=strict"
+    echo "TemporaryFileSystem=${home_spec}"
+    echo "BindPaths=${home_spec}/.local/sandbox/zeroclaw:${home_spec}/.local/sandbox/zeroclaw"
+    echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
 
-	for m in ${AGENT_PRIVATE_MOUNTS:-}; do
-		mkdir -p "$HOME/agent-private/$m"
-		echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
-	done
+    for m in ${AGENT_PRIVATE_MOUNTS:-}; do
+        mkdir -p "$HOME/agent-private/$m"
+        echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
+    done
 
-	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-	echo "PrivateTmp=yes"
-	echo "PrivateDevices=yes"
-	echo "PrivateMounts=yes"
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "PrivateTmp=yes"
+    echo "PrivateDevices=yes"
+    echo "PrivateMounts=yes"
 
-	# Kernel and IPC constraints
-	echo "ProtectKernelTunables=yes"
-	echo "ProtectKernelModules=yes"
-	echo "ProtectKernelLogs=yes"
-	echo "ProtectControlGroups=yes"
-	echo "ProtectClock=yes"
-	echo "ProtectHostname=yes"
-	echo "LockPersonality=yes"
-	echo "MemoryDenyWriteExecute=no"
-	echo "SystemCallArchitectures=native"
-	echo "PrivateIPC=yes"
-	echo "RestrictSUIDSGID=yes"
-	echo "RestrictRealtime=yes"
-	echo "KeyringMode=private"
-	echo "UMask=0077"
+    # Kernel and IPC constraints
+    echo "ProtectKernelTunables=yes"
+    echo "ProtectKernelModules=yes"
+    echo "ProtectKernelLogs=yes"
+    echo "ProtectControlGroups=yes"
+    echo "ProtectClock=yes"
+    echo "ProtectHostname=yes"
+    echo "LockPersonality=yes"
+    echo "MemoryDenyWriteExecute=no"
+    echo "SystemCallArchitectures=native"
+    echo "PrivateIPC=yes"
+    echo "RestrictSUIDSGID=yes"
+    echo "RestrictRealtime=yes"
+    echo "KeyringMode=private"
+    echo "UMask=0077"
 }
 
 write_service_file() {
-	cat >"$SERVICE_FILE" <<EOF
+    cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=ZeroClaw Agent OS Daemon
 Documentation=https://github.com/zeroclaw-labs/zeroclaw
@@ -96,28 +96,28 @@ SyslogIdentifier=zeroclaw
 WantedBy=default.target
 EOF
 
-	systemctl --user daemon-reload
+    systemctl --user daemon-reload
 }
 
 cmd_install() {
-	local no_start=false
-	local new_config=false
-	while [ $# -gt 0 ]; do
-		case "$1" in
-		--no-start) no_start=true ;;
-		--new-config) new_config=true ;;
-		esac
-		shift
-	done
+    local no_start=false
+    local new_config=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --no-start) no_start=true ;;
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
 
-	echo "Setting up zeroclaw home directory at $ZEROCLAW_HOME..."
-	mkdir -p "$ZEROCLAW_HOME"
+    echo "Setting up zeroclaw home directory at $ZEROCLAW_HOME..."
+    mkdir -p "$ZEROCLAW_HOME"
 
-	echo "Generating systemd user service..."
-	mkdir -p "$(dirname "$SERVICE_FILE")"
+    echo "Generating systemd user service..."
+    mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
-		cat >"$ENV_FILE" <<'EOF'
+    if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
+        cat >"$ENV_FILE" <<'EOF'
 # zeroclaw.env
 # ---------------------------------------------------------------------------
 # ZEROCLAW_PORT: Gateway port for ZeroClaw (default 42617)
@@ -139,170 +139,170 @@ ZEROCLAW_agents__default__max_context_tokens=80000
 # Embeddings endpoint (llama-server on port 50080)
 ZEROCLAW_memory__embedding_provider="custom:http://localhost:50080/v1"
 
-# Speech-to-Text endpoint (whisper-server on port 50090)
-ZEROCLAW_providers__transcription__local_whisper__local_stt__uri="http://localhost:50090/v1/audio/transcriptions"
-ZEROCLAW_providers__transcription__local_whisper__local_stt__bearer_token="dummy"
-ZEROCLAW_providers__transcription__local_whisper__local_stt__model="whisper-1"
+# FIXME Speech-to-Text endpoint (whisper-server on port 50090)
+# ZEROCLAW_providers__transcription__local_whisper__local_stt__uri="http://localhost:50090/v1/audio/transcriptions"
+# ZEROCLAW_providers__transcription__local_whisper__local_stt__bearer_token="dummy"
+# ZEROCLAW_providers__transcription__local_whisper__local_stt__model="whisper-1"
 EOF
-		chmod 600 "$ENV_FILE"
-	fi
+        chmod 600 "$ENV_FILE"
+    fi
 
-	write_service_file
+    write_service_file
 
-	echo "Reloading systemd and enabling service..."
-	systemctl --user enable zeroclaw.service
+    echo "Reloading systemd and enabling service..."
+    systemctl --user enable zeroclaw.service
 
-	if [ "$no_start" = "true" ]; then
-		echo "Stopping service if running (--no-start specified)..."
-		systemctl --user stop zeroclaw.service || true
-	else
-		echo "Starting service automatically..."
-		systemctl --user start zeroclaw.service
-	fi
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping service if running (--no-start specified)..."
+        systemctl --user stop zeroclaw.service || true
+    else
+        echo "Starting service automatically..."
+        systemctl --user start zeroclaw.service
+    fi
 
-	echo "Done! Type '$0 logs' to see the output."
+    echo "Done! Type '$0 logs' to see the output."
 }
 
 cmd_uninstall() {
-	echo "Uninstalling zeroclaw systemd service..."
-	systemctl --user stop zeroclaw.service || true
-	systemctl --user disable zeroclaw.service || true
+    echo "Uninstalling zeroclaw systemd service..."
+    systemctl --user stop zeroclaw.service || true
+    systemctl --user disable zeroclaw.service || true
 
-	if [ -f "$SERVICE_FILE" ]; then
-		rm "$SERVICE_FILE"
-		systemctl --user daemon-reload
-		echo "Removed service file."
-	fi
-	echo "Uninstalled successfully. Data in $ZEROCLAW_HOME is preserved."
+    if [ -f "$SERVICE_FILE" ]; then
+        rm "$SERVICE_FILE"
+        systemctl --user daemon-reload
+        echo "Removed service file."
+    fi
+    echo "Uninstalled successfully. Data in $ZEROCLAW_HOME is preserved."
 }
 
 cmd_start() {
-	write_service_file
-	systemctl --user start zeroclaw.service
+    write_service_file
+    systemctl --user start zeroclaw.service
 }
 
 cmd_stop() {
-	systemctl --user stop zeroclaw.service
+    systemctl --user stop zeroclaw.service
 }
 
 cmd_restart() {
-	write_service_file
-	systemctl --user restart zeroclaw.service
+    write_service_file
+    systemctl --user restart zeroclaw.service
 }
 
 cmd_status() {
-	systemctl --user status zeroclaw.service
+    systemctl --user status zeroclaw.service
 }
 
 cmd_enable() {
-	write_service_file
-	systemctl --user enable zeroclaw.service
+    write_service_file
+    systemctl --user enable zeroclaw.service
 }
 
 cmd_disable() {
-	systemctl --user disable zeroclaw.service
+    systemctl --user disable zeroclaw.service
 }
 
 cmd_logs() {
-	journalctl --user -u zeroclaw.service "$@"
+    journalctl --user -u zeroclaw.service "$@"
 }
 
 cmd_edit() {
-	mkdir -p "$(dirname "$ENV_FILE")"
-	touch "$ENV_FILE"
-	${EDITOR:-nano} "$ENV_FILE"
-	echo "Restarting service to apply updated environment..."
-	cmd_restart
+    mkdir -p "$(dirname "$ENV_FILE")"
+    touch "$ENV_FILE"
+    ${EDITOR:-nano} "$ENV_FILE"
+    echo "Restarting service to apply updated environment..."
+    cmd_restart
 }
 
 cmd_exec() {
-	echo "Starting zeroclaw as a transient systemd service with args: $*"
+    echo "Starting zeroclaw as a transient systemd service with args: $*"
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" /usr/bin/zeroclaw "$@"
+    systemd-run "${opts[@]}" /usr/bin/zeroclaw "$@"
 }
 
 cmd_shell() {
-	echo "Starting interactive shell as a transient systemd service..."
+    echo "Starting interactive shell as a transient systemd service..."
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_run() {
-	if [ $# -lt 1 ]; then
-		echo "Error: run requires a command to execute." >&2
-		exit 1
-	fi
-	echo "Running command inside the zeroclaw environment: $*"
+    if [ $# -lt 1 ]; then
+        echo "Error: run requires a command to execute." >&2
+        exit 1
+    fi
+    echo "Running command inside the zeroclaw environment: $*"
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" "$@"
+    systemd-run "${opts[@]}" "$@"
 }
 
 usage() {
-	echo "Usage: $0 <command>"
-	echo "Commands:"
-	echo "  install [--no-start] [--new-config] - Setup service and zeroclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
-	echo "  uninstall - Stop and remove systemd service"
-	echo "  start     - Start the systemd service"
-	echo "  stop      - Stop the systemd service"
-	echo "  restart   - Restart the systemd service"
-	echo "  status    - View systemd service status"
-	echo "  enable    - Enable systemd service on boot"
-	echo "  disable   - Disable systemd service on boot"
-	echo "  logs      - Tail the systemd service logs"
-	echo "  edit      - Edit the .env file and restart the service upon exit"
-	echo "  exec      - Run zeroclaw as a transient systemd user service with args"
-	echo "  run       - Run a command inside the zeroclaw systemd environment"
-	echo "  shell     - Spawn an interactive shell in the zeroclaw systemd environment"
+    echo "Usage: $0 <command>"
+    echo "Commands:"
+    echo "  install [--no-start] [--new-config] - Setup service and zeroclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
+    echo "  uninstall - Stop and remove systemd service"
+    echo "  start     - Start the systemd service"
+    echo "  stop      - Stop the systemd service"
+    echo "  restart   - Restart the systemd service"
+    echo "  status    - View systemd service status"
+    echo "  enable    - Enable systemd service on boot"
+    echo "  disable   - Disable systemd service on boot"
+    echo "  logs      - Tail the systemd service logs"
+    echo "  edit      - Edit the .env file and restart the service upon exit"
+    echo "  exec      - Run zeroclaw as a transient systemd user service with args"
+    echo "  run       - Run a command inside the zeroclaw systemd environment"
+    echo "  shell     - Spawn an interactive shell in the zeroclaw systemd environment"
 }
 
 if [ $# -lt 1 ]; then
-	usage
-	exit 1
+    usage
+    exit 1
 fi
 
 COMMAND="$1"
@@ -323,8 +323,8 @@ exec) cmd_exec "$@" ;;
 run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 *)
-	echo "Unknown command: $COMMAND"
-	usage
-	exit 1
-	;;
+    echo "Unknown command: $COMMAND"
+    usage
+    exit 1
+    ;;
 esac

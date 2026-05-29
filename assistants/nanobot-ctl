@@ -11,78 +11,78 @@ CONFIG_FILE="$NANOBOT_HOME/config.json"
 PACKAGE="nanobot-ai"
 
 require_uv() {
-	if ! command -v uv &>/dev/null; then
-		echo "Error: 'uv' is not installed or not in PATH."
-		exit 1
-	fi
+    if ! command -v uv &>/dev/null; then
+        echo "Error: 'uv' is not installed or not in PATH."
+        exit 1
+    fi
 }
 
 get_shared_options() {
-	local mode="$1" # "service" or "transient"
-	local home_spec
-	if [ "$mode" = "service" ]; then
-		home_spec="%h"
-	else
-		home_spec="$HOME"
-	fi
+    local mode="$1" # "service" or "transient"
+    local home_spec
+    if [ "$mode" = "service" ]; then
+        home_spec="%h"
+    else
+        home_spec="$HOME"
+    fi
 
-	local AGENT_PRIVATE_MOUNTS=""
-	if [ -f "$ENV_FILE" ]; then
-		set +u
-		# shellcheck disable=SC1090
-		source "$ENV_FILE"
-		set -u
-	fi
+    local AGENT_PRIVATE_MOUNTS=""
+    if [ -f "$ENV_FILE" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set -u
+    fi
 
-	# Environment & Working Directory
-	echo "Environment=HOME=${home_spec}/.local/sandbox/nanobot"
-	echo "Environment=NANOBOT_CONFIG=${home_spec}/.local/sandbox/nanobot/config.json"
-	echo "Environment=NANOBOT_PORT=8790"
-	echo "EnvironmentFile=-${home_spec}/.config/systemd/user/nanobot.env"
-	echo "WorkingDirectory=${home_spec}/.local/sandbox/nanobot"
+    # Environment & Working Directory
+    echo "Environment=HOME=${home_spec}/.local/sandbox/nanobot"
+    echo "Environment=NANOBOT_CONFIG=${home_spec}/.local/sandbox/nanobot/config.json"
+    echo "Environment=NANOBOT_PORT=8790"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/nanobot.env"
+    echo "WorkingDirectory=${home_spec}/.local/sandbox/nanobot"
 
-	# Security measures
-	echo "NoNewPrivileges=yes"
-	echo "CapabilityBoundingSet="
-	echo "AmbientCapabilities="
+    # Security measures
+    echo "NoNewPrivileges=yes"
+    echo "CapabilityBoundingSet="
+    echo "AmbientCapabilities="
 
-	# Filesystem isolation
-	echo "ProtectSystem=strict"
-	echo "TemporaryFileSystem=${home_spec}"
-	# Retain changes by bind mounting the explicit nanobot home directory
-	echo "BindPaths=${home_spec}/.local/sandbox/nanobot:${home_spec}/.local/sandbox/nanobot"
-	# Allow access to agent-shared as requested
-	echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
+    # Filesystem isolation
+    echo "ProtectSystem=strict"
+    echo "TemporaryFileSystem=${home_spec}"
+    # Retain changes by bind mounting the explicit nanobot home directory
+    echo "BindPaths=${home_spec}/.local/sandbox/nanobot:${home_spec}/.local/sandbox/nanobot"
+    # Allow access to agent-shared as requested
+    echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
 
-	for m in ${AGENT_PRIVATE_MOUNTS:-}; do
-		mkdir -p "$HOME/agent-private/$m"
-		echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
-	done
+    for m in ${AGENT_PRIVATE_MOUNTS:-}; do
+        mkdir -p "$HOME/agent-private/$m"
+        echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
+    done
 
-	echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-	echo "PrivateTmp=yes"
-	echo "PrivateDevices=yes"
-	echo "PrivateMounts=yes"
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "PrivateTmp=yes"
+    echo "PrivateDevices=yes"
+    echo "PrivateMounts=yes"
 
-	# Kernel and IPC constraints
-	echo "ProtectKernelTunables=yes"
-	echo "ProtectKernelModules=yes"
-	echo "ProtectKernelLogs=yes"
-	echo "ProtectControlGroups=yes"
-	echo "ProtectClock=yes"
-	echo "ProtectHostname=yes"
-	echo "LockPersonality=yes"
-	echo "MemoryDenyWriteExecute=no"
-	echo "SystemCallArchitectures=native"
-	echo "PrivateIPC=yes"
-	echo "RestrictSUIDSGID=yes"
-	echo "RestrictRealtime=yes"
-	echo "KeyringMode=private"
-	echo "UMask=0077"
+    # Kernel and IPC constraints
+    echo "ProtectKernelTunables=yes"
+    echo "ProtectKernelModules=yes"
+    echo "ProtectKernelLogs=yes"
+    echo "ProtectControlGroups=yes"
+    echo "ProtectClock=yes"
+    echo "ProtectHostname=yes"
+    echo "LockPersonality=yes"
+    echo "MemoryDenyWriteExecute=no"
+    echo "SystemCallArchitectures=native"
+    echo "PrivateIPC=yes"
+    echo "RestrictSUIDSGID=yes"
+    echo "RestrictRealtime=yes"
+    echo "KeyringMode=private"
+    echo "UMask=0077"
 }
 
 write_service_file() {
-	cat >"$SERVICE_FILE" <<EOF
+    cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=Nanobot Service
 After=network.target
@@ -106,35 +106,35 @@ SyslogIdentifier=nanobot
 WantedBy=default.target
 EOF
 
-	systemctl --user daemon-reload
+    systemctl --user daemon-reload
 }
 
 cmd_install() {
-	local no_start=false
-	local new_config=false
-	while [ $# -gt 0 ]; do
-		case "$1" in
-		--no-start) no_start=true ;;
-		--new-config) new_config=true ;;
-		esac
-		shift
-	done
+    local no_start=false
+    local new_config=false
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --no-start) no_start=true ;;
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
 
-	require_uv
-	echo "Installing nanobot and its virtual environment..."
+    require_uv
+    echo "Installing nanobot and its virtual environment..."
 
-	mkdir -p "$(dirname "$VENV_DIR")"
-	uv venv --clear --python /usr/bin/python3 "$VENV_DIR"
+    mkdir -p "$(dirname "$VENV_DIR")"
+    uv venv --clear --python /usr/bin/python3 "$VENV_DIR"
 
-	echo "Installing package into virtual environment..."
-	uv pip install --python "$VENV_DIR" "$PACKAGE"
+    echo "Installing package into virtual environment..."
+    uv pip install --python "$VENV_DIR" "$PACKAGE"
 
-	if [ ! -d "$NANOBOT_HOME" ]; then
-		mkdir -p "$NANOBOT_HOME"
-		echo "Created $NANOBOT_HOME"
-	fi
-	if [ ! -f "$CONFIG_FILE" ] || [ "$new_config" = "true" ]; then
-		cat >"$CONFIG_FILE" <<'EOF'
+    if [ ! -d "$NANOBOT_HOME" ]; then
+        mkdir -p "$NANOBOT_HOME"
+        echo "Created $NANOBOT_HOME"
+    fi
+    if [ ! -f "$CONFIG_FILE" ] || [ "$new_config" = "true" ]; then
+        cat >"$CONFIG_FILE" <<'EOF'
 {
   "providers": {
     "openai_compatible": {
@@ -178,14 +178,14 @@ cmd_install() {
   }
 }
 EOF
-		echo "Created default config at $CONFIG_FILE"
-	fi
+        echo "Created default config at $CONFIG_FILE"
+    fi
 
-	echo "Generating systemd user service..."
-	mkdir -p "$(dirname "$SERVICE_FILE")"
+    echo "Generating systemd user service..."
+    mkdir -p "$(dirname "$SERVICE_FILE")"
 
-	if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
-		cat >"$ENV_FILE" <<'EOF'
+    if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
+        cat >"$ENV_FILE" <<'EOF'
 # Nanobot Environment Configuration
 # ---------------------------------------------------------------------------
 # NANOBOT_PORT: Gateway port for Nanobot (default 8790)
@@ -200,215 +200,215 @@ EOF
 OPENAI_TRANSCRIPTION_BASE_URL="http://localhost:50090/v1/audio/transcriptions"
 OPENAI_API_KEY="dummy"
 EOF
-		chmod 600 "$ENV_FILE"
-		echo "Created default environment file at $ENV_FILE"
-	fi
+        chmod 600 "$ENV_FILE"
+        echo "Created default environment file at $ENV_FILE"
+    fi
 
-	write_service_file
+    write_service_file
 
-	echo "Reloading systemd and enabling service..."
-	systemctl --user enable nanobot.service
+    echo "Reloading systemd and enabling service..."
+    systemctl --user enable nanobot.service
 
-	if [ "$no_start" = "true" ]; then
-		echo "Stopping service if running (--no-start specified)..."
-		systemctl --user stop nanobot.service || true
-	elif [ "$(wc -c <"$CONFIG_FILE")" -le 5 ]; then
-		echo ""
-		echo "Configuration appears to be uninitialized!"
-		echo "Please initialize the system by running:"
-		echo "  $0 exec onboard --wizard"
-		echo "Once finished, start the service manually using:"
-		echo "  $0 start"
-	else
-		echo "Starting service automatically..."
-		systemctl --user start nanobot.service
-	fi
+    if [ "$no_start" = "true" ]; then
+        echo "Stopping service if running (--no-start specified)..."
+        systemctl --user stop nanobot.service || true
+    elif [ "$(wc -c <"$CONFIG_FILE")" -le 5 ]; then
+        echo ""
+        echo "Configuration appears to be uninitialized!"
+        echo "Please initialize the system by running:"
+        echo "  $0 exec onboard --wizard"
+        echo "Once finished, start the service manually using:"
+        echo "  $0 start"
+    else
+        echo "Starting service automatically..."
+        systemctl --user start nanobot.service
+    fi
 
-	echo "Done! Type '$0 logs' to see the output."
+    echo "Done! Type '$0 logs' to see the output."
 }
 
 cmd_uninstall() {
-	echo "Uninstalling nanobot..."
-	systemctl --user stop nanobot.service || true
-	systemctl --user disable nanobot.service || true
+    echo "Uninstalling nanobot..."
+    systemctl --user stop nanobot.service || true
+    systemctl --user disable nanobot.service || true
 
-	if [ -f "$SERVICE_FILE" ]; then
-		rm "$SERVICE_FILE"
-		systemctl --user daemon-reload
-		echo "Removed service file."
-	fi
+    if [ -f "$SERVICE_FILE" ]; then
+        rm "$SERVICE_FILE"
+        systemctl --user daemon-reload
+        echo "Removed service file."
+    fi
 
-	if [ -d "$VENV_DIR" ]; then
-		rm -rf "$VENV_DIR"
-		echo "Removed virtual environment."
-	fi
-	echo "Uninstalled successfully."
+    if [ -d "$VENV_DIR" ]; then
+        rm -rf "$VENV_DIR"
+        echo "Removed virtual environment."
+    fi
+    echo "Uninstalled successfully."
 }
 
 cmd_start() {
-	write_service_file
-	systemctl --user start nanobot.service
+    write_service_file
+    systemctl --user start nanobot.service
 }
 
 cmd_stop() {
-	systemctl --user stop nanobot.service
+    systemctl --user stop nanobot.service
 }
 
 cmd_restart() {
-	write_service_file
-	systemctl --user restart nanobot.service
+    write_service_file
+    systemctl --user restart nanobot.service
 }
 
 cmd_status() {
-	systemctl --user status nanobot.service
+    systemctl --user status nanobot.service
 }
 
 cmd_enable() {
-	write_service_file
-	systemctl --user enable nanobot.service
+    write_service_file
+    systemctl --user enable nanobot.service
 }
 
 cmd_disable() {
-	systemctl --user disable nanobot.service
+    systemctl --user disable nanobot.service
 }
 
 cmd_logs() {
-	journalctl --user -u nanobot.service "$@"
+    journalctl --user -u nanobot.service "$@"
 }
 
 cmd_config() {
-	if [ ! -f "$CONFIG_FILE" ]; then
-		mkdir -p "$(dirname "$CONFIG_FILE")"
-		echo "{}" >"$CONFIG_FILE"
-		echo "Created empty config at $CONFIG_FILE"
-	fi
-	${EDITOR:-nano} "$CONFIG_FILE"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        mkdir -p "$(dirname "$CONFIG_FILE")"
+        echo "{}" >"$CONFIG_FILE"
+        echo "Created empty config at $CONFIG_FILE"
+    fi
+    ${EDITOR:-nano} "$CONFIG_FILE"
 }
 
 cmd_edit() {
-	mkdir -p "$(dirname "$ENV_FILE")"
-	touch "$ENV_FILE"
-	${EDITOR:-nano} "$ENV_FILE"
-	echo "Restarting service to apply updated environment..."
-	cmd_restart
+    mkdir -p "$(dirname "$ENV_FILE")"
+    touch "$ENV_FILE"
+    ${EDITOR:-nano} "$ENV_FILE"
+    echo "Restarting service to apply updated environment..."
+    cmd_restart
 }
 
 cmd_shell() {
-	if [ ! -d "$VENV_DIR" ]; then
-		echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
-		exit 1
-	fi
-	echo "Starting interactive shell in the nanobot systemd environment..."
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
+        exit 1
+    fi
+    echo "Starting interactive shell in the nanobot systemd environment..."
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_exec() {
-	if [ ! -d "$VENV_DIR" ]; then
-		echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
-		exit 1
-	fi
-	echo "Starting nanobot as a transient systemd service with args: $*"
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
+        exit 1
+    fi
+    echo "Starting nanobot as a transient systemd service with args: $*"
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	# Use the full path to the binary in the VENV
-	systemd-run "${opts[@]}" "$VENV_DIR/bin/nanobot" "$@"
+    # Use the full path to the binary in the VENV
+    systemd-run "${opts[@]}" "$VENV_DIR/bin/nanobot" "$@"
 }
 
 cmd_run() {
-	if [ ! -d "$VENV_DIR" ]; then
-		echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
-		exit 1
-	fi
-	if [ $# -lt 1 ]; then
-		echo "Error: run requires a command to execute." >&2
-		exit 1
-	fi
-	echo "Running command inside the nanobot environment: $*"
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
+        exit 1
+    fi
+    if [ $# -lt 1 ]; then
+        echo "Error: run requires a command to execute." >&2
+        exit 1
+    fi
+    echo "Running command inside the nanobot environment: $*"
 
-	local opts=(
-		--user
-		--pty
-		--wait
-		--collect
-		--quiet
-		-p "Type=exec"
-	)
+    local opts=(
+        --user
+        --pty
+        --wait
+        --collect
+        --quiet
+        -p "Type=exec"
+    )
 
-	while IFS= read -r opt; do
-		if [ -n "$opt" ]; then
-			opts+=(-p "$opt")
-		fi
-	done < <(get_shared_options transient)
+    while IFS= read -r opt; do
+        if [ -n "$opt" ]; then
+            opts+=(-p "$opt")
+        fi
+    done < <(get_shared_options transient)
 
-	systemd-run "${opts[@]}" "$@"
+    systemd-run "${opts[@]}" "$@"
 }
 
 cmd_update() {
-	require_uv
-	if [ ! -d "$VENV_DIR" ]; then
-		echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
-		exit 1
-	fi
-	echo "Updating nanobot..."
-	uv pip install --upgrade --python "$VENV_DIR" "$PACKAGE"
-	echo "Restarting service..."
-	cmd_restart
-	echo "Updated."
+    require_uv
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Virtual environment not found. Please run 'nanobot-ctl install' first."
+        exit 1
+    fi
+    echo "Updating nanobot..."
+    uv pip install --upgrade --python "$VENV_DIR" "$PACKAGE"
+    echo "Restarting service..."
+    cmd_restart
+    echo "Updated."
 }
 
 usage() {
-	echo "Usage: $0 <command>"
-	echo "Commands:"
-	echo "  install [--no-start] [--new-config] - Create virtual environment with uv, install nanobot, setup and start systemd service (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
-	echo "  uninstall - Stop service, remove systemd service and virtual environment"
-	echo "  start     - Start the systemd service"
-	echo "  stop      - Stop the systemd service"
-	echo "  restart   - Restart the systemd service"
-	echo "  status    - View systemd service status"
-	echo "  enable    - Enable systemd service on boot"
-	echo "  disable   - Disable systemd service on boot"
-	echo "  logs      - Tail the systemd service logs"
-	echo "  config    - Open nanobot config file in \$EDITOR"
-	echo "  edit      - Edit the .env file and restart the service upon exit"
-	echo "  update    - Upgrade the nanobot package via uv and restart the service"
-	echo "  exec      - Run nanobot as a transient systemd user service with args"
-	echo "  run       - Run a command inside the nanobot systemd environment"
-	echo "  shell     - Spawn an interactive shell in the nanobot systemd environment"
+    echo "Usage: $0 <command>"
+    echo "Commands:"
+    echo "  install [--no-start] [--new-config] - Create virtual environment with uv, install nanobot, setup and start systemd service (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
+    echo "  uninstall - Stop service, remove systemd service and virtual environment"
+    echo "  start     - Start the systemd service"
+    echo "  stop      - Stop the systemd service"
+    echo "  restart   - Restart the systemd service"
+    echo "  status    - View systemd service status"
+    echo "  enable    - Enable systemd service on boot"
+    echo "  disable   - Disable systemd service on boot"
+    echo "  logs      - Tail the systemd service logs"
+    echo "  config    - Open nanobot config file in \$EDITOR"
+    echo "  edit      - Edit the .env file and restart the service upon exit"
+    echo "  update    - Upgrade the nanobot package via uv and restart the service"
+    echo "  exec      - Run nanobot as a transient systemd user service with args"
+    echo "  run       - Run a command inside the nanobot systemd environment"
+    echo "  shell     - Spawn an interactive shell in the nanobot systemd environment"
 }
 
 if [ $# -lt 1 ]; then
-	usage
-	exit 1
+    usage
+    exit 1
 fi
 
 COMMAND="$1"
@@ -431,8 +431,8 @@ exec) cmd_exec "$@" ;;
 run) cmd_run "$@" ;;
 shell) cmd_shell "$@" ;;
 *)
-	echo "Unknown command: $COMMAND"
-	usage
-	exit 1
-	;;
+    echo "Unknown command: $COMMAND"
+    usage
+    exit 1
+    ;;
 esac
