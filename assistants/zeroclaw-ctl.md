@@ -12,10 +12,14 @@
 ## Installation
 
 ```bash
-./assistants/zeroclaw-ctl install --no-start
+./assistants/zeroclaw-ctl install --no-start [--new-config]
 ```
 
-to initialize `~/.local/sandbox/zeroclaw` and register the systemd user service but do not start it.
+to set up the ZeroClaw home directory (`~/.local/sandbox/zeroclaw`), register the systemd user service, and generate default configuration files pre-configured for local inference services.
+
+The `--new-config` flag generates (or overwrites) both:
+- `~/.config/systemd/user/zeroclaw.env` — bootstrap environment variables (port, host, sandbox mounts)
+- `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` — application configuration with local chat (Qwen3), memory (sqlite-hybrid), STT, TTS, and Signal channel settings
 
 ### Interactive Onboarding
 

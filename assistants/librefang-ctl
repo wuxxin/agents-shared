@@ -7,6 +7,10 @@ SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/librefang.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/librefang.env"
 LIBREFANG_HOME="$HOME/.local/sandbox/librefang"
 
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -97,7 +101,7 @@ SyslogIdentifier=librefang
 WantedBy=default.target
 EOF
 
-    if systemctl --user is-systemd-running &>/dev/null; then
+    if is_systemd_running; then
         systemctl --user daemon-reload
     fi
 }
@@ -211,7 +215,7 @@ EOF
 
     write_service_file
 
-    if systemctl --user is-systemd-running &>/dev/null; then
+    if is_systemd_running; then
         echo "Reloading systemd and enabling service..."
         systemctl --user enable librefang.service
 
@@ -231,14 +235,14 @@ EOF
 
 cmd_uninstall() {
     echo "Uninstalling librefang systemd service..."
-    if systemctl --user is-systemd-running &>/dev/null; then
+    if is_systemd_running; then
         systemctl --user stop librefang.service || true
         systemctl --user disable librefang.service || true
     fi
 
     if [ -f "$SERVICE_FILE" ]; then
         rm "$SERVICE_FILE"
-        if systemctl --user is-systemd-running &>/dev/null; then
+        if is_systemd_running; then
             systemctl --user daemon-reload
         fi
         echo "Removed service file."
@@ -247,7 +251,7 @@ cmd_uninstall() {
 }
 
 cmd_start() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running. Use 'exec' to run the assistant directly." >&2
         exit 1
     fi
@@ -256,7 +260,7 @@ cmd_start() {
 }
 
 cmd_stop() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
@@ -264,7 +268,7 @@ cmd_stop() {
 }
 
 cmd_restart() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running. Use 'exec' to run the assistant directly." >&2
         exit 1
     fi
@@ -273,7 +277,7 @@ cmd_restart() {
 }
 
 cmd_status() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
@@ -281,7 +285,7 @@ cmd_status() {
 }
 
 cmd_enable() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
@@ -290,7 +294,7 @@ cmd_enable() {
 }
 
 cmd_disable() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
@@ -298,7 +302,7 @@ cmd_disable() {
 }
 
 cmd_logs() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Error: Systemd is not running. Check direct execution console output instead." >&2
         exit 1
     fi
@@ -314,7 +318,7 @@ cmd_edit() {
 }
 
 cmd_exec() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Systemd is not running. Running librefang directly..."
         if [ -f "$ENV_FILE" ]; then
             set +u
@@ -351,7 +355,7 @@ cmd_exec() {
 }
 
 cmd_shell() {
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Systemd is not running. Running shell directly..."
         if [ -f "$ENV_FILE" ]; then
             set +u
@@ -393,7 +397,7 @@ cmd_run() {
         exit 1
     fi
 
-    if ! systemctl --user is-systemd-running &>/dev/null; then
+    if ! is_systemd_running; then
         echo "Running command inside the librefang environment: $*"
         if [ -f "$ENV_FILE" ]; then
             set +u
