@@ -3,7 +3,7 @@
 `librefang-ctl` manages the LibreFang Agent OS daemon, providing a hardened execution environment for agentic workloads. LibreFang is the community-governed successor to OpenFang.
 
 - **Source Code**: [GitHub - librefang/librefang](https://github.com/librefang/librefang)
-- **Arch/AUR Packages**: `librefang-cli` (provides the client and server binary `/usr/bin/librefang`), `librefang-git` (latest git-based server package).
+- **Arch/AUR Packages**: `librefang` (provides the client and server binary `/usr/bin/librefang`), `librefang-git` (latest git-based server package).
 
 ## Commands
 

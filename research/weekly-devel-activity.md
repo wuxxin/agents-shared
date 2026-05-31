@@ -10,7 +10,7 @@ Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 280 | 54 | `main` | 2026-05-31 | **150** | 0 | 2 | 211.5 | `v2026.5.30-beta.15`, `v2026.5.28-beta.14` | `librefang-cli-git` @ `2026.5.28beta.14.r38.g85dc15e07-1` | 49 | **Highly Active** |
+| **librefang** | 280 | 54 | `main` | 2026-05-31 | **150** | 0 | 2 | 211.5 | `v2026.5.30-beta.15`, `v2026.5.28-beta.14` | `librefang-git` @ `2026.5.28beta.14.r38.g85dc15e07-1` | 49 | **Highly Active** |
 | **moltis** | 2,714 | 320 | `main` | 2026-05-29 | **42** | 0 | 5 | 55.5 | `20260529.02`, `20260529.01` | `moltis-git` @ `20260526.03.r6.g7b266a642-1` | 6 | **Highly Active** |
 | **zeroclaw** | 31,655 | 4,663 | `master` | 2026-05-31 | **78** | 0 | 0 | 71.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ `0.8.0.beta.1.r85.gf6015ab4b-1` | 28 | **Highly Active** |
 | **ironclaw** | 12,376 | 1,446 | `main` | 2026-05-28 | **8** | 0 | 1 | 21.8 | `ironclaw-v0.29.0` (2026-05-26) | `ironclaw-git` @ `ironclaw.v0.29.0.r2.g0a6c212-1` | 3 | **Active** |
@@ -22,7 +22,7 @@ Other Projects:
 | **hermes-agent** | 174,143 | 29,525 | `main` | 2026-05-31 | **752** | 19 | 2 | 774.2 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
 | **nanobot** | 43,419 | 7,669 | `main` | 2026-05-31 | **65** | 0 | 0 | 102.5 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
 | **nanoclaw** | 29,551 | 12,889 | `main` | 2026-05-28 | **4** | 2 | 0 | 57.7 | `v2.0.71` (2026-05-28), `v2.0.70` (2026-05-25) | `nanoclaw-git` @ `r1690.3601a8a1f-1` | 0 | **Active** |
-| **picoclaw** | 29,230 | 4,194 | `main` | 2026-05-31 | **14** | 12 | 0 | 36.2 | `v0.2.9` (2026-05-22) | `picoclaw` @ `0.2.9.nightly.20260529.85751492-1` | 17 | **Active** |
+| **picoclaw** | 29,230 | 4,194 | `main` | 2026-05-31 | **14** | 12 | 0 | 36.2 | `v0.2.9` (2026-05-22) | `picoclaw-git` @ `0.2.9.nightly.20260529.85751492-1` | 17 | **Active** |
 
 ---
 
@@ -74,21 +74,21 @@ Here is the list of active upstream GitHub repositories and their corresponding 
 
 | Assistant | GitHub Repo | System Package | Pkg Type |
 | :--- | :--- | :--- | :--- |
-| **LibreFang** | `librefang/librefang` | `librefang-cli-git` | AUR `-git` |
+| **LibreFang** | `librefang/librefang` | `librefang-git` | AUR `-git` |
 | **Moltis** | `moltis-org/moltis` | `moltis-git` | AUR `-git` |
 | **ZeroClaw** | `zeroclaw-labs/zeroclaw` | `zeroclaw-git` | AUR `-git` |
 | **IronClaw** | `nearai/ironclaw` | `ironclaw-git` | AUR `-git` |
 | **Hermes Agent** | `NousResearch/hermes-agent` | — | not installed |
 | **NanoBot** | `HKUDS/nanobot` | — | not installed |
 | **NanoClaw** | `nanocoai/nanoclaw` | `nanoclaw-git` | AUR `-git` |
-| **PicoClaw** | `sipeed/picoclaw` | `picoclaw` | AUR release |
+| **PicoClaw** | `sipeed/picoclaw` | `picoclaw-git` | AUR `-git` |
 
 ### Step 2: Gather local installed Package Versions
 For each assistant check if installed as a system package and record the version. On Arch Linux, use `pacman -Q`:
 
 ```bash
 # Probe all known package names and print installed versions
-for pkg in librefang-cli-git moltis-git zeroclaw-git ironclaw-git nanoclaw-git picoclaw; do
+for pkg in librefang-git moltis-git zeroclaw-git ironclaw-git nanoclaw-git picoclaw-git; do
   ver=$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}')
   if [ -n "$ver" ]; then
     echo "$pkg: $ver"
@@ -139,7 +139,7 @@ if [ -n "$pkg_ver" ]; then
   if [ -z "$installed_ref" ]; then
     installed_ref=$(echo "$pkg_ver" | grep -oP 'r[0-9]+\.\K[0-9a-f]+')
   fi
-  # Fallback: format <tag>.nightly.<date>.<hash> (release/nightly packages like picoclaw)
+  # Fallback: format <tag>.nightly.<date>.<hash> (release/nightly packages)
   if [ -z "$installed_ref" ]; then
     installed_ref=$(echo "$pkg_ver" | grep -oP 'nightly\.[0-9]+\.\K[0-9a-f]+')
   fi
@@ -180,14 +180,14 @@ To gather all required metrics for all repositories at once, run the following s
 ```bash
 # Map: directory_name -> pacman package name (empty = not installed)
 declare -A PKG_MAP=(
-  [librefang]=librefang-cli-git
+  [librefang]=librefang-git
   [moltis]=moltis-git
   [zeroclaw]=zeroclaw-git
   [ironclaw]=ironclaw-git
   [hermes-agent]=""
   [nanobot]=""
   [nanoclaw]=nanoclaw-git
-  [picoclaw]=picoclaw
+  [picoclaw]=picoclaw-git
 )
 
 for d in librefang moltis zeroclaw ironclaw hermes-agent nanobot nanoclaw picoclaw; do
@@ -224,7 +224,7 @@ for d in librefang moltis zeroclaw ironclaw hermes-agent nanobot nanoclaw picocl
       if [ -z "$installed_ref" ]; then
         installed_ref=$(echo "$pkg_ver" | grep -oP 'r[0-9]+\.\K[0-9a-f]+')
       fi
-      # Fallback: format <tag>.nightly.<date>.<hash> (release/nightly packages like picoclaw)
+      # Fallback: format <tag>.nightly.<date>.<hash> (release/nightly packages)
       if [ -z "$installed_ref" ]; then
         installed_ref=$(echo "$pkg_ver" | grep -oP 'nightly\.[0-9]+\.\K[0-9a-f]+')
       fi
