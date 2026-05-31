@@ -4,57 +4,62 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-## 📊 Summary of Weekly Activity (May 23, 2026 – May 29, 2026)
+## 📊 Summary of Weekly Activity (May 25, 2026 – May 31, 2026)
 
 Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 278 | 54 | `main` | 2026-05-29 | **199** | 0 | 2 | 250.7 | `v2026.5.28-beta.14`, `v2026.5.25-beta.13` | `librefang-cli-git` @ `2026.5.28beta.14.r38.g85dc15e07-1` | 9 | **Highly Active** |
-| **moltis** | 2,710 | 318 | `main` | 2026-05-28 | **53** | 0 | 5 | 67.0 | `20260526.03`, `20260526.02` | `moltis-git` @ `20260526.03.r6.g7b266a642-1` | 4 | **Highly Active** |
-| **zeroclaw** | 31,627 | 4,660 | `master` | 2026-05-28 | **81** | 0 | 0 | 66.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ `0.8.0.beta.1.r85.gf6015ab4b-1` | 0 | **Highly Active** |
+| **librefang** | 280 | 54 | `main` | 2026-05-31 | **150** | 0 | 2 | 211.5 | `v2026.5.30-beta.15`, `v2026.5.28-beta.14` | `librefang-cli-git` @ `2026.5.28beta.14.r38.g85dc15e07-1` | 49 | **Highly Active** |
+| **moltis** | 2,714 | 320 | `main` | 2026-05-29 | **42** | 0 | 5 | 55.5 | `20260529.02`, `20260529.01` | `moltis-git` @ `20260526.03.r6.g7b266a642-1` | 6 | **Highly Active** |
+| **zeroclaw** | 31,655 | 4,663 | `master` | 2026-05-31 | **78** | 0 | 0 | 71.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ `0.8.0.beta.1.r85.gf6015ab4b-1` | 28 | **Highly Active** |
+| **ironclaw** | 12,376 | 1,446 | `main` | 2026-05-28 | **8** | 0 | 1 | 21.8 | `ironclaw-v0.29.0` (2026-05-26) | `ironclaw-git` @ `ironclaw.v0.29.0.r2.g0a6c212-1` | 3 | **Active** |
 
 Other Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **hermes-agent** | 172,238 | 28,936 | `main` | 2026-05-29 | **690** | 16 | 2 | 734.5 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
-| **nanobot** | 43,353 | 7,650 | `main` | 2026-05-29 | **64** | 4 | 0 | 105.2 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
-| **nanoclaw** | 29,522 | 12,883 | `main` | 2026-05-28 | **20** | 21 | 0 | 65.5 | `v2.0.70` (2026-05-25) | `nanoclaw-git` @ `r1690.3601a8a1f-1` | 0 | **Highly Active** |
-| **picoclaw** | 29,212 | 4,186 | `main` | 2026-05-29 | **15** | 13 | 0 | 33.7 | `v0.2.9` (2026-05-22) | `picoclaw` @ `0.2.9.nightly.20260529.85751492-1` | 6 | **Highly Active** |
+| **hermes-agent** | 174,143 | 29,525 | `main` | 2026-05-31 | **752** | 19 | 2 | 774.2 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
+| **nanobot** | 43,419 | 7,669 | `main` | 2026-05-31 | **65** | 0 | 0 | 102.5 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
+| **nanoclaw** | 29,551 | 12,889 | `main` | 2026-05-28 | **4** | 2 | 0 | 57.7 | `v2.0.71` (2026-05-28), `v2.0.70` (2026-05-25) | `nanoclaw-git` @ `r1690.3601a8a1f-1` | 0 | **Active** |
+| **picoclaw** | 29,230 | 4,194 | `main` | 2026-05-31 | **14** | 12 | 0 | 36.2 | `v0.2.9` (2026-05-22) | `picoclaw` @ `0.2.9.nightly.20260529.85751492-1` | 17 | **Active** |
 
 ---
 
 ## 🔍 Repository Breakdown
 
 ### LibreFang (`librefang/librefang`)
-* **Status**: Highly Active (199 commits, 2 releases in the last week).
+* **Status**: Highly Active (150 commits, 2 releases in the last week). **49 commits since installed v2026.5.28-beta.14 (r38.g85dc15e07).**
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
-* **Recent Focus**: Unified the three out-of-process sidecar bridges onto a shared transport crate (`engine = "sidecar"`); completed a comprehensive security audit sweep of the memory subsystem fixing 5 critical and 7 high vulnerabilities (split-brain, RBAC, decay, prompt budget, async consolidation); added a Tools tab with grouped views and source attribution to the dashboard UI; added search filtering to the FangHub skills grid; implemented a Kanban task board page in the dashboard; tightened runtime tool runners (filesystem protection via backslash rejection, canonicalization, and TOCTOU fixes, and Canvas security via XSS escapes and data URI blocking); and routed `auto_evolve` creations through the `skill_workshop` pending queue.
+* **Recent Focus**: Hardened the image runner with extension whitelisting, 50MB file size limits, and format-specific magic bytes checks; resolved seccomp limitations on `aarch64` by targeting `getpgrp` checks strictly to `x86_64`; added interactive features to the dashboard including inline skill assignments and config-driven "Save" button triggers; ported channel command policies and message coalescing to sidecar endpoints; packaged and shipped the `librefang-sidecar-telegram` binary; fixed a permission bug where empty `mcp_servers` configurations incorrectly allowed all tools instead of none; and addressed upstream library vulnerabilities by upgrading to `russh 0.61.1`.
 
 ### Moltis (`moltis-org/moltis`)
-* **Status**: Highly Active (53 commits, 5 releases in the last week).
-* **Recent Focus**: Enforced release gates and isolated `qmd` installs in CI pipelines; stripped user names for the MiniMax provider; preserved host execution targets in cron jobs; supported message forks in the Web UI by including clicked responses; logged silent voice message drops in the Discord channel adapter; and prepared releases up to `20260526.03`.
+* **Status**: Highly Active (42 commits, 5 releases in the last week). **6 commits since installed 20260526.03.r6.g7b266a642.**
+* **Recent Focus**: Hardened request metadata schemas for OpenAI-compatible LLM providers; propagated bundled skill test errors to improve diagnostics and supported individual skill disables; stabilized command palette UI focus and navigation; logged silent voice message drops for the Discord channel; and consolidated provider release gates in CI pipelines.
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (81 commits, 0 releases in the last week).
-* **Recent Focus**: Added Codex subscription authorization check for the OpenAI provider during onboarding; reconciled channel documentation against schemas and fixed stale CLI references; preserved `reasoning_content` in native tool requests; used platform-agnostic paths in configuration policy tests; replaced flaky wall-clock assertions in tests with deterministic overlap checks; generalized the `#[secret]` attribute via `SecretField` trait; and declared a minimum browser floor with an unsupported-browser fallback banner in the Web UI.
+* **Status**: Highly Active (78 commits, 0 releases in the last week). **28 commits since installed v0.8.0-beta-1 (r85.gf6015ab4b).**
+* **Recent Focus**: Added scoped tool elevation for built-in and MCP tools; added `file_upload_bundle` and `file_download` tools for efficient workspace asset management; wired Telegram voice transcription provider alias controls; added configurable TTS audio format parameters for OpenAI; and wired shared CanvasStore components into websocket chat channels to maintain consistent agent state.
+
+### IronClaw (`nearai/ironclaw`)
+* **Status**: Active (8 commits, 1 release in the last week). **3 commits since installed ironclaw.v0.29.0.r2.g0a6c212-1.**
+* **Recent Focus**: Scoped permissions for nearai-bench CI jobs to grant and write id-tokens for reusable workflows; plumbed model temperature settings through the Responses API; introduced a WeCom notification channel and release artifacts; and updated the wasmtime dependency to resolve a cargo-deny advisory.
 
 ### Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (690 commits, 16 merges, 2 releases in the last week).
-* **Recent Focus**: Tightened security by removing vestigial Nous API auth parameters, legacy session key fallbacks, and JWT-shape fallbacks; blocked AWS SDK credentials from leaking into subprocess environments; scoped bridge catalog search and tool dispatching specifically to the current session's toolsets; implemented progressive tool disclosure for MCP and plugin tools; relaxed Codex no-byte TTFB watchdog threshold to 120s to prevent premature timeouts; and added clear diagnostic errors for media rejections at the gateway.
+* **Status**: Highly Active (752 commits, 19 merges, 2 releases in the last week).
+* **Recent Focus**: Hardened gateway file access by blacklisting `config.yaml` and preventing auto-upload of local system files; implemented Kanban goal-mode cards running workers in a `/goal` loop; addressed thread blocking by using asynchronous sleep in the MCP authentication poll; added LRU-cache limits to the BlueBubbles and Feishu adapters to curb memory leaks; and improved TUI robustness by clamping bogus terminal dimensions and filtering cursor noise.
 
 ### NanoBot (`HKUDS/nanobot`)
-* **Status**: Highly Active (64 commits, 4 merges in the last week).
-* **Recent Focus**: Introduced multi-tenant project workspaces and granular access control policies in the Web UI; added customizable context window settings; isolated signed media serving and added support for video byte-range queries and markdown previews; restructured the agent runner by moving document extraction logic out of the core loop and introducing a toggle to disable extraction; added extension registry source support and registry logos; trusted official MS Teams service hosts; and improved error messaging on billing/quota arrears.
+* **Status**: Highly Active (65 commits, 0 merges in the last week).
+* **Recent Focus**: Enhanced UI code rendering by asserting and formatting code blocks lacking explicit language tags; secured websocket token generation by enforcing authentication; tightened heartbeat service rules to skip taskless runs and fail closed; and resolved SAS verification flow bugs in the Matrix adapter.
 
 ### NanoClaw (`nanocoai/nanoclaw`)
-* **Status**: Highly Active (20 commits, 21 merges in the last week).
-* **Recent Focus**: Bumped upstream `claude-code` to version 2.1.154 and `claude-agent-sdk` to 0.3.154; updated documented context window utilization metrics up to 179k tokens; added support for reading settings from per-group `CLAUDE.local.md` files; and exited the agent runner cleanly on persistent SQLite `inbound.db` corruption errors.
+* **Status**: Active (4 commits, 2 merges in the last week). **0 commits since installed r1690.3601a8a1f.**
+* **Recent Focus**: Bumped version to 2.0.71 and upstream `claude-code` dependencies to version 2.1.154, and updated context window usage guidelines to reflect the 179k token threshold.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Highly Active (15 commits, 13 merges, 0 releases in the last week). **6 commits since installed v0.2.9.nightly.20260529.85751492.**
-* **Recent Focus**: Added auto-detection for Termux SSL certificate paths; preserved `created_at` timestamps across history bootstrap; fixed command job execution failures caused by a missing `action` argument in cron jobs; and bumped dependencies such as `github.com/pion/rtp` and `github.com/caarlos0/env/v11`.
+* **Status**: Active (14 commits, 12 merges, 0 releases in the last week). **17 commits since installed v0.2.9.nightly.20260529.85751492.**
+* **Recent Focus**: Added Azure Entra ID support for the Azure OpenAI provider; introduced drag-and-drop file uploads and paste-to-upload capability in the web chat UI; preserved text stream deltas in the Codex provider; and added line numbers and word wrap toggles to the web code block renderer.
 
 ---
 
@@ -72,6 +77,7 @@ Here is the list of active upstream GitHub repositories and their corresponding 
 | **LibreFang** | `librefang/librefang` | `librefang-cli-git` | AUR `-git` |
 | **Moltis** | `moltis-org/moltis` | `moltis-git` | AUR `-git` |
 | **ZeroClaw** | `zeroclaw-labs/zeroclaw` | `zeroclaw-git` | AUR `-git` |
+| **IronClaw** | `nearai/ironclaw` | `ironclaw-git` | AUR `-git` |
 | **Hermes Agent** | `NousResearch/hermes-agent` | — | not installed |
 | **NanoBot** | `HKUDS/nanobot` | — | not installed |
 | **NanoClaw** | `nanocoai/nanoclaw` | `nanoclaw-git` | AUR `-git` |
@@ -82,7 +88,7 @@ For each assistant check if installed as a system package and record the version
 
 ```bash
 # Probe all known package names and print installed versions
-for pkg in librefang-cli-git moltis-git zeroclaw-git nanoclaw-git picoclaw; do
+for pkg in librefang-cli-git moltis-git zeroclaw-git ironclaw-git nanoclaw-git picoclaw; do
   ver=$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}')
   if [ -n "$ver" ]; then
     echo "$pkg: $ver"
@@ -133,6 +139,10 @@ if [ -n "$pkg_ver" ]; then
   if [ -z "$installed_ref" ]; then
     installed_ref=$(echo "$pkg_ver" | grep -oP 'r[0-9]+\.\K[0-9a-f]+')
   fi
+  # Fallback: format <tag>.nightly.<date>.<hash> (release/nightly packages like picoclaw)
+  if [ -z "$installed_ref" ]; then
+    installed_ref=$(echo "$pkg_ver" | grep -oP 'nightly\.[0-9]+\.\K[0-9a-f]+')
+  fi
   if [ -z "$installed_ref" ]; then
     # Release package: strip pkgrel suffix and prepend 'v'
     installed_ref="v$(echo "$pkg_ver" | sed 's/-[0-9]*$//')"
@@ -173,13 +183,14 @@ declare -A PKG_MAP=(
   [librefang]=librefang-cli-git
   [moltis]=moltis-git
   [zeroclaw]=zeroclaw-git
+  [ironclaw]=ironclaw-git
   [hermes-agent]=""
   [nanobot]=""
   [nanoclaw]=nanoclaw-git
   [picoclaw]=picoclaw
 )
 
-for d in librefang moltis zeroclaw hermes-agent nanobot nanoclaw picoclaw; do
+for d in librefang moltis zeroclaw ironclaw hermes-agent nanobot nanoclaw picoclaw; do
   echo "=== $d ==="
   cd "scratch/$d" 2>/dev/null || continue
   
@@ -212,6 +223,10 @@ for d in librefang moltis zeroclaw hermes-agent nanobot nanoclaw picoclaw; do
       # Fallback: format r<revcount>.<hash> (no-tag -git packages like nanoclaw)
       if [ -z "$installed_ref" ]; then
         installed_ref=$(echo "$pkg_ver" | grep -oP 'r[0-9]+\.\K[0-9a-f]+')
+      fi
+      # Fallback: format <tag>.nightly.<date>.<hash> (release/nightly packages like picoclaw)
+      if [ -z "$installed_ref" ]; then
+        installed_ref=$(echo "$pkg_ver" | grep -oP 'nightly\.[0-9]+\.\K[0-9a-f]+')
       fi
       if [ -z "$installed_ref" ]; then
         # Release package: strip pkgrel suffix and prepend 'v'

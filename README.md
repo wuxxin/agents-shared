@@ -9,6 +9,7 @@ This repository is a centralized orchestration hub for deploying, sandboxing, an
 | **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
 | **[Moltis](#moltis)** | Rust (Source) <br> Rust Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
 | **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
+| **[IronClaw](#ironclaw)** | Rust (Source) <br> Rust Backend + Web Gateway | Remote & Local | Native (RRF) | PostgreSQL + pgvector / Hybrid (FTS + Vector) | Native | Local |
 
 also covered, but currently not point of interest:
 
@@ -49,6 +50,7 @@ The following assistants have native Signal channel integration available in the
 - [LibreFang](assistants/librefang-ctl.md)
 - [Moltis](assistants/moltis-ctl.md)
 - [ZeroClaw](assistants/zeroclaw-ctl.md)
+- [IronClaw](assistants/ironclaw-ctl.md)
 - [Hermes](assistants/hermes-ctl.md)
 - [NanoBot](assistants/nanobot-ctl.md)
 
@@ -69,6 +71,7 @@ The following default ports are used by various agent systems and services to av
 | **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
 | **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
 | **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
+| **IronClaw** | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
 | **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
 | **NanoBot** | [8790](http://localhost:8790) | NanoBot Gateway API |
 | **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
@@ -140,6 +143,20 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50086/v1/rerank`.
 - **STT/TTS Support**: Natively supports local STT by routing voice uploads to `local-speech-to-text` on port 50090. Local TTS is not supported.
 - **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
+
+### IronClaw
+- **Major Features**: Security-focused Agent OS providing WASM-sandboxed tool execution, credential protection with leak detection, prompt injection defense, and endpoint allowlisting. Built as a Rust reimplementation of OpenClaw with a focus on privacy, zero-trust architecture, and self-expanding capabilities via dynamic WASM tool building.
+- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web Gateway GUI).
+- **Signal Support**: Yes — Native integration (communicates via `signal-cli` HTTP daemon).
+- **Coding Agent Support**: Yes — Agent Client Protocol (ACP) support with configurable external coding agents (e.g. `ironclaw acp add goose`).
+- **LLM Inference via Agent Proxy**: Yes — Supports NEAR AI (default), Ollama (local), and OpenAI-compatible endpoints (OpenRouter, Together, Fireworks, vLLM, LiteLLM, LM Studio).
+- **Requirements**: PostgreSQL 15+ with [pgvector](https://github.com/pgvector/pgvector) extension. Rust 1.92+ for source builds. NEAR AI account for default authentication.
+- **Sandboxing**: **Relaxed Namespaces Profile** to support WASM sandbox execution (wasmtime) and optional Docker sandbox orchestrator/worker pattern. `MemoryDenyWriteExecute=no` required for WASM JIT compilation.
+- **Search & Retrieval**: Hybrid search combining full-text search and vector similarity via Reciprocal Rank Fusion (RRF) backed by PostgreSQL with pgvector. Workspace filesystem provides flexible path-based storage for notes, logs, and context. Identity files maintain consistent personality and preferences across sessions.
+- **Embedding Options**: Supports embedding generation via multiple built-in providers (NEAR AI, OpenAI, Anthropic, Ollama). Can leverage system-wide local embeddings via `local-llm-ggml` or Ollama servers using `LLM_BACKEND=ollama` or `LLM_BACKEND=openai_compatible`.
+- **Reranking Support**: Native — built-in Reciprocal Rank Fusion (RRF) for hybrid search result merging. No external reranker required.
+- **STT/TTS Support**: Supports local STT via OpenAI-compatible transcription endpoints (`TRANSCRIPTION_ENABLED=true`, `TRANSCRIPTION_BASE_URL=http://localhost:50090/v1`). Includes SILK audio decoder for WeChat voice messages. No native TTS support.
+- **Detailed Guide & Onboarding**: [ironclaw-ctl.md](assistants/ironclaw-ctl.md)
 
 ### Hermes
 - **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.

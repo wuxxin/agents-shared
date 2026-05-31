@@ -3,7 +3,7 @@
 `nanoclaw-ctl` manages the NanoClaw runtime, ensuring secure operations for the webhook server and container executions.
 
 - **Source Code**: [GitHub - gavrielc/nanoclaw](https://github.com/gavrielc/nanoclaw)
-- **Arch/AUR Packages**: `nanoclaw-git` (AUR, git-based source compilation). Alternatives: `nanoclaw`, `nanoclaw-bin`.
+- **Arch/AUR Packages**: `nanoclaw-git` (AUR, git-based typescript source build). Alternatives: `nanoclaw`, `nanoclaw-bin`.
 
 ## Commands
 
