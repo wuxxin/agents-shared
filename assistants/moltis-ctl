@@ -137,6 +137,9 @@ cmd_install() {
 # MOLTIS_BIND=0.0.0.0
 # MOLTIS_PORT=13131
 
+# OPENAI_API_KEY
+OPENAI_API_KEY="sk-"
+
 # Directories (default to sandboxed HOME at ~/.local/sandbox/moltis)
 # MOLTIS_DATA_DIR=
 # MOLTIS_CONFIG_DIR=
@@ -173,7 +176,7 @@ context_window = 80000
 # --- Memory & Embeddings ---------------------------------------------------
 [memory]
 provider = "local"
-model = "text-embedding-3-small"
+model = "qwen3-embedding"
 base_url = "http://localhost:50080/v1"
 api_key = "unused"
 

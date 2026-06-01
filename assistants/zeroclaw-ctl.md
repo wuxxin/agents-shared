@@ -23,7 +23,9 @@ The `--new-config` flag generates (or overwrites) both:
 
 ### Interactive Onboarding
 
-Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`.
+- Run `./assistants/zeroclaw-ctl exec doctor` to validate configuration syntax and display errors/warnings.
+
+- Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`.
 
 ### Switch to Local Inference & Qwen3
 

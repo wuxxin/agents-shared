@@ -152,8 +152,8 @@ LSTT_HOST=127.0.0.1
 # Source: https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin
 LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
 
-# Model alias used by client integrations (default: whisper)
-LSTT_MODEL_ALIAS=whisper
+# Model alias used by client integrations (default: whisper-1)
+LSTT_MODEL_ALIAS="whisper-1"
 
 # Number of threads to use for CPU-bound computations/preprocessing
 LSTT_THREADS=8

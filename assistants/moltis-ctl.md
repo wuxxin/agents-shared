@@ -24,11 +24,9 @@ The `--new-config` flag generates (or overwrites) both:
 > [!TIP]
 > For unattended deployments, edit `~/.config/systemd/user/moltis.env` via `./assistants/moltis-ctl edit` and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
 
-> [!TIP]
-> use  `./assistants/moltis-ctl exec doctor` at anytime to review config validity.
+- Run `./assistants/moltis-ctl exec doctor` to validate configuration syntax and display errors/warnings.
 
-
-On the first run, Moltis generates a unique setup code. You must retrieve this from the logs to complete the web-based configuration:
+- On the first run, Moltis generates a unique setup code. You must retrieve this from the logs to complete the web-based configuration:
 ```bash
 ./assistants/moltis-ctl logs
 ```

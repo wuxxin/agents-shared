@@ -43,7 +43,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Avg Throughput:** 0.39 docs/sec
 
 ### Speech-to-Text (STT) (`local-speech-to-text`)
-- **Model:** `whisper` (`ggml-large-v3-turbo-q5_0.bin`)
+- **Model:** `whisper-1` (`ggml-large-v3-turbo-q5_0.bin`)
 - **Audio Source:** `speech-to-text.ogg` (trimmed to 45.0 seconds)
 - **Repeats:** 10
 - **Avg Transcribe Time:** 1.45 seconds

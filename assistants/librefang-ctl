@@ -144,7 +144,7 @@ cmd_install() {
 
 # Standard Cloud API Keys (loaded by model providers at runtime)
 # ensure OPENAI_API_KEY is set, so tts and stt openai provider work
-OPENAI_API_KEY="sk-undefined"
+# OPENAI_API_KEY="sk-undefined"
 # OPENAI_API_KEY=""
 # ANTHROPIC_API_KEY=""
 # GEMINI_API_KEY=""
