@@ -2,14 +2,17 @@
 
 This repository is a centralized orchestration hub for deploying, sandboxing, and monitoring local AI assistants, speech-to-text engines, local inference models, and communication integrations. It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure secure and isolated agent execution on Linux while facilitating structured inter-agent collaboration.
 
-## Assistant Software covered in this repository
+## Assistant Software covered
+
+See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
+
 
 | Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
+| **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend + Web GUI| Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
 | **[Moltis](#moltis)** | Rust (Source) <br> Rust Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
-| **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend | Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
-| **[IronClaw](#ironclaw)** | Rust (Source) <br> Rust Backend + Web Gateway | Remote & Local | Native (RRF) | PostgreSQL + pgvector / Hybrid (FTS + Vector) | Native | Local |
+| **[IronClaw](#ironclaw)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native (RRF) | PostgreSQL + pgvector / Hybrid (FTS + Vector) | Native | Local |
 
 also covered, but currently not point of interest:
 
@@ -17,8 +20,9 @@ also covered, but currently not point of interest:
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[Hermes](#hermes)** | Python (Source) <br> frozen Python Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
 | **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
-| **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
 | **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
+| **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
+
 
 ## Integrations
 
@@ -48,8 +52,8 @@ also covered, but currently not point of interest:
 
 The following assistants have native Signal channel integration available in their source code:
 - [LibreFang](assistants/librefang-ctl.md)
-- [Moltis](assistants/moltis-ctl.md)
 - [ZeroClaw](assistants/zeroclaw-ctl.md)
+- [Moltis](assistants/moltis-ctl.md)
 - [IronClaw](assistants/ironclaw-ctl.md)
 - [Hermes](assistants/hermes-ctl.md)
 - [NanoBot](assistants/nanobot-ctl.md)
@@ -69,13 +73,13 @@ The following default ports are used by various agent systems and services to av
 | **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
 | **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
 | **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
-| **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
 | **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
+| **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
 | **IronClaw** | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
 | **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
 | **NanoBot** | [8790](http://localhost:8790) | NanoBot Gateway API |
-| **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
 | **PicoClaw** | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
+| **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
 
 
 ## Sandboxing Architecture
@@ -116,20 +120,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **STT/TTS Support**: Hardcoded to cloud APIs by default. Custom local STT (whisper-server on port 50090) and local TTS endpoints are supported only via a patched package (such as `librefang-git` with `feature-local-stt-tts`).
 - **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
 
-### Moltis
-- **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
-- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Config GUI).
-- **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
-- **Coding Agent Support**: Yes — Supports Alibaba Coding Plan (`acp`), Claude Code, Codex, and **OpenCode** via tmux/PTY-based external runtimes.
-- **LLM Inference via Agent Proxy**: None.
-- **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/sandbox/moltis` for data.
-- **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
-- **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword search. Direct vector embedding storage inside SQLite. Supports an optional **QMD** sidecar that adds high-performance **BM25** keyword search, vector similarity search, and hybrid retrieval with LLM reranking. Automatically extracts facts and summarizes history when approaching context limits.
-- **Embedding Options**: Remote OpenAI-compatible embedding API endpoints. Local vector search using local GGUF models served via local inference servers or Ollama, or built-in QMD model processing.
-- **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-rerank endpoint.
-- **STT/TTS Support**: Natively supports local STT via `local-speech-to-text` on port 50090. Local TTS is not supported (falls back to cloud speech APIs).
-- **Detailed Guide & Onboarding**: [moltis-ctl.md](assistants/moltis-ctl.md)
-
 ### ZeroClaw
 - **Major Features**: Rust-based agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
 - **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend, no Web GUI).
@@ -143,6 +133,20 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Native — built-in weighted hybrid search (0.7 vector / 0.3 keyword). Can integrate external reranker via configuration pointing to `http://localhost:50086/v1/rerank`.
 - **STT/TTS Support**: Natively supports local STT by routing voice uploads to `local-speech-to-text` on port 50090. Local TTS is not supported.
 - **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
+
+### Moltis
+- **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
+- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Config GUI).
+- **Signal Support**: Yes — Native integration (connects to local `signal-cli` HTTP daemon).
+- **Coding Agent Support**: Yes — Supports Alibaba Coding Plan (`acp`), Claude Code, Codex, and **OpenCode** via tmux/PTY-based external runtimes.
+- **LLM Inference via Agent Proxy**: None.
+- **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/sandbox/moltis` for data.
+- **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
+- **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword search. Direct vector embedding storage inside SQLite. Supports an optional **QMD** sidecar that adds high-performance **BM25** keyword search, vector similarity search, and hybrid retrieval with LLM reranking. Automatically extracts facts and summarizes history when approaching context limits.
+- **Embedding Options**: Remote OpenAI-compatible embedding API endpoints. Local vector search using local GGUF models served via local inference servers or Ollama, or built-in QMD model processing.
+- **Reranking Support**: Native — QMD sidecar provides LLM reranking with `qwen3-reranker-0.6b` by default. Can also route to local-rerank endpoint.
+- **STT/TTS Support**: Natively supports local STT via `local-speech-to-text` on port 50090. Local TTS is not supported (falls back to cloud speech APIs).
+- **Detailed Guide & Onboarding**: [moltis-ctl.md](assistants/moltis-ctl.md)
 
 ### IronClaw
 - **Major Features**: Security-focused Agent OS providing WASM-sandboxed tool execution, credential protection with leak detection, prompt injection defense, and endpoint allowlisting. Built as a Rust reimplementation of OpenClaw with a focus on privacy, zero-trust architecture, and self-expanding capabilities via dynamic WASM tool building.
@@ -186,20 +190,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **STT/TTS Support**: Natively supports local STT via `local-speech-to-text` on port 50090. No native local TTS; can be added via custom MCP tools.
 - **Detailed Guide & Onboarding**: [nanobot-ctl.md](assistants/nanobot-ctl.md)
 
-### NanoClaw
-- **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
-- **Language/Runtime**: TypeScript/Node.js (Source) / Node.js containerized (Node.js Webhook Backend, no Web GUI).
-- **Signal Support**: No — Not natively supported.
-- **Coding Agent Support**: None (No OpenCode support).
-- **LLM Inference via Agent Proxy**: Yes — Supports OpenCode (local inference via optional `add-opencode` skill).
-- **Requirements**: Requires Docker/Podman running locally to spawn tool environments.
-- **Sandboxing**: **Relaxed Namespaces Profile** with `PrivateDevices=no`. Strict profiles are dropped to allow the agent to launch local Docker/Podman containers successfully.
-- **Search & Retrieval**: Uses SQLite databases within the Node.js process to maintain state. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories. RAG or vector retrieval is typically handled by custom agent tools or external MCP databases.
-- **Embedding Options**: Uses APIs (e.g. Anthropic, OpenAI) for remote embeddings. Local embeddings can be fetched via tools querying `local-llm-ggml` or Ollama servers.
-- **Reranking Support**: Via custom skills — no native reranking; requires a custom skill or MCP tool wrapping the local `/v1/rerank` endpoint.
-- **STT/TTS Support**: No native STT/TTS in the core daemon, but easily integrated via custom tools/skills calling `local-speech-to-text` (port 50090) and `local-text-to-speech` (port 50095).
-- **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](assistants/nanoclaw-ctl.md)
-
 ### PicoClaw
 - **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
 - **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Console GUI).
@@ -213,6 +203,20 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Reranking Support**: Via MCP — no native reranking; delegates via MCP reranker tool wrapping the local `/v1/rerank` endpoint.
 - **STT/TTS Support**: Natively supports local STT by defining an ASR provider pointing to the local whisper-server on port 50090. No native TTS engine; requires an external MCP TTS tool.
 - **Detailed Guide & Onboarding**: [picoclaw-ctl.md](assistants/picoclaw-ctl.md)
+
+### NanoClaw
+- **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
+- **Language/Runtime**: TypeScript/Node.js (Source) / Node.js containerized (Node.js Webhook Backend, no Web GUI).
+- **Signal Support**: No — Not natively supported.
+- **Coding Agent Support**: None (No OpenCode support).
+- **LLM Inference via Agent Proxy**: Yes — Supports OpenCode (local inference via optional `add-opencode` skill).
+- **Requirements**: Requires Docker/Podman running locally to spawn tool environments.
+- **Sandboxing**: **Relaxed Namespaces Profile** with `PrivateDevices=no`. Strict profiles are dropped to allow the agent to launch local Docker/Podman containers successfully.
+- **Search & Retrieval**: Uses SQLite databases within the Node.js process to maintain state. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories. RAG or vector retrieval is typically handled by custom agent tools or external MCP databases.
+- **Embedding Options**: Uses APIs (e.g. Anthropic, OpenAI) for remote embeddings. Local embeddings can be fetched via tools querying `local-llm-ggml` or Ollama servers.
+- **Reranking Support**: Via custom skills — no native reranking; requires a custom skill or MCP tool wrapping the local `/v1/rerank` endpoint.
+- **STT/TTS Support**: No native STT/TTS in the core daemon, but easily integrated via custom tools/skills calling `local-speech-to-text` (port 50090) and `local-text-to-speech` (port 50095).
+- **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](assistants/nanoclaw-ctl.md)
 
 ---
 
