@@ -4,62 +4,62 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-## 📊 Summary of Weekly Activity (May 25, 2026 – May 31, 2026)
+## 📊 Summary of Weekly Activity (May 26, 2026 – June 1, 2026)
 
 Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 280 | 54 | `main` | 2026-05-31 | **150** | 0 | 2 | 211.5 | `v2026.5.30-beta.15`, `v2026.5.28-beta.14` | `librefang-git` @ `2026.5.28beta.14.r38.g85dc15e07-1` | 49 | **Highly Active** |
-| **moltis** | 2,714 | 320 | `main` | 2026-05-29 | **42** | 0 | 5 | 55.5 | `20260529.02`, `20260529.01` | `moltis-git` @ `20260526.03.r6.g7b266a642-1` | 6 | **Highly Active** |
-| **zeroclaw** | 31,655 | 4,663 | `master` | 2026-05-31 | **78** | 0 | 0 | 71.0 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ `0.8.0.beta.1.r85.gf6015ab4b-1` | 28 | **Highly Active** |
-| **ironclaw** | 12,376 | 1,446 | `main` | 2026-05-28 | **8** | 0 | 1 | 21.8 | `ironclaw-v0.29.0` (2026-05-26) | `ironclaw-git` @ `ironclaw.v0.29.0.r2.g0a6c212-1` | 3 | **Active** |
+| **librefang** | 280 | 54 | `main` | 2026-06-01 | **144** | 0 | 6 | 196.0 | `v2026.5.31-beta.16`, `v2026.5.30-beta.15` | `librefang-git` @ `2026.5.31beta.16.r6.g23e4fe214-1` | 0 | **Highly Active** |
+| **moltis** | 2,714 | 320 | `main` | 2026-05-29 | **27** | 0 | 5 | 50.0 | `20260529.02`, `20260529.01` | `moltis-git` @ `20260529.02.r0.g6de135a28-1` | 0 | **Highly Active** |
+| **zeroclaw** | 31,655 | 4,663 | `master` | 2026-05-31 | **67** | 0 | 0 | 68.2 | `v0.8.0-beta-1` (2026-05-21) | `zeroclaw-git` @ `0.8.0.beta.1.r117.g0690456f9-1` | 0 | **Highly Active** |
+| **ironclaw** | 12,376 | 1,446 | `main` | 2026-05-28 | **6** | 0 | 1 | 21.2 | `ironclaw-v0.29.0` (2026-05-26) | `ironclaw-git` @ `ironclaw.v0.29.0.r5.g749f584-1` | 0 | **Active** |
 
 Other Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **hermes-agent** | 174,143 | 29,525 | `main` | 2026-05-31 | **752** | 19 | 2 | 774.2 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
-| **nanobot** | 43,419 | 7,669 | `main` | 2026-05-31 | **65** | 0 | 0 | 102.5 | `v0.2.0` (2026-05-16) | — | — | **Highly Active** |
-| **nanoclaw** | 29,551 | 12,889 | `main` | 2026-05-28 | **4** | 2 | 0 | 57.7 | `v2.0.71` (2026-05-28), `v2.0.70` (2026-05-25) | `nanoclaw-git` @ `r1690.3601a8a1f-1` | 0 | **Active** |
-| **picoclaw** | 29,230 | 4,194 | `main` | 2026-05-31 | **14** | 12 | 0 | 36.2 | `v0.2.9` (2026-05-22) | `picoclaw-git` @ `0.2.9.nightly.20260529.85751492-1` | 17 | **Active** |
+| **hermes-agent** | 174,143 | 29,525 | `main` | 2026-06-01 | **623** | 19 | 2 | 743.5 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
+| **nanobot** | 43,419 | 7,669 | `main` | 2026-06-01 | **67** | 0 | 1 | 102.5 | `v0.2.1` (2026-06-01) | — | — | **Highly Active** |
+| **nanoclaw** | 29,551 | 12,889 | `main` | 2026-05-31 | **5** | 2 | 0 | 54.0 | `v2.0.71` (2026-05-28), `v2.0.70` (2026-05-25) | `nanoclaw-git` @ `r1694.b9141218a-1` | 0 | **Active** |
+| **picoclaw** | 29,230 | 4,194 | `main` | 2026-06-01 | **17** | 13 | 0 | 35.5 | `v0.2.9` (2026-05-22) | `picoclaw-git` @ `0.2.9.nightly.20260601.ba806592-1` | 4 | **Active** |
 
 ---
 
 ## 🔍 Repository Breakdown
 
 ### LibreFang (`librefang/librefang`)
-* **Status**: Highly Active (150 commits, 2 releases in the last week). **49 commits since installed v2026.5.28-beta.14 (r38.g85dc15e07).**
+* **Status**: Highly Active (144 commits, 6 releases in the last week). **0 commits since installed 2026.5.31beta.16 (r6.g23e4fe214).**
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
-* **Recent Focus**: Hardened the image runner with extension whitelisting, 50MB file size limits, and format-specific magic bytes checks; resolved seccomp limitations on `aarch64` by targeting `getpgrp` checks strictly to `x86_64`; added interactive features to the dashboard including inline skill assignments and config-driven "Save" button triggers; ported channel command policies and message coalescing to sidecar endpoints; packaged and shipped the `librefang-sidecar-telegram` binary; fixed a permission bug where empty `mcp_servers` configurations incorrectly allowed all tools instead of none; and addressed upstream library vulnerabilities by upgrading to `russh 0.61.1`.
+* **Recent Focus**: Externalized template routing rules to an overridable TOML; ensured full suite runs on merge_group so a queue can gate before main; fixed Cargo.lock changes from busting the rust-cache; enabled faster docker dev iteration with mold linker; and enforced required-status-checks for CI Gate.
 
 ### Moltis (`moltis-org/moltis`)
-* **Status**: Highly Active (42 commits, 5 releases in the last week). **6 commits since installed 20260526.03.r6.g7b266a642.**
-* **Recent Focus**: Hardened request metadata schemas for OpenAI-compatible LLM providers; propagated bundled skill test errors to improve diagnostics and supported individual skill disables; stabilized command palette UI focus and navigation; logged silent voice message drops for the Discord channel; and consolidated provider release gates in CI pipelines.
+* **Status**: Highly Active (27 commits, 5 releases in the last week). **0 commits since installed 20260529.02 (r0.g6de135a28).**
+* **Recent Focus**: Prepared release 20260529.02 and 20260529.01; hardened request metadata schemas for OpenAI-compatible LLM providers; propagated bundled skill test errors to improve diagnostics; and stabilized command palette UI focus and navigation.
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (78 commits, 0 releases in the last week). **28 commits since installed v0.8.0-beta-1 (r85.gf6015ab4b).**
-* **Recent Focus**: Added scoped tool elevation for built-in and MCP tools; added `file_upload_bundle` and `file_download` tools for efficient workspace asset management; wired Telegram voice transcription provider alias controls; added configurable TTS audio format parameters for OpenAI; and wired shared CanvasStore components into websocket chat channels to maintain consistent agent state.
+* **Status**: Highly Active (67 commits, 0 releases in the last week). **0 commits since installed v0.8.0-beta-1 (r117.g0690456f9).**
+* **Recent Focus**: Inlined image data for vision in channels/media-pipeline; matched LID bot mentions in whatsapp-web channel; documented web_dist_dir setting and supported env-var override; removed marketplace sync workflow from release automation; and wired transcription_provider alias for inbound voice in Telegram.
 
 ### IronClaw (`nearai/ironclaw`)
-* **Status**: Active (8 commits, 1 release in the last week). **3 commits since installed ironclaw.v0.29.0.r2.g0a6c212-1.**
-* **Recent Focus**: Scoped permissions for nearai-bench CI jobs to grant and write id-tokens for reusable workflows; plumbed model temperature settings through the Responses API; introduced a WeCom notification channel and release artifacts; and updated the wasmtime dependency to resolve a cargo-deny advisory.
+* **Status**: Active (6 commits, 1 release in the last week). **0 commits since installed ironclaw.v0.29.0 (r5.g749f584).**
+* **Recent Focus**: Scoped id-token: write to nearai-bench CI jobs; granted id-token: write to unblock reusable workflow; tracked nearai/benchmarks @main instead of pinning; plumbed temperature through Responses API; and added WeCom release artifacts.
 
 ### Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (752 commits, 19 merges, 2 releases in the last week).
-* **Recent Focus**: Hardened gateway file access by blacklisting `config.yaml` and preventing auto-upload of local system files; implemented Kanban goal-mode cards running workers in a `/goal` loop; addressed thread blocking by using asynchronous sleep in the MCP authentication poll; added LRU-cache limits to the BlueBubbles and Feishu adapters to curb memory leaks; and improved TUI robustness by clamping bogus terminal dimensions and filtering cursor noise.
+* **Status**: Highly Active (623 commits, 19 merges, 2 releases in the last week).
+* **Recent Focus**: Mapped Subway2023 for PR salvage; paired terminal-side gate for ~/.hermes/config.yaml writes and blocked agent writes to it to prevent silent approval bypass; stopped reporting broken streams as output-length truncation; and added full administration panel to dashboard for MCP, pairing, webhooks, credentials, memory, gateway, and ops.
 
 ### NanoBot (`HKUDS/nanobot`)
-* **Status**: Highly Active (65 commits, 0 merges in the last week).
-* **Recent Focus**: Enhanced UI code rendering by asserting and formatting code blocks lacking explicit language tags; secured websocket token generation by enforcing authentication; tightened heartbeat service rules to skip taskless runs and fail closed; and resolved SAS verification flow bugs in the Matrix adapter.
+* **Status**: Highly Active (67 commits, 0 merges, 1 release in the last week).
+* **Recent Focus**: Updated README with release notes for v0.2.1; released v0.2.1; archived actual idle compact drops in session; corrected last_consolidated tracking in non-contiguous retention; and prevented duplicate archive and message loss in enforce_file_cap.
 
 ### NanoClaw (`nanocoai/nanoclaw`)
-* **Status**: Active (4 commits, 2 merges in the last week). **0 commits since installed r1690.3601a8a1f.**
-* **Recent Focus**: Bumped version to 2.0.71 and upstream `claude-code` dependencies to version 2.1.154, and updated context window usage guidelines to reflect the 179k token threshold.
+* **Status**: Active (5 commits, 2 merges in the last week). **0 commits since installed r1694.b9141218a.**
+* **Recent Focus**: Updated token count to 181k tokens; bumped version to 2.0.72; added /upload-trace command to upload session trace to Hugging Face; bumped version to 2.0.71; and bumped claude-code to 2.1.154 and claude-agent-sdk to 0.3.154.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Active (14 commits, 12 merges, 0 releases in the last week). **17 commits since installed v0.2.9.nightly.20260529.85751492.**
-* **Recent Focus**: Added Azure Entra ID support for the Azure OpenAI provider; introduced drag-and-drop file uploads and paste-to-upload capability in the web chat UI; preserved text stream deltas in the Codex provider; and added line numbers and word wrap toggles to the web code block renderer.
+* **Status**: Active (17 commits, 13 merges, 0 releases in the last week). **4 commits since installed 0.2.9.nightly.20260601 (ba806592).**
+* **Recent Focus**: Flattened if-else chains in cron refactoring; dropped temperature for models that deprecate it in Bedrock; restricted list/get/update to accessible jobs per channel in cron tool; added get and update actions to cron tool; and formatted long lines to satisfy golines.
 
 ---
 
