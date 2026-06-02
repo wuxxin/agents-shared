@@ -2,8 +2,6 @@
 
 `local-llm-ggml.sh` manages the local `llama-server` systemd user service (`local-llm-ggml.service`), serving both the Chat/Vision LLM and the Text Embedding model simultaneously from a single process using router mode (`--models-preset`).
 
-This architecture reduces process management overhead, saves VRAM by avoiding duplicate HIP/ROCm contexts (~600 MiB saving), and consolidates chat and embedding API calls onto a single port.
-
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
 
@@ -32,6 +30,30 @@ This architecture reduces process management overhead, saves VRAM by avoiding du
 # Run API validation tests
 ./local-llm-ggml.sh test
 ```
+
+## Default Models
+
+### Default LLM
+
+The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model. 
+
+Key specifications and limits:
+- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**. 
+  - In this local deployment, the service allocates a physical context size of **240,000 tokens**, which is divided across **3 parallel slots (80,000 tokens context window size per slot)**.
+- **Max Output (Generation) Limit**: The Qwen3.6 architecture supports a maximum output generation length of **65,536 (64K) tokens** in a single completion request.
+- **Capabilities**: Completion, chat, native tool-calling, multi-modal vision inputs (using the mmproj GGUF file)
+- **Recommended Temperature Settings**
+  - A higher temperature leads to more varied responses and a lower temperature produces more focused and deterministic outputs.
+  - General Tasks: Temperature: **1.0**
+  - Precise Coding Tasks: Recommended Temperature: **0.6**
+
+### Default Embedding
+
+The local service runs **`Qwen3-Embedding-0.6B-Q8_0.gguf`** as its embeddings model. 
+
+Key specifications and limits:
+- **Embedding Context Size (`LLM_EMBEDDING_N_CTX`):** `8192`
+- **Pooling:** `mean`
 
 ## Service Configuration & Ports
 
@@ -158,12 +180,4 @@ curl -s -X POST http://localhost:50080/v1/embeddings \
     "input": "Hello World"
   }'
 ```
-
-## Model Specifications & Capabilities
-
-The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model. Below are the key specifications and limits:
-
-- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**. In this local deployment, the service allocates a physical context size of **240,000 tokens**, which is divided across **3 parallel slots (80,000 tokens context window size per slot)**.
-- **Max Output (Generation) Limit**: The Qwen3.6 architecture supports a maximum output generation length of **65,536 (64K) tokens** in a single completion request.
-- **Capabilities**: Full text completion, native tool-calling, multi-modal vision inputs (using the mmproj GGUF file), and high-performance ROCm/HIP-accelerated execution on AMD GPUs.
 

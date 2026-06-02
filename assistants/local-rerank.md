@@ -31,6 +31,15 @@ This architecture enables high-performance local document reranking, which is cr
 ./local-rerank.sh test
 ```
 
+## Default Reranking Model
+
+The local service runs **`Qwen3-Reranker-0.6B`** in `Q4_K_M` GGUF quantization format. 
+
+Key specifications:
+  - **Context Size (`LR_N_CTX`):** `8192`
+  - **Pooling:** `rank`
+  - **Capabilities**: Primarily used to rank relevance scores of search results for hybrid retrieval and memory systems.
+
 ## Service Configuration & Ports
 
 - **Default Port**: `50086` (HTTP)
@@ -109,9 +118,3 @@ curl -s -X POST http://localhost:50086/v1/rerank \
   }'
 ```
 
-## Model Specifications & Capabilities
-
-The local service runs **`Qwen3-Reranker-0.6B`** in `Q4_K_M` GGUF quantization format. Below are the key specifications and limits:
-
-- **Context Window**: The model supports a context window of up to **8,192 tokens**.
-- **Capabilities**: Custom tokenization/detokenization, high-performance ROCm/HIP-accelerated execution on AMD GPUs, or low-overhead CPU execution. Primarily used to rank relevance scores of search results for hybrid retrieval and memory systems (e.g. LibreFang, Moltis, ZeroClaw).
