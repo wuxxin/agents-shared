@@ -235,7 +235,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 | `start` / `stop` / `restart` | Lifecycle | Standard controls to start, stop, or restart the systemd user service. |
 | `status` | Status | Show the current runtime status of the systemd service. |
 | `logs [args...]` | Logs | View the daemon stdout/stderr output. Pass `-f` to tail/follow (e.g. `<assistant>-ctl logs -f`). Supports passing any additional `journalctl` options. |
-| `edit` | Edit Environment | Open the assistant's `.env` environment file in your `$EDITOR` and automatically restart the service upon exit to apply changes. |
+| `edit` | Edit Config | Open the assistant's `.env` environment file (and `config.toml` configuration files for supported assistants) in your `$EDITOR` and automatically restart the service upon exit to apply changes. |
 | `exec <args...>` | Sandbox Execute | Run the assistant's CLI binary or command line inside a transient systemd user service inheriting the same sandboxing and environment. |
 | `shell` | Sandbox Shell | Spawn an interactive shell inside the assistant's systemd user sandbox for debugging. |
 

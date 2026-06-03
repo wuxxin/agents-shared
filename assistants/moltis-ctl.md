@@ -22,7 +22,7 @@ The `--new-config` flag generates (or overwrites) both:
 - `~/.local/sandbox/moltis/.config/moltis/moltis.toml` — application configuration with local chat (Qwen3), memory/embeddings, STT, TTS, and Signal channel settings
 
 > [!TIP]
-> For unattended deployments, edit `~/.config/systemd/user/moltis.env` via `./assistants/moltis-ctl edit` and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
+> For unattended deployments, run `./assistants/moltis-ctl edit` to configure the environment and define `MOLTIS_PASSWORD`, `MOLTIS_PROVIDER`, and `MOLTIS_API_KEY` before starting the daemon to bypass the setup wizard.
 
 - Run `./assistants/moltis-ctl exec doctor` to validate configuration syntax and display errors/warnings.
 
@@ -35,7 +35,7 @@ Then visit `https://localhost:13131` to enter the code and create your admin acc
 ### Configuration & Ports
 
 - **Default Port**: `13131` (Moltis Agent Server Web UI/API)
-- **Secrets & Configuration**: Bootstrap parameters are loaded from `~/.config/systemd/user/moltis.env`. Key application settings (including LLM providers, database storage, STT, TTS, and channels) are configured via `~/.local/sandbox/moltis/.config/moltis/moltis.toml`.
+- **Secrets & Configuration**: Bootstrap parameters and application settings are configured via `./assistants/moltis-ctl edit` (which opens both the env file and `moltis.toml`).
 
 
 ## OpenClaw Migration
@@ -44,7 +44,7 @@ Moltis supports OpenClaw data and setting imports directly through the Web UI. D
 
 ## Local Inference with Qwen3
 
-Edit `~/.local/sandbox/moltis/.config/moltis/moltis.toml` (or via the Web UI) to configure a local OpenAI-compatible provider:
+Run `./assistants/moltis-ctl edit` (or use the Web UI) to configure a local OpenAI-compatible provider in `moltis.toml`:
    ```toml
    [providers.openai]
    enabled = true

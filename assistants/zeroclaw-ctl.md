@@ -53,7 +53,7 @@ Start the service via `./assistants/zeroclaw-ctl start` to launch the background
 - **Default Port**: `42617` (ZeroClaw Gateway)
 - **Port Customization Options**:
   If the default port (`42617`) needs to be modified, you can configure the new port using:
-  **Systemd/Env File (Recommended)**: Edit the configuration environment file at `~/.config/systemd/user/zeroclaw.env` (either directly or via `./assistants/zeroclaw-ctl edit`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the daemon with the `zeroclaw daemon --host $ZEROCLAW_HOST --port $ZEROCLAW_PORT` command.
+  **Systemd/Env File (Recommended)**: Edit the configuration files via `./assistants/zeroclaw-ctl edit` (which opens both `zeroclaw.env` and `config.toml`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the daemon with the `zeroclaw daemon --host $ZEROCLAW_HOST --port $ZEROCLAW_PORT` command.
 
 
 ## OpenClaw Migration
