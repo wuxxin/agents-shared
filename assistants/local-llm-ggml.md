@@ -47,6 +47,19 @@ Key specifications and limits:
   - General Tasks: Temperature: **1.0**
   - Precise Coding Tasks: Recommended Temperature: **0.6**
 
+### Thinking and Reasoning Capabilities
+
+The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning. 
+
+- **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](file:///data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
+- **Thinking Mode Control**:
+  - By default, `enable_thinking` is `true`. The template pre-fills `<think>\n` at the start of the assistant response, encouraging the model to perform reasoning.
+  - When thinking is disabled (e.g. `enable_thinking = false` via template arguments or if `<|think_off|>` is detected in prompt content), the template pre-fills `<think>\n\n</think>\n\n`, immediately closing the reasoning block and forcing the model to generate the direct answer.
+- **Client Integration**:
+  - In **ZeroClaw**, configuring `reasoning_enabled = true` / `reasoning_effort = "low"` maps to these parameters.
+  - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
+  - In **Moltis**, preset configurations mapping to `reasoning_effort = "low"` adjust agent-level thinking budgets and parameters.
+
 ### Default Embedding
 
 The local service runs **`Qwen3-Embedding-0.6B-Q8_0.gguf`** as its embeddings model. 

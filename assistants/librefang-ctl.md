@@ -52,6 +52,8 @@ provider = "openai"
 model = "qwen3"
 api_key_env = "UNUSED_API_KEY"
 context_window = 80000
+temperature = 1.0
+reasoning_effort = "low"
 
 [provider_urls]
 openai = "http://localhost:50080/v1"
@@ -138,11 +140,16 @@ LibreFang does **not** feature an arbitrary, dynamic environment override mappin
 
 ### Locating Configuration Properties in Source Code
 1. **Source Schema Definition**: Open the configuration types module at [types.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/librefang/crates/librefang-types/src/config/types.rs) and inspect the `UserConfig` struct (and its nested types).
-2. **CLI Config Commands**: Use LibreFang's CLI tool to read and query configuration settings:
+2. **How to Search**:
+   - To find config fields, inspect the types file or query it. You can search using ripgrep:
+     ```bash
+     rg "pub \w*embedding_provider" scratch/librefang/crates/librefang-types/
+     ```
+3. **CLI Config Commands**: Use LibreFang's CLI tool to read and query configuration settings:
    - Run `./assistants/librefang-ctl exec config show` to inspect the complete parsed config.
    - Run `./assistants/librefang-ctl exec config get <dotted.path>` (e.g., `default_model.provider`) to fetch the value of a specific setting.
    - Run `./assistants/librefang-ctl exec config set <dotted.path> <value>` to change a config key.
-3. **Config Validation**: Run `./assistants/librefang-ctl exec doctor` to validate configuration syntax and display errors/warnings.
+4. **Config Validation**: Run `./assistants/librefang-ctl exec doctor` to validate configuration syntax and display errors/warnings.
 
 ---
 

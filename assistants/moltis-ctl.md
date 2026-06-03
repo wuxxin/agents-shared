@@ -56,6 +56,18 @@ Run `./assistants/moltis-ctl edit` (or use the Web UI) to configure a local Open
    context_window = 80000
    ```
 
+### Reasoning & Thinking Effort
+
+You can configure the reasoning/thinking effort level for agents that support extended thinking (e.g. Qwen3) under the corresponding agent preset section in `moltis.toml`:
+
+```toml
+[agents.presets.research]
+reasoning_effort = "low"
+```
+
+> [!NOTE]
+> Moltis does not expose a dedicated `temperature` property in `moltis.toml`. When executing requests via the standard OpenAI-compatible provider client, it inherits the defaults configured on the upstream server (e.g., the local `llama-server` instance managed by `local-llm-ggml`). For embedded local GGUF/MLX setups inside the gateway, the default temperature is internally set to `0.7`.
+
 
 ## Signal Channel Configuration
 
@@ -193,8 +205,14 @@ Any configuration field in `moltis.toml` can be overridden by setting an environ
 
 ### Locating Configuration Properties in Source Code
 1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/moltis/crates/config/src/schema.rs) and inspect the `MoltisConfig` struct (and its nested types).
-2. **Config Validation**: Run `./assistants/moltis-ctl exec doctor` to validate the current configuration. This command parses the files and highlights errors or warnings, referencing the correct property paths.
-3. **Reference Toml**: Inspect the default/sample `moltis.toml` file to see the structure of configuration parameters.
+2. **How to Search**:
+   - To find where a TOML configuration key (like `dm_policy` or `base_url`) is defined or parsed, search for the key name as a Rust field identifier in snake_case (e.g. `pub dm_policy` or `pub base_url`) within the configuration crates.
+   - Run a ripgrep command targeting the `crates/config` directory:
+     ```bash
+     rg "pub \w*base_url" scratch/moltis/crates/config/
+     ```
+3. **Config Validation**: Run `./assistants/moltis-ctl exec doctor` to validate the current configuration. This command parses the files and highlights errors or warnings, referencing the correct property paths.
+4. **Reference Toml**: Inspect the default/sample `moltis.toml` file to see the structure of configuration parameters.
 
 ---
 

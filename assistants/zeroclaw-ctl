@@ -155,6 +155,7 @@ uri = "http://localhost:50080/v1"
 model = "qwen3"
 api_key = "unused"
 max_tokens = 80000
+temperature = 1.0
 
 # --- Default Agent Settings
 [agents.default]
@@ -204,6 +205,11 @@ dm_only = true
 ignore_attachments = false
 ignore_stories = true
 default_target = "+0000000000"
+
+# --- Runtime Configuration (Thinking/Reasoning)
+[runtime]
+reasoning_enabled = true
+reasoning_effort = "low"
 
 EOF
         echo "Created default configuration at $CONFIG_FILE"

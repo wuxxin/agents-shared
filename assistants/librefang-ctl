@@ -168,6 +168,8 @@ api_key_env = "LOCAL_LLM_API_KEY"
 provider = "local-llm"
 model = "qwen3"
 context_window = 80000
+temperature = 1.0
+reasoning_effort = "low"
 
 [provider_urls]
 openai = "http://localhost:50080/v1"

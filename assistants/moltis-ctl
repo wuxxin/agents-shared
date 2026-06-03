@@ -214,6 +214,10 @@ account = "+1234567890"
 http_url = "http://localhost:50889"
 dm_policy = "open"
 
+# --- Agent Presets (Thinking Effort)
+[agents.presets.research]
+reasoning_effort = "low"
+
 EOF
         echo "Created default configuration at $CONFIG_FILE"
     fi

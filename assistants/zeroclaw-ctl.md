@@ -35,8 +35,19 @@ Edit `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` and configure the local p
 uri = "http://localhost:50080/v1"
 model = "qwen3"
 api_key = "unused"
+temperature = 1.0
 ```
 Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
+
+### Reasoning & Thinking Effort
+
+You can configure the global thinking/reasoning settings for providers that support thinking level controls (e.g. Qwen3) under the `[runtime]` block in `config.toml`:
+
+```toml
+[runtime]
+reasoning_enabled = true
+reasoning_effort = "low"
+```
 
 
 ### Verify Connection
@@ -172,8 +183,14 @@ Any dotted path in `config.toml` can be overridden by setting an environment var
 
 ### Locating Configuration Properties in Source Code
 1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/zeroclaw/crates/zeroclaw-config/src/schema.rs) and inspect the `Config` struct (and its nested types) that derive `Configurable`.
-2. **CLI Schema Query**: Run `./assistants/zeroclaw-ctl exec config schema` to dump the complete JSON Schema of all properties.
-3. **CLI Active Config Listing**: Run `./assistants/zeroclaw-ctl exec config list` to print a list of all currently configured dotted properties.
+2. **How to Search**:
+   - ZeroClaw uses struct definitions where fields map to TOML keys. Dynamic model fields and aliases are stored in hash maps or resolved properties.
+   - To find configuration fields, search in the config crate for struct fields matching the key. Note that ZeroClaw maps snake_case properties to kebab-case in the config schema natively (e.g. `api_key` maps to `api-key`). Search using ripgrep:
+     ```bash
+     rg "pub \w*api_key" scratch/zeroclaw/crates/zeroclaw-config/
+     ```
+3. **CLI Schema Query**: Run `./assistants/zeroclaw-ctl exec config schema` to dump the complete JSON Schema of all properties.
+4. **CLI Active Config Listing**: Run `./assistants/zeroclaw-ctl exec config list` to print a list of all currently configured dotted properties.
 
 ---
 
