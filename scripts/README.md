@@ -11,6 +11,16 @@ A wrapper for running the Antigravity IDE (and other Electron apps) inside a **B
 
 Documentation: [antigravity-launcher.md](antigravity-launcher.md)
 
+## `sandbox-launcher.sh`
+
+A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened **Bubblewrap (`bwrap`)** sandbox with persistent home directory mapping, X11/Wayland display sharing, Pipewire/PulseAudio sound support, and SSH agent forwarding.
+
+```bash
+./scripts/sandbox-launcher.sh install <app_name>
+```
+
+Documentation: [sandbox-launcher.md](sandbox-launcher.md)
+
 ## `llama-cache-test.py`
 
 A Python utility designed to measure the Key-Value (KV) cache performance, time-to-first-token (TTFT), and context processing speeds of a running `llama.cpp` server (or any OpenAI-compatible `/v1/completions` API).
