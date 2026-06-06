@@ -4,63 +4,62 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-## 📊 Summary of Weekly Activity (May 27, 2026 – June 03, 2026)
+### 📊 Summary of Weekly Activity (May 30, 2026 – June 06, 2026)
 
 Rust Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **librefang** | 283 | 54 | `main` | 2026-06-03 | **170** | 0 | 6 | 180.7 | `v2026.5.31-beta.16`, `v2026.5.30-beta.15` | `librefang-git` @ `2026.5.31beta.16.r33.gfd46c5f9e-1` | 0 | **Highly Active** |
-| **zeroclaw** | 31,695 | 4,669 | `master` | 2026-06-03 | **81** | 0 | 1 | 70.5 | `v0.8.0-beta-2` (2026-06-03) | `zeroclaw-git` @ `0.8.0.beta.2.r11.g40be7738f-1` | 0 | **Highly Active** |
-| **moltis** | 2,716 | 321 | `main` | 2026-06-03 | **28** | 0 | 5 | 43.5 | `20260602.05`, `20260602.04` | `moltis-git` @ `20260602.05.r1.gdbd58d83b-1` | 0 | **Highly Active** |
-| **ironclaw** | 12,384 | 1,446 | `main` | 2026-05-28 | **4** | 0 | 0 | 15.7 | `ironclaw-v0.29.0` (2026-05-26) | `ironclaw-git` @ `ironclaw.v0.29.0.r5.g749f584-1` | 0 | **Active** |
+| **ironclaw** | 12,396 | 1,445 | `main` | 2026-06-05 | **166** | 2 | 1 | 221.2 | `ironclaw-v0.29.1` (2026-06-04) | `ironclaw-git` @ `ironclaw.v0.29.0.r5.g749f584-1` | 976 | **Highly Active** |
+| **librefang** | 285 | 54 | `main` | 2026-06-05 | **62** | 0 | 2 | 166.0 | `v2026.5.31-beta.16`, `v2026.5.30-beta.15` | `librefang-git` @ `2026.5.31beta.16.r33.gfd46c5f9e-1` | 4 | **Highly Active** |
+| **zeroclaw** | 31,780 | 4,695 | `master` | 2026-06-06 | **82** | 0 | 1 | 71.7 | `v0.8.0-beta-2` (2026-06-03) | `zeroclaw-git` @ `0.8.0.beta.2.r11.g40be7738f-1` | 29 | **Highly Active** |
+| **moltis** | 2,722 | 323 | `main` | 2026-06-05 | **26** | 0 | 6 | 34.5 | `20260603.01`, `20260602.05` | `moltis-git` @ `20260602.05.r1.gdbd58d83b-1` | 10 | **Active** |
 
 Other Projects:
 
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Commits (Last Wk) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) | Recent Tags / Versions | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **hermes-agent** | 175,968 | 30,014 | `main` | 2026-06-03 | **665** | 36 | 2 | 720.0 | `v2026.5.29`, `v2026.5.28` | — | — | **Highly Active** |
-| **nanobot** | 43,484 | 7,689 | `main` | 2026-06-03 | **105** | 0 | 1 | 111.0 | `v0.2.1` (2026-06-01) | — | — | **Highly Active** |
-| **picoclaw** | 29,258 | 4,191 | `main` | 2026-06-03 | **20** | 27 | 0 | 34.5 | `v0.2.9` (2026-05-22) | `picoclaw-git` @ `0.2.9.nightly.20260603.a502aa7f-1` | 1 | **Active** |
-| **nanoclaw** | 29,614 | 12,901 | `main` | 2026-05-31 | **5** | 2 | 0 | 44.5 | `v2.0.72` (2026-05-31), `v2.0.71` (2026-05-28) | `nanoclaw-git` @ `r1694.b9141218a-1` | 0 | **Active** |
+| **hermes-agent** | 183,194 | 31,424 | `main` | 2026-06-05 | **681** | 54 | 1 | 712.7 | `v2026.6.5` (2026-06-05) | — | — | **Highly Active** |
+| **nanobot** | 43,735 | 7,733 | `main` | 2026-06-05 | **112** | 0 | 1 | 109.0 | `v0.2.1` (2026-06-01) | — | — | **Highly Active** |
+| **picoclaw** | 29,294 | 4,198 | `main` | 2026-06-05 | **41** | 36 | 0 | 32.2 | `v0.2.9` (2026-05-22) | `picoclaw-git` @ `0.2.9.nightly.20260603.a502aa7f-1` | 26 | **Active** |
+| **nanoclaw** | 29,711 | 12,916 | `main` | 2026-06-05 | **13** | 3 | 0 | 31.0 | `v2.0.76` (2026-06-05) | `nanoclaw-git` @ `r1694.b9141218a-1` | 10 | **Active** |
 
 ---
 
 ## 🔍 Repository Breakdown
 
 ### LibreFang (`librefang/librefang`)
-* **Status**: Highly Active (170 commits, 6 releases in the last week). **0 commits since installed 2026.5.31beta.16 (r33.gfd46c5f9e).**
+* **Status**: Highly Active (62 commits, 2 releases in the last week). **4 commits since installed 2026.5.31beta.16 (r33.gfd46c5f9e).**
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
-* **Recent Focus**: creator_match filter for TaskClaimed / TaskCompleted triggers; opt-in safe_bins_skip_approval for shell_exec; propagate per-sidecar account_id for multi-bot isolation; ignore skill scaffolder template TODOs; update contributors and star history; remote marketplace install for Hands; memory/wiki ACL denials degrade gracefully instead of killing the turn; auto-commit regenerated codegen on same-repo PRs; split routes/config.rs, routes/skills.rs, routes/workflows.rs, routes/agents.rs into per-concern modules; wire RL rollout export producer into AgentLoopEnd hook; activated parallel tool-call dispatch behind config flag; persisted goal runs and recovered stale runs at boot.
+* **Recent Focus**: assign approved workshop skill to the creating agent; redact images for text-only models via catalog `supports_vision`; tolerate `<think>` preamble in `history_fold` summary parsing; stop scanning the workflow's own comments to prevent false-positive issues in `todo-to-issue` CI; creator_match filter for TaskClaimed / TaskCompleted triggers; opt-in safe_bins_skip_approval for shell_exec; propagate per-sidecar account_id for multi-bot isolation; ignore skill scaffolder template TODOs.
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (81 commits, 1 release in the last week). **0 commits since installed v0.8.0-beta-2 (r11.g40be7738f).**
-* **Recent Focus**: versioned documentation deployment and version selector; transcode to OGG/Opus for voice notes (Telegram + WhatsApp); deliver WhatsApp replies for LID JIDs and empty sanitization; enforce per-agent tool allowlist in start_channels; bind TTS manager to the channel-owning agent; flag web_dist_dir paths using tilde or $VAR expansion; add dev-sim feature with /tmp/zc-sim-* serial allowlist; add smartroom named-device tools (set_device / read_device) + peripheral wiring support; add http_request private-host allowlist; static output_modality preference on peer groups; honor webhook Retry-After dates; add Spanish and Chinese runtime and zerocode locales (released in `v0.8.0-beta-2`); optional base64 encoding for file_read / file_write; introduce zerocode TUI, RPC socket transport, DenyWithEdit approval, and beta-2 integration; reskinned mdBook to match the web dashboard.
+* **Status**: Highly Active (82 commits, 1 release in the last week). **29 commits since installed v0.8.0-beta-2 (r11.g40be7738f).**
+* **Recent Focus**: support relative after schedules in cron; robustly resolve embedded firmware paths via `CARGO_MANIFEST_DIR`; pass defaulted temperature as option for Ollama; surface pin_devices and description in `hardware_capabilities` tool; share allowlist matching via `crate::allowlist` for WhatsApp Web; treat replies to bot as mentions in WhatsApp Web; setup FreeBSD guide + installable jail files; restore audio attachment transcription in QQ; cover ApprovalBanner in `translate="no"` guard; scrub stale "zeroclaw onboard" references; rename "Scheduled Jobs" tab to "Automations" in WebUI; migrate Agent::turn `load_context` to `MemoryStrategy`.
 
 ### Moltis (`moltis-org/moltis`)
-* **Status**: Highly Active (28 commits, 5 releases in the last week). **0 commits since installed 20260602.05 (r1.gdbd58d83b).**
-* **Recent Focus**: update deploy templates and releases to 20260602.05; restore Gemini tool signature replay; default Alibaba Coding live test endpoint; skip blocked live release gates; propagate registry test errors; use explicit OpenAI capabilities; split OpenAI Codex catalog; add NEAR AI Cloud provider; and handle OpenAI Codex final tool-call arguments.
+* **Status**: Active (26 commits, 6 releases in the last week). **10 commits since installed 20260602.05 (r1.gdbd58d83b).**
+* **Recent Focus**: separate Telegram progress stream from final replies; show Polyphony in workflow slide; update deploy templates and releases to 20260603.01; retry empty Fireworks Kimi final turn; expand AI engineering deck examples and fix PDF presentation export; add NFC Summit AI engineering deck; retry transient ZAI catalog probes; restore Gemini tool signature replay.
 
 ### IronClaw (`nearai/ironclaw`)
-* **Status**: Active (4 commits, 0 releases in the last week). **0 commits since installed ironclaw.v0.29.0 (r5.g749f584).**
-* **Recent Focus**: Scoped id-token: write to nearai-bench CI jobs; granted id-token: write to unblock reusable workflow; tracked nearai/benchmarks @main instead of pinning; plumbed temperature through Responses API.
+* **Status**: Highly Active (166 commits, 1 release in the last week). **976 commits since installed ironclaw.v0.29.0 (r5.g749f584).**
+* **Recent Focus**: third-party extension hook activation via hook-only projection (`HOOKS_THIRD_PARTY_ENABLED`); activate hook framework in production behind `HOOKS_ENABLED` flag; LibSql/Postgres PredicateStateBackend in own crate; cross-backend adversarial parity suite; prevent cross-tenant leakage, replay, and provider spoofing in event-triggered hooks; drive `arguments_digest` snapshot through `invoke_capability`; add NEAR onboarding setup menu and reborn startup guide.
 
 ### Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (665 commits, 36 merges, 2 releases in the last week).
-* **Recent Focus**: Bump npmDepsHash for refreshed lockfile in Nix; regenerate lockfile and map vladkvlchk for salvaged PR; add @testing-library/dom as explicit dev dependency for desktop; include desktop.log in hermes debug share / /debug / hermes logs; fix banner to show 'disabled' instead of 'failed' for enabled:false servers in MCP; make Desktop App remote-backend docs self-contained; add remote-backend section to Desktop App page and explain remote-gateway session token; pass live backend PID to in-app update so its own dashboard is spared; exclude desktop-managed backend from stale-dashboard kill; make matrix bang-command resolution robust, fix dead skill-command branch, and support bang command aliases.
+* **Status**: Highly Active (681 commits, 54 merges, 1 release in the last week).
+* **Recent Focus**: clean force-send of queued messages in TUI; integrate arrow history with the message queue on desktop; arrow up/down to navigate previous user messages; reliable composer message queue; repair macOS updater helper; add `/version` slash command across CLI, gateway, TUI, and desktop; cover IME-composed send-button visibility (Chinese/Japanese/Korean) on desktop; release v0.16.0 (`v2026.6.5`); make rg/grep search error guard reachable and preserve partial matches.
 
 ### NanoBot (`HKUDS/nanobot`)
-* **Status**: Highly Active (105 commits, 0 merges, 1 release in the last week).
-* **Recent Focus**: Restore top-level import order; cover progress message suppression in email tests; skip progress messages to prevent empty emails after tool calls; reject non-integer consolidated offsets in sessions; reset out-of-range last_consolidated to recover hidden history; replace two-phase Dream class with simple cron + process_direct; bound outbound attachment handling and cover agent-initiated attachments in outbound messages; attach media files to outbound SMTP messages; bound startup fetch waits; split WebUI gateway dependencies; check static token as fallback for handler token issue; remove gateway-specific kwargs from WebSocketChannel; and inject GatewayHTTPHandler in ChannelManager.
+* **Status**: Highly Active (112 commits, 1 release in the last week).
+* **Recent Focus**: route and document `/skill` command to list enabled skills; persist user messages for refresh in WebUI; fix pairing for Weixin and Telegram DMs; support custom image generation provider; allow punctuation after Feishu mention placeholders and strip leading bot mention before commands.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Active (20 commits, 27 merges, 0 releases in the last week). **1 commit since installed 0.2.9.nightly.20260603 (a502aa7f).**
-* **Recent Focus**: Bump go from 1.25.10 to 1.25.11 (GO-2026-5039); logs detection; complete picoclaw-agent skill documentation; use sync.Once for thread-safe Stop() in SessionManager; retry transient LLM HTTP errors using provider error classifier; add Zhipu API error code 1210 to format error patterns; add Stop() to SessionManager to prevent goroutine leak; flatten if-else chains and suppress dupl lint; drop temperature for models that deprecate it; restrict list/get/update to accessible jobs per channel; and add get and update actions to cron tool.
+* **Status**: Active (41 commits, 36 merges, 0 releases in the last week). **26 commits since installed 0.2.9.nightly.20260603 (a502aa7f).**
+* **Recent Focus**: log warning when `LoadAndDelete` type assertion fails; add edge case tests for `toChannelHashes` type assertions; expose history tokens and remove leaked state files; use prefixed chatID for group reply routing in onebot; use sync.Once for thread-safe Stop() in SessionManager; handle space in go env GOVERSION; support `anthropic-sdk-go` v1.46.0; handle json.Marshal errors in exec tool responses.
 
 ### NanoClaw (`nanocoai/nanoclaw`)
-* **Status**: Active (5 commits, 2 merges, 0 releases in the last week). **0 commits since installed b9141218a.**
-* **Recent Focus**: Update token count to 181k tokens (91% of context window); bump version to 2.0.72; add /upload-trace command to upload session trace to Hugging Face; bump version to 2.0.71; and bump claude-code to 2.1.154 and claude-agent-sdk to 0.3.154.
-
+* **Status**: Active (13 commits, 3 merges, 0 releases in the last week). **10 commits since installed b9141218a.**
+* **Recent Focus**: bump version to 2.0.76; blank the secret_url path instead of `/*`; update token count to 181k tokens (91% of context window); trim the upload-trace not-signed-in message; show OneCLI's own setup URL when HF token is missing; simplify HF token setup.
 
 ---
 
