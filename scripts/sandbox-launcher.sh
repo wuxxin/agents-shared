@@ -21,19 +21,33 @@ fi
 # Helper: Display launcher help information
 show_help() {
     cat <<EOF
-Generalized Sandbox Launcher Help
----------------------------------
+Sandbox Launcher Help
+
 Usage when called directly ($LAUNCHER_NAME):
-  $0 install <app_name> [opts] - Setup sandbox and create symlink in ~/.local/bin
-                                 Options: --no-git-config (skip copying .gitconfig)
-                                          --new-config (overwrite environment file)
-  $0 uninstall <app_name>      - Remove symlink from ~/.local/bin (preserves data)
-  $0 destroy <app_name>        - Delete persistent sandbox home and env file
-  $0 env <app_name>            - Edit environment configuration file for app
-  $0 exec <app_name> [args...] - Run the sandboxed application with optional args
-  $0 run <app_name> <cmd> [args...] - Run a custom command inside the sandbox
-  $0 shell <app_name>          - Spawn an interactive shell inside the sandbox
-  $0 help                      - Display this help message
+
+$0 install <app_name> [opts]
+    - Setup sandbox and create symlink in ~/.local/bin
+    - Options:
+        --no-git-config (skip copying .gitconfig)
+        --new-config (overwrite environment file)
+
+$0 uninstall <app_name>
+    - Remove symlink from ~/.local/bin (preserves data)
+
+$0 destroy <app_name>
+    - Delete persistent sandbox home and env file
+
+$0 env <app_name>
+    - Edit environment configuration file for app
+
+$0 exec <app_name> [args...]
+    - Run the sandboxed application with optional args
+
+$0 run <app_name> <cmd> [args...]
+    - Run a custom command inside the sandbox
+
+$0 shell <app_name>
+    - Spawn an interactive shell inside the sandbox
 
 Usage when called as a symlink (e.g. <app_name>):
   $0 [args...]                 - Run the sandboxed <app_name> with all arguments
