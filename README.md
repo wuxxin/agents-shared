@@ -34,8 +34,8 @@ also covered, but currently not point of interest:
 
 ### Local Speech-to-Text
 - **Description**: Manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. Serves an OpenAI-compatible audio transcription API on port 50090.
-- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated transcription. Enforces `ProtectSystem=strict` while allowing read-write access to the home directory (for temporary ffmpeg transcoded files) and read-only access to `/data/public/machine-learning`.
-- **Features**: Flash Attention, GPU offloading, audio transcoding using `ffmpeg`.
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated transcription (unless run in CPU mode). Enforces `ProtectSystem=strict` while allowing read-write access to the home directory (for temporary ffmpeg transcoded files) and read-only access to `/data/public/machine-learning`.
+- **Features**: Flash Attention, GPU offloading or CPU execution, audio transcoding using `ffmpeg`.
 - Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
 
 ### Local Text-to-Speech

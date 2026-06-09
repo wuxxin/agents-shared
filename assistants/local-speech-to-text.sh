@@ -32,6 +32,7 @@ load_env() {
     LSTT_MODEL_ALIAS=whisper-1
     LSTT_THREADS=8
     LSTT_DEVICE=0
+    LSTT_NO_GPU=false
     LSTT_INFERENCE_PATH=/v1/audio/transcriptions
     LSTT_EXTRA_ARGS=""
 
@@ -97,6 +98,33 @@ get_shared_options() {
 generate_service_file() {
     load_env
 
+    local no_gpu_flag=""
+    if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
+        no_gpu_flag="--no-gpu"
+    fi
+
+    local exec_cmd="whisper-server \\
+    --model ${LSTT_MODEL} \\
+    --host ${LSTT_HOST} \\
+    --port ${LSTT_PORT} \\
+    --threads ${LSTT_THREADS} \\
+    --device ${LSTT_DEVICE}"
+
+    if [ -n "$no_gpu_flag" ]; then
+        exec_cmd="${exec_cmd} \\
+    ${no_gpu_flag}"
+    fi
+
+    exec_cmd="${exec_cmd} \\
+    --inference-path \"${LSTT_INFERENCE_PATH}\" \\
+    --convert \\
+    -fa"
+
+    if [ -n "${LSTT_EXTRA_ARGS:-}" ]; then
+        exec_cmd="${exec_cmd} \\
+    ${LSTT_EXTRA_ARGS}"
+    fi
+
     cat <<EOF
 [Unit]
 Description=Local Speech-to-Text Transcription Server (whisper-server)
@@ -106,16 +134,7 @@ After=network.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=whisper-server \\
-    --model ${LSTT_MODEL} \\
-    --host ${LSTT_HOST} \\
-    --port ${LSTT_PORT} \\
-    --threads ${LSTT_THREADS} \\
-    --device ${LSTT_DEVICE} \\
-    --inference-path "${LSTT_INFERENCE_PATH}" \\
-    --convert \\
-    -fa \\
-    ${LSTT_EXTRA_ARGS}
+ExecStart=${exec_cmd}
 
 Restart=on-failure
 RestartSec=10s
@@ -160,6 +179,9 @@ LSTT_THREADS=8
 
 # GPU Device ID to use (default: 0)
 LSTT_DEVICE=0
+
+# To run inference on CPU instead of GPU (none=0), uncomment the following line:
+# LSTT_NO_GPU=true
 
 # Inference API endpoint path (default: /v1/audio/transcriptions for OpenAI-compatibility)
 LSTT_INFERENCE_PATH=/v1/audio/transcriptions
@@ -305,17 +327,27 @@ cmd_exec() {
         # shellcheck disable=SC2086
         systemd-run "${opts[@]}" whisper-server "$@"
     else
-        # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" whisper-server \
-            --model "${LSTT_MODEL}" \
-            --host "${LSTT_HOST}" \
-            --port "${LSTT_PORT}" \
-            --threads "${LSTT_THREADS}" \
-            --device "${LSTT_DEVICE}" \
-            --inference-path "${LSTT_INFERENCE_PATH}" \
-            --convert \
-            -fa \
-            ${LSTT_EXTRA_ARGS}
+        local args=(
+            --model "${LSTT_MODEL}"
+            --host "${LSTT_HOST}"
+            --port "${LSTT_PORT}"
+            --threads "${LSTT_THREADS}"
+            --device "${LSTT_DEVICE}"
+        )
+        if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
+            args+=(--no-gpu)
+        fi
+        args+=(
+            --inference-path "${LSTT_INFERENCE_PATH}"
+            --convert
+            -fa
+        )
+        if [ -n "${LSTT_EXTRA_ARGS:-}" ]; then
+            # We want word splitting for extra args since they can be multiple options
+            # shellcheck disable=SC2206
+            args+=(${LSTT_EXTRA_ARGS})
+        fi
+        systemd-run "${opts[@]}" whisper-server "${args[@]}"
     fi
 }
 

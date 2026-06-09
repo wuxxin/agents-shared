@@ -34,7 +34,14 @@ Model Target: `ggml-large-v3-turbo-q5_0.bin`
 | KV Caches | ~49.81 MiB |
 | Compute Buffers | ~202.35 MiB |
 | HIP Context Runtime Overhead | ~600.00 MiB |
-| **Total STT Footprint** | **~1,425.61 MiB (~1.4 GiB)** |
+| **Total STT GPU Footprint** | **~1,425.61 MiB (~1.4 GiB)** |
+
+gpu (w6800), RTF: 0.014
+
+If run on cpu, total CPU Footprint: 1,2 GiB
+
+cpu 8 threads, RTF 0.4
+
 
 ---
 

@@ -38,6 +38,20 @@ The service runs `whisper-server` which loads a GGML Whisper model and exposes a
 | `~/.config/systemd/user/local-speech-to-text.env` | Model path, port, host, and thread configuration |
 | `~/.config/systemd/user/local-speech-to-text.service` | Auto-generated systemd unit |
 
+### Switching between GPU and CPU Inference
+
+By default, the service runs the speech-to-text transcription engine on the GPU for maximum speed. If GPU resources are constrained, it can be run on the CPU instead.
+
+To run the service on the CPU or GPU, run `./local-speech-to-text.sh edit` (or edit `~/.config/systemd/user/local-speech-to-text.env` directly) and change the `LSTT_NO_GPU` parameter:
+
+```bash
+# For CPU execution (uncomment to enable)
+LSTT_NO_GPU=true
+
+# For GPU execution (default, commented out)
+# LSTT_NO_GPU=true
+```
+
 ## VRAM Usage
 
 The speech-to-text service requires approximately **~1.4 GiB** of VRAM when loaded (including weights, caches, compute buffers, and HIP context overhead). 
