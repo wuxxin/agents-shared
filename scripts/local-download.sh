@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-LOCAL_CACHE_DIR="/data/public/machine-learning/models"
-
 # Print help message
 show_help() {
     cat <<EOF
@@ -27,7 +25,7 @@ Options:
   -h, --help        Show this help message and exit
 
 Examples:
-  $(basename "$0") /data/models --all
+  $(basename "$0") /data/public/machine-learning/models --all
   $(basename "$0") ./my-models --llm --embedding
 EOF
 }
@@ -129,16 +127,6 @@ acquire_file() {
     if [[ -s "$target_path" ]]; then
         echo "File already exists and is non-empty: $target_path (Skipping)"
         return 0
-    fi
-
-    # Try local cache copy first
-    if [[ -d "$LOCAL_CACHE_DIR" && -f "${LOCAL_CACHE_DIR}/${cache_subpath}" ]]; then
-        echo "Found in local cache: ${LOCAL_CACHE_DIR}/${cache_subpath}"
-        echo "Copying to $target_path..."
-        if cp "${LOCAL_CACHE_DIR}/${cache_subpath}" "$target_path"; then
-            echo "Successfully copied from local cache."
-            return 0
-        fi
     fi
 
     # Download from URL
@@ -285,16 +273,6 @@ if [[ "$download_reranker" == true ]]; then
         echo "Reranker model already exists and is non-empty: $reranker_target (Skipping)"
     else
         success=false
-        # Try local cache copy first
-        if [[ -d "$LOCAL_CACHE_DIR" && -f "${LOCAL_CACHE_DIR}/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf" ]]; then
-            echo "Found reranker in local cache: ${LOCAL_CACHE_DIR}/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"
-            echo "Copying to $reranker_target..."
-            mkdir -p "$(dirname "$reranker_target")"
-            if cp "${LOCAL_CACHE_DIR}/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf" "$reranker_target"; then
-                echo "Successfully copied from local cache."
-                success=true
-            fi
-        fi
 
         # Try downloading the working sequence-classification version from Hugging Face
         if [[ "$success" == false ]]; then
