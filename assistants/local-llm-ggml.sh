@@ -33,7 +33,7 @@ load_env() {
     LLM_N_CTX=240000
     LLM_PARALLEL=3
     LLM_N_GPU_LAYERS=999
-    LLM_THREADS=8
+    LLM_THREADS=4
     LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
     LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
     LLM_EXTRA_ARGS="--flash-attn on"
@@ -304,8 +304,9 @@ LLM_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
 # LLM_N_GPU_LAYERS=0
 
-# Number of threads to use (default: 8)
-LLM_THREADS=8
+# Number of threads to use (default: 4)
+# Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
+LLM_THREADS=4
 
 # Extra arguments to pass to llama-server (default: "--flash-attn auto")
 LLM_EXTRA_ARGS="--flash-attn auto"

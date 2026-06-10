@@ -433,9 +433,7 @@ def run_llm_chat(
     print(f"  Avg Completion Tokens: {avg_p2_comp_tokens:.1f}")
     print(f"  Avg TTFT (Prefill):   {avg_p2_ttft * 1000:.2f} ms")
     print(f"  Avg Prefill Speed:    {avg_p2_prefill_speed:.2f} tokens/sec")
-    print(
-        f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec (Expected: ~25 t/s)"
-    )
+    print(f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec")
     print(f"  Avg Decode Time:      {avg_p2_gen_time:.2f} s")
     print("\n--- Summary Snippet (Run 1) ---")
     print(generated_text.strip()[:350] + "...")

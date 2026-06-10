@@ -107,6 +107,7 @@ LLM_N_GPU_LAYERS=999
 # LLM_N_GPU_LAYERS=0
 ```
 
+Warning: On a 8 Core / 16 Threads system increasing 
 ### Speculative Decoding (Optional)
 
 By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation. 
