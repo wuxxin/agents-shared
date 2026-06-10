@@ -143,7 +143,7 @@ def run_llm_chat(
     with open(context_file, "r", encoding="utf-8") as f:
         context_content = f.read()
 
-    # Truncate context to ~30k tokens (~115k characters) to avoid GPU memory allocation failures
+    # Truncate context to ~29k tokens (~115k characters) to avoid GPU memory allocation failures
     MAX_CONTEXT_CHARS = 115000
     if len(context_content) > MAX_CONTEXT_CHARS:
         print(
@@ -459,68 +459,159 @@ def run_llm_chat(
 
 
 def run_llm_embed(url: str, model: str, context_file: str, repeats: int) -> None:
-    """Run embedding benchmark using a large context by chunking it to fit batch size."""
+    """Run embedding benchmark using the full context file (~44.5k tokens).
+
+    Tokenizes the full context via the server's /tokenize endpoint to get exact
+    token counts, then splits into chunks of exactly 8192 tokens (matching the
+    configured ubatch-size). Sends token ID arrays directly to /v1/embeddings
+    and measures per-chunk latency plus aggregate throughput.
+    """
     if not os.path.exists(context_file):
         raise FileNotFoundError(f"Context file not found: {context_file}")
 
     with open(context_file, "r", encoding="utf-8") as f:
         context_content = f.read()
 
-    # Split text into chunks of 1500 characters (~400 tokens) to stay within physical batch size
-    chunk_size = 1500
-    chunks = [
-        context_content[i : i + chunk_size]
-        for i in range(0, len(context_content), chunk_size)
-    ]
-    # Limit to 20 chunks for a fast but representative benchmark
-    chunks = [c for c in chunks if c.strip()][:20]
+    # Tokenize the full context via the server to get exact token IDs,
+    # then split into chunks of exactly 8192 tokens (matching ubatch-size).
+    max_tokens_per_chunk = 8192
+    print("  Tokenizing full context via server...")
+    tokenize_resp = post_json(
+        f"{url}/tokenize",
+        {"model": model, "content": context_content, "add_special": False},
+    )
+    all_tokens: List[int] = tokenize_resp.get("tokens", [])
+    total_tokens_exact = len(all_tokens)
 
-    print(f"Running embedding benchmark with {repeats} repeats...")
-    durations = []
-    tokens_list = []
-    speeds = []
+    # Split token array into chunks
+    chunks: List[List[int]] = [
+        all_tokens[i : i + max_tokens_per_chunk]
+        for i in range(0, total_tokens_exact, max_tokens_per_chunk)
+    ]
+
+    total_context_chars = len(context_content)
+
+    print("===================================================")
+    print("=== EMBEDDING BENCHMARK                         ===")
+    print("===================================================")
+    print(f"Context File:      {context_file}")
+    print(f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)")
+    print(f"Chunk Size:        {max_tokens_per_chunk} tokens (max)")
+    print(f"Total Chunks:      {len(chunks)} ({', '.join(str(len(c)) for c in chunks)} tokens)")
+    print(f"Repeats:           {repeats}")
+
+    # Phase 0: Warmup — single short embedding to prime the model
+    print("\n--- Phase 0: Warmup ---")
+    warmup_payload = {"model": model, "input": "warmup embedding test"}
+    t0 = time.perf_counter()
+    warmup_resp = post_json(f"{url}/v1/embeddings", warmup_payload)
+    t1 = time.perf_counter()
+
+    embed_dim = 0
+    if warmup_resp.get("data"):
+        embed_vec = warmup_resp["data"][0].get("embedding", [])
+        embed_dim = len(embed_vec)
+    print(f"  Warmup latency:  {(t1 - t0) * 1000:.1f} ms")
+    print(f"  Embedding dim:   {embed_dim}")
+
+    # Sleep to let GPU settle
+    print("  Sleeping 5 seconds before benchmark runs...")
+    time.sleep(5)
+
+    # Phase 1: Full context embedding
+    print("\n--- Phase 1: Full Context Embedding ---")
+    run_results: List[Dict[str, Any]] = []
 
     for r in range(repeats):
-        print(
-            f"  [Repeat {r + 1}/{repeats}] Sending {len(chunks)} embedding requests sequentially..."
-        )
-        total_tokens = 0
-        t0 = time.perf_counter()
-        for idx, chunk in enumerate(chunks):
+        print(f"  [Run {r + 1}/{repeats}] Embedding {len(chunks)} chunks sequentially...")
+        chunk_latencies: List[float] = []
+        chunk_tokens_list: List[int] = []
+        run_total_tokens = 0
+        run_embed_dim = 0
+
+        t_run_start = time.perf_counter()
+        for idx, chunk_tokens in enumerate(chunks):
             payload = {
                 "model": model,
-                "input": chunk + f" [r{r}]",
+                "input": chunk_tokens,
             }
+            t_chunk_start = time.perf_counter()
             resp = post_json(f"{url}/v1/embeddings", payload)
-            usage = resp.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", 0)
-            if prompt_tokens == 0:
-                prompt_tokens = int(len(chunk) / 3.8)
-            total_tokens += prompt_tokens
-        t1 = time.perf_counter()
+            t_chunk_end = time.perf_counter()
 
-        duration_ms = (t1 - t0) * 1000.0
-        speed = (total_tokens / (duration_ms / 1000.0)) if duration_ms > 0 else 0.0
+            chunk_latency_ms = (t_chunk_end - t_chunk_start) * 1000.0
+            chunk_latencies.append(chunk_latency_ms)
 
-        durations.append(duration_ms)
-        tokens_list.append(total_tokens)
-        speeds.append(speed)
+            # Use exact token count from our chunking
+            prompt_tokens = len(chunk_tokens)
+            chunk_tokens_list.append(prompt_tokens)
+            run_total_tokens += prompt_tokens
+
+            # Validate embedding dimensions on first chunk
+            if idx == 0 and resp.get("data"):
+                run_embed_dim = len(resp["data"][0].get("embedding", []))
+
+        t_run_end = time.perf_counter()
+        run_duration_s = t_run_end - t_run_start
+        run_speed = (run_total_tokens / run_duration_s) if run_duration_s > 0 else 0.0
+
+        # Latency statistics
+        sorted_lat = sorted(chunk_latencies)
+        p50_idx = len(sorted_lat) // 2
+        p95_idx = min(int(len(sorted_lat) * 0.95), len(sorted_lat) - 1)
+        p50_lat = sorted_lat[p50_idx]
+        p95_lat = sorted_lat[p95_idx]
+        min_lat = sorted_lat[0]
+        max_lat = sorted_lat[-1]
+        avg_lat = sum(chunk_latencies) / len(chunk_latencies)
+
+        run_info = {
+            "duration_s": run_duration_s,
+            "total_tokens": run_total_tokens,
+            "speed_tps": run_speed,
+            "embed_dim": run_embed_dim,
+            "chunk_count": len(chunks),
+            "latency_avg_ms": avg_lat,
+            "latency_p50_ms": p50_lat,
+            "latency_p95_ms": p95_lat,
+            "latency_min_ms": min_lat,
+            "latency_max_ms": max_lat,
+        }
+        run_results.append(run_info)
+
         print(
-            f"    Completed repeat {r + 1}: {duration_ms:.2f} ms ({speed:.2f} tokens/sec)"
+            f"    Total: {run_duration_s:.2f}s | {run_total_tokens} tokens | "
+            f"{run_speed:.2f} t/s"
+        )
+        print(
+            f"    Chunk latency: avg={avg_lat:.1f}ms  p50={p50_lat:.1f}ms  "
+            f"p95={p95_lat:.1f}ms  min={min_lat:.1f}ms  max={max_lat:.1f}ms"
         )
 
-    avg_duration = sum(durations) / len(durations)
-    avg_tokens = sum(tokens_list) / len(tokens_list)
-    avg_speed = sum(speeds) / len(speeds)
-
-    print("\n=== Embedding Benchmark Results (Cumulative Average) ===")
+    # Summary report
+    print("\n===================================================")
+    print("=== EMBEDDING BENCHMARK RESULTS SUMMARY         ===")
+    print("===================================================")
     print(f"Context File:      {context_file}")
+    print(f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)")
+    print(f"Chunks:            {len(chunks)} × {max_tokens_per_chunk} tokens (max)")
+    print(f"Embedding Dim:     {embed_dim}")
     print(f"Repeats:           {repeats}")
-    print(f"Total Chunks:      {len(chunks)}")
-    print(f"Avg Tokens/Run:    {avg_tokens:.1f}")
-    print(f"Avg Time/Run:      {avg_duration:.2f} ms")
-    print(f"Avg Speed:         {avg_speed:.2f} tokens/sec")
-    print("========================================================\n")
+
+    avg_duration = sum(r["duration_s"] for r in run_results) / len(run_results)
+    avg_tokens = sum(r["total_tokens"] for r in run_results) / len(run_results)
+    avg_speed = sum(r["speed_tps"] for r in run_results) / len(run_results)
+    avg_lat = sum(r["latency_avg_ms"] for r in run_results) / len(run_results)
+    avg_p50 = sum(r["latency_p50_ms"] for r in run_results) / len(run_results)
+    avg_p95 = sum(r["latency_p95_ms"] for r in run_results) / len(run_results)
+
+    print(f"\n  Avg Tokens/Run:       {avg_tokens:.0f}")
+    print(f"  Avg Time/Run:         {avg_duration:.2f} s")
+    print(f"  Avg Throughput:       {avg_speed:.2f} tokens/sec")
+    print(f"\n  Avg Chunk Latency:    {avg_lat:.1f} ms")
+    print(f"  Avg Chunk p50:        {avg_p50:.1f} ms")
+    print(f"  Avg Chunk p95:        {avg_p95:.1f} ms")
+    print("===================================================")
 
 
 def run_rerank(url: str, model: str, context_file: str, repeats: int) -> None:
@@ -868,9 +959,7 @@ def main() -> None:
     args = parser.parse_args()
 
     repeats = (
-        args.repeat
-        if args.repeat is not None
-        else (10 if args.mode in ("llm-embed", "stt") else 1)
+        args.repeat if args.repeat is not None else (10 if args.mode in ["stt"] else 1)
     )
 
     output_path = args.output

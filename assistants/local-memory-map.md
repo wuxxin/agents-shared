@@ -9,10 +9,10 @@ Serves both chat and embeddings from a single process.
 
 | Component / Allocation | GPU VRAM | Details |
 |---|---|---|
-| **Model Weights & Compute** (LLM + Vision + Embedding) | ~19,959 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Embedding Weights (~700 MiB) + Compute (~990 MiB) |
+| **Model Weights & Compute** (LLM + Vision + Embedding) | ~20,109 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Embedding Weights (~700 MiB) + Compute (~990 MiB) + Embedding Compute (~150 MiB, ubatch=8192) |
 | **KV Cache** (q4_0 KV, parallel=3, slot n_ctx=80,000) | ~8,031 MiB | LLM KV cache allocation |
 | **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
-| **Total LLM Footprint** | **~28,590 MiB** | Run on GPU |
+| **Total LLM Footprint** | **~28,740 MiB** | Run on GPU |
 
 ### Local Rerank Service (`local-rerank.sh` / `llama-server`)
 Serves document reranking. Can run on GPU or CPU.
@@ -88,14 +88,14 @@ Here we map VRAM usage for running **Inference** (LLM + Vision, Embedding, Reran
 To maximize VRAM efficiency, we run the **Local-LLM Service** and **Speech-to-Text** on the GPU, while offloading the **Local-Rerank Service** and the **Text-To-Speech Service** to the CPU.
 
 ### Baseline Allocation (LLM on GPU, Reranker on CPU, STT on GPU)
-- **Local-LLM Service** (LLM + Vision + Embedding + HIP context): **20,559 MiB** (19,959 MiB weights/compute + 600 MiB HIP context)
+- **Local-LLM Service** (LLM + Vision + Embedding + HIP context): **20,709 MiB** (20,109 MiB weights/compute + 600 MiB HIP context)
 - **LLM KV Cache** (n_ctx = 240,000, parallel=3, slot n_ctx=80,000): **8,031 MiB**
 - **Local-Rerank Service** (on CPU): **0 MiB** (Runs in System RAM)
 - **Speech-to-Text (Whisper on GPU)**: **1,426 MiB** (includes weights, KV, buffers, and STT HIP overhead)
 - **TTS (Qwen3-tts 0.6B on cpu only)**: **0 MiB** VRAM (System RAM: ~3.0 GiB)
     - **Performance**: TTS RTF is ~1.58x (acceptable for conversational interaction)
-- **Total Required VRAM**: **30,016 MiB** (with LLM `n_ctx=240,000`, parallel=3)
+- **Total Required VRAM**: **30,166 MiB** (with LLM `n_ctx=240,000`, parallel=3)
 - **Status**:  **Safe**. Fits within the single card footprint.
-- **Remaining Headroom**: **688 MiB** free VRAM
+- **Remaining Headroom**: **538 MiB** free VRAM
 
 

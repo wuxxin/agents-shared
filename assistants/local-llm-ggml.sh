@@ -204,6 +204,8 @@ generate_ini_file() {
     ini_content+="embedding = true"$'\n'
     ini_content+="pooling = mean"$'\n'
     ini_content+="ctx-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+    ini_content+="batch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+    ini_content+="ubatch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
 
     printf '%s' "$ini_content" >"$INI_FILE"
     chmod 600 "$INI_FILE"
