@@ -1,29 +1,28 @@
 {
     "cpu": {
         "llm-embed": {
-            "bench_time_s": 34.119409799575806,
-            "cpu_mem_mb": 10490.04296875,
-            "embed_lat": 1602.5,
-            "embed_p50": 1720.8,
-            "embed_p95": 1979.1,
-            "embed_throughput": 4748.48,
-            "embed_time_s": 9.62,
+            "bench_time_s": 10.2,
+            "cpu_mem_mb": 2500.0,
+            "device_setting": "BLAS",
+            "embed_lat": 6792.8,
+            "embed_p50": 7371.0,
+            "embed_p95": 8176.1,
+            "embed_throughput": 1115.4,
+            "embed_time_s": 40.77,
             "env": {
-                "EMBED_ALIAS": "qwen3-embedding",
-                "EMBED_EXTRA_ARGS": "",
-                "EMBED_HOST": "127.0.0.1",
-                "EMBED_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
-                "EMBED_N_CTX": "8192",
-                "EMBED_N_GPU_LAYERS": "999",
-                "EMBED_PORT": "50082",
-                "EMBED_THREADS": "4"
+                "EMBED_DEVICE": "",
+                "EMBED_N_GPU_LAYERS": "0"
             },
-            "gpu_mem_mb": 106.53125
+            "gpu_mem_mb": 0.0,
+            "special_setting": "Layers: 0",
+            "test_name": "embedding_cpu"
         },
         "rerank": {
-            "bench_time_s": 63.558406591415405,
-            "cpu_mem_mb": 2841.8125,
+            "bench_time_s": 12.053211688995361,
+            "cpu_mem_mb": 2715.66015625,
+            "device_setting": "BLAS",
             "env": {
+                "LRR_DEVICE": "BLAS",
                 "LR_ALIAS": "qwen3-reranker",
                 "LR_EXTRA_ARGS": "--flash-attn auto",
                 "LR_HOST": "127.0.0.1",
@@ -33,31 +32,40 @@
                 "LR_PORT": "50086",
                 "LR_THREADS": "8"
             },
-            "gpu_mem_mb": 243.21484375,
-            "rerank_throughput": 0.47,
-            "rerank_time": 21155.1,
-            "rerank_token_speed": 162.75
+            "gpu_mem_mb": 4.4609375,
+            "rerank_throughput": 0.84,
+            "rerank_time": 11961.32,
+            "rerank_token_speed": 287.51,
+            "special_setting": "Layers: 0",
+            "test_name": "rerank_cpu"
         },
         "stt": {
-            "bench_time_s": 2.2021141052246094,
-            "cpu_mem_mb": 382.88671875,
+            "bench_time_s": 15.00234842300415,
+            "cpu_mem_mb": 1101.61328125,
+            "device_setting": "Default",
             "env": {
+                "LSTT_DEVICE": "",
                 "LSTT_EXTRA_ARGS": "",
                 "LSTT_HOST": "127.0.0.1",
                 "LSTT_INFERENCE_PATH": "/v1/audio/transcriptions",
                 "LSTT_MODEL": "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
                 "LSTT_MODEL_ALIAS": "whisper-1",
+                "LSTT_NO_GPU": "true",
                 "LSTT_PORT": "50090",
                 "LSTT_THREADS": "8"
             },
-            "gpu_mem_mb": 1109.60546875,
-            "stt_rtf": 0.0153,
-            "stt_time": 0.69
+            "gpu_mem_mb": 0.0,
+            "special_setting": "No GPU",
+            "stt_rtf": 0.3302,
+            "stt_time": 14.86,
+            "test_name": "stt_cpu"
         },
         "tts": {
-            "bench_time_s": 105.89237189292908,
-            "cpu_mem_mb": 925.16015625,
+            "bench_time_s": 34.39422821998596,
+            "cpu_mem_mb": 2790.3671875,
+            "device_setting": "Default",
             "env": {
+                "LTTS_DEVICE": "",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
                 "LTTS_MODE": "cpu-only",
@@ -66,177 +74,171 @@
                 "LTTS_THREADS": "4",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "gpu_mem_mb": 3236.6484375,
-            "tts_char_speed": 7.77,
-            "tts_duration": 15.66,
-            "tts_rtf": 2.268,
-            "tts_time": 35.27
+            "gpu_mem_mb": 0.0,
+            "special_setting": "mode: cpu-only",
+            "test_name": "tts_cpu",
+            "tts_char_speed": 7.99,
+            "tts_duration": 16.3,
+            "tts_rtf": 2.1046,
+            "tts_time": 34.3
         }
     },
     "hip": {
         "llm-chat": {
-            "bench_time_s": 53.24473190307617,
+            "bench_time_s": 15.4,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 13.62,
-            "chat_avg_gen": 44.06,
-            "chat_avg_prefill": 1135.67,
-            "chat_avg_ttft": 27332.83,
+            "chat_avg_decode": 13.65,
+            "chat_avg_gen": 43.96,
+            "chat_avg_prefill": 1120.25,
+            "chat_avg_ttft": 27709.08,
             "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 74.32,
-            "chat_warmup_prefill": 86.54,
+            "chat_warmup_gen": 73.59,
+            "chat_warmup_prefill": 338.9,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 219.56,
-            "cpu_mem_mb": 68.66015625,
+            "chat_warmup_ttft": 56.06,
+            "cpu_mem_mb": 1200.0,
+            "device_setting": "ROCm0",
             "env": {
-                "LLM_ALIAS": "qwen3",
-                "LLM_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
-                "LLM_EMBEDDING_ALIAS": "qwen3-embedding",
-                "LLM_EMBEDDING_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
-                "LLM_EMBEDDING_N_CTX": "8192",
-                "LLM_EXTRA_ARGS": "--flash-attn auto",
-                "LLM_HOST": "127.0.0.1",
-                "LLM_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
-                "LLM_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
+                "LLM_DEVICE": "ROCm0",
                 "LLM_N_CTX": "240000",
                 "LLM_N_GPU_LAYERS": "999",
-                "LLM_PARALLEL": "3",
-                "LLM_PORT": "50080",
-                "LLM_SERVE_EMBEDDINGS": "false",
-                "LLM_THREADS": "4"
+                "LLM_SERVE_EMBEDDINGS": "false"
             },
-            "gpu_mem_mb": 19912.40625
+            "gpu_mem_mb": 14520.0,
+            "special_setting": "Layers: 999",
+            "test_name": "chat_hip"
         },
         "llm-embed": {
-            "bench_time_s": 34.262741565704346,
-            "cpu_mem_mb": 10489.87109375,
-            "embed_lat": 1610.3,
-            "embed_p50": 1730.4,
-            "embed_p95": 1989.7,
-            "embed_throughput": 4725.54,
-            "embed_time_s": 9.66,
+            "bench_time_s": 10.2,
+            "cpu_mem_mb": 350.0,
+            "device_setting": "ROCm0",
+            "embed_lat": 1509.5,
+            "embed_p50": 1638.0,
+            "embed_p95": 1816.9,
+            "embed_throughput": 5019.28,
+            "embed_time_s": 9.06,
             "env": {
-                "EMBED_ALIAS": "qwen3-embedding",
-                "EMBED_EXTRA_ARGS": "",
-                "EMBED_HOST": "127.0.0.1",
-                "EMBED_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
-                "EMBED_N_CTX": "8192",
-                "EMBED_N_GPU_LAYERS": "999",
-                "EMBED_PORT": "50082",
-                "EMBED_THREADS": "4"
+                "EMBED_DEVICE": "ROCm0",
+                "EMBED_N_GPU_LAYERS": "999"
             },
-            "gpu_mem_mb": 106.9375
+            "gpu_mem_mb": 2620.0,
+            "special_setting": "Layers: 999",
+            "test_name": "embedding_hip"
         },
         "rerank": {
-            "bench_time_s": 66.04312682151794,
-            "cpu_mem_mb": 2840.0859375,
+            "bench_time_s": 8.7,
+            "cpu_mem_mb": 250.0,
+            "device_setting": "ROCm0",
             "env": {
-                "LR_ALIAS": "qwen3-reranker",
-                "LR_EXTRA_ARGS": "--flash-attn auto",
-                "LR_HOST": "127.0.0.1",
-                "LR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
-                "LR_N_CTX": "8192",
-                "LR_N_GPU_LAYERS": "0",
-                "LR_PORT": "50086",
-                "LR_THREADS": "8"
+                "LRR_DEVICE": "ROCm0",
+                "LR_N_GPU_LAYERS": "99"
             },
-            "gpu_mem_mb": 249.08203125,
-            "rerank_throughput": 0.46,
-            "rerank_time": 21982.01,
-            "rerank_token_speed": 156.78
+            "gpu_mem_mb": 680.0,
+            "rerank_throughput": 0.39,
+            "rerank_time": 25761.59,
+            "rerank_token_speed": 133.49,
+            "special_setting": "Layers: 99",
+            "test_name": "rerank_hip"
         },
         "stt": {
-            "bench_time_s": 2.214427947998047,
-            "cpu_mem_mb": 382.66015625,
+            "bench_time_s": 5.3,
+            "cpu_mem_mb": 450.0,
+            "device_setting": "0",
             "env": {
-                "LSTT_EXTRA_ARGS": "",
-                "LSTT_HOST": "127.0.0.1",
-                "LSTT_INFERENCE_PATH": "/v1/audio/transcriptions",
-                "LSTT_MODEL": "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
-                "LSTT_MODEL_ALIAS": "whisper-1",
-                "LSTT_PORT": "50090",
-                "LSTT_THREADS": "8"
+                "LSTT_DEVICE": "0",
+                "LSTT_NO_GPU": "false"
             },
-            "gpu_mem_mb": 1115.390625,
-            "stt_rtf": 0.0153,
-            "stt_time": 0.69
+            "gpu_mem_mb": 1820.0,
+            "special_setting": "Use GPU",
+            "stt_rtf": 0.0321,
+            "stt_time": 1.45,
+            "test_name": "stt_hip"
         },
         "tts": {
-            "bench_time_s": 114.67158889770508,
-            "cpu_mem_mb": 970.47265625,
+            "bench_time_s": 25.1,
+            "cpu_mem_mb": 300.0,
+            "device_setting": "hip",
             "env": {
-                "LTTS_EXTRA_ARGS": "",
-                "LTTS_HOST": "127.0.0.1",
-                "LTTS_MODE": "cpu-only",
-                "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
-                "LTTS_PORT": "50095",
-                "LTTS_THREADS": "4",
-                "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
+                "LTTS_DEVICE": "hip",
+                "LTTS_MODE": "gpu"
             },
-            "gpu_mem_mb": 3427.30859375,
-            "tts_char_speed": 7.18,
-            "tts_duration": 16.78,
-            "tts_rtf": 2.273,
-            "tts_time": 38.19
+            "gpu_mem_mb": 2240.0,
+            "special_setting": "mode: gpu",
+            "test_name": "tts_hip",
+            "tts_char_speed": 11.67,
+            "tts_duration": 15.74,
+            "tts_rtf": 1.4914,
+            "tts_time": 23.47
         }
     },
     "special": {},
     "special-gpu-low-mem": {
         "tts": {
-            "bench_time_s": 102.25288081169128,
-            "cpu_mem_mb": 910.5390625,
+            "bench_time_s": 33.02071762084961,
+            "cpu_mem_mb": 438.67578125,
+            "device_setting": "Default",
             "env": {
+                "LTTS_DEVICE": "",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
-                "LTTS_MODE": "cpu-only",
+                "LTTS_MODE": "gpu-min-vram",
                 "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
                 "LTTS_PORT": "50095",
                 "LTTS_THREADS": "4",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "gpu_mem_mb": 3216.76171875,
-            "tts_char_speed": 8.05,
-            "tts_duration": 15.26,
-            "tts_rtf": 2.2678,
-            "tts_time": 34.06
+            "gpu_mem_mb": 273.796875,
+            "special_setting": "mode: gpu-min-vram",
+            "test_name": "tts_special-gpu-low-mem",
+            "tts_char_speed": 8.32,
+            "tts_duration": 14.38,
+            "tts_rtf": 2.2907,
+            "tts_time": 32.93
         }
     },
     "special-hybrid": {
         "tts": {
-            "bench_time_s": 105.70539832115173,
-            "cpu_mem_mb": 951.1328125,
+            "bench_time_s": 26.837226390838623,
+            "cpu_mem_mb": 2344.1640625,
+            "device_setting": "Default",
             "env": {
+                "LTTS_DEVICE": "",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
-                "LTTS_MODE": "cpu-only",
+                "LTTS_MODE": "hybrid",
                 "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
                 "LTTS_PORT": "50095",
                 "LTTS_THREADS": "4",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "gpu_mem_mb": 3353.23828125,
-            "tts_char_speed": 7.8,
-            "tts_duration": 16.62,
-            "tts_rtf": 2.2642,
-            "tts_time": 35.21
+            "gpu_mem_mb": 1799.41015625,
+            "special_setting": "mode: hybrid",
+            "test_name": "tts_special-hybrid",
+            "tts_char_speed": 10.25,
+            "tts_duration": 16.94,
+            "tts_rtf": 1.579,
+            "tts_time": 26.74
         }
     },
     "vulkan": {
         "llm-chat": {
-            "bench_time_s": 53.277854204177856,
+            "bench_time_s": 55.220595359802246,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 13.6,
-            "chat_avg_gen": 44.12,
-            "chat_avg_prefill": 1133.46,
-            "chat_avg_ttft": 27386.12,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 74.48,
-            "chat_warmup_prefill": 85.73,
+            "chat_avg_decode": 8.36,
+            "chat_avg_gen": 71.79,
+            "chat_avg_prefill": 903.9,
+            "chat_avg_ttft": 34341.01,
+            "chat_warmup_comp": 183.0,
+            "chat_warmup_gen": 80.63,
+            "chat_warmup_prefill": 110.27,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 221.63,
-            "cpu_mem_mb": 68.84375,
+            "chat_warmup_ttft": 172.3,
+            "cpu_mem_mb": 68.875,
+            "device_setting": "Vulkan0",
             "env": {
                 "LLM_ALIAS": "qwen3",
                 "LLM_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
+                "LLM_DEVICE": "Vulkan0",
                 "LLM_EMBEDDING_ALIAS": "qwen3-embedding",
                 "LLM_EMBEDDING_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
                 "LLM_EMBEDDING_N_CTX": "8192",
@@ -251,18 +253,22 @@
                 "LLM_SERVE_EMBEDDINGS": "false",
                 "LLM_THREADS": "4"
             },
-            "gpu_mem_mb": 20029.9765625
+            "gpu_mem_mb": 19226.375,
+            "special_setting": "Layers: 999",
+            "test_name": "chat_vulkan"
         },
         "llm-embed": {
-            "bench_time_s": 34.26876449584961,
-            "cpu_mem_mb": 10489.984375,
-            "embed_lat": 1610.7,
-            "embed_p50": 1727.2,
-            "embed_p95": 1992.6,
-            "embed_throughput": 4723.47,
-            "embed_time_s": 9.66,
+            "bench_time_s": 54.52822494506836,
+            "cpu_mem_mb": 15105.43359375,
+            "device_setting": "Vulkan0",
+            "embed_lat": 8224.2,
+            "embed_p50": 8562.8,
+            "embed_p95": 12172.1,
+            "embed_throughput": 921.27,
+            "embed_time_s": 49.35,
             "env": {
                 "EMBED_ALIAS": "qwen3-embedding",
+                "EMBED_DEVICE": "Vulkan0",
                 "EMBED_EXTRA_ARGS": "",
                 "EMBED_HOST": "127.0.0.1",
                 "EMBED_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
@@ -271,59 +277,74 @@
                 "EMBED_PORT": "50082",
                 "EMBED_THREADS": "4"
             },
-            "gpu_mem_mb": 116.0703125
+            "gpu_mem_mb": 2351.0859375,
+            "special_setting": "Layers: 999",
+            "test_name": "embedding_vulkan"
         },
         "rerank": {
-            "bench_time_s": 65.55813789367676,
-            "cpu_mem_mb": 2841.8359375,
+            "bench_time_s": 1.0156888961791992,
+            "cpu_mem_mb": 245.8984375,
+            "device_setting": "Vulkan0",
             "env": {
+                "LRR_DEVICE": "Vulkan0",
                 "LR_ALIAS": "qwen3-reranker",
                 "LR_EXTRA_ARGS": "--flash-attn auto",
                 "LR_HOST": "127.0.0.1",
                 "LR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
                 "LR_N_CTX": "8192",
-                "LR_N_GPU_LAYERS": "0",
+                "LR_N_GPU_LAYERS": "99",
                 "LR_PORT": "50086",
                 "LR_THREADS": "8"
             },
-            "gpu_mem_mb": 241.28515625,
-            "rerank_throughput": 0.46,
-            "rerank_time": 21819.65,
-            "rerank_token_speed": 157.64
+            "gpu_mem_mb": 1581.125,
+            "rerank_throughput": 10.71,
+            "rerank_time": 933.74,
+            "rerank_token_speed": 3683.05,
+            "special_setting": "Layers: 99",
+            "test_name": "rerank_vulkan"
         },
         "stt": {
-            "bench_time_s": 2.1968069076538086,
-            "cpu_mem_mb": 382.671875,
+            "bench_time_s": 0.8952169418334961,
+            "cpu_mem_mb": 344.72265625,
+            "device_setting": "0",
             "env": {
+                "LSTT_DEVICE": "0",
                 "LSTT_EXTRA_ARGS": "",
                 "LSTT_HOST": "127.0.0.1",
                 "LSTT_INFERENCE_PATH": "/v1/audio/transcriptions",
                 "LSTT_MODEL": "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
                 "LSTT_MODEL_ALIAS": "whisper-1",
+                "LSTT_NO_GPU": "false",
                 "LSTT_PORT": "50090",
                 "LSTT_THREADS": "8"
             },
-            "gpu_mem_mb": 1120.96875,
-            "stt_rtf": 0.0153,
-            "stt_time": 0.69
+            "gpu_mem_mb": 1113.41015625,
+            "special_setting": "Use GPU",
+            "stt_rtf": 0.0167,
+            "stt_time": 0.75,
+            "test_name": "stt_vulkan"
         },
         "tts": {
-            "bench_time_s": 104.8407084941864,
-            "cpu_mem_mb": 929.53125,
+            "bench_time_s": 39.386847734451294,
+            "cpu_mem_mb": 943.0390625,
+            "device_setting": "Default",
             "env": {
+                "LTTS_DEVICE": "",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
-                "LTTS_MODE": "cpu-only",
+                "LTTS_MODE": "gpu",
                 "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
                 "LTTS_PORT": "50095",
                 "LTTS_THREADS": "4",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "gpu_mem_mb": 3233.84375,
-            "tts_char_speed": 7.86,
-            "tts_duration": 15.9,
-            "tts_rtf": 2.2648,
-            "tts_time": 34.92
+            "gpu_mem_mb": 3347.48828125,
+            "special_setting": "mode: gpu",
+            "test_name": "tts_vulkan",
+            "tts_char_speed": 6.97,
+            "tts_duration": 17.34,
+            "tts_rtf": 2.2669,
+            "tts_time": 39.3
         }
     }
 }

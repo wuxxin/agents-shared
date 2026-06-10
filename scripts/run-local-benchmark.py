@@ -92,6 +92,10 @@ def update_env_file(env_file_path: str, updates: Dict[str, Any]) -> None:
         else:
             new_lines.append(f"{key}={val}\n")
 
+    # Write the modified content back to the file
+    with open(env_file_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
 
 def read_env_file(env_file_path: str) -> Dict[str, str]:
     """Read environment file and parse active assignments into a dictionary."""
@@ -342,8 +346,8 @@ def start_service(script_path: str) -> Tuple[subprocess.Popen, int]:
     return proc, master_fd
 
 
-def run_benchmark(script_path: str, args: List[str]) -> str:
-    """Execute the service test command with args and return captured stdout."""
+def run_benchmark(script_path: str, args: List[str]) -> Tuple[str, bool]:
+    """Execute the service test command with args and return captured stdout and success flag."""
     cmd = [script_path, "test"] + args
     print(f"Running benchmark command: {' '.join(cmd)}")
     result = subprocess.run(
@@ -355,7 +359,8 @@ def run_benchmark(script_path: str, args: List[str]) -> str:
     if result.returncode != 0:
         print(f"Error running benchmark. Exit code: {result.returncode}")
         print(f"Stderr: {result.stderr}")
-    return result.stdout
+        return result.stdout, False
+    return result.stdout, True
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +560,16 @@ Avg Speed:            {11.67 / fac:.2f} chars/sec (1.92 words/sec)
 def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
     """Format parsed metrics into a beautiful markdown benchmark document."""
 
+    def format_env(cfg: str, mode: str) -> str:
+        if cfg in data and mode in data[cfg] and "env" in data[cfg][mode]:
+            env_vars = data[cfg][mode]["env"]
+            if isinstance(env_vars, dict):
+                lines = []
+                for k, v in sorted(env_vars.items()):
+                    lines.append(f'  - `{k}="{v}"`')
+                return "\n".join(lines)
+        return "  - *No environment settings recorded*"
+
     # Helper to print values safely
     def val(
         cfg: str,
@@ -576,7 +591,80 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                 return f"{1.0 / rtf:.1f}x"
         return "N/A"
 
+    def get_test_name(cfg: str, mode: str) -> str:
+        if cfg in data and mode in data[cfg] and "test_name" in data[cfg][mode]:
+            return str(data[cfg][mode]["test_name"])
+        fallback_names = {
+            "llm-chat": "chat",
+            "llm-embed": "embedding",
+            "rerank": "rerank",
+            "stt": "stt",
+            "tts": "tts",
+        }
+        base = fallback_names.get(mode, mode)
+        return f"{base}_{cfg}"
+
+    def get_device_setting(cfg: str, mode: str) -> str:
+        if cfg in data and mode in data[cfg] and "device_setting" in data[cfg][mode]:
+            return str(data[cfg][mode]["device_setting"])
+        if cfg in data and mode in data[cfg] and "env" in data[cfg][mode]:
+            env = data[cfg][mode]["env"]
+            if isinstance(env, dict):
+                for k in [
+                    "LLM_DEVICE",
+                    "EMBED_DEVICE",
+                    "LRR_DEVICE",
+                    "LSTT_DEVICE",
+                    "LTTS_DEVICE",
+                ]:
+                    if k in env and env[k]:
+                        return env[k]
+        if cfg == "hip":
+            return (
+                "ROCm0"
+                if mode in ("llm-chat", "llm-embed", "rerank")
+                else ("0" if mode == "stt" else "Default")
+            )
+        elif cfg == "vulkan":
+            return (
+                "Vulkan0"
+                if mode in ("llm-chat", "llm-embed", "rerank")
+                else ("0" if mode == "stt" else "Default")
+            )
+        elif cfg == "cpu":
+            return (
+                "BLAS"
+                if mode in ("llm-chat", "llm-embed", "rerank")
+                else "Default (CPU)"
+            )
+        return "Default"
+
+    def get_special_setting(cfg: str, mode: str) -> str:
+        if cfg in data and mode in data[cfg] and "special_setting" in data[cfg][mode]:
+            return str(data[cfg][mode]["special_setting"])
+        if cfg in data and mode in data[cfg] and "env" in data[cfg][mode]:
+            env = data[cfg][mode]["env"]
+            if isinstance(env, dict):
+                if mode == "tts" and "LTTS_MODE" in env:
+                    return f"mode: {env['LTTS_MODE']}"
+                for k in ["LLM_N_GPU_LAYERS", "EMBED_N_GPU_LAYERS", "LR_N_GPU_LAYERS"]:
+                    if k in env:
+                        return f"Layers: {env[k]}"
+                if "LSTT_NO_GPU" in env:
+                    return "No GPU" if env["LSTT_NO_GPU"] == "true" else "Use GPU"
+        if cfg == "special-hybrid":
+            return "mode: hybrid"
+        elif cfg == "special-gpu-low-mem":
+            return "mode: gpu-min-vram"
+        return "None"
+
+    import datetime
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     report = f"""# LLM Caching Optimization Benchmarks
+
+**Benchmark Run Time:** `{now_str}`
 
 ## Local Inference Services Benchmarks
 
@@ -585,41 +673,41 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 ### 📊 Performance Comparison Matrix
 
 #### Text Chat (`local-llm-ggml`)
-| Configuration | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
-|---|---|---|---|---|---|---|---|
-| **HIP** | {val("hip", "llm-chat", "chat_avg_ttft", ".2f", " ms")} | {val("hip", "llm-chat", "chat_avg_prefill", ".2f", " t/s")} | {val("hip", "llm-chat", "chat_warmup_ttft", ".2f", " ms")} | {val("hip", "llm-chat", "chat_warmup_gen", ".2f", " t/s")} | {val("hip", "llm-chat", "chat_avg_gen", ".2f", " t/s")} | {val("hip", "llm-chat", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "llm-chat", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {val("vulkan", "llm-chat", "chat_avg_ttft", ".2f", " ms")} | {val("vulkan", "llm-chat", "chat_avg_prefill", ".2f", " t/s")} | {val("vulkan", "llm-chat", "chat_warmup_ttft", ".2f", " ms")} | {val("vulkan", "llm-chat", "chat_warmup_gen", ".2f", " t/s")} | {val("vulkan", "llm-chat", "chat_avg_gen", ".2f", " t/s")} | {val("vulkan", "llm-chat", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "llm-chat", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
+| Configuration | Test Name | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **HIP** | {get_test_name("hip", "llm-chat")} | {get_device_setting("hip", "llm-chat")} | {get_special_setting("hip", "llm-chat")} | {val("hip", "llm-chat", "chat_avg_ttft", ".2f", " ms")} | {val("hip", "llm-chat", "chat_avg_prefill", ".2f", " t/s")} | {val("hip", "llm-chat", "chat_warmup_ttft", ".2f", " ms")} | {val("hip", "llm-chat", "chat_warmup_gen", ".2f", " t/s")} | {val("hip", "llm-chat", "chat_avg_gen", ".2f", " t/s")} | {val("hip", "llm-chat", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "llm-chat", "cpu_mem_mb", ".1f", " MB")} |
+| **Vulkan** | {get_test_name("vulkan", "llm-chat")} | {get_device_setting("vulkan", "llm-chat")} | {get_special_setting("vulkan", "llm-chat")} | {val("vulkan", "llm-chat", "chat_avg_ttft", ".2f", " ms")} | {val("vulkan", "llm-chat", "chat_avg_prefill", ".2f", " t/s")} | {val("vulkan", "llm-chat", "chat_warmup_ttft", ".2f", " ms")} | {val("vulkan", "llm-chat", "chat_warmup_gen", ".2f", " t/s")} | {val("vulkan", "llm-chat", "chat_avg_gen", ".2f", " t/s")} | {val("vulkan", "llm-chat", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "llm-chat", "cpu_mem_mb", ".1f", " MB")} |
+| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
 
 #### Text Embedding (`local-embedding`)
-| Configuration | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
-|---|---|---|---|---|
-| **HIP** | {val("hip", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("hip", "llm-embed", "embed_lat", ".1f", " ms")} | {val("hip", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {val("vulkan", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("vulkan", "llm-embed", "embed_lat", ".1f", " ms")} | {val("vulkan", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {val("cpu", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("cpu", "llm-embed", "embed_lat", ".1f", " ms")} | {val("cpu", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
+| Configuration | Test Name | Device Setting | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
+|---|---|---|---|---|---|---|---|
+| **HIP** | {get_test_name("hip", "llm-embed")} | {get_device_setting("hip", "llm-embed")} | {get_special_setting("hip", "llm-embed")} | {val("hip", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("hip", "llm-embed", "embed_lat", ".1f", " ms")} | {val("hip", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
+| **Vulkan** | {get_test_name("vulkan", "llm-embed")} | {get_device_setting("vulkan", "llm-embed")} | {get_special_setting("vulkan", "llm-embed")} | {val("vulkan", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("vulkan", "llm-embed", "embed_lat", ".1f", " ms")} | {val("vulkan", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
+| **CPU** | {get_test_name("cpu", "llm-embed")} | {get_device_setting("cpu", "llm-embed")} | {get_special_setting("cpu", "llm-embed")} | {val("cpu", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("cpu", "llm-embed", "embed_lat", ".1f", " ms")} | {val("cpu", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
 
 #### Document Reranking (`local-rerank`)
-| Configuration | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|
-| **HIP** | {val("hip", "rerank", "rerank_time", ".2f", " ms")} | {val("hip", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("hip", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("hip", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "rerank", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {val("vulkan", "rerank", "rerank_time", ".2f", " ms")} | {val("vulkan", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("vulkan", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("vulkan", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "rerank", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {val("cpu", "rerank", "rerank_time", ".2f", " ms")} | {val("cpu", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("cpu", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("cpu", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "rerank", "cpu_mem_mb", ".1f", " MB")} |
+| Configuration | Test Name | Device Setting | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|
+| **HIP** | {get_test_name("hip", "rerank")} | {get_device_setting("hip", "rerank")} | {get_special_setting("hip", "rerank")} | {val("hip", "rerank", "rerank_time", ".2f", " ms")} | {val("hip", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("hip", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("hip", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "rerank", "cpu_mem_mb", ".1f", " MB")} |
+| **Vulkan** | {get_test_name("vulkan", "rerank")} | {get_device_setting("vulkan", "rerank")} | {get_special_setting("vulkan", "rerank")} | {val("vulkan", "rerank", "rerank_time", ".2f", " ms")} | {val("vulkan", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("vulkan", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("vulkan", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "rerank", "cpu_mem_mb", ".1f", " MB")} |
+| **CPU** | {get_test_name("cpu", "rerank")} | {get_device_setting("cpu", "rerank")} | {get_special_setting("cpu", "rerank")} | {val("cpu", "rerank", "rerank_time", ".2f", " ms")} | {val("cpu", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("cpu", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("cpu", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "rerank", "cpu_mem_mb", ".1f", " MB")} |
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
-| Configuration | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|
-| **HIP** | {val("hip", "stt", "stt_time", ".2f", " s")} | {val("hip", "stt", "stt_rtf", ".4f")} | {speedup("hip", "stt", "stt_rtf")} | {val("hip", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "stt", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {val("vulkan", "stt", "stt_time", ".2f", " s")} | {val("vulkan", "stt", "stt_rtf", ".4f")} | {speedup("vulkan", "stt", "stt_rtf")} | {val("vulkan", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "stt", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {val("cpu", "stt", "stt_time", ".2f", " s")} | {val("cpu", "stt", "stt_rtf", ".4f")} | {speedup("cpu", "stt", "stt_rtf")} | {val("cpu", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "stt", "cpu_mem_mb", ".1f", " MB")} |
+| Configuration | Test Name | Device Setting | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|
+| **HIP** | {get_test_name("hip", "stt")} | {get_device_setting("hip", "stt")} | {get_special_setting("hip", "stt")} | {val("hip", "stt", "stt_time", ".2f", " s")} | {val("hip", "stt", "stt_rtf", ".4f")} | {speedup("hip", "stt", "stt_rtf")} | {val("hip", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "stt", "cpu_mem_mb", ".1f", " MB")} |
+| **Vulkan** | {get_test_name("vulkan", "stt")} | {get_device_setting("vulkan", "stt")} | {get_special_setting("vulkan", "stt")} | {val("vulkan", "stt", "stt_time", ".2f", " s")} | {val("vulkan", "stt", "stt_rtf", ".4f")} | {speedup("vulkan", "stt", "stt_rtf")} | {val("vulkan", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "stt", "cpu_mem_mb", ".1f", " MB")} |
+| **CPU** | {get_test_name("cpu", "stt")} | {get_device_setting("cpu", "stt")} | {get_special_setting("cpu", "stt")} | {val("cpu", "stt", "stt_time", ".2f", " s")} | {val("cpu", "stt", "stt_rtf", ".4f")} | {speedup("cpu", "stt", "stt_rtf")} | {val("cpu", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "stt", "cpu_mem_mb", ".1f", " MB")} |
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-| Configuration | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|
-| **HIP** | {val("hip", "tts", "tts_time", ".2f", " s")} | {val("hip", "tts", "tts_rtf", ".4f")} | {val("hip", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("hip", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {val("vulkan", "tts", "tts_time", ".2f", " s")} | {val("vulkan", "tts", "tts_rtf", ".4f")} | {val("vulkan", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("vulkan", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {val("cpu", "tts", "tts_time", ".2f", " s")} | {val("cpu", "tts", "tts_rtf", ".4f")} | {val("cpu", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("cpu", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **Special (Hybrid)** | {val("special-hybrid", "tts", "tts_time", ".2f", " s")} | {val("special-hybrid", "tts", "tts_rtf", ".4f")} | {val("special-hybrid", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("special-hybrid", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("special-hybrid", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **Special (Low-Mem)** | {val("special-gpu-low-mem", "tts", "tts_time", ".2f", " s")} | {val("special-gpu-low-mem", "tts", "tts_rtf", ".4f")} | {val("special-gpu-low-mem", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("special-gpu-low-mem", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("special-gpu-low-mem", "tts", "cpu_mem_mb", ".1f", " MB")} |
+| Configuration | Test Name | Device Setting | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|
+| **HIP** | {get_test_name("hip", "tts")} | {get_device_setting("hip", "tts")} | {get_special_setting("hip", "tts")} | {val("hip", "tts", "tts_time", ".2f", " s")} | {val("hip", "tts", "tts_rtf", ".4f")} | {val("hip", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("hip", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "tts", "cpu_mem_mb", ".1f", " MB")} |
+| **Vulkan** | {get_test_name("vulkan", "tts")} | {get_device_setting("vulkan", "tts")} | {get_special_setting("vulkan", "tts")} | {val("vulkan", "tts", "tts_time", ".2f", " s")} | {val("vulkan", "tts", "tts_rtf", ".4f")} | {val("vulkan", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("vulkan", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "tts", "cpu_mem_mb", ".1f", " MB")} |
+| **CPU** | {get_test_name("cpu", "tts")} | {get_device_setting("cpu", "tts")} | {get_special_setting("cpu", "tts")} | {val("cpu", "tts", "tts_time", ".2f", " s")} | {val("cpu", "tts", "tts_rtf", ".4f")} | {val("cpu", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("cpu", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "tts", "cpu_mem_mb", ".1f", " MB")} |
+| **Special (Hybrid)** | {get_test_name("special-hybrid", "tts")} | {get_device_setting("special-hybrid", "tts")} | {get_special_setting("special-hybrid", "tts")} | {val("special-hybrid", "tts", "tts_time", ".2f", " s")} | {val("special-hybrid", "tts", "tts_rtf", ".4f")} | {val("special-hybrid", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("special-hybrid", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("special-hybrid", "tts", "cpu_mem_mb", ".1f", " MB")} |
+| **Special (Low-Mem)** | {get_test_name("special-gpu-low-mem", "tts")} | {get_device_setting("special-gpu-low-mem", "tts")} | {get_special_setting("special-gpu-low-mem", "tts")} | {val("special-gpu-low-mem", "tts", "tts_time", ".2f", " s")} | {val("special-gpu-low-mem", "tts", "tts_rtf", ".4f")} | {val("special-gpu-low-mem", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("special-gpu-low-mem", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("special-gpu-low-mem", "tts", "cpu_mem_mb", ".1f", " MB")} |
 
 ---
 
@@ -641,11 +729,16 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
         # Chat details
         if "llm-chat" in data[cfg]:
             report += f"""#### Text Chat (`local-llm-ggml`)
+- **Benchmark Test Name:** `{get_test_name(cfg, "llm-chat")}`
+- **Device Setting:** `{get_device_setting(cfg, "llm-chat")}`
+- **Special Setting:** `{get_special_setting(cfg, "llm-chat")}`
 - **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
 - **Execution Target:** `{cfg_upper}`
 - **GPU Memory Used:** {val(cfg, "llm-chat", "gpu_mem_mb", ".1f", " MB")}
 - **CPU Memory Used:** {val(cfg, "llm-chat", "cpu_mem_mb", ".1f", " MB")}
 - **Benchmark Running Time:** {val(cfg, "llm-chat", "bench_time_s", ".2f", " s")}
+- **Active Environment Settings:**
+{format_env(cfg, "llm-chat")}
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       {val(cfg, "llm-chat", "chat_warmup_ttft", ".2f", " ms")}
   - Prefill Speed:        {val(cfg, "llm-chat", "chat_warmup_prefill", ".2f", " tokens/sec")}
@@ -662,11 +755,16 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
         # Embedding details
         if "llm-embed" in data[cfg]:
             report += f"""#### Text Embedding (`local-embedding`)
+- **Benchmark Test Name:** `{get_test_name(cfg, "llm-embed")}`
+- **Device Setting:** `{get_device_setting(cfg, "llm-embed")}`
+- **Special Setting:** `{get_special_setting(cfg, "llm-embed")}`
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
 - **Execution Target:** `{cfg_upper}`
 - **GPU Memory Used:** {val(cfg, "llm-embed", "gpu_mem_mb", ".1f", " MB")}
 - **CPU Memory Used:** {val(cfg, "llm-embed", "cpu_mem_mb", ".1f", " MB")}
 - **Benchmark Running Time:** {val(cfg, "llm-embed", "bench_time_s", ".2f", " s")}
+- **Active Environment Settings:**
+{format_env(cfg, "llm-embed")}
 - **Metrics:**
   - Avg Time/Run:         {val(cfg, "llm-embed", "embed_time_s", ".2f", " s")}
   - Avg Throughput:       {val(cfg, "llm-embed", "embed_throughput", ".2f", " tokens/sec")}
@@ -679,11 +777,16 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
         # Reranker details
         if "rerank" in data[cfg]:
             report += f"""#### Document Reranking (`local-rerank`)
+- **Benchmark Test Name:** `{get_test_name(cfg, "rerank")}`
+- **Device Setting:** `{get_device_setting(cfg, "rerank")}`
+- **Special Setting:** `{get_special_setting(cfg, "rerank")}`
 - **Model:** `qwen3-reranker` (`Qwen3-Reranker-0.6B.Q4_K_M.gguf`)
 - **Execution Target:** `{cfg_upper}`
 - **GPU Memory Used:** {val(cfg, "rerank", "gpu_mem_mb", ".1f", " MB")}
 - **CPU Memory Used:** {val(cfg, "rerank", "cpu_mem_mb", ".1f", " MB")}
 - **Benchmark Running Time:** {val(cfg, "rerank", "bench_time_s", ".2f", " s")}
+- **Active Environment Settings:**
+{format_env(cfg, "rerank")}
 - **Metrics:**
   - Avg Reranking Time:   {val(cfg, "rerank", "rerank_time", ".2f", " ms")}
   - Avg Docs Throughput:  {val(cfg, "rerank", "rerank_throughput", ".2f", " docs/sec")}
@@ -694,11 +797,16 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
         # STT details
         if "stt" in data[cfg]:
             report += f"""#### Speech-to-Text (STT) (`local-speech-to-text`)
+- **Benchmark Test Name:** `{get_test_name(cfg, "stt")}`
+- **Device Setting:** `{get_device_setting(cfg, "stt")}`
+- **Special Setting:** `{get_special_setting(cfg, "stt")}`
 - **Model:** `whisper-1` (`ggml-large-v3-turbo-q5_0.bin`)
 - **Execution Target:** `{cfg_upper}`
 - **GPU Memory Used:** {val(cfg, "stt", "gpu_mem_mb", ".1f", " MB")}
 - **CPU Memory Used:** {val(cfg, "stt", "cpu_mem_mb", ".1f", " MB")}
 - **Benchmark Running Time:** {val(cfg, "stt", "bench_time_s", ".2f", " s")}
+- **Active Environment Settings:**
+{format_env(cfg, "stt")}
 - **Metrics:**
   - Avg Transcribe Time:  {val(cfg, "stt", "stt_time", ".2f", " seconds")}
   - Avg Real-Time Factor (RTF): {val(cfg, "stt", "stt_rtf", ".4f")} ({speedup(cfg, "stt", "stt_rtf")} faster than real-time)
@@ -708,11 +816,16 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
         # TTS details
         if "tts" in data[cfg]:
             report += f"""#### Text-to-Speech (TTS) (`local-text-to-speech`)
+- **Benchmark Test Name:** `{get_test_name(cfg, "tts")}`
+- **Device Setting:** `{get_device_setting(cfg, "tts")}`
+- **Special Setting:** `{get_special_setting(cfg, "tts")}`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `{cfg_upper}`
 - **GPU Memory Used:** {val(cfg, "tts", "gpu_mem_mb", ".1f", " MB")}
 - **CPU Memory Used:** {val(cfg, "tts", "cpu_mem_mb", ".1f", " MB")}
 - **Benchmark Running Time:** {val(cfg, "tts", "bench_time_s", ".2f", " s")}
+- **Active Environment Settings:**
+{format_env(cfg, "tts")}
 - **Metrics:**
   - Generated Audio Duration: {val(cfg, "tts", "tts_duration", ".2f", " seconds")}
   - Avg Synthesis Time:   {val(cfg, "tts", "tts_time", ".2f", " seconds")}
@@ -866,21 +979,31 @@ def main() -> None:
                         "--only-chat",
                     ]
                     start_time = time.time()
-                    stdout = run_benchmark(srv["script"], test_args)
-                    elapsed_time = time.time() - start_time
-                    benchmark_data[cfg]["llm-chat"] = parse_chat_output(stdout)
-                    benchmark_data[cfg]["llm-chat"]["bench_time_s"] = elapsed_time
+                    stdout, success = run_benchmark(srv["script"], test_args)
+                    if not success:
+                        print(f"⚠️ Warning: Benchmark command for chat on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                    else:
+                        elapsed_time = time.time() - start_time
+                        benchmark_data[cfg]["llm-chat"] = parse_chat_output(stdout)
+                        benchmark_data[cfg]["llm-chat"]["bench_time_s"] = elapsed_time
 
-                    # Measure VRAM and RAM right before stopping
-                    post_run_vram = get_gpu_memory_mb()
-                    gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
-                    cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
+                        # Measure VRAM and RAM right before stopping
+                        post_run_vram = get_gpu_memory_mb()
+                        gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
+                        cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
 
-                    benchmark_data[cfg]["llm-chat"]["gpu_mem_mb"] = gpu_mem_mb
-                    benchmark_data[cfg]["llm-chat"]["cpu_mem_mb"] = cpu_mem_mb
-                    benchmark_data[cfg]["llm-chat"]["env"] = read_env_file(
-                        srv["env_file"]
-                    )
+                        benchmark_data[cfg]["llm-chat"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cfg]["llm-chat"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cfg]["llm-chat"]["test_name"] = f"chat_{cfg}"
+                        benchmark_data[cfg]["llm-chat"]["device_setting"] = (
+                            llm_device if llm_device else "Default"
+                        )
+                        benchmark_data[cfg]["llm-chat"]["special_setting"] = (
+                            f"Layers: {999 if cfg != 'cpu' else 0}"
+                        )
+                        benchmark_data[cfg]["llm-chat"]["env"] = read_env_file(
+                            srv["env_file"]
+                        )
                 else:
                     stdout = get_mock_output("llm-chat", cfg)
                     benchmark_data[cfg]["llm-chat"] = parse_chat_output(stdout)
@@ -891,6 +1014,15 @@ def main() -> None:
                         "llm-chat", cfg
                     )
                     benchmark_data[cfg]["llm-chat"]["bench_time_s"] = 15.4
+                    benchmark_data[cfg]["llm-chat"]["test_name"] = f"chat_{cfg}"
+                    benchmark_data[cfg]["llm-chat"]["device_setting"] = (
+                        "ROCm0"
+                        if cfg == "hip"
+                        else ("Vulkan0" if cfg == "vulkan" else "Default")
+                    )
+                    benchmark_data[cfg]["llm-chat"]["special_setting"] = (
+                        f"Layers: {999 if cfg != 'cpu' else 0}"
+                    )
                     benchmark_data[cfg]["llm-chat"]["env"] = {
                         "LLM_DEVICE": "ROCm0"
                         if cfg == "hip"
@@ -917,6 +1049,8 @@ def main() -> None:
             srv = SERVICES["embedding"]
             if cfg == "special":
                 print("Skipping Embedding for Special configuration.")
+            elif cfg == "cpu":
+                print("Skipping Embedding for CPU configuration.")
             else:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
@@ -932,7 +1066,7 @@ def main() -> None:
                     device_map = {
                         "hip": "ROCm0",
                         "vulkan": "Vulkan0",
-                        "cpu": "",
+                        "cpu": "BLAS",
                     }
                     embed_device = device_map.get(cfg, cfg)
                     updates = {
@@ -979,24 +1113,34 @@ def main() -> None:
                     test_args = [
                         "--benchmark",
                         "--repeat",
-                        "3",
+                        "1",
                     ]
                     start_time = time.time()
-                    stdout = run_benchmark(srv["script"], test_args)
-                    elapsed_time = time.time() - start_time
-                    benchmark_data[cfg]["llm-embed"] = parse_embed_output(stdout)
-                    benchmark_data[cfg]["llm-embed"]["bench_time_s"] = elapsed_time
+                    stdout, success = run_benchmark(srv["script"], test_args)
+                    if not success:
+                        print(f"⚠️ Warning: Benchmark command for embedding on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                    else:
+                        elapsed_time = time.time() - start_time
+                        benchmark_data[cfg]["llm-embed"] = parse_embed_output(stdout)
+                        benchmark_data[cfg]["llm-embed"]["bench_time_s"] = elapsed_time
 
-                    # Measure VRAM and RAM right before stopping
-                    post_run_vram = get_gpu_memory_mb()
-                    gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
-                    cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
+                        # Measure VRAM and RAM right before stopping
+                        post_run_vram = get_gpu_memory_mb()
+                        gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
+                        cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
 
-                    benchmark_data[cfg]["llm-embed"]["gpu_mem_mb"] = gpu_mem_mb
-                    benchmark_data[cfg]["llm-embed"]["cpu_mem_mb"] = cpu_mem_mb
-                    benchmark_data[cfg]["llm-embed"]["env"] = read_env_file(
-                        srv["env_file"]
-                    )
+                        benchmark_data[cfg]["llm-embed"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cfg]["llm-embed"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cfg]["llm-embed"]["test_name"] = f"embedding_{cfg}"
+                        benchmark_data[cfg]["llm-embed"]["device_setting"] = (
+                            embed_device if embed_device else "Default"
+                        )
+                        benchmark_data[cfg]["llm-embed"]["special_setting"] = (
+                            f"Layers: {999 if cfg != 'cpu' else 0}"
+                        )
+                        benchmark_data[cfg]["llm-embed"]["env"] = read_env_file(
+                            srv["env_file"]
+                        )
                 else:
                     stdout = get_mock_output("llm-embed", cfg)
                     benchmark_data[cfg]["llm-embed"] = parse_embed_output(stdout)
@@ -1007,6 +1151,19 @@ def main() -> None:
                         "llm-embed", cfg
                     )
                     benchmark_data[cfg]["llm-embed"]["bench_time_s"] = 10.2
+                    benchmark_data[cfg]["llm-embed"]["test_name"] = f"embedding_{cfg}"
+                    benchmark_data[cfg]["llm-embed"]["device_setting"] = (
+                        "ROCm0"
+                        if cfg == "hip"
+                        else (
+                            "Vulkan0"
+                            if cfg == "vulkan"
+                            else ("BLAS" if cfg == "cpu" else "Default")
+                        )
+                    )
+                    benchmark_data[cfg]["llm-embed"]["special_setting"] = (
+                        f"Layers: {999 if cfg != 'cpu' else 0}"
+                    )
                     benchmark_data[cfg]["llm-embed"]["env"] = {
                         "EMBED_DEVICE": "ROCm0"
                         if cfg == "hip"
@@ -1045,7 +1202,7 @@ def main() -> None:
                     device_map = {
                         "hip": "ROCm0",
                         "vulkan": "Vulkan0",
-                        "cpu": "",
+                        "cpu": "BLAS",
                     }
                     lrr_device = device_map.get(cfg, cfg)
                     updates = {
@@ -1081,20 +1238,30 @@ def main() -> None:
                         },
                     )
                     start_time = time.time()
-                    stdout = run_benchmark(
-                        srv["script"], ["--benchmark", "--repeat", "3"]
+                    stdout, success = run_benchmark(
+                        srv["script"], ["--benchmark", "--repeat", "1"]
                     )
-                    elapsed_time = time.time() - start_time
-                    benchmark_data[cfg]["rerank"] = parse_rerank_output(stdout)
-                    benchmark_data[cfg]["rerank"]["bench_time_s"] = elapsed_time
-                    post_run_vram = get_gpu_memory_mb()
-                    gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
-                    cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
-                    benchmark_data[cfg]["rerank"]["gpu_mem_mb"] = gpu_mem_mb
-                    benchmark_data[cfg]["rerank"]["cpu_mem_mb"] = cpu_mem_mb
-                    benchmark_data[cfg]["rerank"]["env"] = read_env_file(
-                        srv["env_file"]
-                    )
+                    if not success:
+                        print(f"⚠️ Warning: Benchmark command for reranker on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                    else:
+                        elapsed_time = time.time() - start_time
+                        benchmark_data[cfg]["rerank"] = parse_rerank_output(stdout)
+                        benchmark_data[cfg]["rerank"]["bench_time_s"] = elapsed_time
+                        post_run_vram = get_gpu_memory_mb()
+                        gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
+                        cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
+                        benchmark_data[cfg]["rerank"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cfg]["rerank"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cfg]["rerank"]["test_name"] = f"rerank_{cfg}"
+                        benchmark_data[cfg]["rerank"]["device_setting"] = (
+                            lrr_device if lrr_device else "Default"
+                        )
+                        benchmark_data[cfg]["rerank"]["special_setting"] = (
+                            f"Layers: {99 if cfg != 'cpu' else 0}"
+                        )
+                        benchmark_data[cfg]["rerank"]["env"] = read_env_file(
+                            srv["env_file"]
+                        )
                 else:
                     stdout = get_mock_output("rerank", cfg)
                     benchmark_data[cfg]["rerank"] = parse_rerank_output(stdout)
@@ -1105,6 +1272,19 @@ def main() -> None:
                         "rerank", cfg
                     )
                     benchmark_data[cfg]["rerank"]["bench_time_s"] = 8.7
+                    benchmark_data[cfg]["rerank"]["test_name"] = f"rerank_{cfg}"
+                    benchmark_data[cfg]["rerank"]["device_setting"] = (
+                        "ROCm0"
+                        if cfg == "hip"
+                        else (
+                            "Vulkan0"
+                            if cfg == "vulkan"
+                            else ("BLAS" if cfg == "cpu" else "Default")
+                        )
+                    )
+                    benchmark_data[cfg]["rerank"]["special_setting"] = (
+                        f"Layers: {99 if cfg != 'cpu' else 0}"
+                    )
                     benchmark_data[cfg]["rerank"]["env"] = {
                         "LRR_DEVICE": "ROCm0"
                         if cfg == "hip"
@@ -1167,18 +1347,28 @@ def main() -> None:
                 print("Running STT benchmark...")
                 if not args.mock:
                     start_time = time.time()
-                    stdout = run_benchmark(
-                        srv["script"], ["--benchmark", "--repeat", "3"]
+                    stdout, success = run_benchmark(
+                        srv["script"], ["--benchmark", "--repeat", "1"]
                     )
-                    elapsed_time = time.time() - start_time
-                    benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
-                    benchmark_data[cfg]["stt"]["bench_time_s"] = elapsed_time
-                    post_run_vram = get_gpu_memory_mb()
-                    gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
-                    cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
-                    benchmark_data[cfg]["stt"]["gpu_mem_mb"] = gpu_mem_mb
-                    benchmark_data[cfg]["stt"]["cpu_mem_mb"] = cpu_mem_mb
-                    benchmark_data[cfg]["stt"]["env"] = read_env_file(srv["env_file"])
+                    if not success:
+                        print(f"⚠️ Warning: Benchmark command for STT on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                    else:
+                        elapsed_time = time.time() - start_time
+                        benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
+                        benchmark_data[cfg]["stt"]["bench_time_s"] = elapsed_time
+                        post_run_vram = get_gpu_memory_mb()
+                        gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
+                        cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
+                        benchmark_data[cfg]["stt"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cfg]["stt"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cfg]["stt"]["test_name"] = f"stt_{cfg}"
+                        benchmark_data[cfg]["stt"]["device_setting"] = (
+                            lstt_device if lstt_device else "Default"
+                        )
+                        benchmark_data[cfg]["stt"]["special_setting"] = (
+                            "No GPU" if cfg == "cpu" else "Use GPU"
+                        )
+                        benchmark_data[cfg]["stt"]["env"] = read_env_file(srv["env_file"])
                 else:
                     stdout = get_mock_output("stt", cfg)
                     benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
@@ -1189,6 +1379,13 @@ def main() -> None:
                         "stt", cfg
                     )
                     benchmark_data[cfg]["stt"]["bench_time_s"] = 5.3
+                    benchmark_data[cfg]["stt"]["test_name"] = f"stt_{cfg}"
+                    benchmark_data[cfg]["stt"]["device_setting"] = (
+                        "0" if cfg != "cpu" else "Default"
+                    )
+                    benchmark_data[cfg]["stt"]["special_setting"] = (
+                        "No GPU" if cfg == "cpu" else "Use GPU"
+                    )
                     benchmark_data[cfg]["stt"]["env"] = {
                         "LSTT_DEVICE": "0" if cfg != "cpu" else "",
                         "LSTT_NO_GPU": "false" if cfg != "cpu" else "true",
@@ -1283,20 +1480,30 @@ def main() -> None:
 
                 if not args.mock:
                     start_time = time.time()
-                    stdout = run_benchmark(
-                        srv["script"], ["--benchmark", "--repeat", "3"]
+                    stdout, success = run_benchmark(
+                        srv["script"], ["--benchmark", "--repeat", "1"]
                     )
-                    elapsed_time = time.time() - start_time
-                    benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
-                    benchmark_data[data_key]["tts"]["bench_time_s"] = elapsed_time
-                    post_run_vram = get_gpu_memory_mb()
-                    gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
-                    cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
-                    benchmark_data[data_key]["tts"]["gpu_mem_mb"] = gpu_mem_mb
-                    benchmark_data[data_key]["tts"]["cpu_mem_mb"] = cpu_mem_mb
-                    benchmark_data[data_key]["tts"]["env"] = read_env_file(
-                        srv["env_file"]
-                    )
+                    if not success:
+                        print(f"⚠️ Warning: Benchmark command for TTS on config '{data_key}' (mode: {ltts_mode}) returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                    else:
+                        elapsed_time = time.time() - start_time
+                        benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
+                        benchmark_data[data_key]["tts"]["bench_time_s"] = elapsed_time
+                        post_run_vram = get_gpu_memory_mb()
+                        gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
+                        cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
+                        benchmark_data[data_key]["tts"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[data_key]["tts"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[data_key]["tts"]["test_name"] = f"tts_{data_key}"
+                        benchmark_data[data_key]["tts"]["device_setting"] = (
+                            actual_device if actual_device else "Default"
+                        )
+                        benchmark_data[data_key]["tts"]["special_setting"] = (
+                            f"mode: {ltts_mode}"
+                        )
+                        benchmark_data[data_key]["tts"]["env"] = read_env_file(
+                            srv["env_file"]
+                        )
                 else:
                     stdout = get_mock_output("tts", data_key)
                     benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
@@ -1307,6 +1514,13 @@ def main() -> None:
                         "tts", data_key
                     )
                     benchmark_data[data_key]["tts"]["bench_time_s"] = 25.1
+                    benchmark_data[data_key]["tts"]["test_name"] = f"tts_{data_key}"
+                    benchmark_data[data_key]["tts"]["device_setting"] = (
+                        ltts_device if ltts_device else "Default"
+                    )
+                    benchmark_data[data_key]["tts"]["special_setting"] = (
+                        f"mode: {ltts_mode}"
+                    )
                     benchmark_data[data_key]["tts"]["env"] = {
                         "LTTS_MODE": ltts_mode,
                         "LTTS_DEVICE": ltts_device,

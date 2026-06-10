@@ -381,8 +381,45 @@ cmd_edit() {
     cmd_restart
 }
 
+export_tts_env_vars() {
+    load_env
+    local force_cpu=0
+    local low_mem=0
+    local transformer_force_cpu=0
+    local vocoder_force_cpu=0
+    case "${LTTS_MODE:-gpu}" in
+    "gpu")
+        force_cpu=0
+        low_mem=0
+        ;;
+    "gpu-min-vram")
+        force_cpu=0
+        low_mem=1
+        ;;
+    "hybrid")
+        force_cpu=0
+        low_mem=0
+        transformer_force_cpu=1
+        ;;
+    "cpu-only")
+        force_cpu=1
+        low_mem=0
+        ;;
+    *)
+        force_cpu=0
+        low_mem=0
+        ;;
+    esac
+
+    export QWEN3_TTS_FORCE_CPU="${force_cpu}"
+    export QWEN3_TTS_LOW_MEM="${low_mem}"
+    export QWEN3_TTS_TRANSFORMER_FORCE_CPU="${transformer_force_cpu}"
+    export QWEN3_TTS_VOCODER_FORCE_CPU="${vocoder_force_cpu}"
+}
+
 cmd_exec() {
     load_env
+    export_tts_env_vars
 
     local args=(
         --model "${LTTS_MODEL}"
