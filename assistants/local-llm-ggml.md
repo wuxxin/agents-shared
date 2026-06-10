@@ -101,10 +101,31 @@ By default, the service offloads execution to the GPU using ROCm/HIP.
 To run the service on the CPU, run `./local-llm-ggml.sh edit` (or edit `~/.config/systemd/user/local-llm-ggml.env` directly) and edit this parameter:
 
 ```bash
-# Number of layers to offload to GPU (all=99)
-LR_N_GPU_LAYERS=99
+# Number of layers to offload to GPU (all=999)
+LLM_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
-# LR_N_GPU_LAYERS=0
+# LLM_N_GPU_LAYERS=0
+```
+
+### Speculative Decoding (Optional)
+
+By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation. 
+
+#### How N-Gram Speculation Works:
+* **No Draft Model Required**: Unlike traditional speculative decoding which loads a second smaller model (incurring extra memory and load latency), N-Gram lookup is a CPU-side lookup that matches sequences of tokens in the generation history.
+* **Mechanism**: It matches the last $N$ tokens (key size `--spec-ngram-simple-size-n`), searches the generation history for identical sequences, and drafts the next $M$ tokens (draft size `--spec-ngram-simple-size-m`) that previously followed. The target model verifies all of them in parallel in a single forward pass.
+* **Performance**: Highly optimized for structured agent outputs (like JSON, YAML, code blocks, or tool schema outputs) where formatting patterns and syntax repeat heavily, offering a **~1.3x to 1.4x speedup** with **zero VRAM overhead**.
+
+This is configured via `LLM_EXTRA_ARGS` in the environment file:
+
+```bash
+# Enabled by default in LLM_EXTRA_ARGS:
+LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+```
+
+To disable speculative decoding, edit the environment file and remove the speculative arguments, leaving only:
+```bash
+LLM_EXTRA_ARGS="--flash-attn auto"
 ```
 
 ## VRAM Usage

@@ -32,8 +32,8 @@ load_env() {
     LLM_ALIAS=qwen3
     LLM_N_CTX=240000
     LLM_PARALLEL=3
-    LLM_N_GPU_LAYERS=99
-    LLM_THREADS=4
+    LLM_N_GPU_LAYERS=999
+    LLM_THREADS=8
     LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
     LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
     LLM_EXTRA_ARGS="--flash-attn on"
@@ -55,8 +55,13 @@ load_env() {
 # ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
 # ---------------------------------------------------------------------------
+
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
 run_systemctl() {
-    if systemctl --user daemon-reload >/dev/null 2>&1; then
+    if is_systemd_running; then
         systemctl --user "$@"
     else
         echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
@@ -123,11 +128,25 @@ generate_ini_file() {
     ini_content+=""$'\n'
     ini_content+="[*]"$'\n'
     if [ -n "${LLM_EXTRA_ARGS:-}" ]; then
-        if [[ "${LLM_EXTRA_ARGS:-}" == *"--flash-attn on"* ]]; then
-            ini_content+="flash-attn = on"$'\n'
-        fi
+        local -a extra_args
+        eval "extra_args=(${LLM_EXTRA_ARGS})"
+        local i=0
+        while [ $i -lt ${#extra_args[@]} ]; do
+            local arg="${extra_args[$i]}"
+            if [[ "$arg" == "--flash-attn" ]]; then
+                if [ $((i + 1)) -lt ${#extra_args[@]} ] && [[ ! "${extra_args[$((i + 1))]}" =~ ^-- ]]; then
+                    ini_content+="flash-attn = ${extra_args[$((i + 1))]}"$'\n'
+                    i=$((i + 2))
+                else
+                    ini_content+="flash-attn = on"$'\n'
+                    i=$((i + 1))
+                fi
+            else
+                i=$((i + 1))
+            fi
+        done
     fi
-    ini_content+="n-gpu-layers = ${LLM_N_GPU_LAYERS:-99}"$'\n'
+    ini_content+="n-gpu-layers = ${LLM_N_GPU_LAYERS:-999}"$'\n'
 
     # --- LLM section ---
     ini_content+=""$'\n'
@@ -151,7 +170,31 @@ generate_ini_file() {
     ini_content+="cache-type-v = q4_0"$'\n'
     ini_content+="batch-size = 2048"$'\n'
     ini_content+="ubatch-size = 1024"$'\n'
-    ini_content+="threads = ${LLM_THREADS:-4}"$'\n'
+    ini_content+="threads = ${LLM_THREADS:-8}"$'\n'
+
+    # Parse model-specific options from LLM_EXTRA_ARGS
+    if [ -n "${LLM_EXTRA_ARGS:-}" ]; then
+        local -a extra_args
+        eval "extra_args=(${LLM_EXTRA_ARGS})"
+        local i=0
+        while [ $i -lt ${#extra_args[@]} ]; do
+            local arg="${extra_args[$i]}"
+            if [[ "$arg" =~ ^-- ]] && [[ "$arg" != "--flash-attn" ]]; then
+                local key="${arg#--}"
+                local val=""
+                if [ $((i + 1)) -lt ${#extra_args[@]} ] && [[ ! "${extra_args[$((i + 1))]}" =~ ^-- ]]; then
+                    val="${extra_args[$((i + 1))]}"
+                    i=$((i + 2))
+                else
+                    val="true"
+                    i=$((i + 1))
+                fi
+                ini_content+="${key} = ${val}"$'\n'
+            else
+                i=$((i + 1))
+            fi
+        done
+    fi
 
     # --- Embedding section (always enabled) ---
     ini_content+=""$'\n'
@@ -256,16 +299,18 @@ LLM_EMBEDDING_N_CTX=8192
 # RUNTIME SETTINGS
 # ---------------------------------------------------------------------------
 
-# Number of layers to offload to GPU (all=99)
-LR_N_GPU_LAYERS=99
+# Number of layers to offload to GPU (all=999)
+LLM_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
-# LR_N_GPU_LAYERS=0
+# LLM_N_GPU_LAYERS=0
 
 # Number of threads to use (default: 8)
 LLM_THREADS=8
 
-# Extra arguments to pass to llama-server (default: --flash-attn auto)
+# Extra arguments to pass to llama-server (default: "--flash-attn auto")
 LLM_EXTRA_ARGS="--flash-attn auto"
+# eg. to enable speculative decoding (type ngram-simple):
+# LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 
 EOF
 }
@@ -361,6 +406,10 @@ cmd_uninstall() {
 
 cmd_start() {
     write_service_file
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running. Use 'exec' to run ${SERVICE_NAME} directly." >&2
+        exit 1
+    fi
     run_systemctl start "${SERVICE_NAME}.service"
 }
 
@@ -368,6 +417,10 @@ cmd_stop() { run_systemctl stop "${SERVICE_NAME}.service"; }
 
 cmd_restart() {
     write_service_file
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running. Use 'exec' to run ${SERVICE_NAME} directly." >&2
+        exit 1
+    fi
     run_systemctl restart "${SERVICE_NAME}.service"
 }
 
