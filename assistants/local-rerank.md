@@ -74,6 +74,28 @@ LR_N_GPU_LAYERS=0
 LR_N_GPU_LAYERS=99
 ```
 
+### Backend Device Selection (Dynamic Backend Loading)
+
+When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
+
+You can configure the target device using the `LRR_DEVICE` environment variable. Run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and configure the device:
+
+```bash
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, llama-server automatically selects the best available device.
+# To force a specific backend device, uncomment one of the options below:
+# LRR_DEVICE="hip"
+# LRR_DEVICE="vulkan"
+# LRR_DEVICE="cpu"
+# LRR_DEVICE="openblas"
+```
+
+To list all available devices on your system, run:
+```bash
+llama-cli --list-devices
+```
+
+
 ## VRAM Usage
 
 For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).

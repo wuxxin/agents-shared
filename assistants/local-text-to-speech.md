@@ -47,6 +47,23 @@ The server performance can be optimized using the `LTTS_MODE` environment variab
 
 To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`). For CPU-bound execution (CPU-only or Hybrid), the optimal thread count is **8 threads**. Setting it to 16 threads causes a ~2.2x slowdown due to CCD boundaries and synchronization overhead.
 
+### Backend Device Selection (Dynamic Backend Loading)
+
+When using a combined backend build (such as `qwen3-tts.cpp-git-ggml-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
+
+You can configure the target device using the `LTTS_DEVICE` environment variable. Run `./local-text-to-speech.sh edit` (or edit `~/.config/systemd/user/local-text-to-speech.env` directly) and configure the device:
+
+```bash
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, qwen3-tts-server selects the default available backend.
+# To force a specific backend device, uncomment one of the options below:
+# LTTS_DEVICE="hip"
+# LTTS_DEVICE="vulkan"
+# LTTS_DEVICE="cpu"
+# LTTS_DEVICE="openblas"
+```
+
+
 ## Models & Repositories
 
 Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](https://huggingface.co/collections/khimaros/qwen3-tts) on Hugging Face:

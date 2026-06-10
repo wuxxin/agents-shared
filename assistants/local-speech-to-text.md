@@ -52,6 +52,23 @@ LSTT_NO_GPU=true
 # LSTT_NO_GPU=true
 ```
 
+### Backend Device Selection (Dynamic Backend Loading)
+
+When using a combined backend build (such as `whisper.cpp-git-ggml-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
+
+You can configure the target device using the `LSTT_DEVICE` environment variable. Run `./local-speech-to-text.sh edit` (or edit `~/.config/systemd/user/local-speech-to-text.env` directly) and configure the device:
+
+```bash
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, whisper-server automatically selects the best available device.
+# To force a specific backend device, uncomment one of the options below:
+# LSTT_DEVICE="hip"
+# LSTT_DEVICE="vulkan"
+# LSTT_DEVICE="cpu"
+# LSTT_DEVICE="openblas"
+```
+
+
 ## VRAM Usage
 
 The speech-to-text service requires approximately **~1.4 GiB** of VRAM when loaded (including weights, caches, compute buffers, and HIP context overhead). 

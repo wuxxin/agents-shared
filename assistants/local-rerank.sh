@@ -33,6 +33,7 @@ load_env() {
     LR_N_GPU_LAYERS=99
     LR_THREADS=8
     LR_EXTRA_ARGS=""
+    LRR_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -108,6 +109,27 @@ get_shared_options() {
 generate_service_file() {
     load_env
 
+    local exec_cmd="llama-server \\
+    --model ${LR_MODEL} \\
+    --embedding \\
+    --pooling rank \\
+    --ctx-size ${LR_N_CTX} \\
+    --alias ${LR_ALIAS} \\
+    --threads ${LR_THREADS} \\
+    --n-gpu-layers ${LR_N_GPU_LAYERS} \\
+    --host ${LR_HOST} \\
+    --port ${LR_PORT}"
+
+    if [[ -n "${LRR_DEVICE:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    --device ${LRR_DEVICE}"
+    fi
+
+    if [[ -n "${LR_EXTRA_ARGS:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    ${LR_EXTRA_ARGS}"
+    fi
+
     cat <<EOF
 [Unit]
 Description=Local Document Reranking Server (llama-server)
@@ -117,17 +139,7 @@ After=network.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=llama-server \\
-    --model ${LR_MODEL} \\
-    --embedding \\
-    --pooling rank \\
-    --ctx-size ${LR_N_CTX} \\
-    --alias ${LR_ALIAS} \\
-    --threads ${LR_THREADS} \\
-    --n-gpu-layers ${LR_N_GPU_LAYERS} \\
-    --host ${LR_HOST} \\
-    --port ${LR_PORT} \\
-    ${LR_EXTRA_ARGS}
+ExecStart=${exec_cmd}
 
 Restart=on-failure
 RestartSec=10s
@@ -173,6 +185,14 @@ LR_N_CTX=8192
 # LR_N_GPU_LAYERS=99
 # To run inference on CPU instead of GPU (none=0)
 LR_N_GPU_LAYERS=0
+
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, llama-server automatically selects the best available device.
+# To force a specific backend device, uncomment one of the options below:
+# LRR_DEVICE="hip"
+# LRR_DEVICE="vulkan"
+# LRR_DEVICE="cpu"
+# LRR_DEVICE="openblas"
 
 # Number of threads to use
 LR_THREADS=8
@@ -326,18 +346,26 @@ cmd_exec() {
         # shellcheck disable=SC2086
         systemd-run "${opts[@]}" llama-server "$@"
     else
-        # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" llama-server \
-            --model "${LR_MODEL}" \
-            --embedding \
-            --pooling rank \
-            --ctx-size "${LR_N_CTX}" \
-            --alias "${LR_ALIAS}" \
-            --threads "${LR_THREADS}" \
-            --n-gpu-layers "${LR_N_GPU_LAYERS}" \
-            --host "${LR_HOST}" \
-            --port "${LR_PORT}" \
-            ${LR_EXTRA_ARGS}
+        local args=(
+            --model "${LR_MODEL}"
+            --embedding
+            --pooling rank
+            --ctx-size "${LR_N_CTX}"
+            --alias "${LR_ALIAS}"
+            --threads "${LR_THREADS}"
+            --n-gpu-layers "${LR_N_GPU_LAYERS}"
+            --host "${LR_HOST}"
+            --port "${LR_PORT}"
+        )
+        if [[ -n "${LRR_DEVICE:-}" ]]; then
+            args+=(--device "${LRR_DEVICE}")
+        fi
+        if [[ -n "${LR_EXTRA_ARGS:-}" ]]; then
+            # We want word splitting for extra args
+            # shellcheck disable=SC2206
+            args+=(${LR_EXTRA_ARGS})
+        fi
+        systemd-run "${opts[@]}" llama-server "${args[@]}"
     fi
 }
 

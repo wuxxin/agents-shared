@@ -37,6 +37,7 @@ load_env() {
     LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
     LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
     LLM_EXTRA_ARGS="--flash-attn on"
+    LLM_DEVICE=""
 
     # Embedding default parameters
     LLM_EMBEDDING_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
@@ -215,6 +216,17 @@ generate_service_file() {
     load_env
     generate_ini_file
 
+    local exec_cmd="llama-server \\
+    --models-preset ${INI_FILE} \\
+    --models-max 2 \\
+    --host ${LLM_HOST} \\
+    --port ${LLM_PORT}"
+
+    if [[ -n "${LLM_DEVICE:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    --device ${LLM_DEVICE}"
+    fi
+
     cat <<EOF
 [Unit]
 Description=Local LLM Chat and Embedding Inference Server (llama-server)
@@ -224,11 +236,7 @@ After=network.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=llama-server \\
-    --models-preset ${INI_FILE} \\
-    --models-max 2 \\
-    --host ${LLM_HOST} \\
-    --port ${LLM_PORT}
+ExecStart=${exec_cmd}
 
 Restart=on-failure
 RestartSec=10s
@@ -303,6 +311,14 @@ LLM_EMBEDDING_N_CTX=8192
 LLM_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
 # LLM_N_GPU_LAYERS=0
+
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, llama-server automatically selects the best available device.
+# To force a specific backend device, uncomment one of the options below:
+# LLM_DEVICE="hip"
+# LLM_DEVICE="vulkan"
+# LLM_DEVICE="cpu"
+# LLM_DEVICE="openblas"
 
 # Number of threads to use (default: 4)
 # Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
@@ -466,12 +482,16 @@ cmd_exec() {
         # shellcheck disable=SC2086
         systemd-run "${opts[@]}" llama-server "$@"
     else
-        # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" llama-server \
-            --models-preset "${INI_FILE}" \
-            --models-max 2 \
-            --host "${LLM_HOST}" \
+        local args=(
+            --models-preset "${INI_FILE}"
+            --models-max 2
+            --host "${LLM_HOST}"
             --port "${LLM_PORT}"
+        )
+        if [[ -n "${LLM_DEVICE:-}" ]]; then
+            args+=(--device "${LLM_DEVICE}")
+        fi
+        systemd-run "${opts[@]}" llama-server "${args[@]}"
     fi
 }
 

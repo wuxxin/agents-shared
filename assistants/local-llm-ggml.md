@@ -107,7 +107,65 @@ LLM_N_GPU_LAYERS=999
 # LLM_N_GPU_LAYERS=0
 ```
 
-Warning: On a 8 Core / 16 Threads system increasing 
+### Backend Device Selection (Dynamic Backend Loading)
+
+When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
+
+You can configure the target device using the `LLM_DEVICE` environment variable. Run `./local-llm-ggml.sh edit` (or edit `~/.config/systemd/user/local-llm-ggml.env` directly) and configure the device:
+
+```bash
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, llama-server automatically selects the best available device.
+# To force a specific backend device, uncomment one of the options below:
+# LLM_DEVICE="hip"
+# LLM_DEVICE="vulkan"
+# LLM_DEVICE="cpu"
+# LLM_DEVICE="openblas"
+```
+
+To list all available devices on your system, run:
+```bash
+llama-cli --list-devices
+```
+
+### Multi-GPU Configurations
+
+If your system contains more than one GPU, you can configure the service to target a specific GPU or distribute the model across multiple cards.
+
+#### Targeting a Specific GPU
+You can force the service to use only a specific card in a multi-GPU environment:
+
+*   **Option 1: Device configuration (via `LLM_DEVICE`)**
+    Dynamic builds list GPU devices sequentially (e.g., `hip0`, `hip1`, `vulkan0`, `vulkan1`). Edit your `.env` file and set the device variable to target a specific index:
+    ```bash
+    # Target only the second AMD GPU
+    LLM_DEVICE="hip1"
+    ```
+*   **Option 2: HIP Runtime restriction (via `HIP_VISIBLE_DEVICES`)**
+    You can restrict device visibility at the driver level by adding an environment override in your `.env` file:
+    ```bash
+    # Hide all other GPUs, making only GPU 1 visible to the service
+    Environment="HIP_VISIBLE_DEVICES=1"
+    ```
+
+#### Splitting Layers Across Multiple GPUs (Tensor Split)
+Llama.cpp automatically splits model layers proportionally based on each GPU's available VRAM when all devices are visible. If you want to specify an explicit ratio (e.g. if cards have different sizes or to optimize overhead), use the `--tensor-split` (or `-ts`) flag inside `LLM_EXTRA_ARGS` in your `.env` file:
+
+```bash
+# Example: Distribute model layers evenly (50/50) across two identical GPUs
+LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1"
+
+# Example: Distribute across a 24GB GPU and a 12GB GPU (2:1 ratio)
+LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 2,1"
+```
+
+You can also specify which GPU handles consolidations and intermediate compute using `--main-gpu` (defaults to GPU 0):
+```bash
+# Consolidate intermediate calculations on GPU 1
+LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1 --main-gpu 1"
+```
+
+
 ### Speculative Decoding (Optional)
 
 By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation. 

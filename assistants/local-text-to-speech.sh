@@ -32,6 +32,7 @@ load_env() {
     LTTS_THREADS=8
     LTTS_MODE="cpu-only"
     LTTS_EXTRA_ARGS=""
+    LTTS_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -157,6 +158,23 @@ generate_service_file() {
         ;;
     esac
 
+    local exec_cmd="qwen3-tts-server \\
+    --model ${LTTS_MODEL} \\
+    --vocoder ${LTTS_VOCODER} \\
+    --host ${LTTS_HOST} \\
+    --port ${LTTS_PORT} \\
+    --threads ${LTTS_THREADS}"
+
+    if [[ -n "${LTTS_DEVICE:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    --device ${LTTS_DEVICE}"
+    fi
+
+    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    ${LTTS_EXTRA_ARGS}"
+    fi
+
     cat <<EOF
 [Unit]
 Description=Local Text-to-Speech Synthesis Server (qwen3-tts-server)
@@ -166,13 +184,7 @@ After=network.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=qwen3-tts-server \\
-    --model ${LTTS_MODEL} \\
-    --vocoder ${LTTS_VOCODER} \\
-    --host ${LTTS_HOST} \\
-    --port ${LTTS_PORT} \\
-    --threads ${LTTS_THREADS} \\
-    ${LTTS_EXTRA_ARGS}
+ExecStart=${exec_cmd}
 
 Restart=on-failure
 RestartSec=10s
@@ -217,6 +229,14 @@ LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Token
 #   - hybrid             : Runs Code Gen on CPU, Vocoder on GPU (performance sweet spot)
 #   - cpu-only           : Forces CPU-only execution via GGML backends
 LTTS_MODE="cpu-only"
+
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, qwen3-tts-server selects the default available backend.
+# To force a specific backend device, uncomment one of the options below:
+# LTTS_DEVICE="hip"
+# LTTS_DEVICE="vulkan"
+# LTTS_DEVICE="cpu"
+# LTTS_DEVICE="openblas"
 
 # Number of threads to use for computations
 LTTS_THREADS=8
@@ -385,14 +405,22 @@ cmd_exec() {
         # shellcheck disable=SC2086
         systemd-run "${opts[@]}" qwen3-tts-server "$@"
     else
-        # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" qwen3-tts-server \
-            --model "${LTTS_MODEL}" \
-            --vocoder "${LTTS_VOCODER}" \
-            --host "${LTTS_HOST}" \
-            --port "${LTTS_PORT}" \
-            --threads "${LTTS_THREADS}" \
-            ${LTTS_EXTRA_ARGS}
+        local args=(
+            --model "${LTTS_MODEL}"
+            --vocoder "${LTTS_VOCODER}"
+            --host "${LTTS_HOST}"
+            --port "${LTTS_PORT}"
+            --threads "${LTTS_THREADS}"
+        )
+        if [[ -n "${LTTS_DEVICE:-}" ]]; then
+            args+=(--device "${LTTS_DEVICE}")
+        fi
+        if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
+            # We want word splitting for extra args
+            # shellcheck disable=SC2206
+            args+=(${LTTS_EXTRA_ARGS})
+        fi
+        systemd-run "${opts[@]}" qwen3-tts-server "${args[@]}"
     fi
 }
 

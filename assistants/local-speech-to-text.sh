@@ -31,7 +31,7 @@ load_env() {
     # shellcheck disable=SC2034
     LSTT_MODEL_ALIAS=whisper-1
     LSTT_THREADS=8
-    LSTT_DEVICE=0
+    LSTT_DEVICE=""
     LSTT_NO_GPU=false
     LSTT_INFERENCE_PATH=/v1/audio/transcriptions
     LSTT_EXTRA_ARGS=""
@@ -107,8 +107,12 @@ generate_service_file() {
     --model ${LSTT_MODEL} \\
     --host ${LSTT_HOST} \\
     --port ${LSTT_PORT} \\
-    --threads ${LSTT_THREADS} \\
+    --threads ${LSTT_THREADS}"
+
+    if [[ -n "${LSTT_DEVICE:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
     --device ${LSTT_DEVICE}"
+    fi
 
     if [ -n "$no_gpu_flag" ]; then
         exec_cmd="${exec_cmd} \\
@@ -177,10 +181,15 @@ LSTT_MODEL_ALIAS="whisper-1"
 # Number of threads to use for CPU-bound computations/preprocessing
 LSTT_THREADS=8
 
-# GPU Device ID to use (default: 0)
-LSTT_DEVICE=0
+# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# By default, whisper-server automatically selects the best available device.
+# To force a specific backend device, uncomment one of the options below:
+# LSTT_DEVICE="hip"
+# LSTT_DEVICE="vulkan"
+# LSTT_DEVICE="cpu"
+# LSTT_DEVICE="openblas"
 
-# To run inference on CPU instead of GPU (none=0), uncomment the following line:
+# To run inference on CPU instead of GPU, uncomment the following line:
 # LSTT_NO_GPU=true
 
 # Inference API endpoint path (default: /v1/audio/transcriptions for OpenAI-compatibility)
@@ -355,8 +364,10 @@ cmd_exec() {
             --host "${LSTT_HOST}"
             --port "${LSTT_PORT}"
             --threads "${LSTT_THREADS}"
-            --device "${LSTT_DEVICE}"
         )
+        if [[ -n "${LSTT_DEVICE:-}" ]]; then
+            args+=(--device "${LSTT_DEVICE}")
+        fi
         if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
             args+=(--no-gpu)
         fi
