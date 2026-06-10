@@ -94,9 +94,12 @@ SANDBOX_BIND_PATHS="/home/username/my-shared-project:/opt/special-tool"
 ```
 
 ### Disabling Sockets
-You can restrict sandbox access to graphical and audio resources by setting:
-- `DISABLE_XDG_RUNTIME=1`: Disables binding the host's `$XDG_RUNTIME_DIR` (deactivates Wayland, PulseAudio, and Pipewire sound sockets).
-- `DISABLE_SSH_AUTH=1`: Disables forwarding the host's SSH agent socket (`SSH_AUTH_SOCK`).
+You can restrict sandbox access to graphical, audio, and credential resources by setting:
+- `DISABLE_XDG_RUNTIME=1`: Disables binding the host's `$XDG_RUNTIME_DIR` entirely. This deactivates Wayland, Pipewire, PulseAudio, and DBus, forcing the application to run completely headless.
+- `DISABLE_SSH_AUTH=1`: Disables forwarding the host's SSH agent socket (`SSH_AUTH_SOCK`). This prevents the sandbox from accessing or using your host's SSH keys for Git commands or SSH connections.
+- `DISABLE_WAYLAND=1`: Disables forwarding Wayland compositor sockets. The application will not be able to render window displays on a Wayland desktop (though it may fall back to X11 if `DISPLAY` is still set).
+- `DISABLE_AUDIO=1`: Disables forwarding PulseAudio/Pipewire sockets. The application will have no audio playback or recording capabilities.
+- `DISABLE_DBUS=1`: Disables forwarding the DBus session socket. The application cannot send desktop notifications, interact with the system tray, query desktop themes, or communicate with other host desktop services (which significantly reduces host breakout risk).
 
 ---
 

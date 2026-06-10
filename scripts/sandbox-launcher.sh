@@ -175,6 +175,9 @@ cmd_install() {
 # Hardening / feature flags (set to 1 to disable):
 # DISABLE_XDG_RUNTIME=1
 # DISABLE_SSH_AUTH=1
+# DISABLE_WAYLAND=1
+# DISABLE_AUDIO=1
+# DISABLE_DBUS=1
 
 # Custom binds (colon-separated list of absolute paths):
 # SANDBOX_BIND_PATHS=""
@@ -304,13 +307,63 @@ run_sandbox() {
 
     if [[ "$enable_xdg_runtime" == "true" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
         bwrap_args+=(
-            --bind "$xdg_runtime_dir" "$xdg_runtime_dir"
+            --tmpfs "$xdg_runtime_dir"
             --setenv XDG_RUNTIME_DIR "$xdg_runtime_dir"
         )
+
+        local whitelist=()
+
+        # Feature: Wayland
+        local enable_wayland=true
+        if [[ "${DISABLE_WAYLAND:-}" == "1" || "${DISABLE_WAYLAND:-}" == "true" ]]; then
+            enable_wayland=false
+        fi
+        if [[ "$enable_wayland" == "true" ]]; then
+            if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+                whitelist+=("$WAYLAND_DISPLAY" "$WAYLAND_DISPLAY.lock")
+            else
+                whitelist+=("wayland-0" "wayland-0.lock")
+            fi
+
+            # Include Xwayland/Mutter authentication files if present on the host
+            local old_nullglob
+            old_nullglob=$(shopt -p nullglob || true)
+            shopt -s nullglob
+            for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
+                whitelist+=("$(basename "$auth_file")")
+            done
+            eval "$old_nullglob"
+        fi
+
+        # Feature: Audio (Pipewire & PulseAudio)
+        local enable_audio=true
+        if [[ "${DISABLE_AUDIO:-}" == "1" || "${DISABLE_AUDIO:-}" == "true" ]]; then
+            enable_audio=false
+        fi
+        if [[ "$enable_audio" == "true" ]]; then
+            whitelist+=("pipewire-0" "pipewire-0.lock" "pipewire-0-manager" "pipewire-0-manager.lock" "pulse")
+        fi
+
+        # Feature: DBus session bus
+        local enable_dbus=true
+        if [[ "${DISABLE_DBUS:-}" == "1" || "${DISABLE_DBUS:-}" == "true" ]]; then
+            enable_dbus=false
+        fi
+        if [[ "$enable_dbus" == "true" ]]; then
+            whitelist+=("bus")
+        fi
+
+        # Bind whitelisted items that exist on the host
+        for item in "${whitelist[@]}"; do
+            local host_path="$xdg_runtime_dir/$item"
+            if [[ -e "$host_path" ]]; then
+                bwrap_args+=(--bind "$host_path" "$host_path")
+            fi
+        done
     fi
 
     # Audio socket fallback or PulseAudio support outside XDG_RUNTIME_DIR
-    if [[ "$enable_xdg_runtime" == "true" && -d "/run/user/$(id -u)/pulse" ]]; then
+    if [[ "$enable_xdg_runtime" == "true" && "${enable_audio:-true}" == "true" && -d "/run/user/$(id -u)/pulse" ]]; then
         bwrap_args+=(--bind "/run/user/$(id -u)/pulse" "/run/user/$(id -u)/pulse")
     fi
 

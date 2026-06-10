@@ -57,3 +57,11 @@ antigravity-launcher.sh shell
 
 ### Directory Mapping
 - **Home**: The host's `~/.local/sandbox/antigravity` is presented as `$HOME` inside the sandbox, ensuring that configuration files (like `.gitconfig` or `.ssh`) created within the app are persistent but isolated from the real host home.
+
+## Configuration Variables
+
+You can configure sandbox features by exporting these variables before running the launcher:
+- `DISABLE_WAYLAND=1`: Disables forwarding Wayland sockets.
+- `DISABLE_AUDIO=1`: Disables forwarding PulseAudio/Pipewire audio sockets.
+- `DISABLE_DBUS=1`: Disables forwarding the DBus session socket (restricting breakout risks).
+
