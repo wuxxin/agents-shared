@@ -6,34 +6,42 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### 📊 Performance Comparison Matrix
 
-#### Text Chat & Embedding (`local-llm-ggml`)
-| Configuration | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat TTFT | Avg Chat Gen | Chat GPU Mem | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem |
-|---|---|---|---|---|---|---|---|---|
-| **HIP** | 252.17 ms | 74.09 t/s | 9064.59 ms | 44.19 t/s | 20002.2 MB | 4720.74 t/s | 1616.2 ms | 6716.9 MB |
-| **Vulkan** | 173.37 ms | 80.73 t/s | 11458.94 ms | 72.27 t/s | 19331.1 MB | 952.75 t/s | 7973.9 ms | 4403.1 MB |
-| **CPU** | N/A | N/A | N/A | N/A | N/A | 4727.01 t/s | 1611.8 ms | 6734.1 MB |
+#### Text Chat (`local-llm-ggml`)
+| Configuration | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
+|---|---|---|---|---|---|---|---|
+| **HIP** | 27332.83 ms | 1135.67 t/s | 219.56 ms | 74.32 t/s | 44.06 t/s | 19912.4 MB | 68.7 MB |
+| **Vulkan** | 27386.12 ms | 1133.46 t/s | 221.63 ms | 74.48 t/s | 44.12 t/s | 20030.0 MB | 68.8 MB |
+| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
+
+#### Text Embedding (`local-embedding`)
+| Configuration | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
+|---|---|---|---|---|
+| **HIP** | 4725.54 t/s | 1610.3 ms | 106.9 MB | 10489.9 MB |
+| **Vulkan** | 4723.47 t/s | 1610.7 ms | 116.1 MB | 10490.0 MB |
+| **CPU** | 4748.48 t/s | 1602.5 ms | 106.5 MB | 10490.0 MB |
 
 #### Document Reranking (`local-rerank`)
-| Configuration | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem |
-|---|---|---|---|---|
-| **HIP** | 790.05 ms | 4364.17 tokens/s | 12.69 docs/s | 1839.0 MB |
-| **Vulkan** | 772.57 ms | 4544.04 tokens/s | 13.21 docs/s | 1585.2 MB |
-| **CPU** | 33738.51 ms | 101.99 tokens/s | 0.30 docs/s | 227.3 MB |
+| Configuration | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|
+| **HIP** | 21982.01 ms | 156.78 tokens/s | 0.46 docs/s | 249.1 MB | 2840.1 MB |
+| **Vulkan** | 21819.65 ms | 157.64 tokens/s | 0.46 docs/s | 241.3 MB | 2841.8 MB |
+| **CPU** | 21155.10 ms | 162.75 tokens/s | 0.47 docs/s | 243.2 MB | 2841.8 MB |
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
-| Configuration | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem |
-|---|---|---|---|---|
-| **HIP** | 0.70 s | 0.0155 | 64.5x | 1109.6 MB |
-| **Vulkan** | 0.69 s | 0.0154 | 64.9x | 1102.0 MB |
-| **CPU** | 16.62 s | 0.3693 | 2.7x | 0.0 MB |
+| Configuration | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|
+| **HIP** | 0.69 s | 0.0153 | 65.4x | 1115.4 MB | 382.7 MB |
+| **Vulkan** | 0.69 s | 0.0153 | 65.4x | 1121.0 MB | 382.7 MB |
+| **CPU** | 0.69 s | 0.0153 | 65.4x | 1109.6 MB | 382.9 MB |
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-| Configuration | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem |
-|---|---|---|---|---|
-| **HIP** | 63.97 s | 3.8688 | 4.31 chars/s | 4584.4 MB |
-| **Vulkan** | 74.24 s | 3.8656 | 3.72 chars/s | 4797.9 MB |
-| **CPU** | 61.50 s | 3.4947 | 4.49 chars/s | 7.3 MB |
-| **Hybrid** | 61.54 s | 3.0612 | 4.49 chars/s | 2197.2 MB |
+| Configuration | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|
+| **HIP** | 38.19 s | 2.2730 | 7.18 chars/s | 3427.3 MB | 970.5 MB |
+| **Vulkan** | 34.92 s | 2.2648 | 7.86 chars/s | 3233.8 MB | 929.5 MB |
+| **CPU** | 35.27 s | 2.2680 | 7.77 chars/s | 3236.6 MB | 925.2 MB |
+| **Special (Hybrid)** | 35.21 s | 2.2642 | 7.80 chars/s | 3353.2 MB | 951.1 MB |
+| **Special (Low-Mem)** | 34.06 s | 2.2678 | 8.05 chars/s | 3216.8 MB | 910.5 MB |
 
 ---
 
@@ -41,163 +49,207 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### CPU Configuration Details
 
-#### Text Embedding (`local-llm-ggml`)
+#### Text Embedding (`local-embedding`)
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
 - **Execution Target:** `CPU`
-- **GPU Memory Used:** 6734.1 MB
+- **GPU Memory Used:** 106.5 MB
+- **CPU Memory Used:** 10490.0 MB
+- **Benchmark Running Time:** 34.12 s
 - **Metrics:**
-  - Avg Time/Run:         9.67 s
-  - Avg Throughput:       4727.01 tokens/sec
-  - Avg Chunk Latency:    1611.8 ms
-  - Avg Chunk p50:        1721.1 ms
-  - Avg Chunk p95:        1983.3 ms
+  - Avg Time/Run:         9.62 s
+  - Avg Throughput:       4748.48 tokens/sec
+  - Avg Chunk Latency:    1602.5 ms
+  - Avg Chunk p50:        1720.8 ms
+  - Avg Chunk p95:        1979.1 ms
 
 #### Document Reranking (`local-rerank`)
 - **Model:** `qwen3-reranker` (`Qwen3-Reranker-0.6B.Q4_K_M.gguf`)
 - **Execution Target:** `CPU`
-- **GPU Memory Used:** 227.3 MB
+- **GPU Memory Used:** 243.2 MB
+- **CPU Memory Used:** 2841.8 MB
+- **Benchmark Running Time:** 63.56 s
 - **Metrics:**
-  - Avg Reranking Time:   33738.51 ms
-  - Avg Docs Throughput:  0.30 docs/sec
-  - Avg Token Speed:      101.99 tokens/sec
+  - Avg Reranking Time:   21155.10 ms
+  - Avg Docs Throughput:  0.47 docs/sec
+  - Avg Token Speed:      162.75 tokens/sec
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 - **Model:** `whisper-1` (`ggml-large-v3-turbo-q5_0.bin`)
 - **Execution Target:** `CPU`
-- **GPU Memory Used:** 0.0 MB
+- **GPU Memory Used:** 1109.6 MB
+- **CPU Memory Used:** 382.9 MB
+- **Benchmark Running Time:** 2.20 s
 - **Metrics:**
-  - Avg Transcribe Time:  16.62 seconds
-  - Avg Real-Time Factor (RTF): 0.3693 (2.7x faster than real-time)
+  - Avg Transcribe Time:  0.69 seconds
+  - Avg Real-Time Factor (RTF): 0.0153 (65.4x faster than real-time)
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`)
+- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `CPU`
-- **GPU Memory Used:** 7.3 MB
+- **GPU Memory Used:** 3236.6 MB
+- **CPU Memory Used:** 925.2 MB
+- **Benchmark Running Time:** 105.89 s
 - **Metrics:**
-  - Generated Audio Duration: 18.46 seconds
-  - Avg Synthesis Time:   61.50 seconds
-  - Avg Real-Time Factor (RTF): 3.4947
-  - Avg Speed:            4.49 chars/sec
+  - Generated Audio Duration: 15.66 seconds
+  - Avg Synthesis Time:   35.27 seconds
+  - Avg Real-Time Factor (RTF): 2.2680
+  - Avg Speed:            7.77 chars/sec
 
 ### HIP Configuration Details
 
 #### Text Chat (`local-llm-ggml`)
 - **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
 - **Execution Target:** `HIP`
-- **GPU Memory Used:** 20002.2 MB
+- **GPU Memory Used:** 19912.4 MB
+- **CPU Memory Used:** 68.7 MB
+- **Benchmark Running Time:** 53.24 s
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       252.17 ms
-  - Prefill Speed:        75.35 tokens/sec
-  - Generation Speed:     74.09 tokens/sec
+  - TTFT (Prefill):       219.56 ms
+  - Prefill Speed:        86.54 tokens/sec
+  - Generation Speed:     74.32 tokens/sec
 - **Generation (Phase 2):**
   - Avg Completion Tokens: 600.0
-  - Avg TTFT (Prefill):   9064.59 ms
-  - Avg Prefill Speed:    218816.72 tokens/sec
-  - Avg Generation Speed: 44.19 tokens/sec
-  - Avg Decode Time:      13.58 s
+  - Avg TTFT (Prefill):   27332.83 ms
+  - Avg Prefill Speed:    1135.67 tokens/sec
+  - Avg Generation Speed: 44.06 tokens/sec
+  - Avg Decode Time:      13.62 s
 
-#### Text Embedding (`local-llm-ggml`)
+#### Text Embedding (`local-embedding`)
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
 - **Execution Target:** `HIP`
-- **GPU Memory Used:** 6716.9 MB
+- **GPU Memory Used:** 106.9 MB
+- **CPU Memory Used:** 10489.9 MB
+- **Benchmark Running Time:** 34.26 s
 - **Metrics:**
-  - Avg Time/Run:         9.70 s
-  - Avg Throughput:       4720.74 tokens/sec
-  - Avg Chunk Latency:    1616.2 ms
-  - Avg Chunk p50:        1712.3 ms
-  - Avg Chunk p95:        1983.2 ms
+  - Avg Time/Run:         9.66 s
+  - Avg Throughput:       4725.54 tokens/sec
+  - Avg Chunk Latency:    1610.3 ms
+  - Avg Chunk p50:        1730.4 ms
+  - Avg Chunk p95:        1989.7 ms
 
 #### Document Reranking (`local-rerank`)
 - **Model:** `qwen3-reranker` (`Qwen3-Reranker-0.6B.Q4_K_M.gguf`)
 - **Execution Target:** `HIP`
-- **GPU Memory Used:** 1839.0 MB
+- **GPU Memory Used:** 249.1 MB
+- **CPU Memory Used:** 2840.1 MB
+- **Benchmark Running Time:** 66.04 s
 - **Metrics:**
-  - Avg Reranking Time:   790.05 ms
-  - Avg Docs Throughput:  12.69 docs/sec
-  - Avg Token Speed:      4364.17 tokens/sec
+  - Avg Reranking Time:   21982.01 ms
+  - Avg Docs Throughput:  0.46 docs/sec
+  - Avg Token Speed:      156.78 tokens/sec
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 - **Model:** `whisper-1` (`ggml-large-v3-turbo-q5_0.bin`)
 - **Execution Target:** `HIP`
-- **GPU Memory Used:** 1109.6 MB
+- **GPU Memory Used:** 1115.4 MB
+- **CPU Memory Used:** 382.7 MB
+- **Benchmark Running Time:** 2.21 s
 - **Metrics:**
-  - Avg Transcribe Time:  0.70 seconds
-  - Avg Real-Time Factor (RTF): 0.0155 (64.5x faster than real-time)
+  - Avg Transcribe Time:  0.69 seconds
+  - Avg Real-Time Factor (RTF): 0.0153 (65.4x faster than real-time)
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`)
+- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `HIP`
-- **GPU Memory Used:** 4584.4 MB
+- **GPU Memory Used:** 3427.3 MB
+- **CPU Memory Used:** 970.5 MB
+- **Benchmark Running Time:** 114.67 s
 - **Metrics:**
-  - Generated Audio Duration: 18.30 seconds
-  - Avg Synthesis Time:   63.97 seconds
-  - Avg Real-Time Factor (RTF): 3.8688
-  - Avg Speed:            4.31 chars/sec
+  - Generated Audio Duration: 16.78 seconds
+  - Avg Synthesis Time:   38.19 seconds
+  - Avg Real-Time Factor (RTF): 2.2730
+  - Avg Speed:            7.18 chars/sec
 
-### HYBRID Configuration Details
+### SPECIAL (GPU-LOW-MEM) Configuration Details
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`)
-- **Execution Target:** `HYBRID`
-- **GPU Memory Used:** 2197.2 MB
+- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
+- **Execution Target:** `SPECIAL (GPU-LOW-MEM)`
+- **GPU Memory Used:** 3216.8 MB
+- **CPU Memory Used:** 910.5 MB
+- **Benchmark Running Time:** 102.25 s
 - **Metrics:**
-  - Generated Audio Duration: 20.30 seconds
-  - Avg Synthesis Time:   61.54 seconds
-  - Avg Real-Time Factor (RTF): 3.0612
-  - Avg Speed:            4.49 chars/sec
+  - Generated Audio Duration: 15.26 seconds
+  - Avg Synthesis Time:   34.06 seconds
+  - Avg Real-Time Factor (RTF): 2.2678
+  - Avg Speed:            8.05 chars/sec
+
+### SPECIAL (HYBRID) Configuration Details
+
+#### Text-to-Speech (TTS) (`local-text-to-speech`)
+- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
+- **Execution Target:** `SPECIAL (HYBRID)`
+- **GPU Memory Used:** 3353.2 MB
+- **CPU Memory Used:** 951.1 MB
+- **Benchmark Running Time:** 105.71 s
+- **Metrics:**
+  - Generated Audio Duration: 16.62 seconds
+  - Avg Synthesis Time:   35.21 seconds
+  - Avg Real-Time Factor (RTF): 2.2642
+  - Avg Speed:            7.80 chars/sec
 
 ### VULKAN Configuration Details
 
 #### Text Chat (`local-llm-ggml`)
 - **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
 - **Execution Target:** `VULKAN`
-- **GPU Memory Used:** 19331.1 MB
+- **GPU Memory Used:** 20030.0 MB
+- **CPU Memory Used:** 68.8 MB
+- **Benchmark Running Time:** 53.28 s
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       173.37 ms
-  - Prefill Speed:        109.59 tokens/sec
-  - Generation Speed:     80.73 tokens/sec
+  - TTFT (Prefill):       221.63 ms
+  - Prefill Speed:        85.73 tokens/sec
+  - Generation Speed:     74.48 tokens/sec
 - **Generation (Phase 2):**
   - Avg Completion Tokens: 600.0
-  - Avg TTFT (Prefill):   11458.94 ms
-  - Avg Prefill Speed:    223344.07 tokens/sec
-  - Avg Generation Speed: 72.27 tokens/sec
-  - Avg Decode Time:      8.30 s
+  - Avg TTFT (Prefill):   27386.12 ms
+  - Avg Prefill Speed:    1133.46 tokens/sec
+  - Avg Generation Speed: 44.12 tokens/sec
+  - Avg Decode Time:      13.60 s
 
-#### Text Embedding (`local-llm-ggml`)
+#### Text Embedding (`local-embedding`)
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
 - **Execution Target:** `VULKAN`
-- **GPU Memory Used:** 4403.1 MB
+- **GPU Memory Used:** 116.1 MB
+- **CPU Memory Used:** 10490.0 MB
+- **Benchmark Running Time:** 34.27 s
 - **Metrics:**
-  - Avg Time/Run:         47.84 s
-  - Avg Throughput:       952.75 tokens/sec
-  - Avg Chunk Latency:    7973.9 ms
-  - Avg Chunk p50:        8977.7 ms
-  - Avg Chunk p95:        9789.6 ms
+  - Avg Time/Run:         9.66 s
+  - Avg Throughput:       4723.47 tokens/sec
+  - Avg Chunk Latency:    1610.7 ms
+  - Avg Chunk p50:        1727.2 ms
+  - Avg Chunk p95:        1992.6 ms
 
 #### Document Reranking (`local-rerank`)
 - **Model:** `qwen3-reranker` (`Qwen3-Reranker-0.6B.Q4_K_M.gguf`)
 - **Execution Target:** `VULKAN`
-- **GPU Memory Used:** 1585.2 MB
+- **GPU Memory Used:** 241.3 MB
+- **CPU Memory Used:** 2841.8 MB
+- **Benchmark Running Time:** 65.56 s
 - **Metrics:**
-  - Avg Reranking Time:   772.57 ms
-  - Avg Docs Throughput:  13.21 docs/sec
-  - Avg Token Speed:      4544.04 tokens/sec
+  - Avg Reranking Time:   21819.65 ms
+  - Avg Docs Throughput:  0.46 docs/sec
+  - Avg Token Speed:      157.64 tokens/sec
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 - **Model:** `whisper-1` (`ggml-large-v3-turbo-q5_0.bin`)
 - **Execution Target:** `VULKAN`
-- **GPU Memory Used:** 1102.0 MB
+- **GPU Memory Used:** 1121.0 MB
+- **CPU Memory Used:** 382.7 MB
+- **Benchmark Running Time:** 2.20 s
 - **Metrics:**
   - Avg Transcribe Time:  0.69 seconds
-  - Avg Real-Time Factor (RTF): 0.0154 (64.9x faster than real-time)
+  - Avg Real-Time Factor (RTF): 0.0153 (65.4x faster than real-time)
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`)
+- **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `VULKAN`
-- **GPU Memory Used:** 4797.9 MB
+- **GPU Memory Used:** 3233.8 MB
+- **CPU Memory Used:** 929.5 MB
+- **Benchmark Running Time:** 104.84 s
 - **Metrics:**
-  - Generated Audio Duration: 17.74 seconds
-  - Avg Synthesis Time:   74.24 seconds
-  - Avg Real-Time Factor (RTF): 3.8656
-  - Avg Speed:            3.72 chars/sec
+  - Generated Audio Duration: 15.90 seconds
+  - Avg Synthesis Time:   34.92 seconds
+  - Avg Real-Time Factor (RTF): 2.2648
+  - Avg Speed:            7.86 chars/sec
 

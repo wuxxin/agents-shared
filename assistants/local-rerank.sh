@@ -323,9 +323,38 @@ cmd_edit() {
 }
 
 cmd_exec() {
-    echo "Starting llama-server as a transient systemd service with args: $*"
-
     load_env
+
+    local args=(
+        --model "${LR_MODEL}"
+        --embedding
+        --pooling rank
+        --ctx-size "${LR_N_CTX}"
+        --alias "${LR_ALIAS}"
+        --threads "${LR_THREADS}"
+        --n-gpu-layers "${LR_N_GPU_LAYERS}"
+        --host "${LR_HOST}"
+        --port "${LR_PORT}"
+    )
+    if [[ -n "${LRR_DEVICE:-}" ]]; then
+        args+=(--device "${LRR_DEVICE}")
+    fi
+    if [[ -n "${LR_EXTRA_ARGS:-}" ]]; then
+        # We want word splitting for extra args
+        # shellcheck disable=SC2206
+        args+=(${LR_EXTRA_ARGS})
+    fi
+
+    if ! is_systemd_running; then
+        echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
+        if [ $# -gt 0 ]; then
+            exec llama-server "$@"
+        else
+            exec llama-server "${args[@]}"
+        fi
+    fi
+
+    echo "Starting llama-server as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -346,25 +375,6 @@ cmd_exec() {
         # shellcheck disable=SC2086
         systemd-run "${opts[@]}" llama-server "$@"
     else
-        local args=(
-            --model "${LR_MODEL}"
-            --embedding
-            --pooling rank
-            --ctx-size "${LR_N_CTX}"
-            --alias "${LR_ALIAS}"
-            --threads "${LR_THREADS}"
-            --n-gpu-layers "${LR_N_GPU_LAYERS}"
-            --host "${LR_HOST}"
-            --port "${LR_PORT}"
-        )
-        if [[ -n "${LRR_DEVICE:-}" ]]; then
-            args+=(--device "${LRR_DEVICE}")
-        fi
-        if [[ -n "${LR_EXTRA_ARGS:-}" ]]; then
-            # We want word splitting for extra args
-            # shellcheck disable=SC2206
-            args+=(${LR_EXTRA_ARGS})
-        fi
         systemd-run "${opts[@]}" llama-server "${args[@]}"
     fi
 }

@@ -43,6 +43,7 @@ load_env() {
     LLM_EMBEDDING_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
     LLM_EMBEDDING_ALIAS=qwen3-embedding
     LLM_EMBEDDING_N_CTX=8192
+    LLM_SERVE_EMBEDDINGS=false
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -197,15 +198,17 @@ generate_ini_file() {
         done
     fi
 
-    # --- Embedding section (always enabled) ---
-    ini_content+=""$'\n'
-    ini_content+="[${LLM_EMBEDDING_ALIAS:-qwen3-embedding}]"$'\n'
-    ini_content+="model = ${LLM_EMBEDDING_MODEL}"$'\n'
-    ini_content+="embedding = true"$'\n'
-    ini_content+="pooling = mean"$'\n'
-    ini_content+="ctx-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
-    ini_content+="batch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
-    ini_content+="ubatch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+    # --- Embedding section ---
+    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
+        ini_content+=""$'\n'
+        ini_content+="[${LLM_EMBEDDING_ALIAS:-qwen3-embedding}]"$'\n'
+        ini_content+="model = ${LLM_EMBEDDING_MODEL}"$'\n'
+        ini_content+="embedding = true"$'\n'
+        ini_content+="pooling = mean"$'\n'
+        ini_content+="ctx-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+        ini_content+="batch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+        ini_content+="ubatch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
+    fi
 
     printf '%s' "$ini_content" >"$INI_FILE"
     chmod 600 "$INI_FILE"
@@ -218,9 +221,14 @@ generate_service_file() {
     load_env
     generate_ini_file
 
+    local models_max=1
+    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
+        models_max=2
+    fi
+
     local exec_cmd="llama-server \\
     --models-preset ${INI_FILE} \\
-    --models-max 2 \\
+    --models-max ${models_max} \\
     --host ${LLM_HOST} \\
     --port ${LLM_PORT}"
 
@@ -304,6 +312,9 @@ LLM_EMBEDDING_ALIAS=qwen3-embedding
 
 # Embedding context size (default: 8192)
 LLM_EMBEDDING_N_CTX=8192
+
+# Whether to serve embeddings along with chat (default: false)
+LLM_SERVE_EMBEDDINGS=false
 
 # ---------------------------------------------------------------------------
 # RUNTIME SETTINGS
@@ -460,10 +471,33 @@ cmd_edit() {
 }
 
 cmd_exec() {
-    echo "Starting llama-server as a transient systemd service with args: $*"
-
     load_env
     generate_ini_file
+
+    local models_max=1
+    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
+        models_max=2
+    fi
+    local args=(
+        --models-preset "${INI_FILE}"
+        --models-max "${models_max}"
+        --host "${LLM_HOST}"
+        --port "${LLM_PORT}"
+    )
+    if [[ -n "${LLM_DEVICE:-}" ]]; then
+        args+=(--device "${LLM_DEVICE}")
+    fi
+
+    if ! is_systemd_running; then
+        echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
+        if [ $# -gt 0 ]; then
+            exec llama-server "$@"
+        else
+            exec llama-server "${args[@]}"
+        fi
+    fi
+
+    echo "Starting llama-server as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -484,15 +518,6 @@ cmd_exec() {
         # shellcheck disable=SC2086
         systemd-run "${opts[@]}" llama-server "$@"
     else
-        local args=(
-            --models-preset "${INI_FILE}"
-            --models-max 2
-            --host "${LLM_HOST}"
-            --port "${LLM_PORT}"
-        )
-        if [[ -n "${LLM_DEVICE:-}" ]]; then
-            args+=(--device "${LLM_DEVICE}")
-        fi
         systemd-run "${opts[@]}" llama-server "${args[@]}"
     fi
 }
@@ -599,7 +624,21 @@ cmd_test() {
             repeat_arg=(--repeat "$repeat")
         fi
 
-        if [ "$only_embeddings" = "false" ]; then
+        local run_chat_bench=true
+        local run_embed_bench=false
+        if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
+            run_embed_bench=true
+        fi
+        if [ "$only_embeddings" = "true" ]; then
+            run_chat_bench=false
+            run_embed_bench=true
+        fi
+        if [ "$only_chat" = "true" ]; then
+            run_chat_bench=true
+            run_embed_bench=false
+        fi
+
+        if [ "$run_chat_bench" = "true" ]; then
             # Run chat benchmark
             local skip_prefill_arg=()
             if [ "$skip_prefill" = "true" ]; then
@@ -620,8 +659,8 @@ cmd_test() {
         fi
 
         # Run embedding benchmark
-        if [ "$only_chat" = "false" ]; then
-            if [ "$only_embeddings" = "false" ]; then
+        if [ "$run_embed_bench" = "true" ]; then
+            if [ "$run_chat_bench" = "true" ]; then
                 echo "sleeping 10 seconds to cool down gpu..."
                 sleep 10
             fi
@@ -636,39 +675,57 @@ cmd_test() {
         return 0
     fi
 
-    echo "=== 1. Testing Chat Completion ==="
-    local chat_resp
-    chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
-        -H "Content-Type: application/json" \
-        -d "{
-          \"model\": \"${alias}\",
-          \"messages\": [
-            {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
-          ]
-        }")
-
-    echo "${chat_resp}"
-    if ! echo "${chat_resp}" | grep -q "choices"; then
-        echo "Error: Chat completion test failed." >&2
-        return 1
+    local run_chat_val=true
+    local run_embed_val=false
+    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
+        run_embed_val=true
     fi
-    echo "Chat completion: Success."
-
-    echo "=== 2. Testing Text Embeddings ==="
-    local embed_resp
-    embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
-        -H "Content-Type: application/json" \
-        -d "{
-          \"model\": \"${embedding_alias}\",
-          \"input\": \"Hello World\"
-        }")
-
-    echo "${embed_resp}"
-    if ! echo "${embed_resp}" | grep -q "embedding"; then
-        echo "Error: Text embedding test failed." >&2
-        return 1
+    if [ "$only_embeddings" = "true" ]; then
+        run_chat_val=false
+        run_embed_val=true
     fi
-    echo "Text embedding: Success."
+    if [ "$only_chat" = "true" ]; then
+        run_chat_val=true
+        run_embed_val=false
+    fi
+
+    if [ "$run_chat_val" = "true" ]; then
+        echo "=== 1. Testing Chat Completion ==="
+        local chat_resp
+        chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"${alias}\",
+              \"messages\": [
+                {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
+              ]
+            }")
+
+        echo "${chat_resp}"
+        if ! echo "${chat_resp}" | grep -q "choices"; then
+            echo "Error: Chat completion test failed." >&2
+            return 1
+        fi
+        echo "Chat completion: Success."
+    fi
+
+    if [ "$run_embed_val" = "true" ]; then
+        echo "=== 2. Testing Text Embeddings ==="
+        local embed_resp
+        embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"${embedding_alias}\",
+              \"input\": \"Hello World\"
+            }")
+
+        echo "${embed_resp}"
+        if ! echo "${embed_resp}" | grep -q "embedding"; then
+            echo "Error: Text embedding test failed." >&2
+            return 1
+        fi
+        echo "Text embedding: Success."
+    fi
 }
 
 usage() {

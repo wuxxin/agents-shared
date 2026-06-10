@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# local-text-to-speech.sh - Manage local qwen3-tts systemd user service
+# local-embedding.sh - Manage local llama-server systemd user service for Text Embeddings
 #
-# Usage: local-text-to-speech.sh <command> [args...]
+# Usage: local-embedding.sh <command> [args...]
 #
-# Manages a systemd user service (local-text-to-speech.service) that runs qwen3-tts-server
-# for text-to-speech (TTS) synthesis.
+# Manages a systemd user service (local-embedding.service) that runs llama-server
+# serving the Text Embedding model.
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
@@ -16,7 +16,7 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-SERVICE_NAME="local-text-to-speech"
+SERVICE_NAME="local-embedding"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
@@ -25,14 +25,15 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # ---------------------------------------------------------------------------
 load_env() {
     # Default parameters
-    LTTS_PORT=50095
-    LTTS_HOST=127.0.0.1
-    LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
-    LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
-    LTTS_THREADS=4
-    LTTS_MODE="cpu-only"
-    LTTS_EXTRA_ARGS=""
-    LTTS_DEVICE=""
+    EMBED_PORT=50082
+    EMBED_HOST=127.0.0.1
+    EMBED_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    EMBED_ALIAS=qwen3-embedding
+    EMBED_N_CTX=8192
+    EMBED_N_GPU_LAYERS=999
+    EMBED_THREADS=4
+    EMBED_DEVICE=""
+    EMBED_EXTRA_ARGS=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -40,6 +41,18 @@ load_env() {
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+    fi
+}
+
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
+run_systemctl() {
+    if is_systemd_running; then
+        systemctl --user "$@"
+    else
+        echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
     fi
 }
 
@@ -56,43 +69,10 @@ get_shared_options() {
     fi
 
     # Environment file & Working directory
-    load_env
-    local force_cpu=0
-    local low_mem=0
-    local transformer_force_cpu=0
-    local vocoder_force_cpu=0
-    case "${LTTS_MODE:-gpu}" in
-    "gpu")
-        force_cpu=0
-        low_mem=0
-        ;;
-    "gpu-min-vram")
-        force_cpu=0
-        low_mem=1
-        ;;
-    "hybrid")
-        force_cpu=0
-        low_mem=0
-        transformer_force_cpu=1
-        ;;
-    "cpu-only")
-        force_cpu=1
-        low_mem=0
-        ;;
-    *)
-        force_cpu=0
-        low_mem=0
-        ;;
-    esac
-
-    echo "Environment=QWEN3_TTS_FORCE_CPU=${force_cpu}"
-    echo "Environment=QWEN3_TTS_LOW_MEM=${low_mem}"
-    echo "Environment=QWEN3_TTS_TRANSFORMER_FORCE_CPU=${transformer_force_cpu}"
-    echo "Environment=QWEN3_TTS_VOCODER_FORCE_CPU=${vocoder_force_cpu}"
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-text-to-speech.env"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-embedding.env"
     echo "WorkingDirectory=${home_spec}"
 
-    # Basic hardening (kept minimal for GPU access)
+    # Basic hardening (minimal for GPU access)
     echo "NoNewPrivileges=yes"
     echo "CapabilityBoundingSet="
     echo "AmbientCapabilities="
@@ -104,7 +84,7 @@ get_shared_options() {
     echo "PrivateIPC=yes"
 
     echo "ProtectSystem=strict"
-    # Allow read-write access to home-based paths
+    # Allow read-write access to model storage and home-based paths
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
     echo "ReadWritePaths=/data/public/machine-learning"
@@ -129,56 +109,33 @@ get_shared_options() {
 generate_service_file() {
     load_env
 
-    local force_cpu=0
-    local low_mem=0
-    local transformer_force_cpu=0
-    local vocoder_force_cpu=0
-    case "${LTTS_MODE:-gpu}" in
-    "gpu")
-        force_cpu=0
-        low_mem=0
-        ;;
-    "gpu-min-vram")
-        force_cpu=0
-        low_mem=1
-        ;;
-    "hybrid")
-        force_cpu=0
-        low_mem=0
-        transformer_force_cpu=1
-        ;;
-    "cpu-only")
-        force_cpu=1
-        low_mem=0
-        ;;
-    *)
-        echo "Warning: unknown LTTS_MODE '${LTTS_MODE}', defaulting to gpu" >&2
-        force_cpu=0
-        low_mem=0
-        ;;
-    esac
+    local exec_cmd="llama-server \\
+    --model ${EMBED_MODEL} \\
+    --embedding \\
+    --pooling mean \\
+    --ctx-size ${EMBED_N_CTX} \\
+    --batch-size ${EMBED_N_CTX} \\
+    --ubatch-size ${EMBED_N_CTX} \\
+    --alias ${EMBED_ALIAS} \\
+    --threads ${EMBED_THREADS} \\
+    --n-gpu-layers ${EMBED_N_GPU_LAYERS} \\
+    --host ${EMBED_HOST} \\
+    --port ${EMBED_PORT}"
 
-    local exec_cmd="qwen3-tts-server \\
-    --model ${LTTS_MODEL} \\
-    --vocoder ${LTTS_VOCODER} \\
-    --host ${LTTS_HOST} \\
-    --port ${LTTS_PORT} \\
-    --threads ${LTTS_THREADS}"
-
-    if [[ -n "${LTTS_DEVICE:-}" ]]; then
+    if [[ -n "${EMBED_DEVICE:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    --device ${LTTS_DEVICE}"
+    --device ${EMBED_DEVICE}"
     fi
 
-    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${EMBED_EXTRA_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    ${LTTS_EXTRA_ARGS}"
+    ${EMBED_EXTRA_ARGS}"
     fi
 
     cat <<EOF
 [Unit]
-Description=Local Text-to-Speech Synthesis Server (qwen3-tts-server)
-Documentation=https://github.com/khimaros/qwen3-tts.cpp
+Description=Local Text Embedding Inference Server (llama-server)
+Documentation=https://github.com/ggml-org/llama.cpp
 After=network.target
 
 [Service]
@@ -191,7 +148,7 @@ RestartSec=10s
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=local-text-to-speech
+SyslogIdentifier=local-embedding
 
 [Install]
 WantedBy=default.target
@@ -203,63 +160,49 @@ EOF
 # ---------------------------------------------------------------------------
 generate_env_file() {
     cat <<'EOF'
-# local-text-to-speech.env
+# local-embedding.env
 # ---------------------------------------------------------------------------
-# Configuration for the local-text-to-speech.service qwen3-tts-server instance.
+# Configuration for the local-embedding.service llama-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
-# Reload with:  local-text-to-speech.sh restart
+# Reload with:  local-embedding.sh restart
 # ---------------------------------------------------------------------------
 
-# Port to bind the server to (default: 50095)
-LTTS_PORT=50095
+# Port to bind the server to (default: 50082)
+EMBED_PORT=50082
 
 # Host to bind the server to (127.0.0.1 for local access only)
-LTTS_HOST=127.0.0.1
+EMBED_HOST=127.0.0.1
 
-# Path to the GGUF Talker model file
-LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
+# Path to the text embedding model file
+EMBED_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
 
-# Path to the GGUF Tokenizer/Vocoder model file
-LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
+# Model alias used by client integrations (default: qwen3-embedding)
+EMBED_ALIAS=qwen3-embedding
 
-# Performance mode preset:
-#   - gpu                : Runs on GPU, holds models warm (fastest)
-#   - gpu-min-vram       : Runs on GPU, lazy-loads/unloads components (low VRAM)
-#   - hybrid             : Runs Code Gen on CPU, Vocoder on GPU (performance sweet spot)
-#   - cpu-only           : Forces CPU-only execution via GGML backends
-LTTS_MODE="cpu-only"
+# Context size (default: 8192)
+EMBED_N_CTX=8192
+
+# Number of layers to offload to GPU (all=999)
+EMBED_N_GPU_LAYERS=999
+# To run inference on CPU instead of GPU (none=0)
+# EMBED_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
-# By default, qwen3-tts-server selects the default available backend.
+# By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LTTS_DEVICE="hip"
-# LTTS_DEVICE="vulkan"
-# LTTS_DEVICE="cpu"
-# LTTS_DEVICE="openblas"
+# EMBED_DEVICE="hip"
+# EMBED_DEVICE="vulkan"
+# EMBED_DEVICE="cpu"
+# EMBED_DEVICE="openblas"
 
-# Number of threads to use for computations
-LTTS_THREADS=4
+# Number of threads to use (default: 4)
+EMBED_THREADS=4
 
-# Extra arguments to pass to qwen3-tts-server (e.g. --temperature, --seed, etc.)
-LTTS_EXTRA_ARGS=""
+# Extra arguments to pass to llama-server
+EMBED_EXTRA_ARGS=""
 
 EOF
-}
-
-# ---------------------------------------------------------------------------
-# Helper to execute systemctl commands only if systemd user manager is reachable
-# ---------------------------------------------------------------------------
-is_systemd_running() {
-    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
-}
-
-run_systemctl() {
-    if is_systemd_running; then
-        systemctl --user "$@"
-    else
-        echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
-    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -324,7 +267,7 @@ cmd_install() {
     echo "  Service: ${SERVICE_FILE}"
     echo "  Env:     ${ENV_FILE}"
     echo ""
-    echo "  Edit the env file to select models, then:"
+    echo "  Edit the env file to select model, then:"
     echo "    $0 restart"
     echo ""
     echo "  Status:  $0 status"
@@ -385,31 +328,37 @@ cmd_exec() {
     load_env
 
     local args=(
-        --model "${LTTS_MODEL}"
-        --vocoder "${LTTS_VOCODER}"
-        --host "${LTTS_HOST}"
-        --port "${LTTS_PORT}"
-        --threads "${LTTS_THREADS}"
+        --model "${EMBED_MODEL}"
+        --embedding
+        --pooling mean
+        --ctx-size "${EMBED_N_CTX}"
+        --batch-size "${EMBED_N_CTX}"
+        --ubatch-size "${EMBED_N_CTX}"
+        --alias "${EMBED_ALIAS}"
+        --threads "${EMBED_THREADS}"
+        --n-gpu-layers "${EMBED_N_GPU_LAYERS}"
+        --host "${EMBED_HOST}"
+        --port "${EMBED_PORT}"
     )
-    if [[ -n "${LTTS_DEVICE:-}" ]]; then
-        args+=(--device "${LTTS_DEVICE}")
+    if [[ -n "${EMBED_DEVICE:-}" ]]; then
+        args+=(--device "${EMBED_DEVICE}")
     fi
-    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${EMBED_EXTRA_ARGS:-}" ]]; then
         # We want word splitting for extra args
         # shellcheck disable=SC2206
-        args+=(${LTTS_EXTRA_ARGS})
+        args+=(${EMBED_EXTRA_ARGS})
     fi
 
     if ! is_systemd_running; then
-        echo "Warning: Systemd is not running. Running qwen3-tts-server directly in foreground..."
+        echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec qwen3-tts-server "$@"
+            exec llama-server "$@"
         else
-            exec qwen3-tts-server "${args[@]}"
+            exec llama-server "${args[@]}"
         fi
     fi
 
-    echo "Starting qwen3-tts-server as a transient systemd service with args: $*"
+    echo "Starting llama-server as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -428,14 +377,14 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" qwen3-tts-server "$@"
+        systemd-run "${opts[@]}" llama-server "$@"
     else
-        systemd-run "${opts[@]}" qwen3-tts-server "${args[@]}"
+        systemd-run "${opts[@]}" llama-server "${args[@]}"
     fi
 }
 
 cmd_shell() {
-    echo "Starting interactive shell in the qwen3-tts-server systemd environment..."
+    echo "Starting interactive shell in the llama-server systemd environment..."
 
     load_env
 
@@ -462,7 +411,7 @@ cmd_run() {
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
-    echo "Running command inside the qwen3-tts-server environment: $*"
+    echo "Running command inside the llama-server environment: $*"
 
     load_env
 
@@ -485,15 +434,20 @@ cmd_run() {
 }
 
 cmd_test() {
-    echo "Running local-text-to-speech validation tests..."
+    echo "Running local-embedding validation tests..."
     load_env
 
-    local play=false
+    local host="${EMBED_HOST:-127.0.0.1}"
+    local port="${EMBED_PORT:-50082}"
+    local alias="${EMBED_ALIAS:-qwen3-embedding}"
+
+    local base_url="http://${host}:${port}"
+    echo "Using endpoint base: ${base_url}"
+
     local benchmark=false
     local repeat=""
     while [ $# -gt 0 ]; do
         case "$1" in
-        --play) play=true ;;
         --benchmark) benchmark=true ;;
         --repeat)
             shift
@@ -503,102 +457,49 @@ cmd_test() {
         shift
     done
 
-    local host="${LTTS_HOST:-127.0.0.1}"
-    local port="${LTTS_PORT:-50095}"
-
     if [ "$benchmark" = "true" ]; then
+        local context_file
+        context_file="/data/public/machine-learning/models/benchmark-context.md"
+        if [[ ! -f "$context_file" ]]; then
+            context_file="$(dirname "$(dirname "$EMBED_MODEL")")/benchmark-context.md"
+        fi
+        if [[ ! -f "$context_file" ]]; then
+            context_file="/tmp/benchmark-context.md"
+        fi
+        if [[ ! -f "$context_file" ]]; then
+            echo "benchmark-context.md not found. Generating it via download_skills_context.py..."
+            python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
+        fi
+
         local repeat_arg=()
         if [ -n "$repeat" ]; then
             repeat_arg=(--repeat "$repeat")
         fi
 
-        # Run TTS benchmark
         python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-            --mode tts \
-            --url "http://${host}:${port}" \
-            --model "qwen3-tts" \
-            --output "/tmp/tts_benchmark_output.wav" \
+            --mode llm-embed \
+            --url "${base_url}" \
+            --model "${alias}" \
+            --context "${context_file}" \
             "${repeat_arg[@]}"
         return 0
     fi
 
-    local temp_dir
-    temp_dir=$(mktemp -d)
-    cleanup() {
-        rm -rf "$temp_dir"
-    }
-    trap cleanup EXIT
-
-    # Create a test sentence of around 40 words
-    local text="The quick brown fox jumps over the lazy dog. This sentence has exactly forty words to verify that the speech generation pipeline functions functions correctly. The generated audio file will be sent directly to the local speech to text service for transcription."
-    echo "Synthesizing test sentence (41 words):"
-    echo "  \"${text}\""
-    echo "Sending request to http://${host}:${port}/v1/audio/speech..."
-
-    if ! curl -s -f -X POST "http://${host}:${port}/v1/audio/speech" \
+    echo "=== Testing Text Embeddings ==="
+    local embed_resp
+    embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
         -H "Content-Type: application/json" \
         -d "{
-          \"model\": \"qwen3-tts\",
-          \"input\": \"${text}\",
-          \"voice\": \"default\",
-          \"response_format\": \"wav\"
-        }" \
-        -o "$temp_dir/tts_output.wav"; then
-        echo "Error: Failed to synthesize speech via local-text-to-speech." >&2
-        trap - EXIT
-        cleanup
+          \"model\": \"${alias}\",
+          \"input\": \"Hello World\"
+        }")
+
+    echo "${embed_resp}"
+    if ! echo "${embed_resp}" | grep -q "embedding"; then
+        echo "Error: Text embedding test failed." >&2
         return 1
     fi
-
-    echo "Synthesis complete. File size: $(wc -c <"$temp_dir/tts_output.wav") bytes."
-    cp "$temp_dir/tts_output.wav" "/tmp/tts_test_output.wav"
-    echo "Saved output to /tmp/tts_test_output.wav"
-
-    # Pipe through local-speech-to-text
-    local lstt_env_file="${SYSTEMD_USER_DIR:-$HOME/.config}/systemd/user/local-speech-to-text.env"
-    if [[ -f "$lstt_env_file" ]]; then
-        # shellcheck disable=SC1090
-        source "$lstt_env_file" || true
-    fi
-    local lstt_host="${LSTT_HOST:-127.0.0.1}"
-    local lstt_port="${LSTT_PORT:-50090}"
-    local lstt_inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
-    local lstt_model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
-
-    echo "Transcribing generated audio using local-speech-to-text at http://${lstt_host}:${lstt_port}..."
-    local stt_resp
-    if ! stt_resp=$(curl -s -f -X POST "http://${lstt_host}:${lstt_port}${lstt_inference_path}" \
-        -H "Content-Type: multipart/form-data" \
-        -F "file=@$temp_dir/tts_output.wav" \
-        -F "model=${lstt_model_alias}"); then
-        echo "Error: Speech-to-text transcription service failed or is unreachable." >&2
-        trap - EXIT
-        cleanup
-        return 1
-    fi
-
-    echo "Transcription Response:"
-    echo "${stt_resp}"
-
-    if [ "$play" = "true" ]; then
-        # Try playing the audio output
-        echo "Playing generated audio output..."
-        if command -v aplay &>/dev/null; then
-            aplay "$temp_dir/tts_output.wav" || true
-        elif command -v paplay &>/dev/null; then
-            paplay "$temp_dir/tts_output.wav" || true
-        elif command -v pw-play &>/dev/null; then
-            pw-play "$temp_dir/tts_output.wav" || true
-        else
-            echo "No command-line audio player (aplay, paplay, pw-play) found. Skipping audio playback."
-        fi
-    else
-        echo "Skipping audio playback (use --play to play generated sound)."
-    fi
-
-    echo "Local text-to-speech validation: Success."
-    trap - EXIT
-    cleanup
+    echo "Text embedding: Success."
 }
 
 usage() {
@@ -614,10 +515,10 @@ usage() {
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run qwen3-tts-server as a transient systemd user service"
-    echo "  run       - Run a command inside the qwen3-tts-server environment"
-    echo "  shell     - Spawn an interactive shell in the qwen3-tts-server environment"
-    echo "  test [--play] [--benchmark] - Run synthesis and validation tests or benchmark"
+    echo "  exec      - Run llama-server as a transient systemd user service"
+    echo "  run       - Run a command inside the llama-server environment"
+    echo "  shell     - Spawn an interactive shell in the llama-server environment"
+    echo "  test [--benchmark] [--repeat XX] - Run validation tests or embedding benchmark"
 }
 
 # ---------------------------------------------------------------------------

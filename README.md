@@ -26,16 +26,22 @@ also covered, but currently not point of interest:
 
 ## Integrations
 
-### Local LLM and Reranking Services
-- **Description**: Manages persistent `llama-server` instances for text completions/embeddings (`local-llm-ggml.sh`) and document reranking (`local-rerank.sh`). Optimized for AMD ROCm hardware (tested on Radeon Pro W6800).
+### Local Chat and Embedding Services
+- **Description**: Manages persistent `llama-server` instances for text completions/embeddings (`local-llm-ggml.sh`).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
-- **Features**: Flash Attention, layer GPU offloading, combined chat and embeddings (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens), and separate rerank (`50086`) services.
-- Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md) / [local-rerank.md](assistants/local-rerank.md)
+- **Features**: combined chat and embeddings (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens)
+- Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md)
+
+### Local Reranking Services
+- **Description**: Manages persistent `llama-server` instances for document reranking (`local-rerank.sh`). 
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in cpu only mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
+- **Features**: Rerank Service (`50086`) services.
+- Documentation:  [local-rerank.md](assistants/local-rerank.md)
 
 ### Local Speech-to-Text
 - **Description**: Manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. Serves an OpenAI-compatible audio transcription API on port 50090.
-- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated transcription (unless run in CPU mode). Enforces `ProtectSystem=strict` while allowing read-write access to the home directory (for temporary ffmpeg transcoded files) and read-only access to `/data/public/machine-learning`.
-- **Features**: Flash Attention, GPU offloading or CPU execution, audio transcoding using `ffmpeg`.
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in cpu only mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
+- **Features**: audio transcoding using `ffmpeg`.
 - Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
 
 ### Local Text-to-Speech
