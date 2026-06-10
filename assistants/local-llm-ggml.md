@@ -1,6 +1,6 @@
-# Local LLM and Embedding Service Guide
+# Local LLM Chat Service Guide
 
-`local-llm-ggml.sh` manages the local `llama-server` systemd user service (`local-llm-ggml.service`), serving both the Chat/Vision LLM and the Text Embedding model simultaneously from a single process using router mode (`--models-preset`).
+`local-llm-ggml.sh` manages the local `llama-server` systemd user service (`local-llm-ggml.service`), serving the Chat/Vision LLM. (Note: Text embeddings have been split into the standalone [local-embedding.sh](local-embedding.md) service by default, but can optionally be run simultaneously in a single process).
 
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
@@ -60,9 +60,9 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
   - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
   - In **Moltis**, preset configurations mapping to `reasoning_effort = "low"` adjust agent-level thinking budgets and parameters.
 
-### Default Embedding
+### Optional Embedded Embeddings
 
-The local service runs **`Qwen3-Embedding-0.6B-Q8_0.gguf`** as its embeddings model. 
+While embeddings have been split into the standalone [local-embedding.md](local-embedding.md) service by default, `local-llm-ggml.sh` can optionally run the **`Qwen3-Embedding-0.6B-Q8_0.gguf`** model simultaneously. This is enabled by setting `LLM_SERVE_EMBEDDINGS="true"` in the environment configuration.
 
 Key specifications and limits:
 - **Embedding Context Size (`LLM_EMBEDDING_N_CTX`):** `8192`
@@ -76,10 +76,10 @@ Key specifications and limits:
 ### Service Endpoints (Port `50080`)
 
 - **`POST /v1/chat/completions`**: OpenAI-compatible chat completion endpoint (routed to the chat LLM).
-- **`POST /v1/embeddings`**: OpenAI-compatible text embedding endpoint (routed to the embedding model).
+- **`POST /v1/embeddings`**: OpenAI-compatible text embedding endpoint (routed to the embedding model, only active if `LLM_SERVE_EMBEDDINGS="true"`).
 - **`POST /v1/completions`**: OpenAI-compatible text completion endpoint.
 - **`POST /completion`**: Native `llama.cpp` endpoint for custom prompt completion.
-- **`POST /embedding`**: Native `llama.cpp` endpoint to generate vector embeddings.
+- **`POST /embedding`**: Native `llama.cpp` endpoint to generate vector embeddings (only active if `LLM_SERVE_EMBEDDINGS="true"`).
 - **`POST /tokenize`**: Converts input text into model-specific integer token IDs.
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /v1/models`**: Lists all active model aliases.
@@ -205,13 +205,13 @@ You can test that the service is running and behaving correctly by running the v
 To benchmark prefill and decoding latency and throughput using `benchmark-context.md`, run:
 
 ```bash
-# Run both Chat/Summarization and Embeddings benchmarks
+# Run the Chat benchmark
 ./local-llm-ggml.sh test --benchmark
 
 # Run ONLY the Chat benchmark
 ./local-llm-ggml.sh test --benchmark --only-chat
 
-# Run ONLY the Embeddings benchmark
+# Run ONLY the Embeddings benchmark (only active if LLM_SERVE_EMBEDDINGS="true")
 ./local-llm-ggml.sh test --benchmark --only-embeddings
 
 # Skip Phase 1 (Sequential Prefill) of the Chat benchmark
@@ -264,7 +264,7 @@ curl -s -X POST http://localhost:50080/v1/chat/completions \
   }'
 ```
 
-### 2. Text Embedding Test
+### 2. Text Embedding Test (Only if `LLM_SERVE_EMBEDDINGS="true"`)
 ```bash
 curl -s -X POST http://localhost:50080/v1/embeddings \
   -H "Content-Type: application/json" \

@@ -26,11 +26,17 @@ also covered, but currently not point of interest:
 
 ## Integrations
 
-### Local Chat and Embedding Services
-- **Description**: Manages persistent `llama-server` instances for text completions/embeddings (`local-llm-ggml.sh`).
+### Local Chat Services
+- **Description**: Manages persistent `llama-server` instances for text completions (`local-llm-ggml.sh`).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
-- **Features**: combined chat and embeddings (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens)
+- **Features**: Chat completions (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens).
 - Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md)
+
+### Local Embedding Services
+- **Description**: Manages persistent `llama-server` instances for text embeddings (`local-embedding.sh`).
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
+- **Features**: Standalone text embedding server (`50082`) running with mean pooling and ROCm GPU offloading.
+- Documentation: [local-embedding.md](assistants/local-embedding.md)
 
 ### Local Reranking Services
 - **Description**: Manages persistent `llama-server` instances for document reranking (`local-rerank.sh`). 
@@ -80,7 +86,8 @@ The following default ports are used by various agent systems and services to av
 
 | Agent/Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
-| **Local-LLM** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM & Text Embeddings |
+| **Local-LLM** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM (embeddings disabled) |
+| **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving Text Embeddings |
 | **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
