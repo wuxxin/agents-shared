@@ -603,6 +603,10 @@ cmd_test() {
 
         # Run embedding benchmark
         if [ "$only_chat" = "false" ]; then
+            if [ "$only_embeddings" = "false" ]; then
+                echo "sleeping 10 seconds to cool down gpu..."
+                sleep 10
+            fi
             python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
                 --mode llm-embed \
                 --url "${base_url}" \
