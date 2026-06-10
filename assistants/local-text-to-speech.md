@@ -68,6 +68,9 @@ You can configure the target device using the `LTTS_DEVICE` environment variable
 
 Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](https://huggingface.co/collections/khimaros/qwen3-tts) on Hugging Face:
 
+Default Model selected in environment is **0.6B CustomVoice**
+
+
 - **0.6B Base Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf`)
 - **0.6B CustomVoice Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **1.7B Base Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf`)

@@ -672,22 +672,26 @@ cmd_test() {
 }
 
 usage() {
-    echo "Usage: $0 <command> [args...]"
-    echo "Commands:"
-    echo "  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
-    echo "  uninstall - Stop and remove systemd service"
-    echo "  start     - Start the systemd service"
-    echo "  stop      - Stop the systemd service"
-    echo "  restart   - Restart the systemd service"
-    echo "  status    - View systemd service status"
-    echo "  enable    - Enable systemd service on boot"
-    echo "  disable   - Disable systemd service on boot"
-    echo "  logs      - Tail the systemd service logs"
-    echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run llama-server as a transient systemd user service"
-    echo "  run       - Run a command inside the llama-server environment"
-    echo "  shell     - Spawn an interactive shell in the llama-server environment"
-    echo "  test [--benchmark] [--only-embeddings] [--only-chat] [--skip-prefill] [--skip-distractor] - Run validation tests or benchmarks"
+    cat <<EOF
+Usage: $0 <command> [args...]
+Commands:
+  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)
+  uninstall - Stop and remove systemd service
+  start     - Start the systemd service
+  stop      - Stop the systemd service
+  restart   - Restart the systemd service
+  status    - View systemd service status
+  enable    - Enable systemd service on boot
+  disable   - Disable systemd service on boot
+  logs      - Tail the systemd service logs
+  edit      - Edit the .env file and restart the service upon exit
+  exec      - Run llama-server as a transient systemd user service
+  run       - Run a command inside the llama-server environment
+  shell     - Spawn an interactive shell in the llama-server environment
+  test [--benchmark] [--only-embeddings] [--only-chat] [--skip-prefill] [--skip-distractor] [--repeat XX]
+    - Run validation tests or benchmarks
+EOF
+
 }
 
 # ---------------------------------------------------------------------------

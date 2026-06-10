@@ -218,7 +218,7 @@ LTTS_PORT=50095
 LTTS_HOST=127.0.0.1
 
 # Path to the GGUF Talker model file
-LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf
+LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
 
 # Path to the GGUF Tokenizer/Vocoder model file
 LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
