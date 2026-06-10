@@ -106,11 +106,45 @@ Add the following to your `config.toml` configuration file (located in the sandb
 ```toml
 [memory]
 # Native hybrid (keyword FTS + vector similarity) SQLite backend
-backend = "sqlite-hybrid"
+backend = "sqlite.default"
 
 embedding_model = "qwen3-embedding"
 embedding_provider = "custom:http://localhost:50080/v1"
 
+```
+
+## Risk & Runtime Profiles
+
+ZeroClaw enforces runtime security and resource isolation using profiles. Any enabled agent (e.g. `[agents.default]`) must reference a valid risk profile and runtime profile:
+
+```toml
+[agents.default]
+risk_profile = "default"
+runtime_profile = "default"
+```
+
+These referenced profile names must exist under the corresponding `[risk_profiles]` and `[runtime_profiles]` headers in `config.toml`.
+
+> [!WARNING]
+> Since ZeroClaw runs in a systemd/bwrap sandbox by default, the template configuration leverages "Full Autonomy" (YOLO mode) as the default risk profile and a "balanced" runtime profile to provide maximum flexibility:
+
+```toml
+# --- Risk & Runtime Profiles
+[risk_profiles.default]
+level = "full"
+workspace_only = false
+allowed_commands = ["*"]
+forbidden_paths = []
+require_approval_for_medium_risk = false
+block_high_risk_commands = false
+sandbox_enabled = false
+
+[runtime_profiles.default]
+agentic = false
+max_tool_iterations = 0
+max_actions_per_hour = 20
+max_cost_per_day_cents = 500
+shell_timeout_secs = 60
 ```
 
 ## Speech-to-Text Integration
@@ -121,14 +155,14 @@ Add the transcription provider configuration to `~/.local/sandbox/zeroclaw/.zero
 
 ```toml
 # 1. Define the transcription provider
-[providers.transcription.local_whisper.local_stt]
+[providers.transcription.local_whisper.localstt]
 uri = "http://localhost:50090/v1/audio/transcriptions"
 bearer_token = "dummy"
 model = "whisper-1"
 
 # 2. Reference this provider in your agent configuration
 [agents.default]
-transcription_provider = "local_whisper.local_stt"
+transcription_provider = "local_whisper.localstt"
 ```
 
 Alternatively, you can configure it globally in the legacy `[transcription]` section of `config.toml`:
@@ -163,6 +197,32 @@ api_key = "unused"
 [agents.default]
 tts_provider = "openai.local"
 ```
+
+## OpenCode Coding Agent Integration
+
+ZeroClaw supports delegating coding and file manipulation tasks to the **OpenCode** coding agent natively. It uses the `opencode_cli` tool wrapper under the hood.
+
+### Prerequisites
+1. OpenCode must be installed on the host.
+2. The `opencode` CLI binary must be available on the PATH.
+
+### Configuration
+Add the `[opencode_cli]` configuration section to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
+
+```toml
+[opencode_cli]
+enabled = true
+timeout_secs = 600
+max_output_bytes = 2097152
+# Extra environment variables passed to the opencode subprocess if needed
+env_passthrough = []
+```
+
+Because OpenCode utilizes the binary's own session by default, no API key or secret token is required unless custom provider credentials need to be passed through via `env_passthrough`.
+
+### Configuration Parameters
+*   **`timeout_secs`**: The maximum allowed execution time in seconds for the `opencode run` subprocess. If a coding task runs longer than this limit, the subprocess is automatically terminated and cleaned up to prevent zombie processes on the host. Default: `600` (10 minutes).
+*   **`max_output_bytes`**: The maximum captured standard output (`stdout`) size in bytes returned to the ZeroClaw agent loop. If the output exceeds this size, it is truncated on a UTF-8 character boundary to avoid invalid byte decoding errors. Default: `2097152` (2 MB).
 
 ---
 

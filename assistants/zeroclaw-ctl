@@ -163,14 +163,33 @@ model_provider = "openai.local"
 max_context_tokens = 80000
 tts_provider = "openai.local"
 transcription_provider = "local_whisper.localstt"
+risk_profile = "default"
+runtime_profile = "default"
 channels = ["signal.default"]
 
 [agents.default.memory]
 backend = "sqlite"
 
+# --- Risk & Runtime Profiles
+[risk_profiles.default]
+level = "full"
+workspace_only = false
+allowed_commands = ["*"]
+forbidden_paths = []
+require_approval_for_medium_risk = false
+block_high_risk_commands = false
+sandbox_enabled = false
+
+[runtime_profiles.default]
+agentic = false
+max_tool_iterations = 0
+max_actions_per_hour = 20
+max_cost_per_day_cents = 500
+shell_timeout_secs = 60
+
 # --- Memory & Embeddings
 [memory]
-backend = "storage.sqlite.default"
+backend = "sqlite.default"
 embedding_model = "qwen3-embedding"
 embedding_provider = "custom:http://localhost:50080/v1"
 rerank_enabled = false
@@ -210,6 +229,13 @@ default_target = "+0000000000"
 [runtime]
 reasoning_enabled = true
 reasoning_effort = "low"
+
+# --- OpenCode Coding Agent Integration
+[opencode_cli]
+enabled = true
+timeout_secs = 600
+max_output_bytes = 2097152
+env_passthrough = []
 
 EOF
         echo "Created default configuration at $CONFIG_FILE"
