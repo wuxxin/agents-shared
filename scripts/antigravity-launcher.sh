@@ -9,6 +9,28 @@ WORK_DIR="$HOME/agent-private/antigravity"
 DEFAULT_PROJECT="$WORK_DIR/default"
 AGENT_SHARED_DIR="$HOME/agent-shared"
 DOWNLOAD_DIR="/data/download"
+ENV_FILE="$HOME/.local/sandbox/antigravity.env"
+
+# Helper: Check if a path is under (or matches) a parent directory
+is_under() {
+    local path="$1"
+    local parent="$2"
+    path="${path%/}"
+    parent="${parent%/}"
+    [[ "$path" == "$parent" || "$path" == "$parent"/* ]]
+}
+
+# Helper: Translate host path to sandbox-internal path
+translate_path() {
+    local host_path="$1"
+    if [[ "$host_path" == "$PERSISTENT_HOME" ]]; then
+        echo "$HOME"
+    elif [[ "$host_path" == "$PERSISTENT_HOME"/* ]]; then
+        echo "$HOME/${host_path#"$PERSISTENT_HOME"/}"
+    else
+        echo "$host_path"
+    fi
+}
 
 # Default flags
 ANTIGRAVITY_FLAGS=()
@@ -24,8 +46,9 @@ show_help() {
 Antigravity Sandbox Launcher Help
 ---------------------------------
 Usage when called as $(basename "$0"):
-  $0 install          - Install launcher, symlink, and desktop entries
+  $0 install [--new-config] - Install launcher, symlink, desktop entries (overwrites config if --new-config is specified)
   $0 uninstall        - Remove launcher, symlink, and desktop entries
+  $0 env              - Edit environment configuration file
   $0 help             - Display this help message
   $0 exec [args]      - Run the sandboxed Antigravity application with optional args
   $0 run <cmd> [args] - Run custom command inside the Bubblewrap sandbox
@@ -56,6 +79,14 @@ initialize_sandbox() {
 
 # Helper: Install script, symlink, and desktop configurations
 install_launcher() {
+    local new_config=false
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        --new-config) new_config=true ;;
+        esac
+        shift
+    done
+
     local bin_dir="$HOME/.local/bin"
     local app_dir="$HOME/.local/share/applications"
     local script_target="$bin_dir/antigravity-launcher.sh"
@@ -69,6 +100,30 @@ install_launcher() {
 
     # Initialize sandbox directories
     initialize_sandbox
+
+    # Write env file only if it doesn't exist (preserve user edits)
+    if [[ -f "$ENV_FILE" ]] && [[ "$new_config" == "false" ]]; then
+        echo "Warning: Env file already exists, skipping: $ENV_FILE"
+        echo "Remove it manually or use --new-config if you want to regenerate the defaults."
+    else
+        echo "Creating environment file at $ENV_FILE..."
+        mkdir -p "$(dirname "$ENV_FILE")"
+        cat >"$ENV_FILE" <<EOF
+# env configuration for antigravity
+# This file is loaded by the sandbox launcher.
+
+# Hardening / feature flags (set to 1 to disable):
+# DISABLE_XDG_RUNTIME=1
+# DISABLE_SSH_AUTH=1
+# DISABLE_WAYLAND=1
+# DISABLE_AUDIO=1
+DISABLE_DBUS=1
+
+# Custom binds (colon-separated list of absolute paths):
+# SANDBOX_BIND_PATHS=""
+EOF
+        chmod 600 "$ENV_FILE"
+    fi
 
     # Copy script to user local bin
     local current_script
@@ -174,10 +229,46 @@ run_sandbox() {
     # Initialize sandbox directories if missing
     initialize_sandbox
 
+    # Load environment file if it exists
+    if [[ -f "$ENV_FILE" ]]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set +a
+        set -u
+    fi
+
+    # Check if current working directory is within target mounts
+    local cwd
+    cwd="$(pwd)"
+    local is_allowed=false
+
+    if is_under "$cwd" "$PERSISTENT_HOME" || is_under "$cwd" "$WORK_DIR" || is_under "$cwd" "$AGENT_SHARED_DIR"; then
+        is_allowed=true
+    fi
+
+    # Check custom bind paths
+    if [[ "$is_allowed" == "false" && -n "${SANDBOX_BIND_PATHS:-}" ]]; then
+        IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
+        for p in "${paths[@]}"; do
+            if [[ -n "$p" ]] && is_under "$cwd" "$p"; then
+                is_allowed=true
+                break
+            fi
+        done
+    fi
+
+    if [[ "$is_allowed" == "false" ]]; then
+        echo "Warning: Current working directory '$cwd' is outside the sandbox target mounts." >&2
+        echo "This will likely cause bubblewrap (bwrap) to fail." >&2
+    fi
+
     # Prepare basic bubblewrap argument list
     local display="${DISPLAY:-}"
     local xauthority="${XAUTHORITY:-}"
     local xdg_runtime_dir="${XDG_RUNTIME_DIR:-}"
+    local ssh_auth_sock="${SSH_AUTH_SOCK:-}"
 
     local bwrap_args=(
         --unshare-all
@@ -196,11 +287,15 @@ run_sandbox() {
         --ro-bind /tmp/.X11-unix /tmp/.X11-unix
         --setenv DISPLAY "$display"
         --setenv XAUTHORITY "$xauthority"
-        --chdir "$WORK_DIR"
     )
 
     # Wayland & Audio Support (Selective mounting of XDG_RUNTIME_DIR)
-    if [[ -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
+    local enable_xdg_runtime=true
+    if [[ "${DISABLE_XDG_RUNTIME:-}" == "1" || "${DISABLE_XDG_RUNTIME:-}" == "true" ]]; then
+        enable_xdg_runtime=false
+    fi
+
+    if [[ "$enable_xdg_runtime" == "true" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
         bwrap_args+=(
             --tmpfs "$xdg_runtime_dir"
             --setenv XDG_RUNTIME_DIR "$xdg_runtime_dir"
@@ -257,6 +352,41 @@ run_sandbox() {
         done
     fi
 
+    # Audio socket fallback or PulseAudio support outside XDG_RUNTIME_DIR
+    if [[ "$enable_xdg_runtime" == "true" && "${enable_audio:-true}" == "true" && -d "/run/user/$(id -u)/pulse" ]]; then
+        bwrap_args+=(--bind "/run/user/$(id -u)/pulse" "/run/user/$(id -u)/pulse")
+    fi
+
+    # SSH Agent Support
+    local enable_ssh_auth=true
+    if [[ "${DISABLE_SSH_AUTH:-}" == "1" || "${DISABLE_SSH_AUTH:-}" == "true" ]]; then
+        enable_ssh_auth=false
+    fi
+
+    if [[ "$enable_ssh_auth" == "true" && -n "$ssh_auth_sock" && -S "$ssh_auth_sock" ]]; then
+        bwrap_args+=(
+            --bind "$ssh_auth_sock" "$ssh_auth_sock"
+            --setenv SSH_AUTH_SOCK "$ssh_auth_sock"
+        )
+    fi
+
+    # Custom bindings via SANDBOX_BIND_PATHS
+    if [[ -n "${SANDBOX_BIND_PATHS:-}" ]]; then
+        IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
+        for p in "${paths[@]}"; do
+            if [[ -d "$p" ]]; then
+                bwrap_args+=(--bind "$p" "$p")
+            elif [[ -f "$p" ]]; then
+                bwrap_args+=(--bind "$p" "$p")
+            fi
+        done
+    fi
+
+    # Translate and apply current working directory
+    local sandbox_cwd
+    sandbox_cwd=$(translate_path "$cwd")
+    bwrap_args+=(--chdir "$sandbox_cwd")
+
     exec bwrap "${bwrap_args[@]}" "$@"
 }
 
@@ -290,10 +420,15 @@ else
 
     case "$cmd" in
     install)
-        install_launcher
+        install_launcher "$@"
         ;;
     uninstall)
         uninstall_launcher
+        ;;
+    env)
+        mkdir -p "$(dirname "$ENV_FILE")"
+        touch "$ENV_FILE"
+        ${EDITOR:-nano} "$ENV_FILE"
         ;;
     help)
         show_help
