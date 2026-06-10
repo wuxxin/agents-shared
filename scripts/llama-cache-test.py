@@ -5,7 +5,7 @@ import random
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 
@@ -128,6 +128,7 @@ def measure_request(
     """Sends a completion/chat request and measures timing."""
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
 
+    payload: dict[str, Any]
     if image_b64:
         messages = [
             {
@@ -337,7 +338,9 @@ def incremental_prefill(args, full_text):
     total_time = sum(r[2] for r in results)
     if total_time > 0 and results:
         total_chars = results[-1][0]
-        print(f"\n**Overall Prefill Speed:** {total_chars / total_time:.2f} Char/s (Total Time: {total_time:.2f}s)\n")
+        print(
+            f"\n**Overall Prefill Speed:** {total_chars / total_time:.2f} Char/s (Total Time: {total_time:.2f}s)\n"
+        )
 
     return results
 
@@ -348,7 +351,7 @@ def run_test(args):
     if args.payload_filename:
         static_prefix = load_text_file(args.payload_filename)
         if len(static_prefix) > args.context_len:
-            static_prefix = static_prefix[:args.context_len]
+            static_prefix = static_prefix[: args.context_len]
     else:
         static_prefix = generate_lorem_ipsum(args.context_len)
 
