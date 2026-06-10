@@ -580,13 +580,9 @@ cmd_test() {
 
     if [ "$benchmark" = "true" ]; then
         local context_file
-        # Try relative path in repo first
-        context_file="$(dirname "$0")/../scratch/test-models/benchmark-context.md"
+        context_file="/data/public/machine-learning/models/benchmark-context.md"
         if [[ ! -f "$context_file" ]]; then
             context_file="$(dirname "$(dirname "$LLM_MODEL")")/benchmark-context.md"
-        fi
-        if [[ ! -f "$context_file" ]]; then
-            context_file="/data/public/machine-learning/models/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
             context_file="/tmp/benchmark-context.md"
