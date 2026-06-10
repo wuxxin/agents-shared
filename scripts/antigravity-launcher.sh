@@ -117,7 +117,7 @@ install_launcher() {
 # DISABLE_SSH_AUTH=1
 # DISABLE_WAYLAND=1
 # DISABLE_AUDIO=1
-DISABLE_DBUS=1
+# DISABLE_DBUS=1
 
 # Custom binds (colon-separated list of absolute paths):
 # SANDBOX_BIND_PATHS=""
