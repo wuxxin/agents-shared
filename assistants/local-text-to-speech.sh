@@ -228,12 +228,27 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Helper to execute systemctl commands only if systemd user manager is reachable
+# ---------------------------------------------------------------------------
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
+run_systemctl() {
+    if is_systemd_running; then
+        systemctl --user "$@"
+    else
+        echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Write service file
 # ---------------------------------------------------------------------------
 write_service_file() {
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
-    systemctl --user daemon-reload
+    run_systemctl daemon-reload
 }
 
 # ---------------------------------------------------------------------------
@@ -274,14 +289,14 @@ cmd_install() {
 
     # Enable service
     echo "Enabling ${SERVICE_NAME}.service..."
-    systemctl --user enable "${SERVICE_NAME}.service"
+    run_systemctl enable "${SERVICE_NAME}.service"
 
     if [ "$no_start" = "true" ]; then
         echo "Stopping service if running (--no-start specified)..."
-        systemctl --user stop "${SERVICE_NAME}.service" || true
+        run_systemctl stop "${SERVICE_NAME}.service" || true
     else
         echo "Starting/Restarting service automatically..."
-        systemctl --user restart "${SERVICE_NAME}.service"
+        run_systemctl restart "${SERVICE_NAME}.service"
     fi
 
     echo "Installation complete."
@@ -298,12 +313,12 @@ cmd_install() {
 
 cmd_uninstall() {
     echo "Uninstalling ${SERVICE_NAME} systemd user service..."
-    systemctl --user stop "${SERVICE_NAME}.service" || true
-    systemctl --user disable "${SERVICE_NAME}.service" || true
+    run_systemctl stop "${SERVICE_NAME}.service" || true
+    run_systemctl disable "${SERVICE_NAME}.service" || true
 
     if [[ -f "${SERVICE_FILE}" ]]; then
         rm -f "${SERVICE_FILE}"
-        systemctl --user daemon-reload
+        run_systemctl daemon-reload
         echo "Removed service file."
     fi
 
@@ -312,22 +327,30 @@ cmd_uninstall() {
 
 cmd_start() {
     write_service_file
-    systemctl --user start "${SERVICE_NAME}.service"
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running. Use 'exec' to run ${SERVICE_NAME} directly." >&2
+        exit 1
+    fi
+    run_systemctl start "${SERVICE_NAME}.service"
 }
 
-cmd_stop() { systemctl --user stop "${SERVICE_NAME}.service"; }
+cmd_stop() { run_systemctl stop "${SERVICE_NAME}.service"; }
 
 cmd_restart() {
     write_service_file
-    systemctl --user restart "${SERVICE_NAME}.service"
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running. Use 'exec' to run ${SERVICE_NAME} directly." >&2
+        exit 1
+    fi
+    run_systemctl restart "${SERVICE_NAME}.service"
 }
 
-cmd_status() { systemctl --user status "${SERVICE_NAME}.service"; }
+cmd_status() { run_systemctl status "${SERVICE_NAME}.service"; }
 cmd_enable() {
     write_service_file
-    systemctl --user enable "${SERVICE_NAME}.service"
+    run_systemctl enable "${SERVICE_NAME}.service"
 }
-cmd_disable() { systemctl --user disable "${SERVICE_NAME}.service"; }
+cmd_disable() { run_systemctl disable "${SERVICE_NAME}.service"; }
 cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" "$@"; }
 
 cmd_edit() {

@@ -43,11 +43,12 @@ load_env() {
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Helper to execute systemctl commands only if systemd user manager is reachable
-# ---------------------------------------------------------------------------
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
 run_systemctl() {
-    if systemctl --user daemon-reload >/dev/null 2>&1; then
+    if is_systemd_running; then
         systemctl --user "$@"
     else
         echo "Warning: systemd user manager is not reachable. Skipping: systemctl --user $*"
@@ -267,6 +268,10 @@ cmd_uninstall() {
 
 cmd_start() {
     write_service_file
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running. Use 'exec' to run ${SERVICE_NAME} directly." >&2
+        exit 1
+    fi
     run_systemctl start "${SERVICE_NAME}.service"
 }
 
@@ -274,6 +279,10 @@ cmd_stop() { run_systemctl stop "${SERVICE_NAME}.service"; }
 
 cmd_restart() {
     write_service_file
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running. Use 'exec' to run ${SERVICE_NAME} directly." >&2
+        exit 1
+    fi
     run_systemctl restart "${SERVICE_NAME}.service"
 }
 
