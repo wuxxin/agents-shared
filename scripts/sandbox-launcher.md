@@ -42,7 +42,7 @@ sandbox-launcher.sh destroy firefox
 
 ### Style B: Symlink Mode (Transparent Wrapper)
 
-When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-launcher.sh`), the script operates as a **100% transparent proxy**.
+When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-launcher.sh`), the script operates as a **transparent proxy**.
 
 - **Direct Argument Propagation**: All arguments are passed directly to the original binary inside the sandbox.
 - E.g., calling `opencode --version` runs `opencode --version` inside the sandbox, and calling `git commit` runs `git commit` inside the sandbox without colliding with launcher command names.

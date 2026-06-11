@@ -80,8 +80,8 @@ shfmt -i 4 -w scripts/*.sh
 
 - document all agent software default ports and isolation requirements in `README.md`
 - update documentation whenever any changes are made to scripts, `README.md`  for overall structure and `assistants/*-ctl.md`  for individual agent documentation, same for `scripts/`.
-- always use `scratch/` for temporary files and other testings.
-- always check configuration changes by verify with the source code in `scratch/*-sources`.
+- always use `scratch/` for temporary files, git checkout of sourcecode for research and other testings.
+- check configuration changes for packages by verifying it with the source code of the package checkedout and updated in `scratch/*-sources`.
 - always check with `[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]` if you are bwrapped yourself.
   - if bwrapped, do not use systemd to start/stop or otherwise introspect running systemd services.
   - if bwrapped, expect hat the real $HOME of the $USER eg. ~/.local is not available to you, you have a bwrapped ~/.local 
