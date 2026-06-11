@@ -29,7 +29,7 @@ load_env() {
     LTTS_HOST=127.0.0.1
     LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
     LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
-    LTTS_THREADS=4
+    LTTS_THREADS=8
     LTTS_MODE="cpu-only"
     LTTS_EXTRA_ARGS=""
     LTTS_DEVICE=""
@@ -239,7 +239,7 @@ LTTS_MODE="cpu-only"
 # LTTS_DEVICE="openblas"
 
 # Number of threads to use for computations
-LTTS_THREADS=4
+LTTS_THREADS=8
 
 # Extra arguments to pass to qwen3-tts-server (e.g. --temperature, --seed, etc.)
 LTTS_EXTRA_ARGS=""

@@ -109,19 +109,26 @@
             "test_name": "chat_hip"
         },
         "llm-embed": {
-            "bench_time_s": 10.2,
-            "cpu_mem_mb": 350.0,
+            "bench_time_s": 15.849545001983643,
+            "cpu_mem_mb": 9992.046875,
             "device_setting": "ROCm0",
-            "embed_lat": 1509.5,
-            "embed_p50": 1638.0,
-            "embed_p95": 1816.9,
-            "embed_throughput": 5019.28,
-            "embed_time_s": 9.06,
+            "embed_lat": 1757.6,
+            "embed_p50": 1788.5,
+            "embed_p95": 2521.1,
+            "embed_throughput": 4310.9,
+            "embed_time_s": 10.55,
             "env": {
+                "EMBED_ALIAS": "qwen3-embedding",
                 "EMBED_DEVICE": "ROCm0",
-                "EMBED_N_GPU_LAYERS": "999"
+                "EMBED_EXTRA_ARGS": "",
+                "EMBED_HOST": "127.0.0.1",
+                "EMBED_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
+                "EMBED_N_CTX": "8192",
+                "EMBED_N_GPU_LAYERS": "999",
+                "EMBED_PORT": "50082",
+                "EMBED_THREADS": "4"
             },
-            "gpu_mem_mb": 2620.0,
+            "gpu_mem_mb": 6637.59375,
             "special_setting": "Layers: 999",
             "test_name": "embedding_hip"
         },

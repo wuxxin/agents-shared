@@ -1,6 +1,6 @@
 # LLM Caching Optimization Benchmarks
 
-**Benchmark Run Time:** `2026-06-11 01:38:10`
+**Benchmark Run Time:** `2026-06-11 02:06:57`
 
 ## Local Inference Services Benchmarks
 
@@ -18,7 +18,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 #### Text Embedding (`local-embedding`)
 | Configuration | Test Name | Device Setting | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
 |---|---|---|---|---|---|---|---|
-| **HIP** | embedding_hip | ROCm0 | Layers: 999 | 5019.28 t/s | 1509.5 ms | 2620.0 MB | 350.0 MB |
+| **HIP** | embedding_hip | ROCm0 | Layers: 999 | 4310.90 t/s | 1757.6 ms | 6637.6 MB | 9992.0 MB |
 | **Vulkan** | embedding_vulkan | Vulkan0 | Layers: 999 | 921.27 t/s | 8224.2 ms | 2351.1 MB | 15105.4 MB |
 | **CPU** | embedding_cpu | BLAS | Layers: 0 | 1115.40 t/s | 6792.8 ms | 0.0 MB | 2500.0 MB |
 
@@ -174,18 +174,25 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Special Setting:** `Layers: 999`
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
 - **Execution Target:** `HIP`
-- **GPU Memory Used:** 2620.0 MB
-- **CPU Memory Used:** 350.0 MB
-- **Benchmark Running Time:** 10.20 s
+- **GPU Memory Used:** 6637.6 MB
+- **CPU Memory Used:** 9992.0 MB
+- **Benchmark Running Time:** 15.85 s
 - **Active Environment Settings:**
+  - `EMBED_ALIAS="qwen3-embedding"`
   - `EMBED_DEVICE="ROCm0"`
+  - `EMBED_EXTRA_ARGS=""`
+  - `EMBED_HOST="127.0.0.1"`
+  - `EMBED_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
+  - `EMBED_N_CTX="8192"`
   - `EMBED_N_GPU_LAYERS="999"`
+  - `EMBED_PORT="50082"`
+  - `EMBED_THREADS="4"`
 - **Metrics:**
-  - Avg Time/Run:         9.06 s
-  - Avg Throughput:       5019.28 tokens/sec
-  - Avg Chunk Latency:    1509.5 ms
-  - Avg Chunk p50:        1638.0 ms
-  - Avg Chunk p95:        1816.9 ms
+  - Avg Time/Run:         10.55 s
+  - Avg Throughput:       4310.90 tokens/sec
+  - Avg Chunk Latency:    1757.6 ms
+  - Avg Chunk p50:        1788.5 ms
+  - Avg Chunk p95:        2521.1 ms
 
 #### Document Reranking (`local-rerank`)
 - **Benchmark Test Name:** `rerank_hip`

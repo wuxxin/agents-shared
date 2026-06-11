@@ -912,7 +912,9 @@ def main() -> None:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
                 master_fd = None
+                baseline_vram = 0.0
                 if not args.mock:
+                    baseline_vram = get_gpu_memory_mb()
                     # Install service default config
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
@@ -954,10 +956,6 @@ def main() -> None:
                 else:
                     proc = None
 
-                baseline_vram = 0.0
-                if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
-
                 # Run benchmarks
                 print("Running LLM Chat benchmark")
                 if not args.mock:
@@ -981,7 +979,9 @@ def main() -> None:
                     start_time = time.time()
                     stdout, success = run_benchmark(srv["script"], test_args)
                     if not success:
-                        print(f"⚠️ Warning: Benchmark command for chat on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                        print(
+                            f"⚠️ Warning: Benchmark command for chat on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                        )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cfg]["llm-chat"] = parse_chat_output(stdout)
@@ -1049,13 +1049,13 @@ def main() -> None:
             srv = SERVICES["embedding"]
             if cfg == "special":
                 print("Skipping Embedding for Special configuration.")
-            elif cfg == "cpu":
-                print("Skipping Embedding for CPU configuration.")
             else:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
                 master_fd = None
+                baseline_vram = 0.0
                 if not args.mock:
+                    baseline_vram = get_gpu_memory_mb()
                     # Install service default config
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
@@ -1095,10 +1095,6 @@ def main() -> None:
                 else:
                     proc = None
 
-                baseline_vram = 0.0
-                if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
-
                 # Run benchmarks
                 print("Running LLM Embedding benchmark")
                 if not args.mock:
@@ -1118,7 +1114,9 @@ def main() -> None:
                     start_time = time.time()
                     stdout, success = run_benchmark(srv["script"], test_args)
                     if not success:
-                        print(f"⚠️ Warning: Benchmark command for embedding on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                        print(
+                            f"⚠️ Warning: Benchmark command for embedding on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                        )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cfg]["llm-embed"] = parse_embed_output(stdout)
@@ -1131,7 +1129,9 @@ def main() -> None:
 
                         benchmark_data[cfg]["llm-embed"]["gpu_mem_mb"] = gpu_mem_mb
                         benchmark_data[cfg]["llm-embed"]["cpu_mem_mb"] = cpu_mem_mb
-                        benchmark_data[cfg]["llm-embed"]["test_name"] = f"embedding_{cfg}"
+                        benchmark_data[cfg]["llm-embed"]["test_name"] = (
+                            f"embedding_{cfg}"
+                        )
                         benchmark_data[cfg]["llm-embed"]["device_setting"] = (
                             embed_device if embed_device else "Default"
                         )
@@ -1242,7 +1242,9 @@ def main() -> None:
                         srv["script"], ["--benchmark", "--repeat", "1"]
                     )
                     if not success:
-                        print(f"⚠️ Warning: Benchmark command for reranker on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                        print(
+                            f"⚠️ Warning: Benchmark command for reranker on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                        )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cfg]["rerank"] = parse_rerank_output(stdout)
@@ -1351,7 +1353,9 @@ def main() -> None:
                         srv["script"], ["--benchmark", "--repeat", "1"]
                     )
                     if not success:
-                        print(f"⚠️ Warning: Benchmark command for STT on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                        print(
+                            f"⚠️ Warning: Benchmark command for STT on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                        )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
@@ -1368,7 +1372,9 @@ def main() -> None:
                         benchmark_data[cfg]["stt"]["special_setting"] = (
                             "No GPU" if cfg == "cpu" else "Use GPU"
                         )
-                        benchmark_data[cfg]["stt"]["env"] = read_env_file(srv["env_file"])
+                        benchmark_data[cfg]["stt"]["env"] = read_env_file(
+                            srv["env_file"]
+                        )
                 else:
                     stdout = get_mock_output("stt", cfg)
                     benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
@@ -1484,7 +1490,9 @@ def main() -> None:
                         srv["script"], ["--benchmark", "--repeat", "1"]
                     )
                     if not success:
-                        print(f"⚠️ Warning: Benchmark command for TTS on config '{data_key}' (mode: {ltts_mode}) returned a non-zero exit code or failed. Preserving existing cached results if available.")
+                        print(
+                            f"⚠️ Warning: Benchmark command for TTS on config '{data_key}' (mode: {ltts_mode}) returned a non-zero exit code or failed. Preserving existing cached results if available."
+                        )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
