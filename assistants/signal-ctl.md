@@ -71,7 +71,7 @@ exit
 ## Implementation Considerations
 
 ### Architecture
-- **Secure Local Socket**: Runs the Java-based `signal-cli` as a daemon exposing a UNIX domain socket (`~/.local/sandbox/signal-cli/signal.sock`) for secure local IPC, with TCP (port 50887) and HTTP (port 50888) JSON-RPC interfaces disabled by default.
+- **Secure Local Socket**: Runs the Java-based `signal-cli` as a daemon exposing a UNIX domain socket (`~/.local/sandbox/signal-cli/signal.sock`) for secure local IPC, with TCP (port 50887) and HTTP (port 50888) JSON-RPC interfaces disabled by default. Leftover socket files are automatically cleaned up prior to daemon start and upon stopping to ensure reliable startup and recreation.
 - **Optional REST API**: A Go-based `signal-cli-rest-api` (HTTP port 50889) can be enabled/disabled via `SIGNAL_REST_API_ENABLED`. It can be secured with token-based authentication using `AUTH_TOKEN`.
 - **Communication**: The REST API connects to the daemon via the Unix Domain Socket file, ensuring no raw TCP port is exposed.
 

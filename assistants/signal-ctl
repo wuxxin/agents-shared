@@ -164,7 +164,7 @@ $(get_shared_options service)
 # signal-cli daemon with JSON-RPC over UNIX socket or TCP/HTTP ports.
 # SC_ACCOUNT may be empty to run in multi-account mode (all registered accounts).
 # SC_EXTRA_SUFFIXES can hold additional flags like --send-read-receipts, --ignore-stories.
-ExecStart=/bin/sh -c 'exec signal-cli \\
+ExecStart=/bin/sh -c 'rm -f "\$\${SC_SOCKET_PATH:-\$\$HOME/signal.sock}" && exec signal-cli \\
     \$\$SC_EXTRA_PREFIXES \\
     \$\${SC_ACCOUNT:+--account "\$\$SC_ACCOUNT"} \\
     daemon \\
@@ -173,6 +173,7 @@ ExecStart=/bin/sh -c 'exec signal-cli \\
     \$\${SC_HOST:+\$\${SC_HTTP_PORT:+--http "\$\$SC_HOST:\$\$SC_HTTP_PORT"}} \\
     --receive-mode on-start \\
     \$\$SC_EXTRA_SUFFIXES'
+ExecStopPost=/bin/sh -c 'rm -f "\$\${SC_SOCKET_PATH:-\$\$HOME/signal.sock}"'
 
 Restart=on-failure
 RestartSec=10s
