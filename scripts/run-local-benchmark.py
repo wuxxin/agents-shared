@@ -24,8 +24,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Define service metadata
 SERVICES: Dict[str, Dict[str, Any]] = {
     "chat": {
-        "script": os.path.join(REPO_ROOT, "assistants", "local-llm-ggml.sh"),
-        "env_file": os.path.join(SYSTEMD_USER_DIR, "local-llm-ggml.env"),
+        "script": os.path.join(REPO_ROOT, "assistants", "local-llm.sh"),
+        "env_file": os.path.join(SYSTEMD_USER_DIR, "local-llm.env"),
         "port": 50080,
         "proc_pattern": "llama-server.*--port 50080",
     },
@@ -246,8 +246,8 @@ def get_mock_gpu_mem(mode: str, config: str) -> float:
         return 0.0
 
     mems = {
-        "llm-chat": {"hip": 14520.0, "vulkan": 14850.0},
-        "llm-embed": {"hip": 2620.0, "vulkan": 2650.0},
+        "chat": {"hip": 14520.0, "vulkan": 14850.0},
+        "embedding": {"hip": 2620.0, "vulkan": 2650.0},
         "rerank": {"hip": 680.0, "vulkan": 720.0},
         "stt": {"hip": 1820.0, "vulkan": 1950.0},
         "tts": {
@@ -263,8 +263,8 @@ def get_mock_gpu_mem(mode: str, config: str) -> float:
 def get_mock_cpu_mem(mode: str, config: str) -> float:
     """Get realistic mock CPU memory values for validation runs."""
     mems = {
-        "llm-chat": {"hip": 1200.0, "vulkan": 1250.0, "cpu": 0.0},
-        "llm-embed": {"hip": 350.0, "vulkan": 360.0, "cpu": 2500.0},
+        "chat": {"hip": 1200.0, "vulkan": 1250.0, "cpu": 0.0},
+        "embedding": {"hip": 350.0, "vulkan": 360.0, "cpu": 2500.0},
         "rerank": {"hip": 250.0, "vulkan": 260.0, "cpu": 600.0},
         "stt": {"hip": 450.0, "vulkan": 460.0, "cpu": 1200.0},
         "tts": {
@@ -395,10 +395,56 @@ def warmup_model(url: str, payload: dict, timeout: int = 180) -> bool:
     return False
 
 
-def wait_for_port(port: int, timeout: int = 90) -> bool:
+def make_non_blocking(stream: Any) -> None:
+    """Make a stream non-blocking using fcntl."""
+    import fcntl
+    import os
+
+    try:
+        fd = stream.fileno()
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+    except Exception:
+        pass
+
+
+def read_stream(stream: Any) -> str:
+    """Read all available data from a non-blocking stream."""
+    try:
+        return stream.read() or ""
+    except Exception:
+        return ""
+
+
+def wait_for_port(
+    port: int, timeout: int = 90, proc: Optional[subprocess.Popen] = None
+) -> bool:
     """Wait for port to accept TCP connections on localhost."""
+    import sys
+
+    if proc is not None:
+        if proc.stdout is not None:
+            make_non_blocking(proc.stdout)
+        if proc.stderr is not None:
+            make_non_blocking(proc.stderr)
+
     start_time = time.time()
     while time.time() - start_time < timeout:
+        if proc is not None:
+            if proc.stdout is not None:
+                out = read_stream(proc.stdout)
+                if out:
+                    sys.stdout.write(out)
+                    sys.stdout.flush()
+            if proc.stderr is not None:
+                err = read_stream(proc.stderr)
+                if err:
+                    sys.stderr.write(err)
+                    sys.stderr.flush()
+            if proc.poll() is not None:
+                print(f"❌ Error: Process died early with exit code {proc.returncode}")
+                return False
+
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=1.0):
                 return True
@@ -473,24 +519,20 @@ def stop_service(
 
 def start_service(
     script_path: str, env_args: Optional[List[str]] = None
-) -> Tuple[subprocess.Popen, int]:
-    """Start the service transiently using the script's exec action in a pseudo-terminal (PTY)."""
-    import pty
-
-    master_fd, slave_fd = pty.openpty()
+) -> Tuple[subprocess.Popen, Optional[int]]:
+    """Start the service transiently using the script's exec action."""
     cmd = [script_path, "exec"]
     if env_args:
         cmd.extend(env_args)
     proc = subprocess.Popen(
         cmd,
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
         close_fds=True,
         cwd=os.path.dirname(script_path),
     )
-    os.close(slave_fd)
-    return proc, master_fd
+    return proc, None
 
 
 def run_benchmark(
@@ -502,21 +544,56 @@ def run_benchmark(
 
     If server_proc is provided, checks if the server process dies during benchmark.
     """
+    import sys
+
     cmd = [script_path, "test"] + args
     print(f"Running benchmark command: {' '.join(cmd)}")
 
     if server_proc is None:
-        result = subprocess.run(
+        # If there's no server_proc (e.g. running in mock mode or direct test mode without a managed server)
+        # We still open stdout/stderr pipes, read them dynamically, and write to corresponding streams.
+        bench_proc = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             cwd=os.path.dirname(script_path),
         )
-        if result.returncode != 0:
-            print(f"Error running benchmark. Exit code: {result.returncode}")
-            print(f"Stderr: {result.stderr}")
-            return result.stdout, False
-        return result.stdout, True
+        make_non_blocking(bench_proc.stdout)
+        make_non_blocking(bench_proc.stderr)
+
+        bench_stdout = []
+        while True:
+            out = read_stream(bench_proc.stdout)
+            err = read_stream(bench_proc.stderr)
+            if out:
+                sys.stdout.write(out)
+                sys.stdout.flush()
+                bench_stdout.append(out)
+            if err:
+                sys.stderr.write(err)
+                sys.stderr.flush()
+            if bench_proc.poll() is not None:
+                break
+            time.sleep(0.1)
+
+        # Read remaining
+        out = read_stream(bench_proc.stdout)
+        err = read_stream(bench_proc.stderr)
+        if out:
+            sys.stdout.write(out)
+            sys.stdout.flush()
+            bench_stdout.append(out)
+        if err:
+            sys.stderr.write(err)
+            sys.stderr.flush()
+
+        bench_exit = bench_proc.returncode
+        stdout_str = "".join(bench_stdout)
+        if bench_exit != 0:
+            print(f"Error running benchmark. Exit code: {bench_exit}")
+            return stdout_str, False
+        return stdout_str, True
 
     # Run benchmark asynchronously and poll to check if server dies
     bench_proc = subprocess.Popen(
@@ -526,20 +603,50 @@ def run_benchmark(
         text=True,
         cwd=os.path.dirname(script_path),
     )
+    make_non_blocking(bench_proc.stdout)
+    make_non_blocking(bench_proc.stderr)
 
+    if server_proc is not None:
+        if server_proc.stdout is not None:
+            make_non_blocking(server_proc.stdout)
+        if server_proc.stderr is not None:
+            make_non_blocking(server_proc.stderr)
+
+    bench_stdout = []
+    success = True
     while True:
         # Check if benchmark completed
         bench_exit = bench_proc.poll()
         # Check if server died
-        server_exit = server_proc.poll()
+        server_exit = server_proc.poll() if server_proc is not None else None
+
+        # Read and print outputs
+        out = read_stream(bench_proc.stdout)
+        err = read_stream(bench_proc.stderr)
+        if out:
+            sys.stdout.write(out)
+            sys.stdout.flush()
+            bench_stdout.append(out)
+        if err:
+            sys.stderr.write(err)
+            sys.stderr.flush()
+
+        if server_proc is not None:
+            s_out = read_stream(server_proc.stdout)
+            s_err = read_stream(server_proc.stderr)
+            if s_out:
+                sys.stdout.write(s_out)
+                sys.stdout.flush()
+            if s_err:
+                sys.stderr.write(s_err)
+                sys.stderr.flush()
 
         if bench_exit is not None:
-            stdout, stderr = bench_proc.communicate()
+            # Benchmark finished
             if bench_exit != 0:
                 print(f"Error running benchmark. Exit code: {bench_exit}")
-                print(f"Stderr: {stderr}")
-                return stdout, False
-            return stdout, True
+                success = False
+            break
 
         if server_exit is not None:
             print(
@@ -550,12 +657,34 @@ def run_benchmark(
                 bench_proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 bench_proc.kill()
-            stdout, stderr = bench_proc.communicate()
-            print(f"Benchmark process output before termination:\n{stdout}")
-            print(f"Benchmark process stderr:\n{stderr}")
-            return stdout, False
+            success = False
+            break
 
-        time.sleep(0.5)
+        time.sleep(0.1)
+
+    # Read remaining outputs
+    out = read_stream(bench_proc.stdout)
+    err = read_stream(bench_proc.stderr)
+    if out:
+        sys.stdout.write(out)
+        sys.stdout.flush()
+        bench_stdout.append(out)
+    if err:
+        sys.stderr.write(err)
+        sys.stderr.flush()
+
+    if server_proc is not None:
+        s_out = read_stream(server_proc.stdout)
+        s_err = read_stream(server_proc.stderr)
+        if s_out:
+            sys.stdout.write(s_out)
+            sys.stdout.flush()
+        if s_err:
+            sys.stderr.write(s_err)
+            sys.stderr.flush()
+
+    stdout_str = "".join(bench_stdout)
+    return stdout_str, success
 
 
 # ---------------------------------------------------------------------------
@@ -694,9 +823,9 @@ def get_mock_output(mode: str, config: str) -> str:
     }
     fac = factors.get(config, 1.0)
 
-    if mode == "llm-chat":
+    if mode == "chat":
         return f"""
-Running local-llm-ggml validation tests...
+Running local-llm validation tests...
 Using endpoint base: http://127.0.0.1:50080
 --- Phase 0: Warmup ---
   Prompt Tokens:        19
@@ -714,7 +843,7 @@ Using endpoint base: http://127.0.0.1:50080
   Avg Generation Speed: {43.96 / fac:.2f} tokens/sec
   Avg Decode Time:      {13.65 * fac:.2f} s
 """
-    elif mode == "llm-embed":
+    elif mode == "embedding":
         return f"""
 === EMBEDDING BENCHMARK RESULTS SUMMARY         ===
   Avg Tokens/Run:       45460
@@ -790,8 +919,8 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         if cfg in data and mode in data[cfg] and "test_name" in data[cfg][mode]:
             return str(data[cfg][mode]["test_name"])
         fallback_names = {
-            "llm-chat": "chat",
-            "llm-embed": "embedding",
+            "chat": "chat",
+            "embedding": "embedding",
             "rerank": "rerank",
             "stt": "stt",
             "tts": "tts",
@@ -822,7 +951,7 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                 return parts[1]
             return (
                 "ROCm0"
-                if mode in ("llm-chat", "llm-embed", "rerank")
+                if mode in ("chat", "embedding", "rerank")
                 else ("0" if mode == "stt" else "Default")
             )
         elif cfg_lower.startswith("vulkan"):
@@ -831,14 +960,12 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                 return parts[1]
             return (
                 "Vulkan0"
-                if mode in ("llm-chat", "llm-embed", "rerank")
+                if mode in ("chat", "embedding", "rerank")
                 else ("0" if mode == "stt" else "Default")
             )
         elif cfg_lower == "cpu":
             return (
-                "BLAS"
-                if mode in ("llm-chat", "llm-embed", "rerank")
-                else "Default (CPU)"
+                "BLAS" if mode in ("chat", "embedding", "rerank") else "Default (CPU)"
             )
         return "Default"
 
@@ -884,11 +1011,11 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
     # Generate matrix table contents dynamically
     # 1. Chat Table Body
     chat_rows = []
-    chat_keys = [cfg for cfg in data.keys() if "llm-chat" in data[cfg]]
+    chat_keys = [cfg for cfg in data.keys() if "chat" in data[cfg]]
     chat_keys.sort(key=sort_config_keys)
     for cfg in chat_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'llm-chat')} | {get_device_setting(cfg, 'llm-chat')} | {get_special_setting(cfg, 'llm-chat')} | {val(cfg, 'llm-chat', 'chat_avg_ttft', '.2f', ' ms')} | {val(cfg, 'llm-chat', 'chat_avg_prefill', '.2f', ' t/s')} | {val(cfg, 'llm-chat', 'chat_warmup_ttft', '.2f', ' ms')} | {val(cfg, 'llm-chat', 'chat_warmup_gen', '.2f', ' t/s')} | {val(cfg, 'llm-chat', 'chat_avg_gen', '.2f', ' t/s')} | {val(cfg, 'llm-chat', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'llm-chat', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'chat')} | {get_device_setting(cfg, 'chat')} | {get_special_setting(cfg, 'chat')} | {val(cfg, 'chat', 'chat_avg_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_avg_prefill', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_warmup_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_warmup_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_avg_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'chat', 'cpu_mem_mb', '.1f', ' MB')} |"
         chat_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in chat_keys):
         chat_rows.append(
@@ -906,11 +1033,11 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
 
     # 2. Embedding Table Body
     embed_rows = []
-    embed_keys = [cfg for cfg in data.keys() if "llm-embed" in data[cfg]]
+    embed_keys = [cfg for cfg in data.keys() if "embedding" in data[cfg]]
     embed_keys.sort(key=sort_config_keys)
     for cfg in embed_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'llm-embed')} | {get_device_setting(cfg, 'llm-embed')} | {get_special_setting(cfg, 'llm-embed')} | {val(cfg, 'llm-embed', 'embed_throughput', '.2f', ' t/s')} | {val(cfg, 'llm-embed', 'embed_lat', '.1f', ' ms')} | {val(cfg, 'llm-embed', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'llm-embed', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'embedding')} | {get_device_setting(cfg, 'embedding')} | {get_special_setting(cfg, 'embedding')} | {val(cfg, 'embedding', 'embed_throughput', '.2f', ' t/s')} | {val(cfg, 'embedding', 'embed_lat', '.1f', ' ms')} | {val(cfg, 'embedding', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'embedding', 'cpu_mem_mb', '.1f', ' MB')} |"
         embed_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in embed_keys):
         embed_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
@@ -996,7 +1123,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### 📊 Performance Comparison Matrix
 
-#### Text Chat (`local-llm-ggml`)
+#### Text Chat (`local-llm`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
 |---|---|---|---|---|---|---|---|---|---|---|
 {chat_table_body}
@@ -1050,50 +1177,50 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
             report += device_details_str + "\n"
 
         # Chat details
-        if "llm-chat" in data[cfg]:
-            report += f"""#### Text Chat (`local-llm-ggml`)
-- **Benchmark Test Name:** `{get_test_name(cfg, "llm-chat")}`
-- **Device Setting:** `{get_device_setting(cfg, "llm-chat")}`
-- **Special Setting:** `{get_special_setting(cfg, "llm-chat")}`
+        if "chat" in data[cfg]:
+            report += f"""#### Text Chat (`local-llm`)
+- **Benchmark Test Name:** `{get_test_name(cfg, "chat")}`
+- **Device Setting:** `{get_device_setting(cfg, "chat")}`
+- **Special Setting:** `{get_special_setting(cfg, "chat")}`
 - **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
 - **Execution Target:** `{cfg_upper}`
-- **GPU Memory Used:** {val(cfg, "llm-chat", "gpu_mem_mb", ".1f", " MB")}
-- **CPU Memory Used:** {val(cfg, "llm-chat", "cpu_mem_mb", ".1f", " MB")}
-- **Benchmark Running Time:** {val(cfg, "llm-chat", "bench_time_s", ".2f", " s")}
+- **GPU Memory Used:** {val(cfg, "chat", "gpu_mem_mb", ".1f", " MB")}
+- **CPU Memory Used:** {val(cfg, "chat", "cpu_mem_mb", ".1f", " MB")}
+- **Benchmark Running Time:** {val(cfg, "chat", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
-{format_env(cfg, "llm-chat")}
+{format_env(cfg, "chat")}
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       {val(cfg, "llm-chat", "chat_warmup_ttft", ".2f", " ms")}
-  - Prefill Speed:        {val(cfg, "llm-chat", "chat_warmup_prefill", ".2f", " tokens/sec")}
-  - Generation Speed:     {val(cfg, "llm-chat", "chat_warmup_gen", ".2f", " tokens/sec")}
+  - TTFT (Prefill):       {val(cfg, "chat", "chat_warmup_ttft", ".2f", " ms")}
+  - Prefill Speed:        {val(cfg, "chat", "chat_warmup_prefill", ".2f", " tokens/sec")}
+  - Generation Speed:     {val(cfg, "chat", "chat_warmup_gen", ".2f", " tokens/sec")}
 - **Generation (Phase 2):**
-  - Avg Completion Tokens: {val(cfg, "llm-chat", "chat_avg_comp", ".1f")}
-  - Avg TTFT (Prefill):   {val(cfg, "llm-chat", "chat_avg_ttft", ".2f", " ms")}
-  - Avg Prefill Speed:    {val(cfg, "llm-chat", "chat_avg_prefill", ".2f", " tokens/sec")}
-  - Avg Generation Speed: {val(cfg, "llm-chat", "chat_avg_gen", ".2f", " tokens/sec")}
-  - Avg Decode Time:      {val(cfg, "llm-chat", "chat_avg_decode", ".2f", " s")}
+  - Avg Completion Tokens: {val(cfg, "chat", "chat_avg_comp", ".1f")}
+  - Avg TTFT (Prefill):   {val(cfg, "chat", "chat_avg_ttft", ".2f", " ms")}
+  - Avg Prefill Speed:    {val(cfg, "chat", "chat_avg_prefill", ".2f", " tokens/sec")}
+  - Avg Generation Speed: {val(cfg, "chat", "chat_avg_gen", ".2f", " tokens/sec")}
+  - Avg Decode Time:      {val(cfg, "chat", "chat_avg_decode", ".2f", " s")}
 
 """
 
         # Embedding details
-        if "llm-embed" in data[cfg]:
+        if "embedding" in data[cfg]:
             report += f"""#### Text Embedding (`local-embedding`)
-- **Benchmark Test Name:** `{get_test_name(cfg, "llm-embed")}`
-- **Device Setting:** `{get_device_setting(cfg, "llm-embed")}`
-- **Special Setting:** `{get_special_setting(cfg, "llm-embed")}`
+- **Benchmark Test Name:** `{get_test_name(cfg, "embedding")}`
+- **Device Setting:** `{get_device_setting(cfg, "embedding")}`
+- **Special Setting:** `{get_special_setting(cfg, "embedding")}`
 - **Model:** `qwen3-embedding` (`Qwen3-Embedding-0.6B-Q8_0.gguf`)
 - **Execution Target:** `{cfg_upper}`
-- **GPU Memory Used:** {val(cfg, "llm-embed", "gpu_mem_mb", ".1f", " MB")}
-- **CPU Memory Used:** {val(cfg, "llm-embed", "cpu_mem_mb", ".1f", " MB")}
-- **Benchmark Running Time:** {val(cfg, "llm-embed", "bench_time_s", ".2f", " s")}
+- **GPU Memory Used:** {val(cfg, "embedding", "gpu_mem_mb", ".1f", " MB")}
+- **CPU Memory Used:** {val(cfg, "embedding", "cpu_mem_mb", ".1f", " MB")}
+- **Benchmark Running Time:** {val(cfg, "embedding", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
-{format_env(cfg, "llm-embed")}
+{format_env(cfg, "embedding")}
 - **Metrics:**
-  - Avg Time/Run:         {val(cfg, "llm-embed", "embed_time_s", ".2f", " s")}
-  - Avg Throughput:       {val(cfg, "llm-embed", "embed_throughput", ".2f", " tokens/sec")}
-  - Avg Chunk Latency:    {val(cfg, "llm-embed", "embed_lat", ".1f", " ms")}
-  - Avg Chunk p50:        {val(cfg, "llm-embed", "embed_p50", ".1f", " ms")}
-  - Avg Chunk p95:        {val(cfg, "llm-embed", "embed_p95", ".1f", " ms")}
+  - Avg Time/Run:         {val(cfg, "embedding", "embed_time_s", ".2f", " s")}
+  - Avg Throughput:       {val(cfg, "embedding", "embed_throughput", ".2f", " tokens/sec")}
+  - Avg Chunk Latency:    {val(cfg, "embedding", "embed_lat", ".1f", " ms")}
+  - Avg Chunk p50:        {val(cfg, "embedding", "embed_p50", ".1f", " ms")}
+  - Avg Chunk p95:        {val(cfg, "embedding", "embed_p95", ".1f", " ms")}
 
 """
 
@@ -1366,7 +1493,7 @@ def main() -> None:
 
                     # Wait for server readiness
                     print(f"Waiting for llama-server on port {srv['port']}...")
-                    if not wait_for_port(srv["port"]):
+                    if not wait_for_port(srv["port"], proc=proc):
                         print(
                             f"Error: llama-server failed to start on port {srv['port']}."
                         )
@@ -1416,54 +1543,48 @@ def main() -> None:
                         )
                     else:
                         elapsed_time = time.time() - start_time
-                        benchmark_data[cache_key]["llm-chat"] = parse_chat_output(
-                            stdout
-                        )
-                        benchmark_data[cache_key]["llm-chat"]["bench_time_s"] = (
-                            elapsed_time
-                        )
+                        benchmark_data[cache_key]["chat"] = parse_chat_output(stdout)
+                        benchmark_data[cache_key]["chat"]["bench_time_s"] = elapsed_time
 
                         # Measure VRAM and RAM right before stopping
                         post_run_vram = get_gpu_memory_mb(llm_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
 
-                        benchmark_data[cache_key]["llm-chat"]["gpu_mem_mb"] = gpu_mem_mb
-                        benchmark_data[cache_key]["llm-chat"]["cpu_mem_mb"] = cpu_mem_mb
-                        benchmark_data[cache_key]["llm-chat"]["test_name"] = (
+                        benchmark_data[cache_key]["chat"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cache_key]["chat"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cache_key]["chat"]["test_name"] = (
                             f"chat_{cache_key}"
                         )
-                        benchmark_data[cache_key]["llm-chat"]["device_setting"] = (
+                        benchmark_data[cache_key]["chat"]["device_setting"] = (
                             llm_device if llm_device else "Default"
                         )
                         layers = 999 if run_cfg != "cpu" else 0
                         special_setting = f"Layers: {layers}"
                         if fraction < 1.0:
                             special_setting += f" (Context: {fraction * 100:.0f}%)"
-                        benchmark_data[cache_key]["llm-chat"]["special_setting"] = (
+                        benchmark_data[cache_key]["chat"]["special_setting"] = (
                             special_setting
                         )
-                        benchmark_data[cache_key]["llm-chat"]["env"] = read_env_file(
+                        benchmark_data[cache_key]["chat"]["env"] = read_env_file(
                             srv["env_file"]
                         )
                         if llm_device in available_devices:
-                            benchmark_data[cache_key]["llm-chat"]["device_details"] = (
+                            benchmark_data[cache_key]["chat"]["device_details"] = (
                                 available_devices[llm_device]
                             )
                 else:
-                    stdout = get_mock_output("llm-chat", run_cfg)
-                    benchmark_data[cache_key]["llm-chat"] = parse_chat_output(stdout)
-                    benchmark_data[cache_key]["llm-chat"]["gpu_mem_mb"] = (
-                        get_mock_gpu_mem("llm-chat", run_cfg)
+                    stdout = get_mock_output("chat", run_cfg)
+                    benchmark_data[cache_key]["chat"] = parse_chat_output(stdout)
+                    benchmark_data[cache_key]["chat"]["gpu_mem_mb"] = get_mock_gpu_mem(
+                        "chat", run_cfg
                     )
-                    benchmark_data[cache_key]["llm-chat"]["cpu_mem_mb"] = (
-                        get_mock_cpu_mem("llm-chat", run_cfg)
+                    benchmark_data[cache_key]["chat"]["cpu_mem_mb"] = get_mock_cpu_mem(
+                        "chat", run_cfg
                     )
-                    benchmark_data[cache_key]["llm-chat"]["bench_time_s"] = 15.4
-                    benchmark_data[cache_key]["llm-chat"]["test_name"] = (
-                        f"chat_{cache_key}"
-                    )
-                    benchmark_data[cache_key]["llm-chat"]["device_setting"] = (
+                    benchmark_data[cache_key]["chat"]["bench_time_s"] = 15.4
+                    benchmark_data[cache_key]["chat"]["test_name"] = f"chat_{cache_key}"
+                    benchmark_data[cache_key]["chat"]["device_setting"] = (
                         dev
                         if dev
                         else (
@@ -1476,10 +1597,10 @@ def main() -> None:
                     special_setting = f"Layers: {layers}"
                     if fraction < 1.0:
                         special_setting += f" (Context: {fraction * 100:.0f}%)"
-                    benchmark_data[cache_key]["llm-chat"]["special_setting"] = (
+                    benchmark_data[cache_key]["chat"]["special_setting"] = (
                         special_setting
                     )
-                    benchmark_data[cache_key]["llm-chat"]["env"] = {
+                    benchmark_data[cache_key]["chat"]["env"] = {
                         "LLM_DEVICE": dev
                         if dev
                         else (
@@ -1510,9 +1631,7 @@ def main() -> None:
                             "total_mem_mib": 30704.0 if "0" in llm_device else 56261.0,
                             "free_mem_mib": 30668.0 if "0" in llm_device else 92380.0,
                         }
-                    benchmark_data[cache_key]["llm-chat"]["device_details"] = (
-                        dev_details
-                    )
+                    benchmark_data[cache_key]["chat"]["device_details"] = dev_details
 
                 # Stop service
                 if not args.mock:
@@ -1574,7 +1693,7 @@ def main() -> None:
 
                     # Wait for server readiness
                     print(f"Waiting for llama-server on port {srv['port']}...")
-                    if not wait_for_port(srv["port"]):
+                    if not wait_for_port(srv["port"], proc=proc):
                         print(
                             f"Error: llama-server failed to start on port {srv['port']}."
                         )
@@ -1620,10 +1739,10 @@ def main() -> None:
                         )
                     else:
                         elapsed_time = time.time() - start_time
-                        benchmark_data[cache_key]["llm-embed"] = parse_embed_output(
+                        benchmark_data[cache_key]["embedding"] = parse_embed_output(
                             stdout
                         )
-                        benchmark_data[cache_key]["llm-embed"]["bench_time_s"] = (
+                        benchmark_data[cache_key]["embedding"]["bench_time_s"] = (
                             elapsed_time
                         )
 
@@ -1632,42 +1751,42 @@ def main() -> None:
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
 
-                        benchmark_data[cache_key]["llm-embed"]["gpu_mem_mb"] = (
+                        benchmark_data[cache_key]["embedding"]["gpu_mem_mb"] = (
                             gpu_mem_mb
                         )
-                        benchmark_data[cache_key]["llm-embed"]["cpu_mem_mb"] = (
+                        benchmark_data[cache_key]["embedding"]["cpu_mem_mb"] = (
                             cpu_mem_mb
                         )
-                        benchmark_data[cache_key]["llm-embed"]["test_name"] = (
+                        benchmark_data[cache_key]["embedding"]["test_name"] = (
                             f"embedding_{cache_key}"
                         )
-                        benchmark_data[cache_key]["llm-embed"]["device_setting"] = (
+                        benchmark_data[cache_key]["embedding"]["device_setting"] = (
                             embed_device if embed_device else "Default"
                         )
-                        benchmark_data[cache_key]["llm-embed"]["special_setting"] = (
+                        benchmark_data[cache_key]["embedding"]["special_setting"] = (
                             f"Layers: {999 if run_cfg != 'cpu' else 0}"
                         )
-                        benchmark_data[cache_key]["llm-embed"]["env"] = read_env_file(
+                        benchmark_data[cache_key]["embedding"]["env"] = read_env_file(
                             srv["env_file"]
                         )
                         if embed_device in available_devices:
-                            benchmark_data[cache_key]["llm-embed"]["device_details"] = (
+                            benchmark_data[cache_key]["embedding"]["device_details"] = (
                                 available_devices[embed_device]
                             )
                 else:
-                    stdout = get_mock_output("llm-embed", run_cfg)
-                    benchmark_data[cache_key]["llm-embed"] = parse_embed_output(stdout)
-                    benchmark_data[cache_key]["llm-embed"]["gpu_mem_mb"] = (
-                        get_mock_gpu_mem("llm-embed", run_cfg)
+                    stdout = get_mock_output("embedding", run_cfg)
+                    benchmark_data[cache_key]["embedding"] = parse_embed_output(stdout)
+                    benchmark_data[cache_key]["embedding"]["gpu_mem_mb"] = (
+                        get_mock_gpu_mem("embedding", run_cfg)
                     )
-                    benchmark_data[cache_key]["llm-embed"]["cpu_mem_mb"] = (
-                        get_mock_cpu_mem("llm-embed", run_cfg)
+                    benchmark_data[cache_key]["embedding"]["cpu_mem_mb"] = (
+                        get_mock_cpu_mem("embedding", run_cfg)
                     )
-                    benchmark_data[cache_key]["llm-embed"]["bench_time_s"] = 10.2
-                    benchmark_data[cache_key]["llm-embed"]["test_name"] = (
+                    benchmark_data[cache_key]["embedding"]["bench_time_s"] = 10.2
+                    benchmark_data[cache_key]["embedding"]["test_name"] = (
                         f"embedding_{cache_key}"
                     )
-                    benchmark_data[cache_key]["llm-embed"]["device_setting"] = (
+                    benchmark_data[cache_key]["embedding"]["device_setting"] = (
                         dev
                         if dev
                         else (
@@ -1680,10 +1799,10 @@ def main() -> None:
                             )
                         )
                     )
-                    benchmark_data[cache_key]["llm-embed"]["special_setting"] = (
+                    benchmark_data[cache_key]["embedding"]["special_setting"] = (
                         f"Layers: {999 if run_cfg != 'cpu' else 0}"
                     )
-                    benchmark_data[cache_key]["llm-embed"]["env"] = {
+                    benchmark_data[cache_key]["embedding"]["env"] = {
                         "EMBED_DEVICE": dev
                         if dev
                         else (
@@ -1714,7 +1833,7 @@ def main() -> None:
                             else 56261.0,
                             "free_mem_mib": 30668.0 if "0" in embed_device else 92380.0,
                         }
-                    benchmark_data[cache_key]["llm-embed"]["device_details"] = (
+                    benchmark_data[cache_key]["embedding"]["device_details"] = (
                         dev_details
                     )
 
@@ -1768,7 +1887,7 @@ def main() -> None:
 
                     proc, master_fd = start_service(srv["script"], env_args)
                     print(f"Waiting for reranker on port {srv['port']}...")
-                    if not wait_for_port(srv["port"]):
+                    if not wait_for_port(srv["port"], proc=proc):
                         print(f"Error: reranker failed to start on port {srv['port']}.")
                         stop_service(
                             "rerank",
@@ -1954,7 +2073,7 @@ def main() -> None:
 
                     proc, master_fd = start_service(srv["script"], env_args)
                     print(f"Waiting for whisper-server on port {srv['port']}...")
-                    if not wait_for_port(srv["port"]):
+                    if not wait_for_port(srv["port"], proc=proc):
                         print(
                             f"Error: whisper-server failed to start on port {srv['port']}."
                         )
@@ -2129,7 +2248,7 @@ def main() -> None:
 
                     proc, master_fd = start_service(srv["script"], env_args)
                     print(f"Waiting for qwen3-tts-server on port {srv['port']}...")
-                    if not wait_for_port(srv["port"]):
+                    if not wait_for_port(srv["port"], proc=proc):
                         print(
                             f"Error: qwen3-tts-server failed to start on port {srv['port']}."
                         )

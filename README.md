@@ -27,10 +27,10 @@ also covered, but currently not point of interest:
 ## Integrations
 
 ### Local Chat Services
-- **Description**: Manages persistent `llama-server` instances for text completions (`local-llm-ggml.sh`).
+- **Description**: Manages persistent `llama-server` instances for text completions (`local-llm.sh`).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Chat completions (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens).
-- Documentation: [local-llm-ggml.md](assistants/local-llm-ggml.md)
+- Documentation: [local-llm.md](assistants/local-llm.md)
 
 ### Local Embedding Services
 - **Description**: Manages persistent `llama-server` instances for text embeddings (`local-embedding.sh`).
@@ -137,8 +137,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Built-in scheduling and task memory for unattended 24/7 operations.
 - **Signal Support**: Yes — Native channel integration communicating via the Go REST API wrapper (port 50889).
 - **Coding Agent Support**: Yes — Natively supports **OpenCode** as a coding worker tool (`opencode_cli`).
-- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings using the `local-llm-ggml` server (port 50080) or Ollama, or OpenAI-compatible embedding APIs.
+- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-llm` (port 50080) or Ollama.
+- **Embedding Options**: Local embeddings using the `local-embedding` server (port 50082) or Ollama, or OpenAI-compatible embedding APIs.
 - **Reranking Support**: Native weighted hybrid search, or routes to external local-rerank service (`http://localhost:50086/v1/rerank`).
 - **STT/TTS Support**: Natively routes voice uploads to local Whisper server (`local-speech-to-text` on port 50090) and local TTS via Qwen3-tts (`local-text-to-speech` on port 50095).
 - **Agent Client Protocol**: Yes — Native stdio-based ACP server via `zeroclaw-acp-bridge` and a dedicated `Acp` (Code) pane in the `zerocode` TUI.
@@ -157,8 +157,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Heartbeat support (`HEARTBEAT_ENABLED`) for background tasks and cron jobs.
 - **Signal Support**: Yes — Native integration communicating via the `signal-cli` HTTP daemon (port 50889).
 - **Coding Agent Support**: Yes — Supports external coding agents via Agent Client Protocol (e.g. `ironclaw acp add goose`). No native OpenCode support.
-- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings using the `local-llm-ggml` server (port 50080) or Ollama, or remote/Ollama embeddings.
+- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-llm` (port 50080) or Ollama.
+- **Embedding Options**: Local embeddings using the `local-embedding` server (port 50082) or Ollama, or remote/Ollama embeddings.
 - **Reranking Support**: Native Reciprocal Rank Fusion (RRF) algorithm. No external reranker required.
 - **STT/TTS Support**: Local STT via OpenAI-compatible transcription endpoint (`local-speech-to-text` on port 50090). No native TTS support.
 - **Agent Client Protocol**: Yes — Configurable external coding agents using ACP commands (e.g. `ironclaw acp add goose`).
@@ -175,8 +175,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Built-in cron scheduler with platform delivery. Background batch and SWE runners (`batch_runner.py` / `mini_swe_runner.py`).
 - **Signal Support**: Yes — Native integration connecting to a local `signal-cli` HTTP daemon (port 50888/50889).
 - **Coding Agent Support**: Yes — Supports Claude Code, Codex, and **OpenCode** via bundled skills.
-- **Local LLM & Inference**: Supports local GGUF models via `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-llm-ggml` (port 50080) or Ollama, or remote embedding providers (OpenAI, Cohere, Jina, Voyage AI).
+- **Local LLM & Inference**: Supports local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or remote embedding providers (OpenAI, Cohere, Jina, Voyage AI).
 - **Reranking Support**: Native reranking via auxiliary model slots and QMD hybrid retrieval engine, or routes to external reranker (`http://localhost:50086/v1/rerank`).
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 50090). No native TTS support.
 - **Agent Client Protocol (ACP)**: Yes — Native stdio-based ACP server adapter (`acp_adapter/server.py`) for editor integrations (VS Code, Zed, JetBrains).
@@ -193,8 +193,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Periodic background "Dream" loop and cron tasks.
 - **Signal Support**: Yes — Native integration via HTTP Server-Sent Events (SSE) (port 50888) with markdown-to-Signal formatting.
 - **Coding Agent Support**: None (No OpenCode support).
-- **Local LLM & Inference**: Routes to local GGUF models via `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-llm-ggml` (port 50080) or Ollama, or remote embeddings.
+- **Local LLM & Inference**: Routes to local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or remote embeddings.
 - **Reranking Support**: No native reranking. Integrates with external reranker via custom MCP tools.
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 50090). No native local TTS.
 - **Agent Client Protocol (ACP)**: No ACP support.
@@ -212,8 +212,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Built-in scheduling and task memory for running 24/7 (run autonomous background execution via `hand activate researcher` or other hands).
 - **Signal Support**: Yes — Native channel integration interfacing with the Go REST API wrapper (port 50889), using `[[sidecar_channels]]` adapter `librefang.sidecar.adapters.signal`.
 - **Coding Agent Support**: Yes — Supports Claude Code, Aider, Qwen Code, Gemini CLI, and Codex CLI (spawned as subprocesses; No native OpenCode support).
-- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings using the `local-llm-ggml` server (port 50080) or Ollama, or remote/Ollama embeddings.
+- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-llm` (port 50080) or Ollama.
+- **Embedding Options**: Local embeddings using the `local-embedding` server (port 50082) or Ollama, or remote/Ollama embeddings.
 - **Reranking Support**: None. Reranking is not supported by the LibreFang daemon.
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 50090) and local TTS via Qwen3-tts (`local-text-to-speech` on port 50095) supported via a patched package (`librefang-git` with `feature-local-stt-tts` patchset).
 - **Agent Client Protocol**: Yes — Bridges the runtime to the Agent Client Protocol (ACP) for editor integrations (stdio or Unix socket).
@@ -231,8 +231,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — support for background/asynchronous sub-agent tasks and memory.
 - **Signal Support**: Yes — Native integration connecting to a local `signal-cli` HTTP daemon (port 50889) with a DM/group policy and PIN challenge options.
 - **Coding Agent Support**: Yes — Supports Alibaba Coding Plan (`acp`), Claude Code, Codex, and **OpenCode** via tmux/PTY-based external runtimes.
-- **Local LLM & Inference**: Routes to local GGUF models via `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-llm-ggml` (port 50080) or Ollama, or QMD vector processing.
+- **Local LLM & Inference**: Routes to local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or QMD vector processing.
 - **Reranking Support**: Yes — Native reranking via the QMD sidecar (`qwen3-reranker-0.6b` by default) or routes to local-rerank endpoint on port 50086.
 - **STT/TTS Support**: Natively supports local STT via `local-speech-to-text` on port 50090 and local TTS via `local-text-to-speech` on port 50095.
 - **Agent Client Protocol**: Yes — Integrates external coding agents via ACP (stdio-based JSON-RPC).
@@ -251,8 +251,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Messaging gateway daemon background service (`picoclaw-launcher -no-browser`).
 - **Signal Support**: No — Not natively supported.
 - **Coding Agent Support**: Yes — Supports Claude Code, Codex, and Copilot CLI via provider-wrapped CLI execution (No OpenCode support).
-- **Local LLM & Inference**: Routes to local GGUF models via `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-llm-ggml` (port 50080) or Ollama via API routing or MCP.
+- **Local LLM & Inference**: Routes to local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama via API routing or MCP.
 - **Reranking Support**: No native reranking. Reranking can be delegated via MCP to the local-inference reranker endpoint on port 50086.
 - **STT/TTS Support**: Local STT by defining an ASR provider pointing to the local whisper-server on port 50090. No native TTS engine; requires an external MCP TTS tool.
 - **Agent Client Protocol**: No native ACP support.
@@ -270,8 +270,8 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — background host sweep (every ~60s) and active container poll (~1s) check for due `process_after` / `deliver_after` timestamps, reschedule recurring tasks using cron, and wake up agents.
 - **Signal Support**: No — Not natively supported.
 - **Coding Agent Support**: None (No native OpenCode support), but has an optional `add-opencode` skill for local inference.
-- **Local LLM & Inference**: Routes to local GGUF models via OpenAI-compatible endpoints served by `local-llm-ggml` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-llm-ggml` (port 50080) or Ollama, or remote embeddings.
+- **Local LLM & Inference**: Routes to local GGUF models via OpenAI-compatible endpoints served by `local-llm` (port 50080) or Ollama.
+- **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or remote embeddings.
 - **Reranking Support**: No native reranking. Reranking can be added via a custom skill or by configuring an MCP tool that calls the local-inference reranker endpoint on port 50086.
 - **STT/TTS Support**: No native STT/TTS in the core daemon, but easily integrated via custom tools/skills calling `local-speech-to-text` (port 50090) and `local-text-to-speech` (port 50095).
 - **Agent Client Protocol**: No native ACP support.

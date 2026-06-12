@@ -4,15 +4,24 @@ This document aggregates detailed memory requirements and allocations for local 
 
 ## Component Footprints
 
-### Local LLM Service (`local-llm-ggml.sh` / `llama-server`)
-Serves both chat and embeddings from a single process.
+### Local LLM Service (`local-llm.sh` / `llama-server`)
+Serves chat and vision.
 
 | Component / Allocation | GPU VRAM | Details |
 |---|---|---|
-| **Model Weights & Compute** (LLM + Vision + Embedding) | ~20,109 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Embedding Weights (~700 MiB) + Compute (~990 MiB) + Embedding Compute (~150 MiB, ubatch=8192) |
+| **Model Weights & Compute** (LLM + Vision) | ~19,259 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Compute (~990 MiB) |
 | **KV Cache** (q4_0 KV, parallel=3, slot n_ctx=80,000) | ~8,031 MiB | LLM KV cache allocation |
 | **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
-| **Total LLM Footprint** | **~28,740 MiB** | Run on GPU |
+| **Total LLM Footprint** | **~27,890 MiB** | Run on GPU |
+
+### Local Embedding Service (`local-embedding.sh` / `llama-server`)
+Serves text embeddings.
+
+| Component / Allocation | GPU VRAM | Details |
+|---|---|---|
+| **Model Weights & Compute** (Embedding) | ~2,020 MiB | Embedding Weights (~700 MiB) + Compute/Buffers (~1,320 MiB) |
+| **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
+| **Total Embedding Footprint** | **~2,620 MiB** | Run on GPU |
 
 ### Local Rerank Service (`local-rerank.sh` / `llama-server`)
 Serves document reranking. Can run on GPU or CPU.
@@ -85,17 +94,18 @@ The memory profile of the Text-to-Speech service depends significantly on the co
 
 Here we map VRAM usage for running **Inference** (LLM + Vision, Embedding, Reranking), **Speech-to-Text**, and **Text-to-Speech** services concurrently on a single card (30,704 MiB usable VRAM limit).
 
-To maximize VRAM efficiency, we run the **Local-LLM Service** and **Speech-to-Text** on the GPU, while offloading the **Local-Rerank Service** and the **Text-To-Speech Service** to the CPU.
+To maximize VRAM efficiency, we run the **Local-LLM Service** (Chat/Vision) and **Speech-to-Text** on the GPU, while running the **Local-Embedding Service**, **Local-Rerank Service**, and the **Text-To-Speech Service** on the CPU.
 
-### Baseline Allocation (LLM on GPU, Reranker on CPU, STT on GPU)
-- **Local-LLM Service** (LLM + Vision + Embedding + HIP context): **20,709 MiB** (20,109 MiB weights/compute + 600 MiB HIP context)
+### Baseline Allocation (LLM on GPU, Embeddings/Reranker on CPU, STT on GPU)
+- **Local-LLM Service** (LLM + Vision + HIP context): **19,859 MiB** (19,259 MiB weights/compute + 600 MiB HIP context)
 - **LLM KV Cache** (n_ctx = 240,000, parallel=3, slot n_ctx=80,000): **8,031 MiB**
+- **Local-Embedding Service** (on CPU): **0 MiB** (Runs in System RAM)
 - **Local-Rerank Service** (on CPU): **0 MiB** (Runs in System RAM)
 - **Speech-to-Text (Whisper on GPU)**: **1,426 MiB** (includes weights, KV, buffers, and STT HIP overhead)
 - **TTS (Qwen3-tts 0.6B on cpu only)**: **0 MiB** VRAM (System RAM: ~3.0 GiB)
     - **Performance**: TTS RTF is ~1.58x (acceptable for conversational interaction)
-- **Total Required VRAM**: **30,166 MiB** (with LLM `n_ctx=240,000`, parallel=3)
+- **Total Required VRAM**: **29,316 MiB** (with LLM `n_ctx=240,000`, parallel=3)
 - **Status**:  **Safe**. Fits within the single card footprint.
-- **Remaining Headroom**: **538 MiB** free VRAM
+- **Remaining Headroom**: **1,388 MiB** free VRAM
 
 

@@ -117,12 +117,12 @@ IronClaw uses PostgreSQL with the pgvector extension for its persistent memory s
 
 Additionally, IronClaw features a workspace filesystem for flexible path-based storage (notes, logs, context) and identity files that maintain consistent personality and preferences across sessions.
 
-Embedding configuration is handled via the LLM provider settings. For local embeddings using `local-llm-ggml`:
+Embedding configuration is handled via the LLM provider settings. For local embeddings using `local-embedding`:
 
 ```env
 # Use the local embedding endpoint
 LLM_BACKEND=openai_compatible
-LLM_BASE_URL=http://localhost:50080/v1
+LLM_BASE_URL=http://localhost:50082/v1
 LLM_API_KEY=unused
 ```
 

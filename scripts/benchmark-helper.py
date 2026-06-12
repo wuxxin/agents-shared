@@ -979,7 +979,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=["llm-chat", "llm-embed", "rerank", "tts", "stt"],
+        choices=["chat", "embedding", "rerank", "tts", "stt"],
         required=True,
         help="Benchmark mode to run",
     )
@@ -1009,24 +1009,24 @@ def main() -> None:
     parser.add_argument(
         "--skip-prefill",
         action="store_true",
-        help="Skip Phase 1 sequential prefill",
+        help="Skip LLM Chat Phase 1 sequential prefill",
     )
     parser.add_argument(
         "--skip-distractor",
         action="store_true",
-        help="Skip Phase 3 prefix caching & distractor tests",
+        help="Skip LLM Chat Phase 3 prefix caching & distractor tests",
     )
     parser.add_argument(
         "--fraction-chunks",
         type=float,
         default=1.0,
-        help="Fraction of chunks to run (between 0.0 and 1.0) to speed up benchmark",
+        help="Fraction of chunks to use for the Embedding benchmark (between 0.0 and 1.0)",
     )
     parser.add_argument(
         "--fraction-context",
         type=float,
         default=1.0,
-        help="Fraction of context length to use for LLM Chat benchmark (between 0.0 and 1.0)",
+        help="Fraction of context length to use for the LLM Chat benchmark (between 0.0 and 1.0)",
     )
 
     args = parser.parse_args()
@@ -1039,9 +1039,9 @@ def main() -> None:
     if output_path is None:
         output_path = os.path.join(get_tmp_dir(), "tts_benchmark_output.wav")
 
-    if args.mode == "llm-chat":
+    if args.mode == "chat":
         if not args.context:
-            parser.error("--context is required in llm-chat mode")
+            parser.error("--context is required in chat mode")
         run_llm_chat(
             args.url,
             args.model,
@@ -1051,9 +1051,9 @@ def main() -> None:
             skip_distractor=args.skip_distractor,
             fraction_context=args.fraction_context,
         )
-    elif args.mode == "llm-embed":
+    elif args.mode == "embedding":
         if not args.context:
-            parser.error("--context is required in llm-embed mode")
+            parser.error("--context is required in embedding mode")
         run_llm_embed(
             args.url,
             args.model,

@@ -521,7 +521,7 @@ cmd_test() {
         fi
 
         python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-            --mode llm-embed \
+            --mode embedding \
             --url "${base_url}" \
             --model "${alias}" \
             --context "${context_file}" \

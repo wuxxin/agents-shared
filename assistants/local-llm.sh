@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# local-llm-ggml.sh - Manage local llama-server systemd user service for Chat and Embeddings
+# local-llm.sh - Manage local llama-server systemd user service for Chat
 #
-# Usage: local-llm-ggml.sh <command> [args...]
+# Usage: local-llm.sh <command> [args...]
 #
-# Manages a systemd user service (local-llm-ggml.service) that runs llama-server
-# serving both the Chat/Vision LLM and the Text Embedding model.
+# Manages a systemd user service (local-llm.service) that runs llama-server
+# serving the Chat/Vision LLM.
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
@@ -16,10 +16,9 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-SERVICE_NAME="local-llm-ggml"
+SERVICE_NAME="local-llm"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
-INI_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.ini"
 
 # ---------------------------------------------------------------------------
 # Load environment
@@ -36,14 +35,8 @@ load_env() {
     LLM_THREADS=4
     LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
     LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-    LLM_EXTRA_ARGS="--flash-attn on"
+    LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
     LLM_DEVICE=""
-
-    # Embedding default parameters
-    LLM_EMBEDDING_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-    LLM_EMBEDDING_ALIAS=qwen3-embedding
-    LLM_EMBEDDING_N_CTX=8192
-    LLM_SERVE_EMBEDDINGS=false
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -120,7 +113,7 @@ get_shared_options() {
     fi
 
     # Environment file & Working directory
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-llm-ggml.env"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-llm.env"
     echo "WorkingDirectory=${home_spec}"
 
     # Basic hardening (minimal for GPU access)
@@ -156,128 +149,48 @@ get_shared_options() {
 }
 
 # ---------------------------------------------------------------------------
-# Generate models-preset INI file from environment variables
-# ---------------------------------------------------------------------------
-generate_ini_file() {
-    load_env
-
-    local ini_content=""
-
-    # Global defaults
-    ini_content+="version = 1"$'\n'
-    ini_content+=""$'\n'
-    ini_content+="[*]"$'\n'
-    if [ -n "${LLM_EXTRA_ARGS:-}" ]; then
-        local -a extra_args
-        eval "extra_args=(${LLM_EXTRA_ARGS})"
-        local i=0
-        while [ $i -lt ${#extra_args[@]} ]; do
-            local arg="${extra_args[$i]}"
-            if [[ "$arg" == "--flash-attn" ]]; then
-                if [ $((i + 1)) -lt ${#extra_args[@]} ] && [[ ! "${extra_args[$((i + 1))]}" =~ ^-- ]]; then
-                    ini_content+="flash-attn = ${extra_args[$((i + 1))]}"$'\n'
-                    i=$((i + 2))
-                else
-                    ini_content+="flash-attn = on"$'\n'
-                    i=$((i + 1))
-                fi
-            else
-                i=$((i + 1))
-            fi
-        done
-    fi
-    ini_content+="n-gpu-layers = ${LLM_N_GPU_LAYERS:-999}"$'\n'
-
-    # --- LLM section ---
-    ini_content+=""$'\n'
-    ini_content+="[${LLM_ALIAS:-qwen3}]"$'\n'
-    ini_content+="model = ${LLM_MODEL}"$'\n'
-    if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
-        # Extract mmproj path from "--mmproj /path/to/file"
-        local mmproj_path
-        mmproj_path="${LLM_MMPROJ_ARGS#--mmproj }"
-        ini_content+="mmproj = ${mmproj_path}"$'\n'
-    fi
-    if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
-        # Extract template path from "--chat-template-file /path/to/file"
-        local template_path
-        template_path="${LLM_CHAT_TEMPLATE_ARGS#--chat-template-file }"
-        ini_content+="chat-template-file = ${template_path}"$'\n'
-    fi
-    ini_content+="ctx-size = ${LLM_N_CTX:-240000}"$'\n'
-    ini_content+="parallel = ${LLM_PARALLEL:-3}"$'\n'
-    ini_content+="cache-type-k = q4_0"$'\n'
-    ini_content+="cache-type-v = q4_0"$'\n'
-    ini_content+="batch-size = 2048"$'\n'
-    ini_content+="ubatch-size = 1024"$'\n'
-    ini_content+="threads = ${LLM_THREADS:-8}"$'\n'
-
-    # Parse model-specific options from LLM_EXTRA_ARGS
-    if [ -n "${LLM_EXTRA_ARGS:-}" ]; then
-        local -a extra_args
-        eval "extra_args=(${LLM_EXTRA_ARGS})"
-        local i=0
-        while [ $i -lt ${#extra_args[@]} ]; do
-            local arg="${extra_args[$i]}"
-            if [[ "$arg" =~ ^-- ]] && [[ "$arg" != "--flash-attn" ]]; then
-                local key="${arg#--}"
-                local val=""
-                if [ $((i + 1)) -lt ${#extra_args[@]} ] && [[ ! "${extra_args[$((i + 1))]}" =~ ^-- ]]; then
-                    val="${extra_args[$((i + 1))]}"
-                    i=$((i + 2))
-                else
-                    val="true"
-                    i=$((i + 1))
-                fi
-                ini_content+="${key} = ${val}"$'\n'
-            else
-                i=$((i + 1))
-            fi
-        done
-    fi
-
-    # --- Embedding section ---
-    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
-        ini_content+=""$'\n'
-        ini_content+="[${LLM_EMBEDDING_ALIAS:-qwen3-embedding}]"$'\n'
-        ini_content+="model = ${LLM_EMBEDDING_MODEL}"$'\n'
-        ini_content+="embedding = true"$'\n'
-        ini_content+="pooling = mean"$'\n'
-        ini_content+="ctx-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
-        ini_content+="batch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
-        ini_content+="ubatch-size = ${LLM_EMBEDDING_N_CTX:-8192}"$'\n'
-    fi
-
-    printf '%s' "$ini_content" >"$INI_FILE"
-    chmod 600 "$INI_FILE"
-}
-
-# ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
 # ---------------------------------------------------------------------------
 generate_service_file() {
     load_env
-    generate_ini_file
-
-    local models_max=1
-    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
-        models_max=2
-    fi
 
     local exec_cmd="llama-server \\
-    --models-preset ${INI_FILE} \\
-    --models-max ${models_max} \\
+    --model ${LLM_MODEL} \\
+    --alias ${LLM_ALIAS} \\
+    --ctx-size ${LLM_N_CTX} \\
+    --parallel ${LLM_PARALLEL} \\
+    --threads ${LLM_THREADS} \\
+    --n-gpu-layers ${LLM_N_GPU_LAYERS} \\
+    --cache-type-k q4_0 \\
+    --cache-type-v q4_0 \\
+    --batch-size 2048 \\
+    --ubatch-size 1024 \\
     --host ${LLM_HOST} \\
     --port ${LLM_PORT}"
+
+    if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    ${LLM_MMPROJ_ARGS}"
+    fi
+
+    if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    ${LLM_CHAT_TEMPLATE_ARGS}"
+    fi
 
     if [[ -n "${LLM_DEVICE:-}" ]]; then
         exec_cmd="${exec_cmd} \\
     --device ${LLM_DEVICE}"
     fi
 
+    if [[ -n "${LLM_EXTRA_ARGS:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    ${LLM_EXTRA_ARGS}"
+    fi
+
     cat <<EOF
 [Unit]
-Description=Local LLM Chat and Embedding Inference Server (llama-server)
+Description=Local LLM Chat Inference Server (llama-server)
 Documentation=https://github.com/ggml-org/llama.cpp
 After=network.target
 
@@ -291,7 +204,7 @@ RestartSec=10s
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=local-llm-ggml
+SyslogIdentifier=local-llm
 
 [Install]
 WantedBy=default.target
@@ -299,17 +212,16 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Embedded default env file (heredoc written by --install)
+# Embedded default env file (heredoc written by install)
 # ---------------------------------------------------------------------------
 generate_env_file() {
     cat <<'EOF'
-# local-llm-ggml.env
+# local-llm.env
 # ---------------------------------------------------------------------------
-# Configuration for the local-llm-ggml.service llama-server instance.
-# Serves BOTH chat and embeddings from a single process on one port.
+# Configuration for the local-llm.service llama-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
-# Reload with:  local-llm-ggml.sh restart
+# Reload with:  local-llm.sh restart
 # ---------------------------------------------------------------------------
 
 # Port to bind the server to (default: 50080)
@@ -340,21 +252,6 @@ LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3
 LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
 
 # ---------------------------------------------------------------------------
-# EMBEDDING MODEL SETTINGS
-# ---------------------------------------------------------------------------
-# Path to the text embedding model file
-LLM_EMBEDDING_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-
-# Model alias used by client integrations (default: qwen3-embedding)
-LLM_EMBEDDING_ALIAS=qwen3-embedding
-
-# Embedding context size (default: 8192)
-LLM_EMBEDDING_N_CTX=8192
-
-# Whether to serve embeddings along with chat (default: false)
-LLM_SERVE_EMBEDDINGS=false
-
-# ---------------------------------------------------------------------------
 # RUNTIME SETTINGS
 # ---------------------------------------------------------------------------
 
@@ -374,10 +271,8 @@ LLM_N_GPU_LAYERS=999
 # Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
 LLM_THREADS=4
 
-# Extra arguments to pass to llama-server (default: "--flash-attn auto")
-LLM_EXTRA_ARGS="--flash-attn auto"
-# eg. to enable speculative decoding (type ngram-simple):
-# LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# Extra arguments to pass to llama-server (default: "--flash-attn auto --spec-type ngram-simple ...")
+LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 
 EOF
 }
@@ -443,7 +338,6 @@ cmd_install() {
     echo ""
     echo "  Service: ${SERVICE_FILE}"
     echo "  Env:     ${ENV_FILE}"
-    echo "  INI:     ${INI_FILE}"
     echo ""
     echo "  Edit the env file to select model/mmproj/template, then:"
     echo "    $0 restart"
@@ -461,11 +355,6 @@ cmd_uninstall() {
         rm -f "${SERVICE_FILE}"
         run_systemctl daemon-reload
         echo "Removed service file."
-    fi
-
-    if [[ -f "${INI_FILE}" ]]; then
-        rm -f "${INI_FILE}"
-        echo "Removed INI file."
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
@@ -511,20 +400,38 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
-    generate_ini_file
-
-    local models_max=1
-    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
-        models_max=2
-    fi
     local args=(
-        --models-preset "${INI_FILE}"
-        --models-max "${models_max}"
+        --model "${LLM_MODEL}"
+        --alias "${LLM_ALIAS}"
+        --ctx-size "${LLM_N_CTX}"
+        --parallel "${LLM_PARALLEL}"
+        --threads "${LLM_THREADS}"
+        --n-gpu-layers "${LLM_N_GPU_LAYERS}"
+        --cache-type-k q4_0
+        --cache-type-v q4_0
+        --batch-size 2048
+        --ubatch-size 1024
         --host "${LLM_HOST}"
         --port "${LLM_PORT}"
     )
+
+    if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
+        # shellcheck disable=SC2206
+        args+=(${LLM_MMPROJ_ARGS})
+    fi
+
+    if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
+        # shellcheck disable=SC2206
+        args+=(${LLM_CHAT_TEMPLATE_ARGS})
+    fi
+
     if [[ -n "${LLM_DEVICE:-}" ]]; then
         args+=(--device "${LLM_DEVICE}")
+    fi
+
+    if [[ -n "${LLM_EXTRA_ARGS:-}" ]]; then
+        # shellcheck disable=SC2206
+        args+=(${LLM_EXTRA_ARGS})
     fi
 
     if ! is_systemd_running; then
@@ -614,20 +521,17 @@ cmd_run() {
 }
 
 cmd_test() {
-    echo "Running local-llm-ggml validation tests..."
+    echo "Running local-llm validation tests..."
     load_env
 
     local host="${LLM_HOST:-127.0.0.1}"
     local port="${LLM_PORT:-50080}"
     local alias="${LLM_ALIAS:-qwen3}"
-    local embedding_alias="${LLM_EMBEDDING_ALIAS:-qwen3-embedding}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
 
     local benchmark=false
-    local only_embeddings=false
-    local only_chat=false
     local skip_prefill=false
     local skip_distractor=false
     local repeat=""
@@ -635,13 +539,18 @@ cmd_test() {
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
-        --only-embeddings) only_embeddings=true ;;
-        --only-chat) only_chat=true ;;
         --skip-prefill) skip_prefill=true ;;
         --skip-distractor) skip_distractor=true ;;
         --repeat)
             shift
             repeat="$1"
+            ;;
+        --only-chat)
+            # Keep as dummy option for backward compatibility
+            ;;
+        --only-embeddings)
+            echo "Error: Embeddings are no longer served by local-llm. Use local-embedding instead." >&2
+            exit 1
             ;;
         *)
             extra_args+=("$1")
@@ -669,110 +578,44 @@ cmd_test() {
             repeat_arg=(--repeat "$repeat")
         fi
 
-        local run_chat_bench=true
-        local run_embed_bench=false
-        if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
-            run_embed_bench=true
+        # Run chat benchmark
+        local skip_prefill_arg=()
+        if [ "$skip_prefill" = "true" ]; then
+            skip_prefill_arg=(--skip-prefill)
         fi
-        if [ "$only_embeddings" = "true" ]; then
-            run_chat_bench=false
-            run_embed_bench=true
+        local skip_distractor_arg=()
+        if [ "$skip_distractor" = "true" ]; then
+            skip_distractor_arg=(--skip-distractor)
         fi
-        if [ "$only_chat" = "true" ]; then
-            run_chat_bench=true
-            run_embed_bench=false
-        fi
-
-        if [ "$run_chat_bench" = "true" ]; then
-            # Run chat benchmark
-            local skip_prefill_arg=()
-            if [ "$skip_prefill" = "true" ]; then
-                skip_prefill_arg=(--skip-prefill)
-            fi
-            local skip_distractor_arg=()
-            if [ "$skip_distractor" = "true" ]; then
-                skip_distractor_arg=(--skip-distractor)
-            fi
-            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-                --mode llm-chat \
-                --url "${base_url}" \
-                --model "${alias}" \
-                --context "${context_file}" \
-                "${repeat_arg[@]}" \
-                "${skip_prefill_arg[@]}" \
-                "${skip_distractor_arg[@]}" \
-                "${extra_args[@]}"
-        fi
-
-        # Run embedding benchmark
-        if [ "$run_embed_bench" = "true" ]; then
-            if [ "$run_chat_bench" = "true" ]; then
-                echo "sleeping 10 seconds to cool down gpu..."
-                sleep 10
-            fi
-            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-                --mode llm-embed \
-                --url "${base_url}" \
-                --model "${embedding_alias}" \
-                --context "${context_file}" \
-                "${repeat_arg[@]}" \
-                "${extra_args[@]}"
-        fi
-
+        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+            --mode chat \
+            --url "${base_url}" \
+            --model "${alias}" \
+            --context "${context_file}" \
+            "${repeat_arg[@]}" \
+            "${skip_prefill_arg[@]}" \
+            "${skip_distractor_arg[@]}" \
+            "${extra_args[@]}"
         return 0
     fi
 
-    local run_chat_val=true
-    local run_embed_val=false
-    if [ "${LLM_SERVE_EMBEDDINGS:-false}" = "true" ]; then
-        run_embed_val=true
-    fi
-    if [ "$only_embeddings" = "true" ]; then
-        run_chat_val=false
-        run_embed_val=true
-    fi
-    if [ "$only_chat" = "true" ]; then
-        run_chat_val=true
-        run_embed_val=false
-    fi
+    echo "=== Testing Chat Completion ==="
+    local chat_resp
+    chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"model\": \"${alias}\",
+          \"messages\": [
+            {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
+          ]
+        }")
 
-    if [ "$run_chat_val" = "true" ]; then
-        echo "=== 1. Testing Chat Completion ==="
-        local chat_resp
-        chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"model\": \"${alias}\",
-              \"messages\": [
-                {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
-              ]
-            }")
-
-        echo "${chat_resp}"
-        if ! echo "${chat_resp}" | grep -q "choices"; then
-            echo "Error: Chat completion test failed." >&2
-            return 1
-        fi
-        echo "Chat completion: Success."
+    echo "${chat_resp}"
+    if ! echo "${chat_resp}" | grep -q "choices"; then
+        echo "Error: Chat completion test failed." >&2
+        return 1
     fi
-
-    if [ "$run_embed_val" = "true" ]; then
-        echo "=== 2. Testing Text Embeddings ==="
-        local embed_resp
-        embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"model\": \"${embedding_alias}\",
-              \"input\": \"Hello World\"
-            }")
-
-        echo "${embed_resp}"
-        if ! echo "${embed_resp}" | grep -q "embedding"; then
-            echo "Error: Text embedding test failed." >&2
-            return 1
-        fi
-        echo "Text embedding: Success."
-    fi
+    echo "Chat completion: Success."
 }
 
 usage() {
@@ -792,10 +635,9 @@ Commands:
   exec      - Run llama-server as a transient systemd user service
   run       - Run a command inside the llama-server environment
   shell     - Spawn an interactive shell in the llama-server environment
-  test [--benchmark] [--only-embeddings] [--only-chat] [--skip-prefill] [--skip-distractor] [--repeat XX]
-    - Run validation tests or benchmarks
+  test [--benchmark] [--skip-prefill] [--skip-distractor] [--repeat XX]
+    - Run validation tests or chat benchmark
 EOF
-
 }
 
 # ---------------------------------------------------------------------------

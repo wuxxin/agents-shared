@@ -66,7 +66,7 @@ reasoning_effort = "low"
 ```
 
 > [!NOTE]
-> Moltis does not expose a dedicated `temperature` property in `moltis.toml`. When executing requests via the standard OpenAI-compatible provider client, it inherits the defaults configured on the upstream server (e.g., the local `llama-server` instance managed by `local-llm-ggml`). For embedded local GGUF/MLX setups inside the gateway, the default temperature is internally set to `0.7`.
+> Moltis does not expose a dedicated `temperature` property in `moltis.toml`. When executing requests via the standard OpenAI-compatible provider client, it inherits the defaults configured on the upstream server (e.g., the local `llama-server` instance managed by `local-llm`). For embedded local GGUF/MLX setups inside the gateway, the default temperature is internally set to `0.7`.
 
 
 ## Signal Channel Configuration

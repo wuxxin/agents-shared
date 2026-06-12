@@ -1,8 +1,8 @@
 # Local LLM Chat Service Guide
 
-`local-llm-ggml.sh` manages the local `llama-server` systemd user service (`local-llm-ggml.service`), serving the Chat/Vision LLM. 
+`local-llm.sh` manages the local `llama-server` systemd user service (`local-llm.service`), serving the Chat/Vision LLM.
 
-Note: Text embeddings have been split into the standalone [local-embedding.sh](local-embedding.md) service by default, but can optionally be run simultaneously in a single process.
+Note: Text embeddings are served separately by the standalone [local-embedding.md](local-embedding.md) service.
 
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
@@ -11,35 +11,35 @@ Note: Text embeddings have been split into the standalone [local-embedding.sh](l
 
 ```bash
 # Install the service and environment configuration
-./local-llm-ggml.sh install [--no-start] [--new-config]
+./local-llm.sh install [--no-start] [--new-config]
 
 # Start/Stop/Restart the service
-./local-llm-ggml.sh start
-./local-llm-ggml.sh stop
-./local-llm-ggml.sh restart
-./local-llm-ggml.sh enable
-./local-llm-ggml.sh disable
+./local-llm.sh start
+./local-llm.sh stop
+./local-llm.sh restart
+./local-llm.sh enable
+./local-llm.sh disable
 
 # Check runtime status
-./local-llm-ggml.sh status
+./local-llm.sh status
 
 # Tail service stdout/stderr logs
-./local-llm-ggml.sh logs -f
+./local-llm.sh logs -f
 
 # Edit service environment configuration and auto-restart
-./local-llm-ggml.sh edit
+./local-llm.sh edit
 
 # Run API validation tests
-./local-llm-ggml.sh test
+./local-llm.sh test
 
 # Run llama-server as a transient systemd user service
-./local-llm-ggml.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
+./local-llm.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
 
 # Run a custom command inside the sandboxed environment
-./local-llm-ggml.sh run [--env KEY=VALUE]* <command> [args...]
+./local-llm.sh run [--env KEY=VALUE]* <command> [args...]
 
 # Spawn an interactive shell inside the sandboxed environment
-./local-llm-ggml.sh shell [--env KEY=VALUE]*
+./local-llm.sh shell [--env KEY=VALUE]*
 ```
 
 ### In-Memory Environment Overrides
@@ -51,7 +51,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 
 These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
-./local-llm-ggml.sh exec --env LLM_N_GPU_LAYERS=0
+./local-llm.sh exec --env LLM_N_GPU_LAYERS=0
 ```
 
 
@@ -59,10 +59,10 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ### Default LLM
 
-The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model. 
+The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model.
 
 Key specifications and limits:
-- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**. 
+- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**.
   - In this local deployment, the service allocates a physical context size of **240,000 tokens**, which is divided across **3 parallel slots (80,000 tokens context window size per slot)**.
 - **Max Output (Generation) Limit**: The Qwen3.6 architecture supports a maximum output generation length of **65,536 (64K) tokens** in a single completion request.
 - **Capabilities**: Completion, chat, native tool-calling, multi-modal vision inputs (using the mmproj GGUF file)
@@ -73,7 +73,7 @@ Key specifications and limits:
 
 ### Thinking and Reasoning Capabilities
 
-The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning. 
+The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning.
 
 - **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](file:///data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
 - **Thinking Mode Control**:
@@ -84,14 +84,6 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
   - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
   - In **Moltis**, preset configurations mapping to `reasoning_effort = "low"` adjust agent-level thinking budgets and parameters.
 
-### Optional Embedded Embeddings
-
-While embeddings have been split into the standalone [local-embedding.md](local-embedding.md) service by default, `local-llm-ggml.sh` can optionally run the **`Qwen3-Embedding-0.6B-Q8_0.gguf`** model simultaneously. This is enabled by setting `LLM_SERVE_EMBEDDINGS="true"` in the environment configuration.
-
-Key specifications and limits:
-- **Embedding Context Size (`LLM_EMBEDDING_N_CTX`):** `8192`
-- **Pooling:** `mean`
-
 ## Service Configuration & Ports
 
 - **Default Port**: `50080` (HTTP)
@@ -100,10 +92,8 @@ Key specifications and limits:
 ### Service Endpoints (Port `50080`)
 
 - **`POST /v1/chat/completions`**: OpenAI-compatible chat completion endpoint (routed to the chat LLM).
-- **`POST /v1/embeddings`**: OpenAI-compatible text embedding endpoint (routed to the embedding model, only active if `LLM_SERVE_EMBEDDINGS="true"`).
 - **`POST /v1/completions`**: OpenAI-compatible text completion endpoint.
 - **`POST /completion`**: Native `llama.cpp` endpoint for custom prompt completion.
-- **`POST /embedding`**: Native `llama.cpp` endpoint to generate vector embeddings (only active if `LLM_SERVE_EMBEDDINGS="true"`).
 - **`POST /tokenize`**: Converts input text into model-specific integer token IDs.
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /v1/models`**: Lists all active model aliases.
@@ -115,14 +105,13 @@ Key specifications and limits:
 
 The service stores its configuration in the systemd user configuration directory:
 
-- **Service Unit**: `~/.config/systemd/user/local-llm-ggml.service`
-- **Environment File**: `~/.config/systemd/user/local-llm-ggml.env`
-- **Router Configuration File**: `~/.config/systemd/user/local-llm-ggml.ini`
+- **Service Unit**: `~/.config/systemd/user/local-llm.service`
+- **Environment File**: `~/.config/systemd/user/local-llm.env`
 
 ### GPU and CPU Inference
 
 By default, the service offloads execution to the GPU using ROCm/HIP.
-To run the service on the CPU, run `./local-llm-ggml.sh edit` (or edit `~/.config/systemd/user/local-llm-ggml.env` directly) and edit this parameter:
+To run the service on the CPU, run `./local-llm.sh edit` (or edit `~/.config/systemd/user/local-llm.env` directly) and edit this parameter:
 
 ```bash
 # Number of layers to offload to GPU (all=999)
@@ -133,9 +122,9 @@ LLM_N_GPU_LAYERS=999
 
 ### Backend Device Selection (Dynamic Backend Loading)
 
-When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
+When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime.
 
-You can configure the target device using the `LLM_DEVICE` environment variable. Run `./local-llm-ggml.sh edit` (or edit `~/.config/systemd/user/local-llm-ggml.env` directly) and configure the device:
+You can configure the target device using the `LLM_DEVICE` environment variable. Run `./local-llm.sh edit` (or edit `~/.config/systemd/user/local-llm.env` directly) and configure the device:
 
 ```bash
 # GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
@@ -192,7 +181,7 @@ LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1 --main-gpu 1"
 
 ### Speculative Decoding (Optional)
 
-By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation. 
+By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation.
 
 #### How N-Gram Speculation Works:
 * **No Draft Model Required**: Unlike traditional speculative decoding which loads a second smaller model (incurring extra memory and load latency), N-Gram lookup is a CPU-side lookup that matches sequences of tokens in the generation history.
@@ -213,7 +202,7 @@ LLM_EXTRA_ARGS="--flash-attn auto"
 
 ## VRAM Usage
 
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](assistants/local-memory-map.md).
+For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](local-memory-map.md).
 
 
 ## Verification & Manual Testing
@@ -221,7 +210,7 @@ For detailed breakdowns of memory usage and concurrent execution scenarios (co-r
 You can test that the service is running and behaving correctly by running the validation command:
 
 ```bash
-./local-llm-ggml.sh test
+./local-llm.sh test
 ```
 
 ### Benchmarking Mode
@@ -230,22 +219,16 @@ To benchmark prefill and decoding latency and throughput using `benchmark-contex
 
 ```bash
 # Run the Chat benchmark
-./local-llm-ggml.sh test --benchmark
-
-# Run ONLY the Chat benchmark
-./local-llm-ggml.sh test --benchmark --only-chat
-
-# Run ONLY the Embeddings benchmark (only active if LLM_SERVE_EMBEDDINGS="true")
-./local-llm-ggml.sh test --benchmark --only-embeddings
+./local-llm.sh test --benchmark
 
 # Skip Phase 1 (Sequential Prefill) of the Chat benchmark
-./local-llm-ggml.sh test --benchmark --only-chat --skip-prefill
+./local-llm.sh test --benchmark --skip-prefill
 
 # Skip Phase 3 (Prefix Caching & Distractor Tests) of the Chat benchmark
-./local-llm-ggml.sh test --benchmark --only-chat --skip-distractor
+./local-llm.sh test --benchmark --skip-distractor
 
 # Specify the number of runs to compute cumulative average over (e.g. 5 runs)
-./local-llm-ggml.sh test --benchmark --repeat 5
+./local-llm.sh test --benchmark --repeat 5
 ```
 
 The chat completion benchmark evaluates prefill speed, generation speed, and Key-Value (KV) cache retrieval latency using a truncated ~30k token context (~115k characters) from `benchmark-context.md`. The benchmark runs in 4 distinct phases:
@@ -256,7 +239,7 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
 
 2. **Phase 1: Sequential Prefill**
    - Incrementally feeds context chunks (10% increments) to monitor prefill speed and new chunk parsing efficiency.
-   - Can be bypassed entirely using the `--skip-prefill` parameter (e.g. `./local-llm-ggml.sh test --benchmark --only-chat --skip-prefill`).
+   - Can be bypassed entirely using the `--skip-prefill` parameter (e.g. `./local-llm.sh test --benchmark --skip-prefill`).
    - Sleeps for 10 seconds.
 
 3. **Phase 2: Chat Generation**
@@ -269,14 +252,14 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
      - *3b. Distractor Prompt* (a short, unrelated question to test cache eviction/interference).
      - *3c. Full Prefill Prompt + Question* (measures prompt re-parsing speed after distractor cache eviction).
    - To avoid GPU overheating on target hardware (Radeon Pro W6800), a 10-second cooldown sleep is executed *only* after the full context query (`3c`). No sleeps are executed after the half-prefill or distractor queries.
-   - Can be skipped entirely using the `--skip-distractor` parameter (e.g. `./local-llm-ggml.sh test --benchmark --only-chat --skip-distractor`) to avoid overheating during extended test suites.
-  
+   - Can be skipped entirely using the `--skip-distractor` parameter (e.g. `./local-llm.sh test --benchmark --skip-distractor`) to avoid overheating during extended test suites.
+
 > [!NOTE]
-> If `--repeat` is omitted, the embedding benchmark defaults to `10` runs to calculate a stable cumulative average, while the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs for all executed benchmarks.
+> If `--repeat` is omitted, the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs.
 
 Alternatively, you can test it manually using `curl`:
 
-### 1. Chat Completion Test
+### Chat Completion Test
 ```bash
 curl -s -X POST http://localhost:50080/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -287,14 +270,3 @@ curl -s -X POST http://localhost:50080/v1/chat/completions \
     ]
   }'
 ```
-
-### 2. Text Embedding Test (Only if `LLM_SERVE_EMBEDDINGS="true"`)
-```bash
-curl -s -X POST http://localhost:50080/v1/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-embedding",
-    "input": "Hello World"
-  }'
-```
-
