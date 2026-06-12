@@ -42,6 +42,10 @@ load_env() {
         source "$ENV_FILE"
         set -u
     fi
+
+    if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
+        export HIP_VISIBLE_DEVICES
+    fi
 }
 
 is_systemd_running() {
@@ -81,7 +85,8 @@ get_shared_options() {
     echo "PrivateDevices=no"
     echo "PrivateTmp=yes"
     echo "PrivateMounts=yes"
-    echo "PrivateIPC=yes"
+    # ROCm HSA runtime requires shared memory (IPC) to communicate with /dev/kfd
+    echo "PrivateIPC=no"
 
     echo "ProtectSystem=strict"
     # Allow read-write access to model storage and home-based paths
@@ -186,13 +191,12 @@ LR_N_CTX=8192
 # To run inference on CPU instead of GPU (none=0)
 LR_N_GPU_LAYERS=0
 
-# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LRR_DEVICE="hip"
-# LRR_DEVICE="vulkan"
-# LRR_DEVICE="cpu"
-# LRR_DEVICE="openblas"
+# LRR_DEVICE="ROCm0"
+# LRR_DEVICE="Vulkan0"
+# LRR_DEVICE="BLAS"
 
 # Number of threads to use
 LR_THREADS=8

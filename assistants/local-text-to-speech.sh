@@ -41,6 +41,10 @@ load_env() {
         source "$ENV_FILE"
         set -u
     fi
+
+    if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
+        export HIP_VISIBLE_DEVICES
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -101,7 +105,8 @@ get_shared_options() {
     echo "PrivateDevices=no"
     echo "PrivateTmp=yes"
     echo "PrivateMounts=yes"
-    echo "PrivateIPC=yes"
+    # ROCm HSA runtime requires shared memory (IPC) to communicate with /dev/kfd
+    echo "PrivateIPC=no"
 
     echo "ProtectSystem=strict"
     # Allow read-write access to home-based paths
@@ -230,13 +235,12 @@ LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Token
 #   - cpu-only           : Forces CPU-only execution via GGML backends
 LTTS_MODE="cpu-only"
 
-# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, qwen3-tts-server selects the default available backend.
 # To force a specific backend device, uncomment one of the options below:
-# LTTS_DEVICE="hip"
-# LTTS_DEVICE="vulkan"
-# LTTS_DEVICE="cpu"
-# LTTS_DEVICE="openblas"
+# LTTS_DEVICE="ROCm0"
+# LTTS_DEVICE="Vulkan0"
+# LTTS_DEVICE="BLAS"
 
 # Number of threads to use for computations
 LTTS_THREADS=8
@@ -577,7 +581,7 @@ cmd_test() {
         -d "{
           \"model\": \"qwen3-tts\",
           \"input\": \"${text}\",
-          \"voice\": \"default\",
+          \"voice\": \"serena\",
           \"response_format\": \"wav\"
         }" \
         -o "$temp_dir/tts_output.wav"; then

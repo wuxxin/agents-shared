@@ -27,7 +27,24 @@ def post_json(url: str, payload: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=300.0) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        raise RuntimeError(f"HTTP Error {e.code}: {error_body}") from e
+    except Exception as e:
+        raise RuntimeError(f"Connection failed: {e}") from e
+
+
+def get_json(url: str) -> dict:
+    """Send a GET request and return JSON response."""
+    req = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300.0) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -135,6 +152,7 @@ def run_llm_chat(
     repeats: int,
     skip_prefill: bool = False,
     skip_distractor: bool = False,
+    fraction_context: float = 1.0,
 ) -> None:
     """Run chat completion prefill/decode benchmark using a large context."""
     if not os.path.exists(context_file):
@@ -151,6 +169,13 @@ def run_llm_chat(
             f"Truncating to {MAX_CONTEXT_CHARS} chars to prevent GPU memory/caching issues."
         )
         context_content = context_content[:MAX_CONTEXT_CHARS]
+
+    if fraction_context < 1.0:
+        target_len = max(1, int(len(context_content) * fraction_context))
+        print(
+            f"Limiting context content to fraction={fraction_context} ({target_len} chars)"
+        )
+        context_content = context_content[:target_len]
 
     # Phase 0: Warmup
     print("===================================================")
@@ -458,7 +483,13 @@ def run_llm_chat(
     print("===================================================\n")
 
 
-def run_llm_embed(url: str, model: str, context_file: str, repeats: int) -> None:
+def run_llm_embed(
+    url: str,
+    model: str,
+    context_file: str,
+    repeats: int,
+    fraction_chunks: float = 1.0,
+) -> None:
     """Run embedding benchmark using the full context file (~44.5k tokens).
 
     Tokenizes the full context via the server's /tokenize endpoint to get exact
@@ -473,8 +504,20 @@ def run_llm_embed(url: str, model: str, context_file: str, repeats: int) -> None
         context_content = f.read()
 
     # Tokenize the full context via the server to get exact token IDs,
-    # then split into chunks of exactly 8192 tokens (matching ubatch-size).
+    # then split into chunks of size matching the server's context size.
     max_tokens_per_chunk = 8192
+    try:
+        props = get_json(f"{url}/props")
+        if props and "default_generation_settings" in props:
+            n_ctx = props["default_generation_settings"].get("n_ctx", 8192)
+            if n_ctx > 0:
+                max_tokens_per_chunk = min(8192, n_ctx)
+                print(
+                    f"  Dynamic chunk size resolved from server: {max_tokens_per_chunk}"
+                )
+    except Exception as e:
+        print(f"  Warning: Failed to query server props for n_ctx: {e}")
+
     print("  Tokenizing full context via server...")
     tokenize_resp = post_json(
         f"{url}/tokenize",
@@ -490,14 +533,28 @@ def run_llm_embed(url: str, model: str, context_file: str, repeats: int) -> None
     ]
 
     total_context_chars = len(context_content)
+    full_chunk_count = len(chunks)
+
+    if fraction_chunks < 1.0:
+        limit = max(1, int(len(chunks) * fraction_chunks))
+        chunks = chunks[:limit]
 
     print("===================================================")
     print("=== EMBEDDING BENCHMARK                         ===")
     print("===================================================")
     print(f"Context File:      {context_file}")
-    print(f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)")
+    print(
+        f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
+    )
     print(f"Chunk Size:        {max_tokens_per_chunk} tokens (max)")
-    print(f"Total Chunks:      {len(chunks)} ({', '.join(str(len(c)) for c in chunks)} tokens)")
+    if fraction_chunks < 1.0:
+        print(
+            f"Total Chunks:      {len(chunks)} ({', '.join(str(len(c)) for c in chunks)} tokens) [limited from {full_chunk_count} (fraction={fraction_chunks})]"
+        )
+    else:
+        print(
+            f"Total Chunks:      {len(chunks)} ({', '.join(str(len(c)) for c in chunks)} tokens)"
+        )
     print(f"Repeats:           {repeats}")
 
     # Phase 0: Warmup — single short embedding to prime the model
@@ -523,7 +580,9 @@ def run_llm_embed(url: str, model: str, context_file: str, repeats: int) -> None
     run_results: List[Dict[str, Any]] = []
 
     for r in range(repeats):
-        print(f"  [Run {r + 1}/{repeats}] Embedding {len(chunks)} chunks sequentially...")
+        print(
+            f"  [Run {r + 1}/{repeats}] Embedding {len(chunks)} chunks sequentially..."
+        )
         chunk_latencies: List[float] = []
         chunk_tokens_list: List[int] = []
         run_total_tokens = 0
@@ -593,7 +652,9 @@ def run_llm_embed(url: str, model: str, context_file: str, repeats: int) -> None
     print("=== EMBEDDING BENCHMARK RESULTS SUMMARY         ===")
     print("===================================================")
     print(f"Context File:      {context_file}")
-    print(f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)")
+    print(
+        f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
+    )
     print(f"Chunks:            {len(chunks)} × {max_tokens_per_chunk} tokens (max)")
     print(f"Embedding Dim:     {embed_dim}")
     print(f"Repeats:           {repeats}")
@@ -726,7 +787,7 @@ def run_tts(url: str, model: str, output_wav: str, repeats: int) -> None:
     payload = {
         "model": model,
         "input": text,
-        "voice": "default",
+        "voice": "serena",
         "response_format": "wav",
     }
 
@@ -955,6 +1016,18 @@ def main() -> None:
         action="store_true",
         help="Skip Phase 3 prefix caching & distractor tests",
     )
+    parser.add_argument(
+        "--fraction-chunks",
+        type=float,
+        default=1.0,
+        help="Fraction of chunks to run (between 0.0 and 1.0) to speed up benchmark",
+    )
+    parser.add_argument(
+        "--fraction-context",
+        type=float,
+        default=1.0,
+        help="Fraction of context length to use for LLM Chat benchmark (between 0.0 and 1.0)",
+    )
 
     args = parser.parse_args()
 
@@ -976,11 +1049,18 @@ def main() -> None:
             repeats,
             skip_prefill=args.skip_prefill,
             skip_distractor=args.skip_distractor,
+            fraction_context=args.fraction_context,
         )
     elif args.mode == "llm-embed":
         if not args.context:
             parser.error("--context is required in llm-embed mode")
-        run_llm_embed(args.url, args.model, args.context, repeats)
+        run_llm_embed(
+            args.url,
+            args.model,
+            args.context,
+            repeats,
+            fraction_chunks=args.fraction_chunks,
+        )
     elif args.mode == "rerank":
         if not args.context:
             parser.error("--context is required in rerank mode")

@@ -43,6 +43,10 @@ load_env() {
         source "$ENV_FILE"
         set -u
     fi
+
+    if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
+        export HIP_VISIBLE_DEVICES
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -70,7 +74,8 @@ get_shared_options() {
     echo "PrivateDevices=no"
     echo "PrivateTmp=yes"
     echo "PrivateMounts=yes"
-    echo "PrivateIPC=yes"
+    # ROCm HSA runtime requires shared memory (IPC) to communicate with /dev/kfd
+    echo "PrivateIPC=no"
 
     echo "ProtectSystem=strict"
     # Allow read-write access to home-based paths (for temp ffmpeg files)
@@ -181,13 +186,12 @@ LSTT_MODEL_ALIAS="whisper-1"
 # Number of threads to use for CPU-bound computations/preprocessing
 LSTT_THREADS=8
 
-# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# GPU/CPU backend device to use (run 'whisper-cli --list-devices' for valid names)
 # By default, whisper-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LSTT_DEVICE="hip"
-# LSTT_DEVICE="vulkan"
-# LSTT_DEVICE="cpu"
-# LSTT_DEVICE="openblas"
+# LSTT_DEVICE="ROCm0"
+# LSTT_DEVICE="Vulkan0"
+# LSTT_DEVICE="BLAS"
 
 # To run inference on CPU instead of GPU, uncomment the following line:
 # LSTT_NO_GPU=true

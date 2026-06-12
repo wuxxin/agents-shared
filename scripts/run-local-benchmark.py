@@ -123,8 +123,8 @@ def read_env_file(env_file_path: str) -> Dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-def get_gpu_memory_mb() -> float:
-    """Get the current VRAM usage in Megabytes (MB) via rocm-smi."""
+def get_gpu_memory_mb(device_id: str | None = None) -> float:
+    """Get the current VRAM usage in Megabytes (MB) via rocm-smi for a specific device."""
     try:
         import json
 
@@ -141,6 +141,27 @@ def get_gpu_memory_mb() -> float:
                 break
         if json_str:
             data = json.loads(json_str)
+            card_idx = 0
+            if device_id:
+                # Extract digits from device_id, e.g., "Vulkan1" -> 1, "ROCm1" -> 1
+                digits = re.findall(r"\d+", device_id)
+                if digits:
+                    card_idx = int(digits[0])
+
+            # Try exact matches or device keys
+            target_keys = [f"card{card_idx}", f"device{card_idx}", str(card_idx)]
+            for key in target_keys:
+                if key in data and "VRAM Total Used Memory (B)" in data[key]:
+                    bytes_used = float(data[key]["VRAM Total Used Memory (B)"])
+                    return bytes_used / (1024.0 * 1024.0)
+
+            # Fallback to look for a key containing the digit
+            for key, card in data.items():
+                if str(card_idx) in key and "VRAM Total Used Memory (B)" in card:
+                    bytes_used = float(card["VRAM Total Used Memory (B)"])
+                    return bytes_used / (1024.0 * 1024.0)
+
+            # Fallback to the first card with memory info
             for card in data.values():
                 if "VRAM Total Used Memory (B)" in card:
                     bytes_used = float(card["VRAM Total Used Memory (B)"])
@@ -221,8 +242,93 @@ def get_mock_cpu_mem(mode: str, config: str) -> float:
     return mems.get(mode, {}).get(config, 0.0)
 
 
+def parse_devices(output: str) -> Dict[str, Dict[str, Any]]:
+    """Parse output from llama-cli --list-devices and return device info.
+
+    Returns a dictionary mapping device IDs (e.g. 'ROCm0') to details.
+    """
+    devices: Dict[str, Dict[str, Any]] = {}
+    for line in output.splitlines():
+        # Match e.g. "  ROCm0: AMD Radeon Pro W6800 (30704 MiB, 30668 MiB free)"
+        match = re.search(
+            r"^\s*([^:]+):\s*(.*?)\s*\(([\d\.]+)\s*(\w+),\s*([\d\.]+)\s*(\w+)\s+free\)",
+            line,
+        )
+        if match:
+            dev_id = match.group(1).strip()
+            dev_name = match.group(2).strip()
+            total_val = float(match.group(3))
+            total_unit = match.group(4)
+            free_val = float(match.group(5))
+            free_unit = match.group(6)
+
+            # Convert to MB/MiB
+            def to_mib(val: float, unit: str) -> float:
+                unit_lower = unit.lower()
+                if "gib" in unit_lower or "gb" in unit_lower:
+                    return val * 1024.0
+                if "kib" in unit_lower or "kb" in unit_lower:
+                    return val / 1024.0
+                if (
+                    "b" in unit_lower
+                    and "m" not in unit_lower
+                    and "g" not in unit_lower
+                    and "k" not in unit_lower
+                ):
+                    return val / (1024.0 * 1024.0)
+                return val
+
+            devices[dev_id] = {
+                "device_id": dev_id,
+                "name": dev_name,
+                "total_mem_mib": to_mib(total_val, total_unit),
+                "free_mem_mib": to_mib(free_val, free_unit),
+            }
+    return devices
+
+
+def get_available_devices(mock: bool = False) -> Dict[str, Dict[str, Any]]:
+    """Execute llama-cli --list-devices and parse available devices."""
+    if mock:
+        mock_output = """Available devices:
+  BLAS: OpenBLAS (0 MiB, 0 MiB free)
+  ROCm0: AMD Radeon Pro W6800 (30704 MiB, 30668 MiB free)
+  ROCm1: AMD Radeon Graphics (56261 MiB, 92380 MiB free)
+  Vulkan0: AMD Radeon Pro W6800 (RADV NAVI21) (30704 MiB, 29349 MiB free)
+  Vulkan1: AMD Radeon Graphics (RADV RENOIR) (72645 MiB, 72616 MiB free)"""
+        return parse_devices(mock_output)
+
+    try:
+        res = subprocess.run(
+            ["llama-cli", "--list-devices"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if res.returncode == 0:
+            return parse_devices(res.stdout)
+    except Exception:
+        pass
+
+    # Fallback to check other paths
+    for path in ["/usr/bin/llama-cli", "/usr/local/bin/llama-cli"]:
+        if os.path.exists(path):
+            try:
+                res = subprocess.run(
+                    [path, "--list-devices"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if res.returncode == 0:
+                    return parse_devices(res.stdout)
+            except Exception:
+                pass
+    return {}
+
+
 # ---------------------------------------------------------------------------
-def warmup_model(url: str, payload: dict, timeout: int = 60) -> bool:
+def warmup_model(url: str, payload: dict, timeout: int = 180) -> bool:
     """Send a warmup request and wait for model to be fully loaded."""
     import json
     import urllib.error
@@ -346,21 +452,69 @@ def start_service(script_path: str) -> Tuple[subprocess.Popen, int]:
     return proc, master_fd
 
 
-def run_benchmark(script_path: str, args: List[str]) -> Tuple[str, bool]:
-    """Execute the service test command with args and return captured stdout and success flag."""
+def run_benchmark(
+    script_path: str,
+    args: List[str],
+    server_proc: Any = None,
+) -> Tuple[str, bool]:
+    """Execute the service test command with args and return captured stdout and success flag.
+
+    If server_proc is provided, checks if the server process dies during benchmark.
+    """
     cmd = [script_path, "test"] + args
     print(f"Running benchmark command: {' '.join(cmd)}")
-    result = subprocess.run(
+
+    if server_proc is None:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(script_path),
+        )
+        if result.returncode != 0:
+            print(f"Error running benchmark. Exit code: {result.returncode}")
+            print(f"Stderr: {result.stderr}")
+            return result.stdout, False
+        return result.stdout, True
+
+    # Run benchmark asynchronously and poll to check if server dies
+    bench_proc = subprocess.Popen(
         cmd,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         cwd=os.path.dirname(script_path),
     )
-    if result.returncode != 0:
-        print(f"Error running benchmark. Exit code: {result.returncode}")
-        print(f"Stderr: {result.stderr}")
-        return result.stdout, False
-    return result.stdout, True
+
+    while True:
+        # Check if benchmark completed
+        bench_exit = bench_proc.poll()
+        # Check if server died
+        server_exit = server_proc.poll()
+
+        if bench_exit is not None:
+            stdout, stderr = bench_proc.communicate()
+            if bench_exit != 0:
+                print(f"Error running benchmark. Exit code: {bench_exit}")
+                print(f"Stderr: {stderr}")
+                return stdout, False
+            return stdout, True
+
+        if server_exit is not None:
+            print(
+                f"❌ Error: Server process died during benchmark with exit code {server_exit}!"
+            )
+            bench_proc.terminate()
+            try:
+                bench_proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                bench_proc.kill()
+            stdout, stderr = bench_proc.communicate()
+            print(f"Benchmark process output before termination:\n{stdout}")
+            print(f"Benchmark process stderr:\n{stderr}")
+            return stdout, False
+
+        time.sleep(0.5)
 
 
 # ---------------------------------------------------------------------------
@@ -619,19 +773,27 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                 ]:
                     if k in env and env[k]:
                         return env[k]
-        if cfg == "hip":
+        # Fallback if not found in data/env
+        cfg_lower = cfg.lower()
+        if cfg_lower.startswith("hip"):
+            parts = cfg.split("-")
+            if len(parts) > 1:
+                return parts[1]
             return (
                 "ROCm0"
                 if mode in ("llm-chat", "llm-embed", "rerank")
                 else ("0" if mode == "stt" else "Default")
             )
-        elif cfg == "vulkan":
+        elif cfg_lower.startswith("vulkan"):
+            parts = cfg.split("-")
+            if len(parts) > 1:
+                return parts[1]
             return (
                 "Vulkan0"
                 if mode in ("llm-chat", "llm-embed", "rerank")
                 else ("0" if mode == "stt" else "Default")
             )
-        elif cfg == "cpu":
+        elif cfg_lower == "cpu":
             return (
                 "BLAS"
                 if mode in ("llm-chat", "llm-embed", "rerank")
@@ -652,15 +814,136 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                         return f"Layers: {env[k]}"
                 if "LSTT_NO_GPU" in env:
                     return "No GPU" if env["LSTT_NO_GPU"] == "true" else "Use GPU"
-        if cfg == "special-hybrid":
+        if cfg.startswith("special-hybrid"):
             return "mode: hybrid"
-        elif cfg == "special-gpu-low-mem":
+        elif cfg.startswith("special-gpu-low-mem"):
             return "mode: gpu-min-vram"
         return "None"
+
+    def sort_config_keys(cfg: str) -> Tuple[int, str]:
+        cfg_lower = cfg.lower()
+        if cfg_lower.startswith("hip"):
+            return (0, cfg_lower)
+        elif cfg_lower.startswith("vulkan"):
+            return (1, cfg_lower)
+        elif cfg_lower == "cpu":
+            return (2, cfg_lower)
+        elif cfg_lower.startswith("special-hybrid"):
+            return (3, cfg_lower)
+        elif cfg_lower.startswith("special-gpu-low-mem"):
+            return (4, cfg_lower)
+        elif cfg_lower.startswith("special"):
+            return (5, cfg_lower)
+        return (6, cfg_lower)
 
     import datetime
 
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Generate matrix table contents dynamically
+    # 1. Chat Table Body
+    chat_rows = []
+    chat_keys = [cfg for cfg in data.keys() if "llm-chat" in data[cfg]]
+    chat_keys.sort(key=sort_config_keys)
+    for cfg in chat_keys:
+        cfg_label = cfg.upper()
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'llm-chat')} | {get_device_setting(cfg, 'llm-chat')} | {get_special_setting(cfg, 'llm-chat')} | {val(cfg, 'llm-chat', 'chat_avg_ttft', '.2f', ' ms')} | {val(cfg, 'llm-chat', 'chat_avg_prefill', '.2f', ' t/s')} | {val(cfg, 'llm-chat', 'chat_warmup_ttft', '.2f', ' ms')} | {val(cfg, 'llm-chat', 'chat_warmup_gen', '.2f', ' t/s')} | {val(cfg, 'llm-chat', 'chat_avg_gen', '.2f', ' t/s')} | {val(cfg, 'llm-chat', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'llm-chat', 'cpu_mem_mb', '.1f', ' MB')} |"
+        chat_rows.append(row)
+    if not any(cfg.startswith("hip") for cfg in chat_keys):
+        chat_rows.append(
+            "| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg.startswith("vulkan") for cfg in chat_keys):
+        chat_rows.append(
+            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg == "cpu" for cfg in chat_keys):
+        chat_rows.append(
+            "| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    chat_table_body = "\n".join(chat_rows)
+
+    # 2. Embedding Table Body
+    embed_rows = []
+    embed_keys = [cfg for cfg in data.keys() if "llm-embed" in data[cfg]]
+    embed_keys.sort(key=sort_config_keys)
+    for cfg in embed_keys:
+        cfg_label = cfg.upper()
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'llm-embed')} | {get_device_setting(cfg, 'llm-embed')} | {get_special_setting(cfg, 'llm-embed')} | {val(cfg, 'llm-embed', 'embed_throughput', '.2f', ' t/s')} | {val(cfg, 'llm-embed', 'embed_lat', '.1f', ' ms')} | {val(cfg, 'llm-embed', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'llm-embed', 'cpu_mem_mb', '.1f', ' MB')} |"
+        embed_rows.append(row)
+    if not any(cfg.startswith("hip") for cfg in embed_keys):
+        embed_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    if not any(cfg.startswith("vulkan") for cfg in embed_keys):
+        embed_rows.append("| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    if not any(cfg == "cpu" for cfg in embed_keys):
+        embed_rows.append("| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    embed_table_body = "\n".join(embed_rows)
+
+    # 3. Reranking Table Body
+    rerank_rows = []
+    rerank_keys = [cfg for cfg in data.keys() if "rerank" in data[cfg]]
+    rerank_keys.sort(key=sort_config_keys)
+    for cfg in rerank_keys:
+        cfg_label = cfg.upper()
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'rerank')} | {get_device_setting(cfg, 'rerank')} | {get_special_setting(cfg, 'rerank')} | {val(cfg, 'rerank', 'rerank_time', '.2f', ' ms')} | {val(cfg, 'rerank', 'rerank_token_speed', '.2f', ' tokens/s')} | {val(cfg, 'rerank', 'rerank_throughput', '.2f', ' docs/s')} | {val(cfg, 'rerank', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'rerank', 'cpu_mem_mb', '.1f', ' MB')} |"
+        rerank_rows.append(row)
+    if not any(cfg.startswith("hip") for cfg in rerank_keys):
+        rerank_rows.append(
+            "| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg.startswith("vulkan") for cfg in rerank_keys):
+        rerank_rows.append(
+            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg == "cpu" for cfg in rerank_keys):
+        rerank_rows.append(
+            "| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    rerank_table_body = "\n".join(rerank_rows)
+
+    # 4. Speech-to-Text Table Body
+    stt_rows = []
+    stt_keys = [cfg for cfg in data.keys() if "stt" in data[cfg]]
+    stt_keys.sort(key=sort_config_keys)
+    for cfg in stt_keys:
+        cfg_label = cfg.upper()
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'stt')} | {get_device_setting(cfg, 'stt')} | {get_special_setting(cfg, 'stt')} | {val(cfg, 'stt', 'stt_time', '.2f', ' s')} | {val(cfg, 'stt', 'stt_rtf', '.4f')} | {speedup(cfg, 'stt', 'stt_rtf')} | {val(cfg, 'stt', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'stt', 'cpu_mem_mb', '.1f', ' MB')} |"
+        stt_rows.append(row)
+    if not any(cfg.startswith("hip") for cfg in stt_keys):
+        stt_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    if not any(cfg.startswith("vulkan") for cfg in stt_keys):
+        stt_rows.append(
+            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg == "cpu" for cfg in stt_keys):
+        stt_rows.append("| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    stt_table_body = "\n".join(stt_rows)
+
+    # 5. Text-to-Speech Table Body
+    tts_rows = []
+    tts_keys = [cfg for cfg in data.keys() if "tts" in data[cfg]]
+    tts_keys.sort(key=sort_config_keys)
+    for cfg in tts_keys:
+        cfg_label = cfg.upper()
+        row = f"| **{cfg_label}** | {get_test_name(cfg, 'tts')} | {get_device_setting(cfg, 'tts')} | {get_special_setting(cfg, 'tts')} | {val(cfg, 'tts', 'tts_time', '.2f', ' s')} | {val(cfg, 'tts', 'tts_rtf', '.4f')} | {val(cfg, 'tts', 'tts_char_speed', '.2f', ' chars/s')} | {val(cfg, 'tts', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'tts', 'cpu_mem_mb', '.1f', ' MB')} |"
+        tts_rows.append(row)
+    if not any(cfg.startswith("hip") for cfg in tts_keys):
+        tts_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    if not any(cfg.startswith("vulkan") for cfg in tts_keys):
+        tts_rows.append(
+            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg == "cpu" for cfg in tts_keys):
+        tts_rows.append("| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+    if not any(cfg.startswith("special-hybrid") for cfg in tts_keys):
+        tts_rows.append(
+            "| **SPECIAL-HYBRID** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    if not any(cfg.startswith("special-gpu-low-mem") for cfg in tts_keys):
+        tts_rows.append(
+            "| **SPECIAL-GPU-LOW-MEM** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+        )
+    tts_table_body = "\n".join(tts_rows)
 
     report = f"""# LLM Caching Optimization Benchmarks
 
@@ -675,39 +958,27 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 #### Text Chat (`local-llm-ggml`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **HIP** | {get_test_name("hip", "llm-chat")} | {get_device_setting("hip", "llm-chat")} | {get_special_setting("hip", "llm-chat")} | {val("hip", "llm-chat", "chat_avg_ttft", ".2f", " ms")} | {val("hip", "llm-chat", "chat_avg_prefill", ".2f", " t/s")} | {val("hip", "llm-chat", "chat_warmup_ttft", ".2f", " ms")} | {val("hip", "llm-chat", "chat_warmup_gen", ".2f", " t/s")} | {val("hip", "llm-chat", "chat_avg_gen", ".2f", " t/s")} | {val("hip", "llm-chat", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "llm-chat", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {get_test_name("vulkan", "llm-chat")} | {get_device_setting("vulkan", "llm-chat")} | {get_special_setting("vulkan", "llm-chat")} | {val("vulkan", "llm-chat", "chat_avg_ttft", ".2f", " ms")} | {val("vulkan", "llm-chat", "chat_avg_prefill", ".2f", " t/s")} | {val("vulkan", "llm-chat", "chat_warmup_ttft", ".2f", " ms")} | {val("vulkan", "llm-chat", "chat_warmup_gen", ".2f", " t/s")} | {val("vulkan", "llm-chat", "chat_avg_gen", ".2f", " t/s")} | {val("vulkan", "llm-chat", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "llm-chat", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
+{chat_table_body}
 
 #### Text Embedding (`local-embedding`)
 | Configuration | Test Name | Device Setting | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
 |---|---|---|---|---|---|---|---|
-| **HIP** | {get_test_name("hip", "llm-embed")} | {get_device_setting("hip", "llm-embed")} | {get_special_setting("hip", "llm-embed")} | {val("hip", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("hip", "llm-embed", "embed_lat", ".1f", " ms")} | {val("hip", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {get_test_name("vulkan", "llm-embed")} | {get_device_setting("vulkan", "llm-embed")} | {get_special_setting("vulkan", "llm-embed")} | {val("vulkan", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("vulkan", "llm-embed", "embed_lat", ".1f", " ms")} | {val("vulkan", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {get_test_name("cpu", "llm-embed")} | {get_device_setting("cpu", "llm-embed")} | {get_special_setting("cpu", "llm-embed")} | {val("cpu", "llm-embed", "embed_throughput", ".2f", " t/s")} | {val("cpu", "llm-embed", "embed_lat", ".1f", " ms")} | {val("cpu", "llm-embed", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "llm-embed", "cpu_mem_mb", ".1f", " MB")} |
+{embed_table_body}
 
 #### Document Reranking (`local-rerank`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|---|---|
-| **HIP** | {get_test_name("hip", "rerank")} | {get_device_setting("hip", "rerank")} | {get_special_setting("hip", "rerank")} | {val("hip", "rerank", "rerank_time", ".2f", " ms")} | {val("hip", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("hip", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("hip", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "rerank", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {get_test_name("vulkan", "rerank")} | {get_device_setting("vulkan", "rerank")} | {get_special_setting("vulkan", "rerank")} | {val("vulkan", "rerank", "rerank_time", ".2f", " ms")} | {val("vulkan", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("vulkan", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("vulkan", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "rerank", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {get_test_name("cpu", "rerank")} | {get_device_setting("cpu", "rerank")} | {get_special_setting("cpu", "rerank")} | {val("cpu", "rerank", "rerank_time", ".2f", " ms")} | {val("cpu", "rerank", "rerank_token_speed", ".2f", " tokens/s")} | {val("cpu", "rerank", "rerank_throughput", ".2f", " docs/s")} | {val("cpu", "rerank", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "rerank", "cpu_mem_mb", ".1f", " MB")} |
+{rerank_table_body}
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|---|---|
-| **HIP** | {get_test_name("hip", "stt")} | {get_device_setting("hip", "stt")} | {get_special_setting("hip", "stt")} | {val("hip", "stt", "stt_time", ".2f", " s")} | {val("hip", "stt", "stt_rtf", ".4f")} | {speedup("hip", "stt", "stt_rtf")} | {val("hip", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "stt", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {get_test_name("vulkan", "stt")} | {get_device_setting("vulkan", "stt")} | {get_special_setting("vulkan", "stt")} | {val("vulkan", "stt", "stt_time", ".2f", " s")} | {val("vulkan", "stt", "stt_rtf", ".4f")} | {speedup("vulkan", "stt", "stt_rtf")} | {val("vulkan", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "stt", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {get_test_name("cpu", "stt")} | {get_device_setting("cpu", "stt")} | {get_special_setting("cpu", "stt")} | {val("cpu", "stt", "stt_time", ".2f", " s")} | {val("cpu", "stt", "stt_rtf", ".4f")} | {speedup("cpu", "stt", "stt_rtf")} | {val("cpu", "stt", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "stt", "cpu_mem_mb", ".1f", " MB")} |
+{stt_table_body}
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|---|---|
-| **HIP** | {get_test_name("hip", "tts")} | {get_device_setting("hip", "tts")} | {get_special_setting("hip", "tts")} | {val("hip", "tts", "tts_time", ".2f", " s")} | {val("hip", "tts", "tts_rtf", ".4f")} | {val("hip", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("hip", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("hip", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **Vulkan** | {get_test_name("vulkan", "tts")} | {get_device_setting("vulkan", "tts")} | {get_special_setting("vulkan", "tts")} | {val("vulkan", "tts", "tts_time", ".2f", " s")} | {val("vulkan", "tts", "tts_rtf", ".4f")} | {val("vulkan", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("vulkan", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("vulkan", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **CPU** | {get_test_name("cpu", "tts")} | {get_device_setting("cpu", "tts")} | {get_special_setting("cpu", "tts")} | {val("cpu", "tts", "tts_time", ".2f", " s")} | {val("cpu", "tts", "tts_rtf", ".4f")} | {val("cpu", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("cpu", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("cpu", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **Special (Hybrid)** | {get_test_name("special-hybrid", "tts")} | {get_device_setting("special-hybrid", "tts")} | {get_special_setting("special-hybrid", "tts")} | {val("special-hybrid", "tts", "tts_time", ".2f", " s")} | {val("special-hybrid", "tts", "tts_rtf", ".4f")} | {val("special-hybrid", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("special-hybrid", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("special-hybrid", "tts", "cpu_mem_mb", ".1f", " MB")} |
-| **Special (Low-Mem)** | {get_test_name("special-gpu-low-mem", "tts")} | {get_device_setting("special-gpu-low-mem", "tts")} | {get_special_setting("special-gpu-low-mem", "tts")} | {val("special-gpu-low-mem", "tts", "tts_time", ".2f", " s")} | {val("special-gpu-low-mem", "tts", "tts_rtf", ".4f")} | {val("special-gpu-low-mem", "tts", "tts_char_speed", ".2f", " chars/s")} | {val("special-gpu-low-mem", "tts", "gpu_mem_mb", ".1f", " MB")} | {val("special-gpu-low-mem", "tts", "cpu_mem_mb", ".1f", " MB")} |
+{tts_table_body}
 
 ---
 
@@ -715,16 +986,27 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 """
 
-    for cfg in sorted(data.keys()):
+    for cfg in sorted(data.keys(), key=sort_config_keys):
         if not data[cfg]:
             continue
         cfg_upper = cfg.upper()
-        if cfg == "special-hybrid":
+        if cfg.startswith("special-hybrid"):
             cfg_upper = "SPECIAL (HYBRID)"
-        elif cfg == "special-gpu-low-mem":
+        elif cfg.startswith("special-gpu-low-mem"):
             cfg_upper = "SPECIAL (GPU-LOW-MEM)"
 
+        # Check if there is device_details in any service
+        device_details_str = ""
+        for mode in data[cfg]:
+            if "device_details" in data[cfg][mode]:
+                details = data[cfg][mode]["device_details"]
+                if details and "name" in details:
+                    device_details_str = f"- **Device Name**: `{details['name']}` (Total: {details.get('total_mem_mib', 0.0):.0f} MiB, Free: {details.get('free_mem_mib', 0.0):.0f} MiB)\n"
+                    break
+
         report += f"### {cfg_upper} Configuration Details\n\n"
+        if device_details_str:
+            report += device_details_str + "\n"
 
         # Chat details
         if "llm-chat" in data[cfg]:
@@ -857,6 +1139,18 @@ def main() -> None:
         help="Comma-separated list of services to test (default: chat,embedding,rerank,stt,tts)",
     )
     parser.add_argument(
+        "--hip-devices",
+        type=str,
+        default="ROCm0",
+        help="Comma-separated list of HIP/ROCm devices or 'all' to test (default: ROCm0)",
+    )
+    parser.add_argument(
+        "--vulkan-devices",
+        type=str,
+        default="Vulkan0",
+        help="Comma-separated list of Vulkan devices or 'all' to test (default: Vulkan0)",
+    )
+    parser.add_argument(
         "--mock",
         action="store_true",
         help="Simulate execution and parsing (dry-run/mocking mode for systemd-less environments)",
@@ -872,6 +1166,48 @@ def main() -> None:
 
     target_configs = [c.strip().lower() for c in args.configs.split(",")]
     target_services = [s.strip().lower() for s in args.only_services.split(",")]
+
+    available_devices = get_available_devices(args.mock)
+
+    # Resolve "all" for hip-devices
+    if args.hip_devices.lower() == "all":
+        hip_devs = [
+            dev_id for dev_id in available_devices if dev_id.lower().startswith("rocm")
+        ]
+        if not hip_devs:
+            hip_devs = ["ROCm0"]
+        hip_devices_resolved = hip_devs
+    else:
+        hip_devices_resolved = [
+            d.strip() for d in args.hip_devices.split(",") if d.strip()
+        ]
+
+    # Resolve "all" for vulkan-devices
+    if args.vulkan_devices.lower() == "all":
+        vulk_devs = [
+            dev_id
+            for dev_id in available_devices
+            if dev_id.lower().startswith("vulkan")
+        ]
+        if not vulk_devs:
+            vulk_devs = ["Vulkan0"]
+        vulkan_devices_resolved = vulk_devs
+    else:
+        vulkan_devices_resolved = [
+            d.strip() for d in args.vulkan_devices.split(",") if d.strip()
+        ]
+
+    # Construct run configurations: List of (cfg_name, device_id)
+    run_configs: List[Tuple[str, Any]] = []
+    for cfg in target_configs:
+        if cfg == "hip":
+            for dev in hip_devices_resolved:
+                run_configs.append((cfg, dev))
+        elif cfg == "vulkan":
+            for dev in vulkan_devices_resolved:
+                run_configs.append((cfg, dev))
+        else:
+            run_configs.append((cfg, None))
 
     print("==================================================")
     print("🚀 Local Inference Service Benchmark Suite")
@@ -894,46 +1230,64 @@ def main() -> None:
         except Exception as e:
             print(f"Warning: Failed to load benchmark cache: {e}")
 
-    for cfg in target_configs:
-        print(f"\n--- Testing Configuration: {cfg.upper()} ---")
-        if cfg not in benchmark_data:
-            benchmark_data[cfg] = {}
+    for run_cfg, dev in run_configs:
+        cache_key = f"{run_cfg}-{dev}" if dev else run_cfg
+        print(f"\n--- Testing Configuration: {cache_key.upper()} ---")
+        if cache_key not in benchmark_data:
+            benchmark_data[cache_key] = {}
 
+        # ---------------------------------------------------------
+        # 1. Chat Service
+        # ---------------------------------------------------------
         # ---------------------------------------------------------
         # 1. Chat Service
         # ---------------------------------------------------------
         if "chat" in target_services:
             srv = SERVICES["chat"]
-            if cfg == "special":
+            if run_cfg == "special":
                 print("Skipping Chat for Special configuration.")
-            elif cfg == "cpu":
-                print("Skipping Chat for CPU configuration.")
             else:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
                 master_fd = None
                 baseline_vram = 0.0
+
+                # Determine configuration settings for current config
+                device_map = {
+                    "hip": dev if dev else "ROCm0",
+                    "vulkan": dev if dev else "Vulkan0",
+                    "cpu": "",
+                }
+                llm_device = device_map.get(run_cfg, run_cfg)
+
+                # Determine context scaling fraction and context size
+                fraction = 1.0
+                if run_cfg == "cpu":
+                    fraction = 0.05
+                elif dev and "1" in dev:
+                    fraction = 0.20
+                llm_n_ctx = int(240000 * fraction)
+
                 if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
+                    baseline_vram = get_gpu_memory_mb(llm_device)
                     # Install service default config
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
                         check=True,
                     )
 
-                    # Update configuration settings for current config
-                    device_map = {
-                        "hip": "ROCm0",
-                        "vulkan": "Vulkan0",
-                        "cpu": "",
-                    }
-                    llm_device = device_map.get(cfg, cfg)
                     updates = {
                         "LLM_DEVICE": llm_device,
-                        "LLM_N_GPU_LAYERS": 0 if cfg == "cpu" else 999,
-                        "LLM_N_CTX": 240000,
+                        "LLM_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
+                        "LLM_N_CTX": llm_n_ctx,
                         "LLM_SERVE_EMBEDDINGS": "false",
                     }
+                    if run_cfg == "vulkan":
+                        updates["HIP_VISIBLE_DEVICES"] = ""
+                        updates["CUDA_VISIBLE_DEVICES"] = ""
+                    else:
+                        updates["HIP_VISIBLE_DEVICES"] = "all"
+                        updates["CUDA_VISIBLE_DEVICES"] = "all"
                     update_env_file(srv["env_file"], updates)
 
                     # Start service
@@ -960,14 +1314,17 @@ def main() -> None:
                 print("Running LLM Chat benchmark")
                 if not args.mock:
                     print("Warming up chat model (qwen3)...")
-                    warmup_model(
+                    if not warmup_model(
                         f"http://127.0.0.1:{srv['port']}/v1/chat/completions",
                         {
                             "model": "qwen3",
                             "messages": [{"role": "user", "content": "ping"}],
                             "max_tokens": 1,
                         },
-                    )
+                    ):
+                        print(
+                            "⚠️ Warning: Model warmup timed out. Benchmark might fail."
+                        )
                     test_args = [
                         "--benchmark",
                         "--skip-prefill",
@@ -975,62 +1332,112 @@ def main() -> None:
                         "--repeat",
                         "1",
                         "--only-chat",
+                        "--fraction-context",
+                        str(fraction),
                     ]
                     start_time = time.time()
-                    stdout, success = run_benchmark(srv["script"], test_args)
+                    stdout, success = run_benchmark(
+                        srv["script"], test_args, server_proc=proc
+                    )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for chat on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for chat on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
                         )
                     else:
                         elapsed_time = time.time() - start_time
-                        benchmark_data[cfg]["llm-chat"] = parse_chat_output(stdout)
-                        benchmark_data[cfg]["llm-chat"]["bench_time_s"] = elapsed_time
+                        benchmark_data[cache_key]["llm-chat"] = parse_chat_output(
+                            stdout
+                        )
+                        benchmark_data[cache_key]["llm-chat"]["bench_time_s"] = (
+                            elapsed_time
+                        )
 
                         # Measure VRAM and RAM right before stopping
-                        post_run_vram = get_gpu_memory_mb()
+                        post_run_vram = get_gpu_memory_mb(llm_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
 
-                        benchmark_data[cfg]["llm-chat"]["gpu_mem_mb"] = gpu_mem_mb
-                        benchmark_data[cfg]["llm-chat"]["cpu_mem_mb"] = cpu_mem_mb
-                        benchmark_data[cfg]["llm-chat"]["test_name"] = f"chat_{cfg}"
-                        benchmark_data[cfg]["llm-chat"]["device_setting"] = (
+                        benchmark_data[cache_key]["llm-chat"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cache_key]["llm-chat"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cache_key]["llm-chat"]["test_name"] = (
+                            f"chat_{cache_key}"
+                        )
+                        benchmark_data[cache_key]["llm-chat"]["device_setting"] = (
                             llm_device if llm_device else "Default"
                         )
-                        benchmark_data[cfg]["llm-chat"]["special_setting"] = (
-                            f"Layers: {999 if cfg != 'cpu' else 0}"
-                        )
-                        benchmark_data[cfg]["llm-chat"]["env"] = read_env_file(
+                        layers = 999 if run_cfg != "cpu" else 0
+                        special_setting = f"Layers: {layers}"
+                        if fraction < 1.0:
+                            special_setting += f" (Context: {fraction*100:.0f}%)"
+                        benchmark_data[cache_key]["llm-chat"]["special_setting"] = special_setting
+                        benchmark_data[cache_key]["llm-chat"]["env"] = read_env_file(
                             srv["env_file"]
                         )
+                        if llm_device in available_devices:
+                            benchmark_data[cache_key]["llm-chat"]["device_details"] = (
+                                available_devices[llm_device]
+                            )
                 else:
-                    stdout = get_mock_output("llm-chat", cfg)
-                    benchmark_data[cfg]["llm-chat"] = parse_chat_output(stdout)
-                    benchmark_data[cfg]["llm-chat"]["gpu_mem_mb"] = get_mock_gpu_mem(
-                        "llm-chat", cfg
+                    stdout = get_mock_output("llm-chat", run_cfg)
+                    benchmark_data[cache_key]["llm-chat"] = parse_chat_output(stdout)
+                    benchmark_data[cache_key]["llm-chat"]["gpu_mem_mb"] = (
+                        get_mock_gpu_mem("llm-chat", run_cfg)
                     )
-                    benchmark_data[cfg]["llm-chat"]["cpu_mem_mb"] = get_mock_cpu_mem(
-                        "llm-chat", cfg
+                    benchmark_data[cache_key]["llm-chat"]["cpu_mem_mb"] = (
+                        get_mock_cpu_mem("llm-chat", run_cfg)
                     )
-                    benchmark_data[cfg]["llm-chat"]["bench_time_s"] = 15.4
-                    benchmark_data[cfg]["llm-chat"]["test_name"] = f"chat_{cfg}"
-                    benchmark_data[cfg]["llm-chat"]["device_setting"] = (
-                        "ROCm0"
-                        if cfg == "hip"
-                        else ("Vulkan0" if cfg == "vulkan" else "Default")
+                    benchmark_data[cache_key]["llm-chat"]["bench_time_s"] = 15.4
+                    benchmark_data[cache_key]["llm-chat"]["test_name"] = (
+                        f"chat_{cache_key}"
                     )
-                    benchmark_data[cfg]["llm-chat"]["special_setting"] = (
-                        f"Layers: {999 if cfg != 'cpu' else 0}"
+                    benchmark_data[cache_key]["llm-chat"]["device_setting"] = (
+                        dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "Default")
+                        )
                     )
-                    benchmark_data[cfg]["llm-chat"]["env"] = {
-                        "LLM_DEVICE": "ROCm0"
-                        if cfg == "hip"
-                        else ("Vulkan0" if cfg == "vulkan" else ""),
-                        "LLM_N_GPU_LAYERS": "999" if cfg != "cpu" else "0",
-                        "LLM_N_CTX": "240000",
+                    layers = 999 if run_cfg != "cpu" else 0
+                    special_setting = f"Layers: {layers}"
+                    if fraction < 1.0:
+                        special_setting += f" (Context: {fraction*100:.0f}%)"
+                    benchmark_data[cache_key]["llm-chat"]["special_setting"] = special_setting
+                    benchmark_data[cache_key]["llm-chat"]["env"] = {
+                        "LLM_DEVICE": dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "")
+                        ),
+                        "LLM_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
+                        "LLM_N_CTX": str(llm_n_ctx),
                         "LLM_SERVE_EMBEDDINGS": "false",
                     }
+                    llm_device = (
+                        dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "")
+                        )
+                    )
+                    dev_details = available_devices.get(llm_device, {})
+                    if not dev_details:
+                        dev_details = {
+                            "device_id": llm_device,
+                            "name": "AMD Radeon Pro W6800"
+                            if "0" in llm_device
+                            else "AMD Radeon Graphics",
+                            "total_mem_mib": 30704.0 if "0" in llm_device else 56261.0,
+                            "free_mem_mib": 30668.0 if "0" in llm_device else 92380.0,
+                        }
+                    benchmark_data[cache_key]["llm-chat"]["device_details"] = (
+                        dev_details
+                    )
 
                 # Stop service
                 if not args.mock:
@@ -1047,32 +1454,46 @@ def main() -> None:
         # ---------------------------------------------------------
         if "embedding" in target_services:
             srv = SERVICES["embedding"]
-            if cfg == "special":
+            if run_cfg == "special":
                 print("Skipping Embedding for Special configuration.")
             else:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
                 master_fd = None
                 baseline_vram = 0.0
+
+                # Determine configuration settings for current config
+                device_map = {
+                    "hip": dev if dev else "ROCm0",
+                    "vulkan": dev if dev else "Vulkan0",
+                    "cpu": "BLAS",
+                }
+                embed_device = device_map.get(run_cfg, run_cfg)
+
                 if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
+                    baseline_vram = get_gpu_memory_mb(embed_device)
                     # Install service default config
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
                         check=True,
                     )
 
-                    # Update configuration settings for current config
-                    device_map = {
-                        "hip": "ROCm0",
-                        "vulkan": "Vulkan0",
-                        "cpu": "BLAS",
-                    }
-                    embed_device = device_map.get(cfg, cfg)
                     updates = {
                         "EMBED_DEVICE": embed_device,
-                        "EMBED_N_GPU_LAYERS": 0 if cfg == "cpu" else 999,
+                        "EMBED_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
                     }
+                    if run_cfg == "vulkan":
+                        updates["HIP_VISIBLE_DEVICES"] = ""
+                        updates["CUDA_VISIBLE_DEVICES"] = ""
+                    else:
+                        updates["HIP_VISIBLE_DEVICES"] = "all"
+                        updates["CUDA_VISIBLE_DEVICES"] = "all"
+
+                    if dev and "1" in dev:
+                        # Limit context size to 4096 on integrated GPUs to prevent out-of-memory buffer errors
+                        updates["EMBED_N_CTX"] = 4096
+                    else:
+                        updates["EMBED_N_CTX"] = 8192
                     update_env_file(srv["env_file"], updates)
 
                     # Start service
@@ -1099,77 +1520,130 @@ def main() -> None:
                 print("Running LLM Embedding benchmark")
                 if not args.mock:
                     print("Warming up embedding model (qwen3-embedding)...")
-                    warmup_model(
+                    if not warmup_model(
                         f"http://127.0.0.1:{srv['port']}/v1/embeddings",
                         {
                             "model": "qwen3-embedding",
                             "input": "ping",
                         },
-                    )
+                    ):
+                        print(
+                            "⚠️ Warning: Model warmup timed out. Benchmark might fail."
+                        )
                     test_args = [
                         "--benchmark",
                         "--repeat",
                         "1",
                     ]
+                    if run_cfg == "cpu":
+                        test_args.extend(["--fraction-chunks", "0.1"])
                     start_time = time.time()
-                    stdout, success = run_benchmark(srv["script"], test_args)
+                    stdout, success = run_benchmark(
+                        srv["script"], test_args, server_proc=proc
+                    )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for embedding on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for embedding on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
                         )
                     else:
                         elapsed_time = time.time() - start_time
-                        benchmark_data[cfg]["llm-embed"] = parse_embed_output(stdout)
-                        benchmark_data[cfg]["llm-embed"]["bench_time_s"] = elapsed_time
+                        benchmark_data[cache_key]["llm-embed"] = parse_embed_output(
+                            stdout
+                        )
+                        benchmark_data[cache_key]["llm-embed"]["bench_time_s"] = (
+                            elapsed_time
+                        )
 
                         # Measure VRAM and RAM right before stopping
-                        post_run_vram = get_gpu_memory_mb()
+                        post_run_vram = get_gpu_memory_mb(embed_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
 
-                        benchmark_data[cfg]["llm-embed"]["gpu_mem_mb"] = gpu_mem_mb
-                        benchmark_data[cfg]["llm-embed"]["cpu_mem_mb"] = cpu_mem_mb
-                        benchmark_data[cfg]["llm-embed"]["test_name"] = (
-                            f"embedding_{cfg}"
+                        benchmark_data[cache_key]["llm-embed"]["gpu_mem_mb"] = (
+                            gpu_mem_mb
                         )
-                        benchmark_data[cfg]["llm-embed"]["device_setting"] = (
+                        benchmark_data[cache_key]["llm-embed"]["cpu_mem_mb"] = (
+                            cpu_mem_mb
+                        )
+                        benchmark_data[cache_key]["llm-embed"]["test_name"] = (
+                            f"embedding_{cache_key}"
+                        )
+                        benchmark_data[cache_key]["llm-embed"]["device_setting"] = (
                             embed_device if embed_device else "Default"
                         )
-                        benchmark_data[cfg]["llm-embed"]["special_setting"] = (
-                            f"Layers: {999 if cfg != 'cpu' else 0}"
+                        benchmark_data[cache_key]["llm-embed"]["special_setting"] = (
+                            f"Layers: {999 if run_cfg != 'cpu' else 0}"
                         )
-                        benchmark_data[cfg]["llm-embed"]["env"] = read_env_file(
+                        benchmark_data[cache_key]["llm-embed"]["env"] = read_env_file(
                             srv["env_file"]
                         )
+                        if embed_device in available_devices:
+                            benchmark_data[cache_key]["llm-embed"]["device_details"] = (
+                                available_devices[embed_device]
+                            )
                 else:
-                    stdout = get_mock_output("llm-embed", cfg)
-                    benchmark_data[cfg]["llm-embed"] = parse_embed_output(stdout)
-                    benchmark_data[cfg]["llm-embed"]["gpu_mem_mb"] = get_mock_gpu_mem(
-                        "llm-embed", cfg
+                    stdout = get_mock_output("llm-embed", run_cfg)
+                    benchmark_data[cache_key]["llm-embed"] = parse_embed_output(stdout)
+                    benchmark_data[cache_key]["llm-embed"]["gpu_mem_mb"] = (
+                        get_mock_gpu_mem("llm-embed", run_cfg)
                     )
-                    benchmark_data[cfg]["llm-embed"]["cpu_mem_mb"] = get_mock_cpu_mem(
-                        "llm-embed", cfg
+                    benchmark_data[cache_key]["llm-embed"]["cpu_mem_mb"] = (
+                        get_mock_cpu_mem("llm-embed", run_cfg)
                     )
-                    benchmark_data[cfg]["llm-embed"]["bench_time_s"] = 10.2
-                    benchmark_data[cfg]["llm-embed"]["test_name"] = f"embedding_{cfg}"
-                    benchmark_data[cfg]["llm-embed"]["device_setting"] = (
-                        "ROCm0"
-                        if cfg == "hip"
+                    benchmark_data[cache_key]["llm-embed"]["bench_time_s"] = 10.2
+                    benchmark_data[cache_key]["llm-embed"]["test_name"] = (
+                        f"embedding_{cache_key}"
+                    )
+                    benchmark_data[cache_key]["llm-embed"]["device_setting"] = (
+                        dev
+                        if dev
                         else (
-                            "Vulkan0"
-                            if cfg == "vulkan"
-                            else ("BLAS" if cfg == "cpu" else "Default")
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else (
+                                "Vulkan0"
+                                if run_cfg == "vulkan"
+                                else ("BLAS" if run_cfg == "cpu" else "Default")
+                            )
                         )
                     )
-                    benchmark_data[cfg]["llm-embed"]["special_setting"] = (
-                        f"Layers: {999 if cfg != 'cpu' else 0}"
+                    benchmark_data[cache_key]["llm-embed"]["special_setting"] = (
+                        f"Layers: {999 if run_cfg != 'cpu' else 0}"
                     )
-                    benchmark_data[cfg]["llm-embed"]["env"] = {
-                        "EMBED_DEVICE": "ROCm0"
-                        if cfg == "hip"
-                        else ("Vulkan0" if cfg == "vulkan" else ""),
-                        "EMBED_N_GPU_LAYERS": "999" if cfg != "cpu" else "0",
+                    benchmark_data[cache_key]["llm-embed"]["env"] = {
+                        "EMBED_DEVICE": dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "")
+                        ),
+                        "EMBED_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
                     }
+                    embed_device = (
+                        dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "")
+                        )
+                    )
+                    dev_details = available_devices.get(embed_device, {})
+                    if not dev_details:
+                        dev_details = {
+                            "device_id": embed_device,
+                            "name": "AMD Radeon Pro W6800"
+                            if "0" in embed_device
+                            else "AMD Radeon Graphics",
+                            "total_mem_mib": 30704.0
+                            if "0" in embed_device
+                            else 56261.0,
+                            "free_mem_mib": 30668.0 if "0" in embed_device else 92380.0,
+                        }
+                    benchmark_data[cache_key]["llm-embed"]["device_details"] = (
+                        dev_details
+                    )
 
                 # Stop service
                 if not args.mock:
@@ -1186,29 +1660,38 @@ def main() -> None:
         # ---------------------------------------------------------
         if "rerank" in target_services:
             srv = SERVICES["rerank"]
-            if cfg == "special":
+            if run_cfg == "special":
                 print("Skipping Reranker for Special configuration.")
             else:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
                 master_fd = None
                 baseline_vram = 0.0
+
+                # Determine configuration settings for current config
+                device_map = {
+                    "hip": dev if dev else "ROCm0",
+                    "vulkan": dev if dev else "Vulkan0",
+                    "cpu": "BLAS",
+                }
+                lrr_device = device_map.get(run_cfg, run_cfg)
+
                 if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
+                    baseline_vram = get_gpu_memory_mb(lrr_device)
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
                         check=True,
                     )
-                    device_map = {
-                        "hip": "ROCm0",
-                        "vulkan": "Vulkan0",
-                        "cpu": "BLAS",
-                    }
-                    lrr_device = device_map.get(cfg, cfg)
                     updates = {
                         "LRR_DEVICE": lrr_device,
-                        "LR_N_GPU_LAYERS": 0 if cfg == "cpu" else 99,
+                        "LR_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 99,
                     }
+                    if run_cfg == "vulkan":
+                        updates["HIP_VISIBLE_DEVICES"] = ""
+                        updates["CUDA_VISIBLE_DEVICES"] = ""
+                    else:
+                        updates["HIP_VISIBLE_DEVICES"] = "all"
+                        updates["CUDA_VISIBLE_DEVICES"] = "all"
                     update_env_file(srv["env_file"], updates)
 
                     proc, master_fd = start_service(srv["script"])
@@ -1229,70 +1712,115 @@ def main() -> None:
                 print("Running reranker benchmark...")
                 if not args.mock:
                     print("Warming up reranker model (qwen3-reranker)...")
-                    warmup_model(
+                    if not warmup_model(
                         f"http://127.0.0.1:{srv['port']}/v1/rerank",
                         {
                             "model": "qwen3-reranker",
                             "query": "ping",
                             "documents": ["ping"],
                         },
-                    )
+                    ):
+                        print(
+                            "⚠️ Warning: Model warmup timed out. Benchmark might fail."
+                        )
                     start_time = time.time()
                     stdout, success = run_benchmark(
-                        srv["script"], ["--benchmark", "--repeat", "1"]
+                        srv["script"],
+                        ["--benchmark", "--repeat", "1"],
+                        server_proc=proc,
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for reranker on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for reranker on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
                         )
                     else:
                         elapsed_time = time.time() - start_time
-                        benchmark_data[cfg]["rerank"] = parse_rerank_output(stdout)
-                        benchmark_data[cfg]["rerank"]["bench_time_s"] = elapsed_time
-                        post_run_vram = get_gpu_memory_mb()
+                        benchmark_data[cache_key]["rerank"] = parse_rerank_output(
+                            stdout
+                        )
+                        benchmark_data[cache_key]["rerank"]["bench_time_s"] = (
+                            elapsed_time
+                        )
+                        post_run_vram = get_gpu_memory_mb(lrr_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
-                        benchmark_data[cfg]["rerank"]["gpu_mem_mb"] = gpu_mem_mb
-                        benchmark_data[cfg]["rerank"]["cpu_mem_mb"] = cpu_mem_mb
-                        benchmark_data[cfg]["rerank"]["test_name"] = f"rerank_{cfg}"
-                        benchmark_data[cfg]["rerank"]["device_setting"] = (
+                        benchmark_data[cache_key]["rerank"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cache_key]["rerank"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cache_key]["rerank"]["test_name"] = (
+                            f"rerank_{cache_key}"
+                        )
+                        benchmark_data[cache_key]["rerank"]["device_setting"] = (
                             lrr_device if lrr_device else "Default"
                         )
-                        benchmark_data[cfg]["rerank"]["special_setting"] = (
-                            f"Layers: {99 if cfg != 'cpu' else 0}"
+                        benchmark_data[cache_key]["rerank"]["special_setting"] = (
+                            f"Layers: {99 if run_cfg != 'cpu' else 0}"
                         )
-                        benchmark_data[cfg]["rerank"]["env"] = read_env_file(
+                        benchmark_data[cache_key]["rerank"]["env"] = read_env_file(
                             srv["env_file"]
                         )
+                        if lrr_device in available_devices:
+                            benchmark_data[cache_key]["rerank"]["device_details"] = (
+                                available_devices[lrr_device]
+                            )
                 else:
-                    stdout = get_mock_output("rerank", cfg)
-                    benchmark_data[cfg]["rerank"] = parse_rerank_output(stdout)
-                    benchmark_data[cfg]["rerank"]["gpu_mem_mb"] = get_mock_gpu_mem(
-                        "rerank", cfg
+                    stdout = get_mock_output("rerank", run_cfg)
+                    benchmark_data[cache_key]["rerank"] = parse_rerank_output(stdout)
+                    benchmark_data[cache_key]["rerank"]["gpu_mem_mb"] = (
+                        get_mock_gpu_mem("rerank", run_cfg)
                     )
-                    benchmark_data[cfg]["rerank"]["cpu_mem_mb"] = get_mock_cpu_mem(
-                        "rerank", cfg
+                    benchmark_data[cache_key]["rerank"]["cpu_mem_mb"] = (
+                        get_mock_cpu_mem("rerank", run_cfg)
                     )
-                    benchmark_data[cfg]["rerank"]["bench_time_s"] = 8.7
-                    benchmark_data[cfg]["rerank"]["test_name"] = f"rerank_{cfg}"
-                    benchmark_data[cfg]["rerank"]["device_setting"] = (
-                        "ROCm0"
-                        if cfg == "hip"
+                    benchmark_data[cache_key]["rerank"]["bench_time_s"] = 8.7
+                    benchmark_data[cache_key]["rerank"]["test_name"] = (
+                        f"rerank_{cache_key}"
+                    )
+                    benchmark_data[cache_key]["rerank"]["device_setting"] = (
+                        dev
+                        if dev
                         else (
-                            "Vulkan0"
-                            if cfg == "vulkan"
-                            else ("BLAS" if cfg == "cpu" else "Default")
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else (
+                                "Vulkan0"
+                                if run_cfg == "vulkan"
+                                else ("BLAS" if run_cfg == "cpu" else "Default")
+                            )
                         )
                     )
-                    benchmark_data[cfg]["rerank"]["special_setting"] = (
-                        f"Layers: {99 if cfg != 'cpu' else 0}"
+                    benchmark_data[cache_key]["rerank"]["special_setting"] = (
+                        f"Layers: {99 if run_cfg != 'cpu' else 0}"
                     )
-                    benchmark_data[cfg]["rerank"]["env"] = {
-                        "LRR_DEVICE": "ROCm0"
-                        if cfg == "hip"
-                        else ("Vulkan0" if cfg == "vulkan" else ""),
-                        "LR_N_GPU_LAYERS": "99" if cfg != "cpu" else "0",
+                    benchmark_data[cache_key]["rerank"]["env"] = {
+                        "LRR_DEVICE": dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "")
+                        ),
+                        "LR_N_GPU_LAYERS": "99" if run_cfg != "cpu" else "0",
                     }
+                    lrr_device = (
+                        dev
+                        if dev
+                        else (
+                            "ROCm0"
+                            if run_cfg == "hip"
+                            else ("Vulkan0" if run_cfg == "vulkan" else "")
+                        )
+                    )
+                    dev_details = available_devices.get(lrr_device, {})
+                    if not dev_details:
+                        dev_details = {
+                            "device_id": lrr_device,
+                            "name": "AMD Radeon Pro W6800"
+                            if "0" in lrr_device
+                            else "AMD Radeon Graphics",
+                            "total_mem_mib": 30704.0 if "0" in lrr_device else 56261.0,
+                            "free_mem_mib": 30668.0 if "0" in lrr_device else 92380.0,
+                        }
+                    benchmark_data[cache_key]["rerank"]["device_details"] = dev_details
 
                 if not args.mock:
                     stop_service(
@@ -1308,25 +1836,49 @@ def main() -> None:
         # ---------------------------------------------------------
         if "stt" in target_services:
             srv = SERVICES["stt"]
-            if cfg == "special":
+            if run_cfg == "special":
                 print("Skipping STT for Special configuration.")
             else:
                 print(f"Preparing environment file: {srv['env_file']}")
                 proc = None
                 master_fd = None
                 baseline_vram = 0.0
+
+                # Determine the target device
+                stt_device = (
+                    dev
+                    if dev
+                    else (
+                        "Vulkan0"
+                        if run_cfg == "vulkan"
+                        else ("ROCm0" if run_cfg == "hip" else "")
+                    )
+                )
+
                 if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
+                    baseline_vram = get_gpu_memory_mb(stt_device)
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
                         check=True,
                     )
 
-                    lstt_device = "0" if cfg in ("vulkan", "hip") else ""
+                    # Extract numeric index if dev is e.g. "ROCm1" -> "1"
+                    if run_cfg in ("vulkan", "hip") and dev:
+                        idx_match = re.search(r"\d+", dev)
+                        lstt_device = idx_match.group(0) if idx_match else "0"
+                    else:
+                        lstt_device = ""
+
                     updates = {
                         "LSTT_DEVICE": lstt_device,
-                        "LSTT_NO_GPU": "true" if cfg == "cpu" else "false",
+                        "LSTT_NO_GPU": "true" if run_cfg == "cpu" else "false",
                     }
+                    if run_cfg == "vulkan":
+                        updates["HIP_VISIBLE_DEVICES"] = ""
+                        updates["CUDA_VISIBLE_DEVICES"] = ""
+                    else:
+                        updates["HIP_VISIBLE_DEVICES"] = "all"
+                        updates["CUDA_VISIBLE_DEVICES"] = "all"
                     update_env_file(srv["env_file"], updates)
 
                     proc, master_fd = start_service(srv["script"])
@@ -1350,52 +1902,85 @@ def main() -> None:
                 if not args.mock:
                     start_time = time.time()
                     stdout, success = run_benchmark(
-                        srv["script"], ["--benchmark", "--repeat", "1"]
+                        srv["script"],
+                        ["--benchmark", "--repeat", "1"],
+                        server_proc=proc,
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for STT on config '{cfg}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for STT on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
                         )
                     else:
                         elapsed_time = time.time() - start_time
-                        benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
-                        benchmark_data[cfg]["stt"]["bench_time_s"] = elapsed_time
-                        post_run_vram = get_gpu_memory_mb()
+                        benchmark_data[cache_key]["stt"] = parse_stt_output(stdout)
+                        benchmark_data[cache_key]["stt"]["bench_time_s"] = elapsed_time
+                        post_run_vram = get_gpu_memory_mb(stt_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
-                        benchmark_data[cfg]["stt"]["gpu_mem_mb"] = gpu_mem_mb
-                        benchmark_data[cfg]["stt"]["cpu_mem_mb"] = cpu_mem_mb
-                        benchmark_data[cfg]["stt"]["test_name"] = f"stt_{cfg}"
-                        benchmark_data[cfg]["stt"]["device_setting"] = (
+                        benchmark_data[cache_key]["stt"]["gpu_mem_mb"] = gpu_mem_mb
+                        benchmark_data[cache_key]["stt"]["cpu_mem_mb"] = cpu_mem_mb
+                        benchmark_data[cache_key]["stt"]["test_name"] = (
+                            f"stt_{cache_key}"
+                        )
+                        benchmark_data[cache_key]["stt"]["device_setting"] = (
                             lstt_device if lstt_device else "Default"
                         )
-                        benchmark_data[cfg]["stt"]["special_setting"] = (
-                            "No GPU" if cfg == "cpu" else "Use GPU"
+                        benchmark_data[cache_key]["stt"]["special_setting"] = (
+                            "No GPU" if run_cfg == "cpu" else "Use GPU"
                         )
-                        benchmark_data[cfg]["stt"]["env"] = read_env_file(
+                        benchmark_data[cache_key]["stt"]["env"] = read_env_file(
                             srv["env_file"]
                         )
+                        if dev and dev in available_devices:
+                            benchmark_data[cache_key]["stt"]["device_details"] = (
+                                available_devices[dev]
+                            )
                 else:
-                    stdout = get_mock_output("stt", cfg)
-                    benchmark_data[cfg]["stt"] = parse_stt_output(stdout)
-                    benchmark_data[cfg]["stt"]["gpu_mem_mb"] = get_mock_gpu_mem(
-                        "stt", cfg
+                    stdout = get_mock_output("stt", run_cfg)
+                    benchmark_data[cache_key]["stt"] = parse_stt_output(stdout)
+                    benchmark_data[cache_key]["stt"]["gpu_mem_mb"] = get_mock_gpu_mem(
+                        "stt", run_cfg
                     )
-                    benchmark_data[cfg]["stt"]["cpu_mem_mb"] = get_mock_cpu_mem(
-                        "stt", cfg
+                    benchmark_data[cache_key]["stt"]["cpu_mem_mb"] = get_mock_cpu_mem(
+                        "stt", run_cfg
                     )
-                    benchmark_data[cfg]["stt"]["bench_time_s"] = 5.3
-                    benchmark_data[cfg]["stt"]["test_name"] = f"stt_{cfg}"
-                    benchmark_data[cfg]["stt"]["device_setting"] = (
-                        "0" if cfg != "cpu" else "Default"
+                    benchmark_data[cache_key]["stt"]["bench_time_s"] = 5.3
+                    benchmark_data[cache_key]["stt"]["test_name"] = f"stt_{cache_key}"
+
+                    mock_lstt_dev = "0"
+                    if run_cfg in ("vulkan", "hip") and dev:
+                        m_idx = re.search(r"\d+", dev)
+                        if m_idx:
+                            mock_lstt_dev = m_idx.group(0)
+                    else:
+                        mock_lstt_dev = "Default" if run_cfg == "cpu" else "0"
+
+                    benchmark_data[cache_key]["stt"]["device_setting"] = (
+                        "0"
+                        if run_cfg != "cpu" and mock_lstt_dev != "Default"
+                        else mock_lstt_dev
                     )
-                    benchmark_data[cfg]["stt"]["special_setting"] = (
-                        "No GPU" if cfg == "cpu" else "Use GPU"
+                    benchmark_data[cache_key]["stt"]["special_setting"] = (
+                        "No GPU" if run_cfg == "cpu" else "Use GPU"
                     )
-                    benchmark_data[cfg]["stt"]["env"] = {
-                        "LSTT_DEVICE": "0" if cfg != "cpu" else "",
-                        "LSTT_NO_GPU": "false" if cfg != "cpu" else "true",
+                    benchmark_data[cache_key]["stt"]["env"] = {
+                        "LSTT_DEVICE": mock_lstt_dev
+                        if run_cfg != "cpu" and mock_lstt_dev != "Default"
+                        else "",
+                        "LSTT_NO_GPU": "false" if run_cfg != "cpu" else "true",
                     }
+                    if dev:
+                        dev_details = available_devices.get(dev, {})
+                        if not dev_details:
+                            dev_details = {
+                                "device_id": dev,
+                                "name": "AMD Radeon Pro W6800"
+                                if "0" in dev
+                                else "AMD Radeon Graphics",
+                                "total_mem_mib": 30704.0 if "0" in dev else 56261.0,
+                                "free_mem_mib": 30668.0 if "0" in dev else 92380.0,
+                            }
+                        benchmark_data[cache_key]["stt"]["device_details"] = dev_details
 
                 if not args.mock:
                     stop_service(
@@ -1413,15 +1998,19 @@ def main() -> None:
             srv = SERVICES["tts"]
 
             # Determine which TTS modes to test for this configuration
-            if cfg == "special":
+            if run_cfg == "special":
+                # Use first HIP device if available, otherwise "hip"
+                first_hip_device = "hip"
+                if hip_devices_resolved:
+                    first_hip_device = hip_devices_resolved[0]
                 tts_modes_to_test = [
-                    ("special-hybrid", "hybrid", "hip"),
-                    ("special-gpu-low-mem", "gpu-min-vram", "hip"),
+                    ("special-hybrid", "hybrid", first_hip_device),
+                    ("special-gpu-low-mem", "gpu-min-vram", first_hip_device),
                 ]
             else:
-                ltts_mode = "cpu-only" if cfg == "cpu" else "gpu"
-                ltts_device = "cpu" if cfg == "cpu" else cfg
-                tts_modes_to_test = [(cfg, ltts_mode, ltts_device)]
+                ltts_mode = "cpu-only" if run_cfg == "cpu" else "gpu"
+                ltts_device = "cpu" if run_cfg == "cpu" else (dev if dev else run_cfg)
+                tts_modes_to_test = [(cache_key, ltts_mode, ltts_device)]
 
             for data_key, ltts_mode, ltts_device in tts_modes_to_test:
                 print(
@@ -1432,7 +2021,7 @@ def main() -> None:
                 master_fd = None
                 baseline_vram = 0.0
                 if not args.mock:
-                    baseline_vram = get_gpu_memory_mb()
+                    baseline_vram = get_gpu_memory_mb(ltts_device)
                     subprocess.run(
                         [srv["script"], "install", "--no-start", "--new-config"],
                         check=True,
@@ -1460,6 +2049,12 @@ def main() -> None:
                         "LTTS_MODE": ltts_mode,
                         "LTTS_DEVICE": actual_device,
                     }
+                    if run_cfg == "vulkan":
+                        updates["HIP_VISIBLE_DEVICES"] = ""
+                        updates["CUDA_VISIBLE_DEVICES"] = ""
+                    else:
+                        updates["HIP_VISIBLE_DEVICES"] = "all"
+                        updates["CUDA_VISIBLE_DEVICES"] = "all"
                     update_env_file(srv["env_file"], updates)
 
                     proc, master_fd = start_service(srv["script"])
@@ -1487,7 +2082,9 @@ def main() -> None:
                 if not args.mock:
                     start_time = time.time()
                     stdout, success = run_benchmark(
-                        srv["script"], ["--benchmark", "--repeat", "1"]
+                        srv["script"],
+                        ["--benchmark", "--repeat", "1"],
+                        server_proc=proc,
                     )
                     if not success:
                         print(
@@ -1497,7 +2094,7 @@ def main() -> None:
                         elapsed_time = time.time() - start_time
                         benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
                         benchmark_data[data_key]["tts"]["bench_time_s"] = elapsed_time
-                        post_run_vram = get_gpu_memory_mb()
+                        post_run_vram = get_gpu_memory_mb(ltts_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
                         benchmark_data[data_key]["tts"]["gpu_mem_mb"] = gpu_mem_mb
@@ -1512,6 +2109,10 @@ def main() -> None:
                         benchmark_data[data_key]["tts"]["env"] = read_env_file(
                             srv["env_file"]
                         )
+                        if ltts_device in available_devices:
+                            benchmark_data[data_key]["tts"]["device_details"] = (
+                                available_devices[ltts_device]
+                            )
                 else:
                     stdout = get_mock_output("tts", data_key)
                     benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
@@ -1533,6 +2134,18 @@ def main() -> None:
                         "LTTS_MODE": ltts_mode,
                         "LTTS_DEVICE": ltts_device,
                     }
+                    dev_details = available_devices.get(ltts_device, {})
+                    if not dev_details and ltts_device != "cpu":
+                        dev_details = {
+                            "device_id": ltts_device,
+                            "name": "AMD Radeon Pro W6800"
+                            if "0" in ltts_device
+                            else "AMD Radeon Graphics",
+                            "total_mem_mib": 30704.0 if "0" in ltts_device else 56261.0,
+                            "free_mem_mib": 30668.0 if "0" in ltts_device else 92380.0,
+                        }
+                    if dev_details:
+                        benchmark_data[data_key]["tts"]["device_details"] = dev_details
 
                 if not args.mock:
                     stop_service(
