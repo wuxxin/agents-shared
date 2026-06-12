@@ -29,7 +29,29 @@ This architecture enables high-performance local document embeddings using state
 
 # Run API validation tests
 ./local-embedding.sh test
+
+# Run llama-server as a transient systemd user service
+./local-embedding.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
+
+# Run a custom command inside the sandboxed environment
+./local-embedding.sh run [--env KEY=VALUE]* <command> [args...]
+
+# Spawn an interactive shell inside the sandboxed environment
+./local-embedding.sh shell [--env KEY=VALUE]*
 ```
+
+### In-Memory Environment Overrides
+
+The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE` parameter. When passed, these parameters:
+1. Override the values loaded from the `.env` configuration file on disk.
+2. Are exported in the local shell environment in-memory for foreground execution.
+3. Are dynamically passed to `systemd-run` via `--setenv=KEY=VALUE` for transient background runs in systemd.
+
+These overrides are **never written to disk**, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
+```bash
+./local-embedding.sh exec --env EMBED_N_GPU_LAYERS=0
+```
+
 
 ## Default Embedding Model
 

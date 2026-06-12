@@ -23,28 +23,28 @@ It automates target environment setups, captures VRAM/RAM resource utilization, 
 
 ## Benchmark Execution Workflow
 
-The script executes the following sequence for each selected configuration and service combination:
+The script executes the following sequence:
 
 ```mermaid
 graph TD
-    A[Start Config & Service Loop] --> B[Install Default Service Config]
-    B --> C[Configure Environment Variables in .env]
-    C --> D[Measure Baseline VRAM]
-    D --> E[Start Service via PTY in background]
-    E --> F[Wait for Port Readiness]
-    F --> G[Warmup Model with Dummy Query]
-    G --> H[Run Benchmark Command]
-    H --> I[Measure Peak VRAM & CPU RSS]
-    I --> J[Stop Service & Free Port]
-    J --> K[Parse Performance & Resource Metrics]
-    K --> L[Update JSON Cache and MD Report]
+    A[Check Service Env Files Exist & Not Empty] -->|Missing/Empty| B[Fail and Exit with Install Command Details]
+    A -->|Valid| C[Start Config & Service Loop]
+    C --> D[Determine Environment Overrides]
+    D --> E[Measure Baseline VRAM]
+    E --> F[Start Service via PTY with --env Overrides in background]
+    F --> G[Wait for Port Readiness]
+    G --> H[Warmup Model with Dummy Query]
+    H --> I[Run Benchmark Command]
+    I --> J[Measure Peak VRAM & CPU RSS]
+    J --> K[Stop Service & Free Port]
+    K --> L[Parse Performance & Resource Metrics]
+    L --> M[Update JSON Cache and MD Report]
 ```
 
-### 1. Environment Configuration
-The script dynamically overrides `.env` files located in `~/.config/systemd/user/` (e.g. `local-embedding.env`). It configures:
-- Service ports (e.g., chat: `50080`, embedding: `50082`, rerank: `50086`, stt: `50090`, tts: `50095`).
-- Target backend devices (e.g., `ROCm0`, `Vulkan0`, `BLAS`).
-- Model layer allocations (`EMBED_N_GPU_LAYERS`, `LLM_N_GPU_LAYERS`, etc.).
+### 1. Startup Validation & Environment Overrides
+At startup, the script validates that the `.env` configuration files located in `~/.config/systemd/user/` (e.g., `local-embedding.env`) for all target services exist and contain active, non-comment configuration lines. If any are missing or empty, it exits immediately with an error message instructing the user to run the service's installer command (e.g., `./assistants/local-embedding.sh install --no-start --new-config`).
+
+During benchmark execution, the script **does not write configuration changes to disk**. Instead, it dynamically injects target configurations (such as service ports, backend devices, layers, and context sizes) using the repeatable `--env` argument when calling the service's `exec` action (e.g., `local-embedding.sh exec --env KEY=VALUE`).
 
 ### 2. VRAM Baseline Isolation
 Before the service process is spawned, `get_gpu_memory_mb()` is called to query the baseline VRAM allocation. This prevents the model loading footprint itself from polluting the baseline, allowing accurate calculation of model-specific VRAM footprint via `post_run_vram - baseline_vram`.

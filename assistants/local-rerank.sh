@@ -25,14 +25,14 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # ---------------------------------------------------------------------------
 load_env() {
     # Default parameters
-    LR_PORT=50086
-    LR_HOST=127.0.0.1
-    LR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
-    LR_ALIAS=qwen3-reranker
-    LR_N_CTX=8192
-    LR_N_GPU_LAYERS=99
-    LR_THREADS=8
-    LR_EXTRA_ARGS=""
+    LRR_PORT=50086
+    LRR_HOST=127.0.0.1
+    LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+    LRR_ALIAS=qwen3-reranker
+    LRR_N_CTX=8192
+    LRR_N_GPU_LAYERS=99
+    LRR_THREADS=8
+    LRR_EXTRA_ARGS=""
     LRR_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
@@ -46,6 +46,39 @@ load_env() {
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
         export HIP_VISIBLE_DEVICES
     fi
+}
+
+# Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
+parse_env_args() {
+    COMMAND_ARGS=()
+    SETENV_OPTS=()
+    local env_updates=()
+
+    while [ $# -gt 0 ]; do
+        if [[ "$1" == "--env" ]]; then
+            if [ $# -lt 2 ]; then
+                echo "Error: --env requires a value (KEY=VALUE)" >&2
+                exit 1
+            fi
+            env_updates+=("$2")
+            shift 2
+        else
+            COMMAND_ARGS+=("$1")
+            shift
+        fi
+    done
+
+    load_env
+
+    for update in "${env_updates[@]}"; do
+        local key="${update%%=*}"
+        local val="${update#*=}"
+        export "${key}"="${val}"
+        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^EMBED_ || "$key" =~ ^LLM_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
+            printf -v "$key" "%s" "$val"
+        fi
+        SETENV_OPTS+=("--setenv=${key}=${val}")
+    done
 }
 
 is_systemd_running() {
@@ -115,24 +148,24 @@ generate_service_file() {
     load_env
 
     local exec_cmd="llama-server \\
-    --model ${LR_MODEL} \\
+    --model ${LRR_MODEL} \\
     --embedding \\
     --pooling rank \\
-    --ctx-size ${LR_N_CTX} \\
-    --alias ${LR_ALIAS} \\
-    --threads ${LR_THREADS} \\
-    --n-gpu-layers ${LR_N_GPU_LAYERS} \\
-    --host ${LR_HOST} \\
-    --port ${LR_PORT}"
+    --ctx-size ${LRR_N_CTX} \\
+    --alias ${LRR_ALIAS} \\
+    --threads ${LRR_THREADS} \\
+    --n-gpu-layers ${LRR_N_GPU_LAYERS} \\
+    --host ${LRR_HOST} \\
+    --port ${LRR_PORT}"
 
     if [[ -n "${LRR_DEVICE:-}" ]]; then
         exec_cmd="${exec_cmd} \\
     --device ${LRR_DEVICE}"
     fi
 
-    if [[ -n "${LR_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LRR_EXTRA_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    ${LR_EXTRA_ARGS}"
+    ${LRR_EXTRA_ARGS}"
     fi
 
     cat <<EOF
@@ -172,24 +205,24 @@ generate_env_file() {
 # ---------------------------------------------------------------------------
 
 # Port to bind the server to (default: 50086)
-LR_PORT=50086
+LRR_PORT=50086
 
 # Host to bind the server to (127.0.0.1 for local access only)
-LR_HOST=127.0.0.1
+LRR_HOST=127.0.0.1
 
 # Path to the text reranker model file
-LR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
 
 # Model alias used by client integrations (default: qwen3-reranker)
-LR_ALIAS=qwen3-reranker
+LRR_ALIAS=qwen3-reranker
 
 # Context size (default: 8192)
-LR_N_CTX=8192
+LRR_N_CTX=8192
 
 # Number of layers to offload to GPU (all=99)
-# LR_N_GPU_LAYERS=99
+# LRR_N_GPU_LAYERS=99
 # To run inference on CPU instead of GPU (none=0)
-LR_N_GPU_LAYERS=0
+LRR_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
@@ -199,10 +232,10 @@ LR_N_GPU_LAYERS=0
 # LRR_DEVICE="BLAS"
 
 # Number of threads to use
-LR_THREADS=8
+LRR_THREADS=8
 
 # Use Flash Attention if on gpu and available
-LR_EXTRA_ARGS="--flash-attn auto"
+LRR_EXTRA_ARGS="--flash-attn auto"
 
 EOF
 }
@@ -327,26 +360,27 @@ cmd_edit() {
 }
 
 cmd_exec() {
-    load_env
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
 
     local args=(
-        --model "${LR_MODEL}"
+        --model "${LRR_MODEL}"
         --embedding
         --pooling rank
-        --ctx-size "${LR_N_CTX}"
-        --alias "${LR_ALIAS}"
-        --threads "${LR_THREADS}"
-        --n-gpu-layers "${LR_N_GPU_LAYERS}"
-        --host "${LR_HOST}"
-        --port "${LR_PORT}"
+        --ctx-size "${LRR_N_CTX}"
+        --alias "${LRR_ALIAS}"
+        --threads "${LRR_THREADS}"
+        --n-gpu-layers "${LRR_N_GPU_LAYERS}"
+        --host "${LRR_HOST}"
+        --port "${LRR_PORT}"
     )
     if [[ -n "${LRR_DEVICE:-}" ]]; then
         args+=(--device "${LRR_DEVICE}")
     fi
-    if [[ -n "${LR_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LRR_EXTRA_ARGS:-}" ]]; then
         # We want word splitting for extra args
         # shellcheck disable=SC2206
-        args+=(${LR_EXTRA_ARGS})
+        args+=(${LRR_EXTRA_ARGS})
     fi
 
     if ! is_systemd_running; then
@@ -377,16 +411,17 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" llama-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "$@"
     else
-        systemd-run "${opts[@]}" llama-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "${args[@]}"
     fi
 }
 
 cmd_shell() {
     echo "Starting interactive shell in the llama-server systemd environment..."
 
-    load_env
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
 
     local opts=(
         --user
@@ -403,18 +438,19 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_run() {
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
+
     if [ $# -lt 1 ]; then
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
     echo "Running command inside the llama-server environment: $*"
 
-    load_env
-
     local opts=(
         --user
         --pty
@@ -430,16 +466,16 @@ cmd_run() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
 }
 
 cmd_test() {
     echo "Running local-rerank validation tests..."
     load_env
 
-    local host="${LR_HOST:-127.0.0.1}"
-    local port="${LR_PORT:-50086}"
-    local alias="${LR_ALIAS:-qwen3-reranker}"
+    local host="${LRR_HOST:-127.0.0.1}"
+    local port="${LRR_PORT:-50086}"
+    local alias="${LRR_ALIAS:-qwen3-reranker}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
@@ -462,7 +498,7 @@ cmd_test() {
         # Try relative path in repo first
         context_file="$(dirname "$0")/../scratch/test-models/benchmark-context.md"
         if [[ ! -f "$context_file" ]]; then
-            context_file="$(dirname "$(dirname "$LR_MODEL")")/benchmark-context.md"
+            context_file="$(dirname "$(dirname "$LRR_MODEL")")/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
             context_file="/data/public/machine-learning/models/benchmark-context.md"

@@ -13,7 +13,7 @@ import re
 import socket
 import subprocess
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 # ---------------------------------------------------------------------------
 # Configuration & Constants
@@ -95,6 +95,42 @@ def update_env_file(env_file_path: str, updates: Dict[str, Any]) -> None:
     # Write the modified content back to the file
     with open(env_file_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
+
+
+def get_visible_devices_env(
+    run_cfg: str, device: str, hip_devices_resolved: List[str]
+) -> Tuple[str, str]:
+    """Determine the appropriate HIP_VISIBLE_DEVICES and CUDA_VISIBLE_DEVICES values.
+
+    Returns a tuple of (hip_visible, cuda_visible) values.
+    """
+    if run_cfg in ("vulkan", "cpu"):
+        return "", ""
+
+    is_hip = run_cfg == "hip"
+    is_special_hip = (
+        run_cfg == "special"
+        and device
+        and ("rocm" in device.lower() or "hip" in device.lower())
+    )
+
+    if is_hip or is_special_hip:
+        if device and ("rocm" in device.lower() or "hip" in device.lower()):
+            idx_match = re.search(r"\d+", device)
+            idx = idx_match.group(0) if idx_match else "0"
+            return idx, idx
+        else:
+            indices = []
+            for d in hip_devices_resolved:
+                idx_match = re.search(r"\d+", d)
+                if idx_match:
+                    indices.append(idx_match.group(0))
+            if indices:
+                val = ",".join(indices)
+                return val, val
+            return "0", "0"
+
+    return "", ""
 
 
 def read_env_file(env_file_path: str) -> Dict[str, str]:
@@ -435,13 +471,18 @@ def stop_service(
         )
 
 
-def start_service(script_path: str) -> Tuple[subprocess.Popen, int]:
+def start_service(
+    script_path: str, env_args: Optional[List[str]] = None
+) -> Tuple[subprocess.Popen, int]:
     """Start the service transiently using the script's exec action in a pseudo-terminal (PTY)."""
     import pty
 
     master_fd, slave_fd = pty.openpty()
+    cmd = [script_path, "exec"]
+    if env_args:
+        cmd.extend(env_args)
     proc = subprocess.Popen(
-        [script_path, "exec"],
+        cmd,
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
@@ -809,7 +850,7 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
             if isinstance(env, dict):
                 if mode == "tts" and "LTTS_MODE" in env:
                     return f"mode: {env['LTTS_MODE']}"
-                for k in ["LLM_N_GPU_LAYERS", "EMBED_N_GPU_LAYERS", "LR_N_GPU_LAYERS"]:
+                for k in ["LLM_N_GPU_LAYERS", "EMBED_N_GPU_LAYERS", "LRR_N_GPU_LAYERS"]:
                     if k in env:
                         return f"Layers: {env[k]}"
                 if "LSTT_NO_GPU" in env:
@@ -1167,6 +1208,38 @@ def main() -> None:
     target_configs = [c.strip().lower() for c in args.configs.split(",")]
     target_services = [s.strip().lower() for s in args.only_services.split(",")]
 
+    if not args.mock:
+        import sys
+
+        missing_envs = []
+        for sname in target_services:
+            if sname in SERVICES:
+                srv = SERVICES[sname]
+                env_file = srv["env_file"]
+                if not os.path.exists(env_file) or os.path.getsize(env_file) == 0:
+                    missing_envs.append((sname, env_file, srv["script"]))
+                else:
+                    with open(env_file, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                    non_comments = [
+                        line
+                        for line in content.splitlines()
+                        if line.strip() and not line.strip().startswith("#")
+                    ]
+                    if not non_comments:
+                        missing_envs.append((sname, env_file, srv["script"]))
+        if missing_envs:
+            print("❌ Error: Missing or empty environment configuration files:")
+            for sname, env_file, script in missing_envs:
+                print(
+                    f"  - {sname}: {env_file} is missing or has no active configurations."
+                )
+                script_name = os.path.basename(script)
+                print(
+                    f"    Please install it first: `./assistants/{script_name} install --no-start --new-config`"
+                )
+            sys.exit(1)
+
     available_devices = get_available_devices(args.mock)
 
     # Resolve "all" for hip-devices
@@ -1270,11 +1343,6 @@ def main() -> None:
 
                 if not args.mock:
                     baseline_vram = get_gpu_memory_mb(llm_device)
-                    # Install service default config
-                    subprocess.run(
-                        [srv["script"], "install", "--no-start", "--new-config"],
-                        check=True,
-                    )
 
                     updates = {
                         "LLM_DEVICE": llm_device,
@@ -1282,16 +1350,19 @@ def main() -> None:
                         "LLM_N_CTX": llm_n_ctx,
                         "LLM_SERVE_EMBEDDINGS": "false",
                     }
-                    if run_cfg == "vulkan":
-                        updates["HIP_VISIBLE_DEVICES"] = ""
-                        updates["CUDA_VISIBLE_DEVICES"] = ""
-                    else:
-                        updates["HIP_VISIBLE_DEVICES"] = "all"
-                        updates["CUDA_VISIBLE_DEVICES"] = "all"
-                    update_env_file(srv["env_file"], updates)
+                    hip_vis, cuda_vis = get_visible_devices_env(
+                        run_cfg, llm_device, hip_devices_resolved
+                    )
+                    updates["HIP_VISIBLE_DEVICES"] = hip_vis
+                    updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
+
+                    # Build environment arguments
+                    env_args = []
+                    for k, v in updates.items():
+                        env_args.extend(["--env", f"{k}={v}"])
 
                     # Start service
-                    proc, master_fd = start_service(srv["script"])
+                    proc, master_fd = start_service(srv["script"], env_args)
 
                     # Wait for server readiness
                     print(f"Waiting for llama-server on port {srv['port']}...")
@@ -1368,8 +1439,10 @@ def main() -> None:
                         layers = 999 if run_cfg != "cpu" else 0
                         special_setting = f"Layers: {layers}"
                         if fraction < 1.0:
-                            special_setting += f" (Context: {fraction*100:.0f}%)"
-                        benchmark_data[cache_key]["llm-chat"]["special_setting"] = special_setting
+                            special_setting += f" (Context: {fraction * 100:.0f}%)"
+                        benchmark_data[cache_key]["llm-chat"]["special_setting"] = (
+                            special_setting
+                        )
                         benchmark_data[cache_key]["llm-chat"]["env"] = read_env_file(
                             srv["env_file"]
                         )
@@ -1402,8 +1475,10 @@ def main() -> None:
                     layers = 999 if run_cfg != "cpu" else 0
                     special_setting = f"Layers: {layers}"
                     if fraction < 1.0:
-                        special_setting += f" (Context: {fraction*100:.0f}%)"
-                    benchmark_data[cache_key]["llm-chat"]["special_setting"] = special_setting
+                        special_setting += f" (Context: {fraction * 100:.0f}%)"
+                    benchmark_data[cache_key]["llm-chat"]["special_setting"] = (
+                        special_setting
+                    )
                     benchmark_data[cache_key]["llm-chat"]["env"] = {
                         "LLM_DEVICE": dev
                         if dev
@@ -1472,32 +1547,30 @@ def main() -> None:
 
                 if not args.mock:
                     baseline_vram = get_gpu_memory_mb(embed_device)
-                    # Install service default config
-                    subprocess.run(
-                        [srv["script"], "install", "--no-start", "--new-config"],
-                        check=True,
-                    )
 
                     updates = {
                         "EMBED_DEVICE": embed_device,
                         "EMBED_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
                     }
-                    if run_cfg == "vulkan":
-                        updates["HIP_VISIBLE_DEVICES"] = ""
-                        updates["CUDA_VISIBLE_DEVICES"] = ""
-                    else:
-                        updates["HIP_VISIBLE_DEVICES"] = "all"
-                        updates["CUDA_VISIBLE_DEVICES"] = "all"
+                    hip_vis, cuda_vis = get_visible_devices_env(
+                        run_cfg, embed_device, hip_devices_resolved
+                    )
+                    updates["HIP_VISIBLE_DEVICES"] = hip_vis
+                    updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
 
                     if dev and "1" in dev:
                         # Limit context size to 4096 on integrated GPUs to prevent out-of-memory buffer errors
                         updates["EMBED_N_CTX"] = 4096
                     else:
                         updates["EMBED_N_CTX"] = 8192
-                    update_env_file(srv["env_file"], updates)
+
+                    # Build environment arguments
+                    env_args = []
+                    for k, v in updates.items():
+                        env_args.extend(["--env", f"{k}={v}"])
 
                     # Start service
-                    proc, master_fd = start_service(srv["script"])
+                    proc, master_fd = start_service(srv["script"], env_args)
 
                     # Wait for server readiness
                     print(f"Waiting for llama-server on port {srv['port']}...")
@@ -1678,23 +1751,22 @@ def main() -> None:
 
                 if not args.mock:
                     baseline_vram = get_gpu_memory_mb(lrr_device)
-                    subprocess.run(
-                        [srv["script"], "install", "--no-start", "--new-config"],
-                        check=True,
-                    )
                     updates = {
                         "LRR_DEVICE": lrr_device,
-                        "LR_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 99,
+                        "LRR_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 99,
                     }
-                    if run_cfg == "vulkan":
-                        updates["HIP_VISIBLE_DEVICES"] = ""
-                        updates["CUDA_VISIBLE_DEVICES"] = ""
-                    else:
-                        updates["HIP_VISIBLE_DEVICES"] = "all"
-                        updates["CUDA_VISIBLE_DEVICES"] = "all"
-                    update_env_file(srv["env_file"], updates)
+                    hip_vis, cuda_vis = get_visible_devices_env(
+                        run_cfg, lrr_device, hip_devices_resolved
+                    )
+                    updates["HIP_VISIBLE_DEVICES"] = hip_vis
+                    updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
 
-                    proc, master_fd = start_service(srv["script"])
+                    # Build environment arguments
+                    env_args = []
+                    for k, v in updates.items():
+                        env_args.extend(["--env", f"{k}={v}"])
+
+                    proc, master_fd = start_service(srv["script"], env_args)
                     print(f"Waiting for reranker on port {srv['port']}...")
                     if not wait_for_port(srv["port"]):
                         print(f"Error: reranker failed to start on port {srv['port']}.")
@@ -1857,10 +1929,6 @@ def main() -> None:
 
                 if not args.mock:
                     baseline_vram = get_gpu_memory_mb(stt_device)
-                    subprocess.run(
-                        [srv["script"], "install", "--no-start", "--new-config"],
-                        check=True,
-                    )
 
                     # Extract numeric index if dev is e.g. "ROCm1" -> "1"
                     if run_cfg in ("vulkan", "hip") and dev:
@@ -1873,15 +1941,18 @@ def main() -> None:
                         "LSTT_DEVICE": lstt_device,
                         "LSTT_NO_GPU": "true" if run_cfg == "cpu" else "false",
                     }
-                    if run_cfg == "vulkan":
-                        updates["HIP_VISIBLE_DEVICES"] = ""
-                        updates["CUDA_VISIBLE_DEVICES"] = ""
-                    else:
-                        updates["HIP_VISIBLE_DEVICES"] = "all"
-                        updates["CUDA_VISIBLE_DEVICES"] = "all"
-                    update_env_file(srv["env_file"], updates)
+                    hip_vis, cuda_vis = get_visible_devices_env(
+                        run_cfg, stt_device, hip_devices_resolved
+                    )
+                    updates["HIP_VISIBLE_DEVICES"] = hip_vis
+                    updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
 
-                    proc, master_fd = start_service(srv["script"])
+                    # Build environment arguments
+                    env_args = []
+                    for k, v in updates.items():
+                        env_args.extend(["--env", f"{k}={v}"])
+
+                    proc, master_fd = start_service(srv["script"], env_args)
                     print(f"Waiting for whisper-server on port {srv['port']}...")
                     if not wait_for_port(srv["port"]):
                         print(
@@ -2022,10 +2093,6 @@ def main() -> None:
                 baseline_vram = 0.0
                 if not args.mock:
                     baseline_vram = get_gpu_memory_mb(ltts_device)
-                    subprocess.run(
-                        [srv["script"], "install", "--no-start", "--new-config"],
-                        check=True,
-                    )
 
                     # Self-healing check: check if qwen3-tts-server supports --device
                     actual_device = ltts_device
@@ -2049,15 +2116,18 @@ def main() -> None:
                         "LTTS_MODE": ltts_mode,
                         "LTTS_DEVICE": actual_device,
                     }
-                    if run_cfg == "vulkan":
-                        updates["HIP_VISIBLE_DEVICES"] = ""
-                        updates["CUDA_VISIBLE_DEVICES"] = ""
-                    else:
-                        updates["HIP_VISIBLE_DEVICES"] = "all"
-                        updates["CUDA_VISIBLE_DEVICES"] = "all"
-                    update_env_file(srv["env_file"], updates)
+                    hip_vis, cuda_vis = get_visible_devices_env(
+                        run_cfg, actual_device, hip_devices_resolved
+                    )
+                    updates["HIP_VISIBLE_DEVICES"] = hip_vis
+                    updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
 
-                    proc, master_fd = start_service(srv["script"])
+                    # Build environment arguments
+                    env_args = []
+                    for k, v in updates.items():
+                        env_args.extend(["--env", f"{k}={v}"])
+
+                    proc, master_fd = start_service(srv["script"], env_args)
                     print(f"Waiting for qwen3-tts-server on port {srv['port']}...")
                     if not wait_for_port(srv["port"]):
                         print(

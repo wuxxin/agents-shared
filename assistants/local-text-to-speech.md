@@ -14,9 +14,22 @@
 | `uninstall` | Stops and removes the service. |
 | `edit` | Edit model selection and server parameters. |
 | `logs [args...]` | View the synthesis server output. Pass `-f` to tail/follow. Supports any `journalctl` options. |
-| `exec` | Run `qwen3-tts-server` in a transient unit with the same GPU access. |
-| `shell` | Spawn an interactive shell in the speech sandbox (useful for manual testing). |
+| `exec [--env KEY=VAL]*` | Run `qwen3-tts-server` as a transient systemd user service with identical GPU sandbox settings. |
+| `run [--env KEY=VAL]* <cmd>` | Run a custom command inside the text-to-speech sandbox environment. |
+| `shell [--env KEY=VAL]*` | Spawn an interactive shell in the speech sandbox (useful for manual testing). |
 | `test` | Run API validation tests (synthesizes speech and transcribes it back). |
+
+### In-Memory Environment Overrides
+
+The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE` parameter. When passed, these parameters:
+1. Override the values loaded from the `.env` configuration file on disk.
+2. Are exported in the local shell environment in-memory for foreground execution.
+3. Are dynamically passed to `systemd-run` via `--setenv=KEY=VALUE` for transient background runs in systemd.
+
+These overrides are **never written to disk**, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
+```bash
+./local-text-to-speech.sh exec --env LTTS_MODE=cpu-only
+```
 
 ## Architecture
 

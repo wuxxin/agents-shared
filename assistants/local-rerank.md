@@ -29,14 +29,36 @@ This architecture enables high-performance local document reranking, which is cr
 
 # Run API validation tests
 ./local-rerank.sh test
+
+# Run llama-server as a transient systemd user service
+./local-rerank.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
+
+# Run a custom command inside the sandboxed environment
+./local-rerank.sh run [--env KEY=VALUE]* <command> [args...]
+
+# Spawn an interactive shell inside the sandboxed environment
+./local-rerank.sh shell [--env KEY=VALUE]*
 ```
+
+### In-Memory Environment Overrides
+
+The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE` parameter. When passed, these parameters:
+1. Override the values loaded from the `.env` configuration file on disk.
+2. Are exported in the local shell environment in-memory for foreground execution.
+3. Are dynamically passed to `systemd-run` via `--setenv=KEY=VALUE` for transient background runs in systemd.
+
+These overrides are **never written to disk**, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
+```bash
+./local-rerank.sh exec --env LRR_N_GPU_LAYERS=0
+```
+
 
 ## Default Reranking Model
 
 The local service runs **`Qwen3-Reranker-0.6B`** in `Q4_K_M` GGUF quantization format. 
 
 Key specifications:
-  - **Context Size (`LR_N_CTX`):** `8192`
+  - **Context Size (`LRR_N_CTX`):** `8192`
   - **Pooling:** `rank`
   - **Capabilities**: Primarily used to rank relevance scores of search results for hybrid retrieval and memory systems.
 
@@ -65,13 +87,13 @@ The service stores its configuration in the systemd user configuration directory
 By default, the service runs the reranker on the CPU, which is highly recommended to conserve VRAM.
 or if VRAM is available, it can offload execution to the GPU using ROCm/HIP acceleration.
 
-To run the service on the CPU or GPU, run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and change the parameter LR_N_GPU_LAYERS:
+To run the service on the CPU or GPU, run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and change the parameter LRR_N_GPU_LAYERS:
 
 ```bash
 # For CPU execution
-LR_N_GPU_LAYERS=0
+LRR_N_GPU_LAYERS=0
 # For GPU execution
-LR_N_GPU_LAYERS=99
+LRR_N_GPU_LAYERS=99
 ```
 
 ### Backend Device Selection (Dynamic Backend Loading)
@@ -139,4 +161,3 @@ curl -s -X POST http://localhost:50086/v1/rerank \
     "top_n": 3
   }'
 ```
-

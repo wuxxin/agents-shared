@@ -47,6 +47,39 @@ load_env() {
     fi
 }
 
+# Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
+parse_env_args() {
+    COMMAND_ARGS=()
+    SETENV_OPTS=()
+    local env_updates=()
+
+    while [ $# -gt 0 ]; do
+        if [[ "$1" == "--env" ]]; then
+            if [ $# -lt 2 ]; then
+                echo "Error: --env requires a value (KEY=VALUE)" >&2
+                exit 1
+            fi
+            env_updates+=("$2")
+            shift 2
+        else
+            COMMAND_ARGS+=("$1")
+            shift
+        fi
+    done
+
+    load_env
+
+    for update in "${env_updates[@]}"; do
+        local key="${update%%=*}"
+        local val="${update#*=}"
+        export "${key}"="${val}"
+        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^EMBED_ || "$key" =~ ^LLM_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
+            printf -v "$key" "%s" "$val"
+        fi
+        SETENV_OPTS+=("--setenv=${key}=${val}")
+    done
+}
+
 # ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
 # ---------------------------------------------------------------------------
@@ -60,7 +93,6 @@ get_shared_options() {
     fi
 
     # Environment file & Working directory
-    load_env
     local force_cpu=0
     local low_mem=0
     local transformer_force_cpu=0
@@ -386,7 +418,6 @@ cmd_edit() {
 }
 
 export_tts_env_vars() {
-    load_env
     local force_cpu=0
     local low_mem=0
     local transformer_force_cpu=0
@@ -422,7 +453,9 @@ export_tts_env_vars() {
 }
 
 cmd_exec() {
-    load_env
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
+
     export_tts_env_vars
 
     local args=(
@@ -469,16 +502,17 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" qwen3-tts-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" qwen3-tts-server "$@"
     else
-        systemd-run "${opts[@]}" qwen3-tts-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" qwen3-tts-server "${args[@]}"
     fi
 }
 
 cmd_shell() {
     echo "Starting interactive shell in the qwen3-tts-server systemd environment..."
 
-    load_env
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
 
     local opts=(
         --user
@@ -495,18 +529,19 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_run() {
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
+
     if [ $# -lt 1 ]; then
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
     echo "Running command inside the qwen3-tts-server environment: $*"
 
-    load_env
-
     local opts=(
         --user
         --pty
@@ -522,7 +557,7 @@ cmd_run() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
 }
 
 cmd_test() {
