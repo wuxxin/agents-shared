@@ -1,6 +1,6 @@
 # Local Text-to-Speech Management Guide
 
-`local-text-to-speech.sh` manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) voice synthesis. It exposes an OpenAI-compatible audio generation endpoint, enabling local, private, and high-performance speech synthesis. Optimized for AMD ROCm hardware (specifically tested on Radeon Pro W6800).
+`local-text-to-speech.sh` manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) voice synthesis. It exposes an OpenAI-compatible audio generation endpoint, enabling local, private speech synthesis.
 
 - **Source Code**: [GitHub - khimaros/qwen3-tts.cpp](https://github.com/khimaros/qwen3-tts.cpp)
 - **Arch/AUR Package**:
@@ -26,7 +26,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 2. Are exported in the local shell environment in-memory for foreground execution.
 3. Are dynamically passed to `systemd-run` via `--setenv=KEY=VALUE` for transient background runs in systemd.
 
-These overrides are **never written to disk**, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
+These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
 ./local-text-to-speech.sh exec --env LTTS_MODE=cpu-only
 ```
@@ -81,7 +81,7 @@ You can configure the target device using the `LTTS_DEVICE` environment variable
 
 Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](https://huggingface.co/collections/khimaros/qwen3-tts) on Hugging Face:
 
-Default Model selected in environment is **0.6B CustomVoice**
+The default Model selected in the environment template is **0.6B CustomVoice**
 
 
 - **0.6B Base Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf`)
@@ -93,7 +93,7 @@ Default Model selected in environment is **0.6B CustomVoice**
 
 ## VRAM Usage
 
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
+For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](assistants/local-memory-map.md).
 
 ## Implementation & Security Considerations
 

@@ -204,7 +204,7 @@ Any configuration field in `moltis.toml` can be overridden by setting an environ
 - **Excluded**: Bootstrap settings like `MOLTIS_CONFIG_DIR`, `MOLTIS_DATA_DIR`, `MOLTIS_SHARE_DIR`, `MOLTIS_ASSETS_DIR`, `MOLTIS_TOKEN`, `MOLTIS_PASSWORD`, `MOLTIS_TAILSCALE`, and `MOLTIS_EXTERNAL_URL` are parsed separately and cannot be overridden as config properties.
 
 ### Locating Configuration Properties in Source Code
-1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/moltis/crates/config/src/schema.rs) and inspect the `MoltisConfig` struct (and its nested types).
+1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](scratch/moltis/crates/config/src/schema.rs) and inspect the `MoltisConfig` struct (and its nested types).
 2. **How to Search**:
    - To find where a TOML configuration key (like `dm_policy` or `base_url`) is defined or parsed, search for the key name as a Rust field identifier in snake_case (e.g. `pub dm_policy` or `pub base_url`) within the configuration crates.
    - Run a ripgrep command targeting the `crates/config` directory:

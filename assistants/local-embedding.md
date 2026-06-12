@@ -2,8 +2,6 @@
 
 `local-embedding.sh` manages the local `llama-server` systemd user service (`local-embedding.service`), serving the Text Embedding model (`Qwen3-Embedding-0.6B-Q8_0.gguf`). It operates with pooling mode set to `mean` to generate text embeddings for search, retrieval-augmented generation (RAG), and agentic document indexing.
 
-This architecture enables high-performance local document embeddings using state-of-the-art quantized GGUF representations.
-
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
 
@@ -47,7 +45,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 2. Are exported in the local shell environment in-memory for foreground execution.
 3. Are dynamically passed to `systemd-run` via `--setenv=KEY=VALUE` for transient background runs in systemd.
 
-These overrides are **never written to disk**, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
+These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
 ./local-embedding.sh exec --env EMBED_N_GPU_LAYERS=0
 ```
@@ -120,7 +118,7 @@ llama-cli --list-devices
 
 ## VRAM Usage
 
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to the [Central Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
+For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to the [Central Memory Map](assistants/local-memory-map.md).
 
 ## Verification & Manual Testing
 

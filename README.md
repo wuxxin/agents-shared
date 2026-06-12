@@ -77,7 +77,7 @@ To configure them, refer to their specific configuration sections in their respe
 
 The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
 
-For details, see the [scripts/README.md](file:///home/wuxxin/agent-shared/code/agents-shared/scripts/README.md).
+For details, see the [scripts/README.md](scripts/README.md).
 
 
 ## Default Ports

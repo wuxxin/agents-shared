@@ -242,7 +242,7 @@ Any dotted path in `config.toml` can be overridden by setting an environment var
   ```
 
 ### Locating Configuration Properties in Source Code
-1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/zeroclaw/crates/zeroclaw-config/src/schema.rs) and inspect the `Config` struct (and its nested types) that derive `Configurable`.
+1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](scratch/zeroclaw/crates/zeroclaw-config/src/schema.rs) and inspect the `Config` struct (and its nested types) that derive `Configurable`.
 2. **How to Search**:
    - ZeroClaw uses struct definitions where fields map to TOML keys. Dynamic model fields and aliases are stored in hash maps or resolved properties.
    - To find configuration fields, search in the config crate for struct fields matching the key. Note that ZeroClaw maps snake_case properties to kebab-case in the config schema natively (e.g. `api_key` maps to `api-key`). Search using ripgrep:

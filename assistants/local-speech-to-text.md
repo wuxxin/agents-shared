@@ -1,6 +1,6 @@
 # Local Speech-to-Text Management Guide
 
-`local-speech-to-text.sh` manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. It serves an OpenAI-compatible audio transcription endpoint, enabling local, private, and high-performance voice processing. Optimized for AMD ROCm hardware (specifically tested on Radeon Pro W6800).
+`local-speech-to-text.sh` manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. It serves an OpenAI-compatible audio transcription endpoint, enabling local, private voice processing.
 
 - **Source Code**: [GitHub - ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 - **Arch/AUR Package**:
@@ -28,7 +28,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 2. Are exported in the local shell environment in-memory for foreground execution.
 3. Are dynamically passed to `systemd-run` via `--setenv=KEY=VALUE` for transient background runs in systemd.
 
-These overrides are **never written to disk**, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
+These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
 ./local-speech-to-text.sh exec --env LSTT_NO_GPU=true
 ```
@@ -86,7 +86,7 @@ You can configure the target device using the `LSTT_DEVICE` environment variable
 
 The speech-to-text service requires approximately **~1.4 GiB** of VRAM when loaded (including weights, caches, compute buffers, and HIP context overhead). 
 
-For a detailed breakdown of all VRAM allocations, options, and scenarios (including concurrent running of all three local services), refer to [Central VRAM Memory Map](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory-map.md).
+For a detailed breakdown of all VRAM allocations, options, and scenarios (including concurrent running of all three local services), refer to [Central VRAM Memory Map](assistants/local-memory-map.md).
 
 ## Implementation & Security Considerations
 
