@@ -17,7 +17,7 @@ It automates target environment setups, captures VRAM/RAM resource utilization, 
 - **HIP (`hip`)**: Uses ROCm (AMD Radeon GPU acceleration) via device `ROCm0`.
 - **Vulkan (`vulkan`)**: Uses Vulkan compute backend via device `Vulkan0`.
 - **CPU (`cpu`)**: Runs entirely on the host CPU (utilizing OpenBLAS/BLAS for llama-server).
-- **Special (`special` / `special-hybrid` / `special-gpu-low-mem`)**: Evaluates custom modes like low-memory VRAM configurations or hybrid CPU-GPU execution (primarily tested for TTS).
+- **Special (`special`)**: Evaluates custom/hybrid modes. In particular, for Text-to-Speech (TTS), it dynamically tests configurations combining enabled GPU devices with CPU (e.g. `cpu-vulkan-Vulkan1`, `cpu-hip-ROCm0`).
 
 ---
 
@@ -69,20 +69,23 @@ The script executes the service control script with the `test` action and benchm
 - **GPU Footprint:** Reads VRAM usage again right before stopping the service and subtracts the baseline VRAM.
 - **JSON Cache State:** Saves the structured results to `assistants/local-benchmark.json`. If a test is aborted or skipped, previous valid results are preserved.
 - **Markdown Report:** Renders a clean table comparison and a detailed metrics list into `assistants/local-benchmark.md`.
+- **Server Error Capture:** Actively monitors the stdout/stderr streams of running server processes, extracts lines containing `"error"` (case-insensitive), saves all matched lines in the JSON database under `"errors"`, and reports the total error count along with the top 10 captured error lines in the markdown report.
 
 ---
 
 ## CLI Usage
 
+Invoking `run-local-benchmark.py` without arguments prints the usage instructions and exits.
+
 ```bash
-# Basic run: tests all configurations and all services
+# Display help and usage instructions
 python3 scripts/run-local-benchmark.py
 
 # Test only HIP and Vulkan backends for Embedding and Reranker
-python3 scripts/run-local-benchmark.py --configs hip,vulkan --only-services embedding,rerank
+python3 scripts/run-local-benchmark.py --configs hip,vulkan --services embedding,rerank
 
-# Dry-run (mock mode) to verify report formatting and script parsing logic
-python3 scripts/run-local-benchmark.py --mock
+# Dry-run (mock mode) to verify report formatting and script parsing logic on all services
+python3 scripts/run-local-benchmark.py --mock --services all
 ```
 
 ### Options
@@ -90,6 +93,9 @@ python3 scripts/run-local-benchmark.py --mock
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `--configs` | `hip,vulkan,cpu,special` | Comma-separated list of hardware configurations to test. |
-| `--only-services` | `chat,embedding,rerank,stt,tts` | Comma-separated list of services to test. |
+| `--services` | `chat,embedding,rerank,stt,tts` | Comma-separated list of services to test, or `all` to run all tests. |
+| `--hip-devices` | `ROCm0` | Comma-separated list of HIP/ROCm devices or `all`. |
+| `--vulkan-devices` | `Vulkan0` | Comma-separated list of Vulkan devices or `all`. |
 | `--mock` | `False` | Run in simulation mode (does not start servers or run actual tests). |
-| `--output-file` | `assistants/local-benchmark.md` | Path to output comparative report. |
+| `--report` | `assistants/local-benchmark.md` | Path to write the output markdown report. |
+| `--data` | `assistants/local-benchmark.json` | Path to the JSON database/cache file. |

@@ -133,9 +133,9 @@ def get_visible_devices_env(
     return "", ""
 
 
-def read_env_file(env_file_path: str) -> Dict[str, str]:
+def read_env_file(env_file_path: str) -> Dict[str, Any]:
     """Read environment file and parse active assignments into a dictionary."""
-    env_vars: Dict[str, str] = {}
+    env_vars: Dict[str, Any] = {}
     if not os.path.exists(env_file_path):
         return env_vars
     with open(env_file_path, "r", encoding="utf-8") as f:
@@ -245,6 +245,10 @@ def get_mock_gpu_mem(mode: str, config: str) -> float:
     if config == "cpu":
         return 0.0
 
+    lookup_cfg = config
+    if config.startswith("cpu-hip") or config.startswith("cpu-vulkan"):
+        lookup_cfg = "special-hybrid"
+
     mems = {
         "chat": {"hip": 14520.0, "vulkan": 14850.0},
         "embedding": {"hip": 2620.0, "vulkan": 2650.0},
@@ -254,14 +258,17 @@ def get_mock_gpu_mem(mode: str, config: str) -> float:
             "hip": 2240.0,
             "vulkan": 2420.0,
             "special-hybrid": 850.0,
-            "special-gpu-low-mem": 1100.0,
         },
     }
-    return mems.get(mode, {}).get(config, 0.0)
+    return mems.get(mode, {}).get(lookup_cfg, 0.0)
 
 
 def get_mock_cpu_mem(mode: str, config: str) -> float:
     """Get realistic mock CPU memory values for validation runs."""
+    lookup_cfg = config
+    if config.startswith("cpu-hip") or config.startswith("cpu-vulkan"):
+        lookup_cfg = "special-hybrid"
+
     mems = {
         "chat": {"hip": 1200.0, "vulkan": 1250.0, "cpu": 0.0},
         "embedding": {"hip": 350.0, "vulkan": 360.0, "cpu": 2500.0},
@@ -272,10 +279,104 @@ def get_mock_cpu_mem(mode: str, config: str) -> float:
             "vulkan": 310.0,
             "cpu": 800.0,
             "special-hybrid": 1500.0,
-            "special-gpu-low-mem": 400.0,
         },
     }
-    return mems.get(mode, {}).get(config, 0.0)
+    return mems.get(mode, {}).get(lookup_cfg, 0.0)
+
+
+def set_service_fail_metrics(
+    benchmark_data: Dict[str, Dict[str, Dict[str, Any]]],
+    cfg_key: str,
+    service: str,
+    device_setting: str,
+    special_setting: str,
+    env_file: str,
+    errors: List[str],
+    updates: Optional[Dict[str, Any]] = None,
+) -> None:
+    if cfg_key not in benchmark_data:
+        benchmark_data[cfg_key] = {}
+
+    env_data = {}
+    if os.path.exists(env_file):
+        try:
+            env_data = read_env_file(env_file)
+        except Exception:
+            pass
+    if updates:
+        env_data.update(updates)
+
+    if service == "chat":
+        benchmark_data[cfg_key]["chat"] = {
+            "chat_avg_ttft": "-fail-",
+            "chat_avg_prefill": "-fail-",
+            "chat_warmup_ttft": "-fail-",
+            "chat_warmup_gen": "-fail-",
+            "chat_avg_gen": "-fail-",
+            "gpu_mem_mb": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "bench_time_s": "-fail-",
+            "errors": errors,
+            "test_name": f"chat_{cfg_key}",
+            "device_setting": device_setting,
+            "special_setting": special_setting,
+            "env": env_data,
+        }
+    elif service == "embedding":
+        benchmark_data[cfg_key]["embedding"] = {
+            "embed_throughput": "-fail-",
+            "embed_lat": "-fail-",
+            "gpu_mem_mb": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "bench_time_s": "-fail-",
+            "errors": errors,
+            "test_name": f"embedding_{cfg_key}",
+            "device_setting": device_setting,
+            "special_setting": special_setting,
+            "env": env_data,
+        }
+    elif service == "rerank":
+        benchmark_data[cfg_key]["rerank"] = {
+            "rerank_time": "-fail-",
+            "rerank_token_speed": "-fail-",
+            "rerank_throughput": "-fail-",
+            "gpu_mem_mb": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "bench_time_s": "-fail-",
+            "errors": errors,
+            "test_name": f"rerank_{cfg_key}",
+            "device_setting": device_setting,
+            "special_setting": special_setting,
+            "env": env_data,
+        }
+    elif service == "stt":
+        benchmark_data[cfg_key]["stt"] = {
+            "stt_time": "-fail-",
+            "stt_rtf": "-fail-",
+            "gpu_mem_mb": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "bench_time_s": "-fail-",
+            "errors": errors,
+            "test_name": f"stt_{cfg_key}",
+            "device_setting": device_setting,
+            "special_setting": special_setting,
+            "env": env_data,
+        }
+    elif service == "tts":
+        benchmark_data[cfg_key]["tts"] = {
+            "tts_duration": "-fail-",
+            "tts_time": "-fail-",
+            "tts_rtf": "-fail-",
+            "tts_char_speed": "-fail-",
+            "gpu_mem_mb": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "bench_time_s": "-fail-",
+            "errors": errors,
+            "test_name": f"tts_{cfg_key}",
+            "device_setting": device_setting,
+            "special_setting": special_setting,
+            "env": env_data,
+        }
 
 
 def parse_devices(output: str) -> Dict[str, Dict[str, Any]]:
@@ -539,8 +640,8 @@ def run_benchmark(
     script_path: str,
     args: List[str],
     server_proc: Any = None,
-) -> Tuple[str, bool]:
-    """Execute the service test command with args and return captured stdout and success flag.
+) -> Tuple[str, bool, List[str]]:
+    """Execute the service test command with args and return captured stdout, success flag, and error lines.
 
     If server_proc is provided, checks if the server process dies during benchmark.
     """
@@ -548,6 +649,8 @@ def run_benchmark(
 
     cmd = [script_path, "test"] + args
     print(f"Running benchmark command: {' '.join(cmd)}")
+
+    server_output_accumulator = []
 
     if server_proc is None:
         # If there's no server_proc (e.g. running in mock mode or direct test mode without a managed server)
@@ -592,8 +695,8 @@ def run_benchmark(
         stdout_str = "".join(bench_stdout)
         if bench_exit != 0:
             print(f"Error running benchmark. Exit code: {bench_exit}")
-            return stdout_str, False
-        return stdout_str, True
+            return stdout_str, False, []
+        return stdout_str, True, []
 
     # Run benchmark asynchronously and poll to check if server dies
     bench_proc = subprocess.Popen(
@@ -632,14 +735,18 @@ def run_benchmark(
             sys.stderr.flush()
 
         if server_proc is not None:
-            s_out = read_stream(server_proc.stdout)
-            s_err = read_stream(server_proc.stderr)
-            if s_out:
-                sys.stdout.write(s_out)
-                sys.stdout.flush()
-            if s_err:
-                sys.stderr.write(s_err)
-                sys.stderr.flush()
+            if server_proc.stdout is not None:
+                s_out = read_stream(server_proc.stdout)
+                if s_out:
+                    sys.stdout.write(s_out)
+                    sys.stdout.flush()
+                    server_output_accumulator.append(s_out)
+            if server_proc.stderr is not None:
+                s_err = read_stream(server_proc.stderr)
+                if s_err:
+                    sys.stderr.write(s_err)
+                    sys.stderr.flush()
+                    server_output_accumulator.append(s_err)
 
         if bench_exit is not None:
             # Benchmark finished
@@ -674,17 +781,30 @@ def run_benchmark(
         sys.stderr.flush()
 
     if server_proc is not None:
-        s_out = read_stream(server_proc.stdout)
-        s_err = read_stream(server_proc.stderr)
-        if s_out:
-            sys.stdout.write(s_out)
-            sys.stdout.flush()
-        if s_err:
-            sys.stderr.write(s_err)
-            sys.stderr.flush()
+        if server_proc.stdout is not None:
+            s_out = read_stream(server_proc.stdout)
+            if s_out:
+                sys.stdout.write(s_out)
+                sys.stdout.flush()
+                server_output_accumulator.append(s_out)
+        if server_proc.stderr is not None:
+            s_err = read_stream(server_proc.stderr)
+            if s_err:
+                sys.stderr.write(s_err)
+                sys.stderr.flush()
+                server_output_accumulator.append(s_err)
 
     stdout_str = "".join(bench_stdout)
-    return stdout_str, success
+
+    # Extract error lines
+    error_lines = []
+    if server_proc is not None:
+        server_output_str = "".join(server_output_accumulator)
+        for line in server_output_str.splitlines():
+            if "error" in line.lower():
+                error_lines.append(line.strip())
+
+    return stdout_str, success, error_lines
 
 
 # ---------------------------------------------------------------------------
@@ -881,7 +1001,11 @@ Avg Speed:            {11.67 / fac:.2f} chars/sec (1.92 words/sec)
 # ---------------------------------------------------------------------------
 # Report Generator
 # ---------------------------------------------------------------------------
-def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
+def generate_report(
+    data: Dict[str, Dict[str, Dict[str, Any]]],
+    hip_devices: Optional[List[str]] = None,
+    vulkan_devices: Optional[List[str]] = None,
+) -> str:
     """Format parsed metrics into a beautiful markdown benchmark document."""
 
     def format_env(cfg: str, mode: str) -> str:
@@ -894,6 +1018,16 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                 return "\n".join(lines)
         return "  - *No environment settings recorded*"
 
+    def format_errors(cfg: str, mode: str) -> str:
+        if cfg in data and mode in data[cfg] and "errors" in data[cfg][mode]:
+            errors = data[cfg][mode]["errors"]
+            if errors:
+                lines = [f"- **Errors Count:** {len(errors)}", "- **Top Errors:**"]
+                for err in errors[:10]:
+                    lines.append(f"  - `{err}`")
+                return "\n".join(lines)
+        return "- **Errors Count:** 0"
+
     # Helper to print values safely
     def val(
         cfg: str,
@@ -901,19 +1035,29 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         key: str,
         fmt: str = ".2f",
         suffix: str = "",
-        default: str = "N/A",
+        default: str = "-n.a.-",
     ) -> str:
         if cfg in data and mode in data[cfg] and key in data[cfg][mode]:
-            return f"{data[cfg][mode][key]:{fmt}}{suffix}"
+            v = data[cfg][mode][key]
+            if isinstance(v, str):
+                return v
+            if v is None:
+                return default
+            try:
+                return f"{v:{fmt}}{suffix}"
+            except (ValueError, TypeError):
+                return str(v)
         return default
 
     # Speedup ratio vs Real-time (1 / RTF)
     def speedup(cfg: str, mode: str, rtf_key: str) -> str:
         if cfg in data and mode in data[cfg] and rtf_key in data[cfg][mode]:
             rtf = data[cfg][mode][rtf_key]
+            if isinstance(rtf, str):
+                return rtf
             if rtf > 0:
                 return f"{1.0 / rtf:.1f}x"
-        return "N/A"
+        return "-n.a.-"
 
     def get_test_name(cfg: str, mode: str) -> str:
         if cfg in data and mode in data[cfg] and "test_name" in data[cfg][mode]:
@@ -963,6 +1107,16 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                 if mode in ("chat", "embedding", "rerank")
                 else ("0" if mode == "stt" else "Default")
             )
+        elif cfg_lower.startswith("cpu-hip"):
+            parts = cfg.split("-")
+            if len(parts) > 2:
+                return parts[2]
+            return "ROCm0"
+        elif cfg_lower.startswith("cpu-vulkan"):
+            parts = cfg.split("-")
+            if len(parts) > 2:
+                return parts[2]
+            return "Vulkan1"
         elif cfg_lower == "cpu":
             return (
                 "BLAS" if mode in ("chat", "embedding", "rerank") else "Default (CPU)"
@@ -982,10 +1136,8 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
                         return f"Layers: {env[k]}"
                 if "LSTT_NO_GPU" in env:
                     return "No GPU" if env["LSTT_NO_GPU"] == "true" else "Use GPU"
-        if cfg.startswith("special-hybrid"):
+        if cfg.startswith("cpu-hip") or cfg.startswith("cpu-vulkan"):
             return "mode: hybrid"
-        elif cfg.startswith("special-gpu-low-mem"):
-            return "mode: gpu-min-vram"
         return "None"
 
     def sort_config_keys(cfg: str) -> Tuple[int, str]:
@@ -996,9 +1148,9 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
             return (1, cfg_lower)
         elif cfg_lower == "cpu":
             return (2, cfg_lower)
-        elif cfg_lower.startswith("special-hybrid"):
+        elif cfg_lower.startswith("cpu-hip"):
             return (3, cfg_lower)
-        elif cfg_lower.startswith("special-gpu-low-mem"):
+        elif cfg_lower.startswith("cpu-vulkan"):
             return (4, cfg_lower)
         elif cfg_lower.startswith("special"):
             return (5, cfg_lower)
@@ -1019,15 +1171,15 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         chat_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in chat_keys):
         chat_rows.append(
-            "| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     if not any(cfg.startswith("vulkan") for cfg in chat_keys):
         chat_rows.append(
-            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     if not any(cfg == "cpu" for cfg in chat_keys):
         chat_rows.append(
-            "| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     chat_table_body = "\n".join(chat_rows)
 
@@ -1040,11 +1192,17 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         row = f"| **{cfg_label}** | {get_test_name(cfg, 'embedding')} | {get_device_setting(cfg, 'embedding')} | {get_special_setting(cfg, 'embedding')} | {val(cfg, 'embedding', 'embed_throughput', '.2f', ' t/s')} | {val(cfg, 'embedding', 'embed_lat', '.1f', ' ms')} | {val(cfg, 'embedding', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'embedding', 'cpu_mem_mb', '.1f', ' MB')} |"
         embed_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in embed_keys):
-        embed_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+        embed_rows.append(
+            "| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
     if not any(cfg.startswith("vulkan") for cfg in embed_keys):
-        embed_rows.append("| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+        embed_rows.append(
+            "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
     if not any(cfg == "cpu" for cfg in embed_keys):
-        embed_rows.append("| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+        embed_rows.append(
+            "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
     embed_table_body = "\n".join(embed_rows)
 
     # 3. Reranking Table Body
@@ -1057,15 +1215,15 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         rerank_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in rerank_keys):
         rerank_rows.append(
-            "| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     if not any(cfg.startswith("vulkan") for cfg in rerank_keys):
         rerank_rows.append(
-            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     if not any(cfg == "cpu" for cfg in rerank_keys):
         rerank_rows.append(
-            "| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     rerank_table_body = "\n".join(rerank_rows)
 
@@ -1078,13 +1236,17 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         row = f"| **{cfg_label}** | {get_test_name(cfg, 'stt')} | {get_device_setting(cfg, 'stt')} | {get_special_setting(cfg, 'stt')} | {val(cfg, 'stt', 'stt_time', '.2f', ' s')} | {val(cfg, 'stt', 'stt_rtf', '.4f')} | {speedup(cfg, 'stt', 'stt_rtf')} | {val(cfg, 'stt', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'stt', 'cpu_mem_mb', '.1f', ' MB')} |"
         stt_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in stt_keys):
-        stt_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+        stt_rows.append(
+            "| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
     if not any(cfg.startswith("vulkan") for cfg in stt_keys):
         stt_rows.append(
-            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     if not any(cfg == "cpu" for cfg in stt_keys):
-        stt_rows.append("| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+        stt_rows.append(
+            "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
     stt_table_body = "\n".join(stt_rows)
 
     # 5. Text-to-Speech Table Body
@@ -1096,21 +1258,33 @@ def generate_report(data: Dict[str, Dict[str, Dict[str, Any]]]) -> str:
         row = f"| **{cfg_label}** | {get_test_name(cfg, 'tts')} | {get_device_setting(cfg, 'tts')} | {get_special_setting(cfg, 'tts')} | {val(cfg, 'tts', 'tts_time', '.2f', ' s')} | {val(cfg, 'tts', 'tts_rtf', '.4f')} | {val(cfg, 'tts', 'tts_char_speed', '.2f', ' chars/s')} | {val(cfg, 'tts', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'tts', 'cpu_mem_mb', '.1f', ' MB')} |"
         tts_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in tts_keys):
-        tts_rows.append("| **HIP** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
+        tts_rows.append(
+            "| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
     if not any(cfg.startswith("vulkan") for cfg in tts_keys):
         tts_rows.append(
-            "| **VULKAN** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
     if not any(cfg == "cpu" for cfg in tts_keys):
-        tts_rows.append("| **CPU** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |")
-    if not any(cfg.startswith("special-hybrid") for cfg in tts_keys):
         tts_rows.append(
-            "| **SPECIAL-HYBRID** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
+            "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg.startswith("special-gpu-low-mem") for cfg in tts_keys):
-        tts_rows.append(
-            "| **SPECIAL-GPU-LOW-MEM** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A |"
-        )
+
+    # Dynamic fallback rows for special hybrid configs
+    resolved_hip = hip_devices or ["ROCm0"]
+    resolved_vulk = vulkan_devices or ["Vulkan0"]
+    for dev in resolved_hip:
+        key = f"cpu-hip-{dev}"
+        if key not in tts_keys:
+            tts_rows.append(
+                f"| **{key.upper()}** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+            )
+    for dev in resolved_vulk:
+        key = f"cpu-vulkan-{dev}"
+        if key not in tts_keys:
+            tts_rows.append(
+                f"| **{key.upper()}** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+            )
     tts_table_body = "\n".join(tts_rows)
 
     report = f"""# LLM Caching Optimization Benchmarks
@@ -1158,10 +1332,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
         if not data[cfg]:
             continue
         cfg_upper = cfg.upper()
-        if cfg.startswith("special-hybrid"):
-            cfg_upper = "SPECIAL (HYBRID)"
-        elif cfg.startswith("special-gpu-low-mem"):
-            cfg_upper = "SPECIAL (GPU-LOW-MEM)"
+        if cfg.startswith("cpu-hip") or cfg.startswith("cpu-vulkan"):
+            cfg_upper = f"SPECIAL ({cfg.upper()})"
 
         # Check if there is device_details in any service
         device_details_str = ""
@@ -1189,6 +1361,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** {val(cfg, "chat", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
 {format_env(cfg, "chat")}
+{format_errors(cfg, "chat")}
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       {val(cfg, "chat", "chat_warmup_ttft", ".2f", " ms")}
   - Prefill Speed:        {val(cfg, "chat", "chat_warmup_prefill", ".2f", " tokens/sec")}
@@ -1215,6 +1388,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** {val(cfg, "embedding", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
 {format_env(cfg, "embedding")}
+{format_errors(cfg, "embedding")}
 - **Metrics:**
   - Avg Time/Run:         {val(cfg, "embedding", "embed_time_s", ".2f", " s")}
   - Avg Throughput:       {val(cfg, "embedding", "embed_throughput", ".2f", " tokens/sec")}
@@ -1237,6 +1411,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** {val(cfg, "rerank", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
 {format_env(cfg, "rerank")}
+{format_errors(cfg, "rerank")}
 - **Metrics:**
   - Avg Reranking Time:   {val(cfg, "rerank", "rerank_time", ".2f", " ms")}
   - Avg Docs Throughput:  {val(cfg, "rerank", "rerank_throughput", ".2f", " docs/sec")}
@@ -1257,6 +1432,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** {val(cfg, "stt", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
 {format_env(cfg, "stt")}
+{format_errors(cfg, "stt")}
 - **Metrics:**
   - Avg Transcribe Time:  {val(cfg, "stt", "stt_time", ".2f", " seconds")}
   - Avg Real-Time Factor (RTF): {val(cfg, "stt", "stt_rtf", ".4f")} ({speedup(cfg, "stt", "stt_rtf")} faster than real-time)
@@ -1276,6 +1452,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** {val(cfg, "tts", "bench_time_s", ".2f", " s")}
 - **Active Environment Settings:**
 {format_env(cfg, "tts")}
+{format_errors(cfg, "tts")}
 - **Metrics:**
   - Generated Audio Duration: {val(cfg, "tts", "tts_duration", ".2f", " seconds")}
   - Avg Synthesis Time:   {val(cfg, "tts", "tts_time", ".2f", " seconds")}
@@ -1294,6 +1471,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run local inference service benchmarks across different hardware acceleration backends."
     )
+    import sys
+
     parser.add_argument(
         "--configs",
         type=str,
@@ -1301,10 +1480,10 @@ def main() -> None:
         help="Comma-separated list of hardware configurations to test (default: hip,vulkan,cpu,special)",
     )
     parser.add_argument(
-        "--only-services",
+        "--services",
         type=str,
         default="chat,embedding,rerank,stt,tts",
-        help="Comma-separated list of services to test (default: chat,embedding,rerank,stt,tts)",
+        help="Comma-separated list of services to test, or 'all' to test all services (default: chat,embedding,rerank,stt,tts)",
     )
     parser.add_argument(
         "--hip-devices",
@@ -1324,20 +1503,31 @@ def main() -> None:
         help="Simulate execution and parsing (dry-run/mocking mode for systemd-less environments)",
     )
     parser.add_argument(
-        "--output-file",
+        "--report",
         type=str,
         default=os.path.join(REPO_ROOT, "assistants", "local-benchmark.md"),
         help="Path to write the output markdown report (default: assistants/local-benchmark.md)",
     )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=os.path.join(REPO_ROOT, "assistants", "local-benchmark.json"),
+        help="Path to the JSON database/cache file (default: assistants/local-benchmark.json)",
+    )
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
 
     args = parser.parse_args()
 
     target_configs = [c.strip().lower() for c in args.configs.split(",")]
-    target_services = [s.strip().lower() for s in args.only_services.split(",")]
+    if args.services.lower() == "all":
+        target_services = ["chat", "embedding", "rerank", "stt", "tts"]
+    else:
+        target_services = [s.strip().lower() for s in args.services.split(",")]
 
     if not args.mock:
-        import sys
-
         missing_envs = []
         for sname in target_services:
             if sname in SERVICES:
@@ -1414,21 +1604,61 @@ def main() -> None:
     print("==================================================")
     print(f"Configs to test:  {', '.join(target_configs)}")
     print(f"Services to test: {', '.join(target_services)}")
-    print(f"Output report:    {args.output_file}")
+    print(f"Output report:    {args.report}")
+    print(f"JSON Cache:       {args.data}")
     if args.mock:
         print("💡 Running in MOCK mode (simulated runs)")
     print("==================================================\n")
 
-    cache_file = os.path.splitext(args.output_file)[0] + ".json"
-    benchmark_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    # Compute set of tests that we will execute on this test run (incremental logic)
+    will_execute = set()
+    for run_cfg, dev in run_configs:
+        cache_key = f"{run_cfg}-{dev}" if dev else run_cfg
+
+        # Determine TTS modes to test for this configuration to add them to will_execute
+        if "tts" in target_services:
+            if run_cfg == "special":
+                for dev_id in hip_devices_resolved:
+                    will_execute.add((f"cpu-hip-{dev_id}", "tts"))
+                for dev_id in vulkan_devices_resolved:
+                    will_execute.add((f"cpu-vulkan-{dev_id}", "tts"))
+                if not hip_devices_resolved and not vulkan_devices_resolved:
+                    will_execute.add(("cpu-hip-ROCm0", "tts"))
+            else:
+                will_execute.add((cache_key, "tts"))
+
+        for sname in target_services:
+            if sname == "tts":
+                continue
+            if sname == "chat" and run_cfg == "special":
+                continue
+            if sname == "embedding" and run_cfg == "special":
+                continue
+            if sname == "rerank" and run_cfg == "special":
+                continue
+            if sname == "stt" and run_cfg == "special":
+                continue
+            will_execute.add((cache_key, sname))
+
+    cache_file = args.data
+    old_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
     if os.path.exists(cache_file):
         try:
             with open(cache_file, "r", encoding="utf-8") as f:
-                benchmark_data = json.load(f)
+                old_data = json.load(f)
             print(f"Loaded existing benchmark state from: {cache_file}")
         except Exception as e:
             print(f"Warning: Failed to load benchmark cache: {e}")
+
+    # Use old data only if not executed test on this test run
+    benchmark_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for cfg in old_data:
+        for sname in old_data[cfg]:
+            if (cfg, sname) not in will_execute:
+                if cfg not in benchmark_data:
+                    benchmark_data[cfg] = {}
+                benchmark_data[cfg][sname] = old_data[cfg][sname]
 
     for run_cfg, dev in run_configs:
         cache_key = f"{run_cfg}-{dev}" if dev else run_cfg
@@ -1504,6 +1734,21 @@ def main() -> None:
                             proc,
                             master_fd,
                         )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "chat",
+                            llm_device if llm_device else "Default",
+                            f"Layers: {0 if run_cfg == 'cpu' else 999}"
+                            + (
+                                f" (Context: {fraction * 100:.0f}%)"
+                                if fraction < 1.0
+                                else ""
+                            ),
+                            srv["env_file"],
+                            ["Error: llama-server failed to start or port timed out"],
+                            updates,
+                        )
                         continue
                 else:
                     proc = None
@@ -1534,17 +1779,33 @@ def main() -> None:
                         str(fraction),
                     ]
                     start_time = time.time()
-                    stdout, success = run_benchmark(
+                    stdout, success, error_lines = run_benchmark(
                         srv["script"], test_args, server_proc=proc
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for chat on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for chat on config '{cache_key}' failed."
+                        )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "chat",
+                            llm_device if llm_device else "Default",
+                            f"Layers: {0 if run_cfg == 'cpu' else 999}"
+                            + (
+                                f" (Context: {fraction * 100:.0f}%)"
+                                if fraction < 1.0
+                                else ""
+                            ),
+                            srv["env_file"],
+                            error_lines,
+                            updates,
                         )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cache_key]["chat"] = parse_chat_output(stdout)
                         benchmark_data[cache_key]["chat"]["bench_time_s"] = elapsed_time
+                        benchmark_data[cache_key]["chat"]["errors"] = error_lines
 
                         # Measure VRAM and RAM right before stopping
                         post_run_vram = get_gpu_memory_mb(llm_device)
@@ -1566,9 +1827,9 @@ def main() -> None:
                         benchmark_data[cache_key]["chat"]["special_setting"] = (
                             special_setting
                         )
-                        benchmark_data[cache_key]["chat"]["env"] = read_env_file(
-                            srv["env_file"]
-                        )
+                        env_dict = read_env_file(srv["env_file"])
+                        env_dict.update(updates)
+                        benchmark_data[cache_key]["chat"]["env"] = env_dict
                         if llm_device in available_devices:
                             benchmark_data[cache_key]["chat"]["device_details"] = (
                                 available_devices[llm_device]
@@ -1576,6 +1837,15 @@ def main() -> None:
                 else:
                     stdout = get_mock_output("chat", run_cfg)
                     benchmark_data[cache_key]["chat"] = parse_chat_output(stdout)
+                    # Mock simulated configuration errors for demonstration
+                    benchmark_data[cache_key]["chat"]["errors"] = (
+                        [
+                            "error: simulated configuration mismatch",
+                            "error: mock error line 2",
+                        ]
+                        if run_cfg == "cpu"
+                        else []
+                    )
                     benchmark_data[cache_key]["chat"]["gpu_mem_mb"] = get_mock_gpu_mem(
                         "chat", run_cfg
                     )
@@ -1600,7 +1870,8 @@ def main() -> None:
                     benchmark_data[cache_key]["chat"]["special_setting"] = (
                         special_setting
                     )
-                    benchmark_data[cache_key]["chat"]["env"] = {
+
+                    mock_updates = {
                         "LLM_DEVICE": dev
                         if dev
                         else (
@@ -1612,6 +1883,13 @@ def main() -> None:
                         "LLM_N_CTX": str(llm_n_ctx),
                         "LLM_SERVE_EMBEDDINGS": "false",
                     }
+                    try:
+                        env_dict = read_env_file(srv["env_file"])
+                    except Exception:
+                        env_dict = {}
+                    env_dict.update(mock_updates)
+                    benchmark_data[cache_key]["chat"]["env"] = env_dict
+
                     llm_device = (
                         dev
                         if dev
@@ -1704,6 +1982,16 @@ def main() -> None:
                             proc,
                             master_fd,
                         )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "embedding",
+                            embed_device if embed_device else "Default",
+                            f"Layers: {0 if run_cfg == 'cpu' else 999}",
+                            srv["env_file"],
+                            ["Error: llama-server failed to start or port timed out"],
+                            updates,
+                        )
                         continue
                 else:
                     proc = None
@@ -1730,12 +2018,22 @@ def main() -> None:
                     if run_cfg == "cpu":
                         test_args.extend(["--fraction-chunks", "0.1"])
                     start_time = time.time()
-                    stdout, success = run_benchmark(
+                    stdout, success, error_lines = run_benchmark(
                         srv["script"], test_args, server_proc=proc
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for embedding on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for embedding on config '{cache_key}' failed."
+                        )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "embedding",
+                            embed_device if embed_device else "Default",
+                            f"Layers: {0 if run_cfg == 'cpu' else 999}",
+                            srv["env_file"],
+                            error_lines,
+                            updates,
                         )
                     else:
                         elapsed_time = time.time() - start_time
@@ -1745,6 +2043,7 @@ def main() -> None:
                         benchmark_data[cache_key]["embedding"]["bench_time_s"] = (
                             elapsed_time
                         )
+                        benchmark_data[cache_key]["embedding"]["errors"] = error_lines
 
                         # Measure VRAM and RAM right before stopping
                         post_run_vram = get_gpu_memory_mb(embed_device)
@@ -1766,9 +2065,9 @@ def main() -> None:
                         benchmark_data[cache_key]["embedding"]["special_setting"] = (
                             f"Layers: {999 if run_cfg != 'cpu' else 0}"
                         )
-                        benchmark_data[cache_key]["embedding"]["env"] = read_env_file(
-                            srv["env_file"]
-                        )
+                        env_dict = read_env_file(srv["env_file"])
+                        env_dict.update(updates)
+                        benchmark_data[cache_key]["embedding"]["env"] = env_dict
                         if embed_device in available_devices:
                             benchmark_data[cache_key]["embedding"]["device_details"] = (
                                 available_devices[embed_device]
@@ -1776,6 +2075,7 @@ def main() -> None:
                 else:
                     stdout = get_mock_output("embedding", run_cfg)
                     benchmark_data[cache_key]["embedding"] = parse_embed_output(stdout)
+                    benchmark_data[cache_key]["embedding"]["errors"] = []
                     benchmark_data[cache_key]["embedding"]["gpu_mem_mb"] = (
                         get_mock_gpu_mem("embedding", run_cfg)
                     )
@@ -1802,7 +2102,8 @@ def main() -> None:
                     benchmark_data[cache_key]["embedding"]["special_setting"] = (
                         f"Layers: {999 if run_cfg != 'cpu' else 0}"
                     )
-                    benchmark_data[cache_key]["embedding"]["env"] = {
+
+                    mock_updates = {
                         "EMBED_DEVICE": dev
                         if dev
                         else (
@@ -1811,7 +2112,15 @@ def main() -> None:
                             else ("Vulkan0" if run_cfg == "vulkan" else "")
                         ),
                         "EMBED_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
+                        "EMBED_N_CTX": "4096" if (dev and "1" in dev) else "8192",
                     }
+                    try:
+                        env_dict = read_env_file(srv["env_file"])
+                    except Exception:
+                        env_dict = {}
+                    env_dict.update(mock_updates)
+                    benchmark_data[cache_key]["embedding"]["env"] = env_dict
+
                     embed_device = (
                         dev
                         if dev
@@ -1886,6 +2195,7 @@ def main() -> None:
                         env_args.extend(["--env", f"{k}={v}"])
 
                     proc, master_fd = start_service(srv["script"], env_args)
+                    # Wait for server readiness
                     print(f"Waiting for reranker on port {srv['port']}...")
                     if not wait_for_port(srv["port"], proc=proc):
                         print(f"Error: reranker failed to start on port {srv['port']}.")
@@ -1895,6 +2205,16 @@ def main() -> None:
                             srv["proc_pattern"],
                             proc,
                             master_fd,
+                        )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "rerank",
+                            lrr_device if lrr_device else "Default",
+                            f"Layers: {0 if run_cfg == 'cpu' else 99}",
+                            srv["env_file"],
+                            ["Error: reranker failed to start or port timed out"],
+                            updates,
                         )
                         continue
                 else:
@@ -1915,14 +2235,24 @@ def main() -> None:
                             "⚠️ Warning: Model warmup timed out. Benchmark might fail."
                         )
                     start_time = time.time()
-                    stdout, success = run_benchmark(
+                    stdout, success, error_lines = run_benchmark(
                         srv["script"],
                         ["--benchmark", "--repeat", "1"],
                         server_proc=proc,
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for reranker on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for reranker on config '{cache_key}' failed."
+                        )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "rerank",
+                            lrr_device if lrr_device else "Default",
+                            f"Layers: {0 if run_cfg == 'cpu' else 99}",
+                            srv["env_file"],
+                            error_lines,
+                            updates,
                         )
                     else:
                         elapsed_time = time.time() - start_time
@@ -1932,6 +2262,7 @@ def main() -> None:
                         benchmark_data[cache_key]["rerank"]["bench_time_s"] = (
                             elapsed_time
                         )
+                        benchmark_data[cache_key]["rerank"]["errors"] = error_lines
                         post_run_vram = get_gpu_memory_mb(lrr_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
@@ -1946,9 +2277,9 @@ def main() -> None:
                         benchmark_data[cache_key]["rerank"]["special_setting"] = (
                             f"Layers: {99 if run_cfg != 'cpu' else 0}"
                         )
-                        benchmark_data[cache_key]["rerank"]["env"] = read_env_file(
-                            srv["env_file"]
-                        )
+                        env_dict = read_env_file(srv["env_file"])
+                        env_dict.update(updates)
+                        benchmark_data[cache_key]["rerank"]["env"] = env_dict
                         if lrr_device in available_devices:
                             benchmark_data[cache_key]["rerank"]["device_details"] = (
                                 available_devices[lrr_device]
@@ -1956,6 +2287,7 @@ def main() -> None:
                 else:
                     stdout = get_mock_output("rerank", run_cfg)
                     benchmark_data[cache_key]["rerank"] = parse_rerank_output(stdout)
+                    benchmark_data[cache_key]["rerank"]["errors"] = []
                     benchmark_data[cache_key]["rerank"]["gpu_mem_mb"] = (
                         get_mock_gpu_mem("rerank", run_cfg)
                     )
@@ -1982,7 +2314,7 @@ def main() -> None:
                     benchmark_data[cache_key]["rerank"]["special_setting"] = (
                         f"Layers: {99 if run_cfg != 'cpu' else 0}"
                     )
-                    benchmark_data[cache_key]["rerank"]["env"] = {
+                    mock_updates = {
                         "LRR_DEVICE": dev
                         if dev
                         else (
@@ -1990,8 +2322,14 @@ def main() -> None:
                             if run_cfg == "hip"
                             else ("Vulkan0" if run_cfg == "vulkan" else "")
                         ),
-                        "LR_N_GPU_LAYERS": "99" if run_cfg != "cpu" else "0",
+                        "LRR_N_GPU_LAYERS": "99" if run_cfg != "cpu" else "0",
                     }
+                    try:
+                        env_dict = read_env_file(srv["env_file"])
+                    except Exception:
+                        env_dict = {}
+                    env_dict.update(mock_updates)
+                    benchmark_data[cache_key]["rerank"]["env"] = env_dict
                     lrr_device = (
                         dev
                         if dev
@@ -2065,13 +2403,13 @@ def main() -> None:
                     )
                     updates["HIP_VISIBLE_DEVICES"] = hip_vis
                     updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
-
                     # Build environment arguments
                     env_args = []
                     for k, v in updates.items():
                         env_args.extend(["--env", f"{k}={v}"])
 
                     proc, master_fd = start_service(srv["script"], env_args)
+                    # Wait for server readiness
                     print(f"Waiting for whisper-server on port {srv['port']}...")
                     if not wait_for_port(srv["port"], proc=proc):
                         print(
@@ -2084,6 +2422,16 @@ def main() -> None:
                             proc,
                             master_fd,
                         )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "stt",
+                            lstt_device if lstt_device else "Default",
+                            "No GPU" if run_cfg == "cpu" else "Use GPU",
+                            srv["env_file"],
+                            ["Error: whisper-server failed to start or port timed out"],
+                            updates,
+                        )
                         continue
                 else:
                     proc = None
@@ -2091,19 +2439,30 @@ def main() -> None:
                 print("Running STT benchmark...")
                 if not args.mock:
                     start_time = time.time()
-                    stdout, success = run_benchmark(
+                    stdout, success, error_lines = run_benchmark(
                         srv["script"],
                         ["--benchmark", "--repeat", "1"],
                         server_proc=proc,
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for STT on config '{cache_key}' returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for STT on config '{cache_key}' failed."
+                        )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "stt",
+                            lstt_device if lstt_device else "Default",
+                            "No GPU" if run_cfg == "cpu" else "Use GPU",
+                            srv["env_file"],
+                            error_lines,
+                            updates,
                         )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cache_key]["stt"] = parse_stt_output(stdout)
                         benchmark_data[cache_key]["stt"]["bench_time_s"] = elapsed_time
+                        benchmark_data[cache_key]["stt"]["errors"] = error_lines
                         post_run_vram = get_gpu_memory_mb(stt_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
@@ -2118,9 +2477,9 @@ def main() -> None:
                         benchmark_data[cache_key]["stt"]["special_setting"] = (
                             "No GPU" if run_cfg == "cpu" else "Use GPU"
                         )
-                        benchmark_data[cache_key]["stt"]["env"] = read_env_file(
-                            srv["env_file"]
-                        )
+                        env_dict = read_env_file(srv["env_file"])
+                        env_dict.update(updates)
+                        benchmark_data[cache_key]["stt"]["env"] = env_dict
                         if dev and dev in available_devices:
                             benchmark_data[cache_key]["stt"]["device_details"] = (
                                 available_devices[dev]
@@ -2128,6 +2487,7 @@ def main() -> None:
                 else:
                     stdout = get_mock_output("stt", run_cfg)
                     benchmark_data[cache_key]["stt"] = parse_stt_output(stdout)
+                    benchmark_data[cache_key]["stt"]["errors"] = []
                     benchmark_data[cache_key]["stt"]["gpu_mem_mb"] = get_mock_gpu_mem(
                         "stt", run_cfg
                     )
@@ -2153,12 +2513,20 @@ def main() -> None:
                     benchmark_data[cache_key]["stt"]["special_setting"] = (
                         "No GPU" if run_cfg == "cpu" else "Use GPU"
                     )
-                    benchmark_data[cache_key]["stt"]["env"] = {
+
+                    mock_updates = {
                         "LSTT_DEVICE": mock_lstt_dev
                         if run_cfg != "cpu" and mock_lstt_dev != "Default"
                         else "",
                         "LSTT_NO_GPU": "false" if run_cfg != "cpu" else "true",
                     }
+                    try:
+                        env_dict = read_env_file(srv["env_file"])
+                    except Exception:
+                        env_dict = {}
+                    env_dict.update(mock_updates)
+                    benchmark_data[cache_key]["stt"]["env"] = env_dict
+
                     if dev:
                         dev_details = available_devices.get(dev, {})
                         if not dev_details:
@@ -2189,14 +2557,15 @@ def main() -> None:
 
             # Determine which TTS modes to test for this configuration
             if run_cfg == "special":
-                # Use first HIP device if available, otherwise "hip"
-                first_hip_device = "hip"
-                if hip_devices_resolved:
-                    first_hip_device = hip_devices_resolved[0]
-                tts_modes_to_test = [
-                    ("special-hybrid", "hybrid", first_hip_device),
-                    ("special-gpu-low-mem", "gpu-min-vram", first_hip_device),
-                ]
+                # combination of all enabled GPU devices with CPU
+                tts_modes_to_test = []
+                for dev_id in hip_devices_resolved:
+                    tts_modes_to_test.append((f"cpu-hip-{dev_id}", "hybrid", dev_id))
+                for dev_id in vulkan_devices_resolved:
+                    tts_modes_to_test.append((f"cpu-vulkan-{dev_id}", "hybrid", dev_id))
+                # fallback
+                if not tts_modes_to_test:
+                    tts_modes_to_test.append(("cpu-hip-ROCm0", "hybrid", "ROCm0"))
             else:
                 ltts_mode = "cpu-only" if run_cfg == "cpu" else "gpu"
                 ltts_device = "cpu" if run_cfg == "cpu" else (dev if dev else run_cfg)
@@ -2210,11 +2579,16 @@ def main() -> None:
                 proc = None
                 master_fd = None
                 baseline_vram = 0.0
+
+                # Initialize sub-dict for data_key if not exists
+                if data_key not in benchmark_data:
+                    benchmark_data[data_key] = {}
+
+                actual_device = ltts_device
                 if not args.mock:
                     baseline_vram = get_gpu_memory_mb(ltts_device)
 
                     # Self-healing check: check if qwen3-tts-server supports --device
-                    actual_device = ltts_device
                     try:
                         res = subprocess.run(
                             ["qwen3-tts-server", "--help"],
@@ -2259,30 +2633,49 @@ def main() -> None:
                             proc,
                             master_fd,
                         )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            data_key,
+                            "tts",
+                            actual_device if actual_device else "Default",
+                            f"mode: {ltts_mode}",
+                            srv["env_file"],
+                            [
+                                "Error: qwen3-tts-server failed to start or port timed out"
+                            ],
+                            updates,
+                        )
                         continue
                 else:
                     proc = None
 
                 print("Running TTS benchmark...")
-                # Initialize sub-dict for data_key if not exists
-                if data_key not in benchmark_data:
-                    benchmark_data[data_key] = {}
-
                 if not args.mock:
                     start_time = time.time()
-                    stdout, success = run_benchmark(
+                    stdout, success, error_lines = run_benchmark(
                         srv["script"],
                         ["--benchmark", "--repeat", "1"],
                         server_proc=proc,
                     )
                     if not success:
                         print(
-                            f"⚠️ Warning: Benchmark command for TTS on config '{data_key}' (mode: {ltts_mode}) returned a non-zero exit code or failed. Preserving existing cached results if available."
+                            f"⚠️ Warning: Benchmark command for TTS on config '{data_key}' failed."
+                        )
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            data_key,
+                            "tts",
+                            actual_device if actual_device else "Default",
+                            f"mode: {ltts_mode}",
+                            srv["env_file"],
+                            error_lines,
+                            updates,
                         )
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
                         benchmark_data[data_key]["tts"]["bench_time_s"] = elapsed_time
+                        benchmark_data[data_key]["tts"]["errors"] = error_lines
                         post_run_vram = get_gpu_memory_mb(ltts_device)
                         gpu_mem_mb = max(0.0, post_run_vram - baseline_vram)
                         cpu_mem_mb = get_process_rss_mem_mb(srv["proc_pattern"])
@@ -2295,9 +2688,9 @@ def main() -> None:
                         benchmark_data[data_key]["tts"]["special_setting"] = (
                             f"mode: {ltts_mode}"
                         )
-                        benchmark_data[data_key]["tts"]["env"] = read_env_file(
-                            srv["env_file"]
-                        )
+                        env_dict = read_env_file(srv["env_file"])
+                        env_dict.update(updates)
+                        benchmark_data[data_key]["tts"]["env"] = env_dict
                         if ltts_device in available_devices:
                             benchmark_data[data_key]["tts"]["device_details"] = (
                                 available_devices[ltts_device]
@@ -2305,6 +2698,7 @@ def main() -> None:
                 else:
                     stdout = get_mock_output("tts", data_key)
                     benchmark_data[data_key]["tts"] = parse_tts_output(stdout)
+                    benchmark_data[data_key]["tts"]["errors"] = []
                     benchmark_data[data_key]["tts"]["gpu_mem_mb"] = get_mock_gpu_mem(
                         "tts", data_key
                     )
@@ -2319,10 +2713,18 @@ def main() -> None:
                     benchmark_data[data_key]["tts"]["special_setting"] = (
                         f"mode: {ltts_mode}"
                     )
-                    benchmark_data[data_key]["tts"]["env"] = {
+
+                    mock_updates = {
                         "LTTS_MODE": ltts_mode,
                         "LTTS_DEVICE": ltts_device,
                     }
+                    try:
+                        env_dict = read_env_file(srv["env_file"])
+                    except Exception:
+                        env_dict = {}
+                    env_dict.update(mock_updates)
+                    benchmark_data[data_key]["tts"]["env"] = env_dict
+
                     dev_details = available_devices.get(ltts_device, {})
                     if not dev_details and ltts_device != "cpu":
                         dev_details = {
@@ -2360,13 +2762,17 @@ def main() -> None:
     print("\n==================================================")
     print("📝 Generating Comparative Benchmark Report...")
     print("==================================================")
-    report_content = generate_report(benchmark_data)
+    report_content = generate_report(
+        benchmark_data,
+        hip_devices=hip_devices_resolved,
+        vulkan_devices=vulkan_devices_resolved,
+    )
 
     # Save report
-    os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
-    with open(args.output_file, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(args.report), exist_ok=True)
+    with open(args.report, "w", encoding="utf-8") as f:
         f.write(report_content)
-    print(f"Successfully wrote report to: {args.output_file}")
+    print(f"Successfully wrote report to: {args.report}")
 
 
 if __name__ == "__main__":

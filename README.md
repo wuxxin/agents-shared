@@ -175,7 +175,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Built-in cron scheduler with platform delivery. Background batch and SWE runners (`batch_runner.py` / `mini_swe_runner.py`).
 - **Signal Support**: Yes — Native integration connecting to a local `signal-cli` HTTP daemon (port 50888/50889).
 - **Coding Agent Support**: Yes — Supports Claude Code, Codex, and **OpenCode** via bundled skills.
-- **Local LLM & Inference**: Supports local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Local LLM & Inference**: Supports local GGUF models via `local-llm` (port 50080) or Ollama.
 - **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or remote embedding providers (OpenAI, Cohere, Jina, Voyage AI).
 - **Reranking Support**: Native reranking via auxiliary model slots and QMD hybrid retrieval engine, or routes to external reranker (`http://localhost:50086/v1/rerank`).
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 50090). No native TTS support.
@@ -193,7 +193,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Periodic background "Dream" loop and cron tasks.
 - **Signal Support**: Yes — Native integration via HTTP Server-Sent Events (SSE) (port 50888) with markdown-to-Signal formatting.
 - **Coding Agent Support**: None (No OpenCode support).
-- **Local LLM & Inference**: Routes to local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Local LLM & Inference**: Routes to local GGUF models via `local-llm` (port 50080) or Ollama.
 - **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or remote embeddings.
 - **Reranking Support**: No native reranking. Integrates with external reranker via custom MCP tools.
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 50090). No native local TTS.
@@ -231,7 +231,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — support for background/asynchronous sub-agent tasks and memory.
 - **Signal Support**: Yes — Native integration connecting to a local `signal-cli` HTTP daemon (port 50889) with a DM/group policy and PIN challenge options.
 - **Coding Agent Support**: Yes — Supports Alibaba Coding Plan (`acp`), Claude Code, Codex, and **OpenCode** via tmux/PTY-based external runtimes.
-- **Local LLM & Inference**: Routes to local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Local LLM & Inference**: Routes to local GGUF models via `local-llm` (port 50080) or Ollama.
 - **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or QMD vector processing.
 - **Reranking Support**: Yes — Native reranking via the QMD sidecar (`qwen3-reranker-0.6b` by default) or routes to local-rerank endpoint on port 50086.
 - **STT/TTS Support**: Natively supports local STT via `local-speech-to-text` on port 50090 and local TTS via `local-text-to-speech` on port 50095.
@@ -251,7 +251,7 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Autonomous 24/7 Support**: Yes — Messaging gateway daemon background service (`picoclaw-launcher -no-browser`).
 - **Signal Support**: No — Not natively supported.
 - **Coding Agent Support**: Yes — Supports Claude Code, Codex, and Copilot CLI via provider-wrapped CLI execution (No OpenCode support).
-- **Local LLM & Inference**: Routes to local GGUF models via `local-embedding` (port 50082) or Ollama.
+- **Local LLM & Inference**: Routes to local GGUF models via `local-llm` (port 50080) or Ollama.
 - **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama via API routing or MCP.
 - **Reranking Support**: No native reranking. Reranking can be delegated via MCP to the local-inference reranker endpoint on port 50086.
 - **STT/TTS Support**: Local STT by defining an ASR provider pointing to the local whisper-server on port 50090. No native TTS engine; requires an external MCP TTS tool.
