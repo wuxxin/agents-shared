@@ -127,22 +127,23 @@ cmd_install() {
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 
-# Local Inference Split Services Overrides
-# Default OpenAI-compatible LLM provider
+# Local Inference
+# Default OpenAI-compatible LLM provider (llama-server on port 50080)
 LLM_PROVIDER="openai"
 LLM_BASE_URL="http://localhost:50080/v1"
 LLM_API_KEY="unused"
 LLM_MODEL="qwen3"
 
-# Embeddings endpoint (llama-server on port 50085)
+# Embeddings endpoint (llama-server on port 50082)
 EMBEDDING_PROVIDER="local"
-EMBEDDING_MODEL="text-embedding-3-small"
-EMBEDDING_BASE_URL="http://localhost:50080/v1"
+EMBEDDING_MODEL="qwen3-embedding"
+EMBEDDING_BASE_URL="http://localhost:50082/v1"
 EMBEDDING_API_KEY="unused"
 
 # Reranker endpoint (llama-server on port 50086)
 RERANK_URL="http://localhost:50086/v1/rerank"
 RERANK_MODEL="qwen3-reranker"
+
 EOF
         chmod 600 "$ENV_FILE"
     fi

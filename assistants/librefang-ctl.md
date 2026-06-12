@@ -50,7 +50,7 @@ Configure the default model in `~/.librefang/config.toml` (located under the iso
 [default_model]
 provider = "openai"
 model = "qwen3"
-api_key_env = "UNUSED_API_KEY"
+api_key_env = "unused"
 context_window = 80000
 temperature = 1.0
 reasoning_effort = "low"
@@ -127,8 +127,8 @@ enabled = true
 provider = "openai"
 
 [tts.openai]
-model = "tts-1"
-voice = "alloy"
+model = "default"
+voice = "serena"
 base_url = "http://localhost:50095/v1"
 ```
 

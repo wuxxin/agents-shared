@@ -153,9 +153,9 @@ cmd_install() {
   },
   "embeddings": {
     "provider": "openai_compatible/local",
-    "model": "text-embedding-3-small",
+    "model": "qwen3-embedding",
     "api_key": "unused",
-    "base_url": "http://localhost:50080/v1"
+    "base_url": "http://localhost:50082/v1"
   },
   "mcp": {
     "servers": {
@@ -195,10 +195,9 @@ EOF
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 
-# Local Inference Split Services Overrides
-# Point transcription endpoint to local-speech-to-text service
-OPENAI_TRANSCRIPTION_BASE_URL="http://localhost:50090/v1/audio/transcriptions"
+# Local Inference config
 OPENAI_API_KEY="dummy"
+
 EOF
         chmod 600 "$ENV_FILE"
         echo "Created default environment file at $ENV_FILE"

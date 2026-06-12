@@ -147,6 +147,7 @@ OPENAI_API_KEY="sk-"
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
 EOF
         chmod 600 "$ENV_FILE"
         echo "Created default environment file at $ENV_FILE"
@@ -175,7 +176,7 @@ context_window = 80000
 [memory]
 provider = "local"
 model = "qwen3-embedding"
-base_url = "http://localhost:50080/v1"
+base_url = "http://localhost:50082/v1"
 api_key = "unused"
 
 # --- Reranker
@@ -204,7 +205,7 @@ provider = "openai"
 enabled = true
 base_url = "http://localhost:50095/v1"
 model = "qwen3-tts"
-voice = "default"
+voice = "serena"
 api_key = "unused"
 
 # --- Signal Channel

@@ -148,6 +148,7 @@ cmd_install() {
 # GEMINI_API_KEY=""
 # GROQ_API_KEY=""
 # ELEVENLABS_API_KEY=""
+
 EOF
         chmod 600 "$ENV_FILE"
         echo "Created default environment file at $ENV_FILE"
@@ -205,7 +206,7 @@ base_url = "http://localhost:50095/v1"
 format = "wav"
 key_required = false
 model = "qwen3-tts"
-voice = "default"
+voice = "serena"
 
 # --- Signal Sidecar Channel
 [[sidecar_channels]]

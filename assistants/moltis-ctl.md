@@ -117,10 +117,10 @@ uri = "http://localhost:8080"
 [memory]
 # Embedding provider: "openai" (OpenAI-compatible), "ollama", "local", or "qmd"
 provider = "local"
-model = "text-embedding-3-small"
+model = "qwen3-embedding"
 
 # Local Inference Endpoint (llama-server or Ollama)
-base_url = "http://localhost:50080/v1"
+base_url = "http://localhost:50082/v1"
 api_key = "unused"
 ```
 
@@ -161,7 +161,7 @@ provider = "whisper-local"
 [voice.stt.whisper-local]
 enabled = true
 # Base URI of local-speech-to-text service (do not append '/v1/audio/transcriptions')
-endpoint = "http://localhost:50090"
+endpoint = "http://localhost:50090/"
 # Optional settings
 model = "whisper-1"
 ```
@@ -181,7 +181,7 @@ provider = "openai"
 enabled = true
 base_url = "http://localhost:50095/v1"
 model = "qwen3-tts"
-voice = "alloy"
+voice = "serena"
 api_key = "unused"
 ```
 
