@@ -85,4 +85,5 @@ shfmt -i 4 -w scripts/*.sh
 - always check with `[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]` if you are bwrapped yourself.
   - if bwrapped, do not use systemd to start/stop or otherwise introspect running systemd services.
   - if bwrapped, expect hat the real $HOME of the $USER eg. ~/.local is not available to you, you have a bwrapped ~/.local 
+- whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, `run-local-benchmark.py` must be updated with any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
 

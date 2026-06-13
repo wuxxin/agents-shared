@@ -1,6 +1,6 @@
-# Local LLM Chat Service Guide
+# Local Chat Service Guide
 
-`local-llm.sh` manages the local `llama-server` systemd user service (`local-llm.service`), serving the Chat/Vision LLM.
+`local-chat.sh` manages the local `llama-server` systemd user service (`local-chat.service`), serving the Chat/Vision LLM.
 
 Note: Text embeddings are served separately by the standalone [local-embedding.md](local-embedding.md) service.
 
@@ -11,35 +11,35 @@ Note: Text embeddings are served separately by the standalone [local-embedding.m
 
 ```bash
 # Install the service and environment configuration
-./local-llm.sh install [--no-start] [--new-config]
+./local-chat.sh install [--no-start] [--new-config]
 
 # Start/Stop/Restart the service
-./local-llm.sh start
-./local-llm.sh stop
-./local-llm.sh restart
-./local-llm.sh enable
-./local-llm.sh disable
+./local-chat.sh start
+./local-chat.sh stop
+./local-chat.sh restart
+./local-chat.sh enable
+./local-chat.sh disable
 
 # Check runtime status
-./local-llm.sh status
+./local-chat.sh status
 
 # Tail service stdout/stderr logs
-./local-llm.sh logs -f
+./local-chat.sh logs -f
 
 # Edit service environment configuration and auto-restart
-./local-llm.sh edit
+./local-chat.sh edit
 
 # Run API validation tests
-./local-llm.sh test
+./local-chat.sh test
 
 # Run llama-server as a transient systemd user service
-./local-llm.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
+./local-chat.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
 
 # Run a custom command inside the sandboxed environment
-./local-llm.sh run [--env KEY=VALUE]* <command> [args...]
+./local-chat.sh run [--env KEY=VALUE]* <command> [args...]
 
 # Spawn an interactive shell inside the sandboxed environment
-./local-llm.sh shell [--env KEY=VALUE]*
+./local-chat.sh shell [--env KEY=VALUE]*
 ```
 
 ### In-Memory Environment Overrides
@@ -51,7 +51,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 
 These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
-./local-llm.sh exec --env LLM_N_GPU_LAYERS=0
+./local-chat.sh exec --env LCHAT_N_GPU_LAYERS=0
 ```
 
 
@@ -105,35 +105,35 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
 
 The service stores its configuration in the systemd user configuration directory:
 
-- **Service Unit**: `~/.config/systemd/user/local-llm.service`
-- **Environment File**: `~/.config/systemd/user/local-llm.env`
+- **Service Unit**: `~/.config/systemd/user/local-chat.service`
+- **Environment File**: `~/.config/systemd/user/local-chat.env`
 
 ### GPU and CPU Inference
 
 By default, the service offloads execution to the GPU using ROCm/HIP.
-To run the service on the CPU, run `./local-llm.sh edit` (or edit `~/.config/systemd/user/local-llm.env` directly) and edit this parameter:
+To run the service on the CPU, run `./local-chat.sh edit` (or edit `~/.config/systemd/user/local-chat.env` directly) and edit this parameter:
 
 ```bash
 # Number of layers to offload to GPU (all=999)
-LLM_N_GPU_LAYERS=999
+LCHAT_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
-# LLM_N_GPU_LAYERS=0
+# LCHAT_N_GPU_LAYERS=0
 ```
 
 ### Backend Device Selection (Dynamic Backend Loading)
 
 When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime.
 
-You can configure the target device using the `LLM_DEVICE` environment variable. Run `./local-llm.sh edit` (or edit `~/.config/systemd/user/local-llm.env` directly) and configure the device:
+You can configure the target device using the `LCHAT_DEVICE` environment variable. Run `./local-chat.sh edit` (or edit `~/.config/systemd/user/local-chat.env` directly) and configure the device:
 
 ```bash
 # GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LLM_DEVICE="hip"
-# LLM_DEVICE="vulkan"
-# LLM_DEVICE="cpu"
-# LLM_DEVICE="openblas"
+# LCHAT_DEVICE="hip"
+# LCHAT_DEVICE="vulkan"
+# LCHAT_DEVICE="cpu"
+# LCHAT_DEVICE="openblas"
 ```
 
 To list all available devices on your system, run:
@@ -148,11 +148,11 @@ If your system contains more than one GPU, you can configure the service to targ
 #### Targeting a Specific GPU
 You can force the service to use only a specific card in a multi-GPU environment:
 
-*   **Option 1: Device configuration (via `LLM_DEVICE`)**
+*   **Option 1: Device configuration (via `LCHAT_DEVICE`)**
     Dynamic builds list GPU devices sequentially (e.g., `hip0`, `hip1`, `vulkan0`, `vulkan1`). Edit your `.env` file and set the device variable to target a specific index:
     ```bash
     # Target only the second AMD GPU
-    LLM_DEVICE="hip1"
+    LCHAT_DEVICE="hip1"
     ```
 *   **Option 2: HIP Runtime restriction (via `HIP_VISIBLE_DEVICES`)**
     You can restrict device visibility at the driver level by adding an environment override in your `.env` file:
@@ -162,20 +162,20 @@ You can force the service to use only a specific card in a multi-GPU environment
     ```
 
 #### Splitting Layers Across Multiple GPUs (Tensor Split)
-Llama.cpp automatically splits model layers proportionally based on each GPU's available VRAM when all devices are visible. If you want to specify an explicit ratio (e.g. if cards have different sizes or to optimize overhead), use the `--tensor-split` (or `-ts`) flag inside `LLM_EXTRA_ARGS` in your `.env` file:
+Llama.cpp automatically splits model layers proportionally based on each GPU's available VRAM when all devices are visible. If you want to specify an explicit ratio (e.g. if cards have different sizes or to optimize overhead), use the `--tensor-split` (or `-ts`) flag inside `LCHAT_EXTRA_ARGS` in your `.env` file:
 
 ```bash
 # Example: Distribute model layers evenly (50/50) across two identical GPUs
-LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1"
+LCHAT_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1"
 
 # Example: Distribute across a 24GB GPU and a 12GB GPU (2:1 ratio)
-LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 2,1"
+LCHAT_EXTRA_ARGS="--flash-attn auto --tensor-split 2,1"
 ```
 
 You can also specify which GPU handles consolidations and intermediate compute using `--main-gpu` (defaults to GPU 0):
 ```bash
 # Consolidate intermediate calculations on GPU 1
-LLM_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1 --main-gpu 1"
+LCHAT_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1 --main-gpu 1"
 ```
 
 
@@ -188,16 +188,16 @@ By default, the service enables self-speculative decoding via **N-Gram lookup** 
 * **Mechanism**: It matches the last $N$ tokens (key size `--spec-ngram-simple-size-n`), searches the generation history for identical sequences, and drafts the next $M$ tokens (draft size `--spec-ngram-simple-size-m`) that previously followed. The target model verifies all of them in parallel in a single forward pass.
 * **Performance**: Highly optimized for structured agent outputs (like JSON, YAML, code blocks, or tool schema outputs) where formatting patterns and syntax repeat heavily, offering a **~1.3x to 1.4x speedup** with **zero VRAM overhead**.
 
-This is configured via `LLM_EXTRA_ARGS` in the environment file:
+This is configured via `LCHAT_EXTRA_ARGS` in the environment file:
 
 ```bash
-# Enabled by default in LLM_EXTRA_ARGS:
-LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# Enabled by default in LCHAT_EXTRA_ARGS:
+LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 ```
 
 To disable speculative decoding, edit the environment file and remove the speculative arguments, leaving only:
 ```bash
-LLM_EXTRA_ARGS="--flash-attn auto"
+LCHAT_EXTRA_ARGS="--flash-attn auto"
 ```
 
 ## VRAM Usage
@@ -210,7 +210,7 @@ For detailed breakdowns of memory usage and concurrent execution scenarios (co-r
 You can test that the service is running and behaving correctly by running the validation command:
 
 ```bash
-./local-llm.sh test
+./local-chat.sh test
 ```
 
 ### Benchmarking Mode
@@ -219,16 +219,16 @@ To benchmark prefill and decoding latency and throughput using `benchmark-contex
 
 ```bash
 # Run the Chat benchmark
-./local-llm.sh test --benchmark
+./local-chat.sh test --benchmark
 
 # Skip Phase 1 (Sequential Prefill) of the Chat benchmark
-./local-llm.sh test --benchmark --skip-prefill
+./local-chat.sh test --benchmark --skip-prefill
 
 # Skip Phase 3 (Prefix Caching & Distractor Tests) of the Chat benchmark
-./local-llm.sh test --benchmark --skip-distractor
+./local-chat.sh test --benchmark --skip-distractor
 
 # Specify the number of runs to compute cumulative average over (e.g. 5 runs)
-./local-llm.sh test --benchmark --repeat 5
+./local-chat.sh test --benchmark --repeat 5
 ```
 
 The chat completion benchmark evaluates prefill speed, generation speed, and Key-Value (KV) cache retrieval latency using a truncated ~30k token context (~115k characters) from `benchmark-context.md`. The benchmark runs in 4 distinct phases:
@@ -239,7 +239,7 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
 
 2. **Phase 1: Sequential Prefill**
    - Incrementally feeds context chunks (10% increments) to monitor prefill speed and new chunk parsing efficiency.
-   - Can be bypassed entirely using the `--skip-prefill` parameter (e.g. `./local-llm.sh test --benchmark --skip-prefill`).
+   - Can be bypassed entirely using the `--skip-prefill` parameter (e.g. `./local-chat.sh test --benchmark --skip-prefill`).
    - Sleeps for 10 seconds.
 
 3. **Phase 2: Chat Generation**
@@ -252,7 +252,7 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
      - *3b. Distractor Prompt* (a short, unrelated question to test cache eviction/interference).
      - *3c. Full Prefill Prompt + Question* (measures prompt re-parsing speed after distractor cache eviction).
    - To avoid GPU overheating on target hardware (Radeon Pro W6800), a 10-second cooldown sleep is executed *only* after the full context query (`3c`). No sleeps are executed after the half-prefill or distractor queries.
-   - Can be skipped entirely using the `--skip-distractor` parameter (e.g. `./local-llm.sh test --benchmark --skip-distractor`) to avoid overheating during extended test suites.
+   - Can be skipped entirely using the `--skip-distractor` parameter (e.g. `./local-chat.sh test --benchmark --skip-distractor`) to avoid overheating during extended test suites.
 
 > [!NOTE]
 > If `--repeat` is omitted, the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs.

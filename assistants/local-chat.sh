@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# local-llm.sh - Manage local llama-server systemd user service for Chat
+# local-chat.sh - Manage local llama-server systemd user service for Chat
 #
-# Usage: local-llm.sh <command> [args...]
+# Usage: local-chat.sh <command> [args...]
 #
-# Manages a systemd user service (local-llm.service) that runs llama-server
+# Manages a systemd user service (local-chat.service) that runs llama-server
 # serving the Chat/Vision LLM.
 #
 # Hardware target: AMD Radeon Pro W6800.
@@ -16,7 +16,7 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-SERVICE_NAME="local-llm"
+SERVICE_NAME="local-chat"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
@@ -25,18 +25,18 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # ---------------------------------------------------------------------------
 load_env() {
     # Default parameters
-    LLM_PORT=50080
-    LLM_HOST=127.0.0.1
-    LLM_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
-    LLM_ALIAS=qwen3
-    LLM_N_CTX=240000
-    LLM_PARALLEL=3
-    LLM_N_GPU_LAYERS=999
-    LLM_THREADS=4
-    LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
-    LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-    LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
-    LLM_DEVICE=""
+    LCHAT_PORT=50080
+    LCHAT_HOST=127.0.0.1
+    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+    LCHAT_ALIAS=qwen3
+    LCHAT_N_CTX=240000
+    LCHAT_PARALLEL=3
+    LCHAT_N_GPU_LAYERS=999
+    LCHAT_THREADS=4
+    LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
+    LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
+    LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+    LCHAT_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -77,7 +77,7 @@ parse_env_args() {
         local key="${update%%=*}"
         local val="${update#*=}"
         export "${key}"="${val}"
-        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^EMBED_ || "$key" =~ ^LLM_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
+        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^LMBD_ || "$key" =~ ^LCHAT_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
             printf -v "$key" "%s" "$val"
         fi
         SETENV_OPTS+=("--setenv=${key}=${val}")
@@ -113,7 +113,7 @@ get_shared_options() {
     fi
 
     # Environment file & Working directory
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-llm.env"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-chat.env"
     echo "WorkingDirectory=${home_spec}"
 
     # Basic hardening (minimal for GPU access)
@@ -155,42 +155,42 @@ generate_service_file() {
     load_env
 
     local exec_cmd="llama-server \\
-    --model ${LLM_MODEL} \\
-    --alias ${LLM_ALIAS} \\
-    --ctx-size ${LLM_N_CTX} \\
-    --parallel ${LLM_PARALLEL} \\
-    --threads ${LLM_THREADS} \\
-    --n-gpu-layers ${LLM_N_GPU_LAYERS} \\
+    --model ${LCHAT_MODEL} \\
+    --alias ${LCHAT_ALIAS} \\
+    --ctx-size ${LCHAT_N_CTX} \\
+    --parallel ${LCHAT_PARALLEL} \\
+    --threads ${LCHAT_THREADS} \\
+    --n-gpu-layers ${LCHAT_N_GPU_LAYERS} \\
     --cache-type-k q4_0 \\
     --cache-type-v q4_0 \\
     --batch-size 2048 \\
     --ubatch-size 1024 \\
-    --host ${LLM_HOST} \\
-    --port ${LLM_PORT}"
+    --host ${LCHAT_HOST} \\
+    --port ${LCHAT_PORT}"
 
-    if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
+    if [[ -n "${LCHAT_MMPROJ_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    ${LLM_MMPROJ_ARGS}"
+    ${LCHAT_MMPROJ_ARGS}"
     fi
 
-    if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
+    if [[ -n "${LCHAT_CHAT_TEMPLATE_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    ${LLM_CHAT_TEMPLATE_ARGS}"
+    ${LCHAT_CHAT_TEMPLATE_ARGS}"
     fi
 
-    if [[ -n "${LLM_DEVICE:-}" ]]; then
+    if [[ -n "${LCHAT_DEVICE:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    --device ${LLM_DEVICE}"
+    --device ${LCHAT_DEVICE}"
     fi
 
-    if [[ -n "${LLM_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LCHAT_EXTRA_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    ${LLM_EXTRA_ARGS}"
+    ${LCHAT_EXTRA_ARGS}"
     fi
 
     cat <<EOF
 [Unit]
-Description=Local LLM Chat Inference Server (llama-server)
+Description=Local Chat Inference Server (llama-server)
 Documentation=https://github.com/ggml-org/llama.cpp
 After=network.target
 
@@ -204,7 +204,7 @@ RestartSec=10s
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=local-llm
+SyslogIdentifier=local-chat
 
 [Install]
 WantedBy=default.target
@@ -216,63 +216,63 @@ EOF
 # ---------------------------------------------------------------------------
 generate_env_file() {
     cat <<'EOF'
-# local-llm.env
+# local-chat.env
 # ---------------------------------------------------------------------------
-# Configuration for the local-llm.service llama-server instance.
+# Configuration for the local-chat.service llama-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
-# Reload with:  local-llm.sh restart
+# Reload with:  local-chat.sh restart
 # ---------------------------------------------------------------------------
 
 # Port to bind the server to (default: 50080)
-LLM_PORT=50080
+LCHAT_PORT=50080
 
 # Host to bind the server to (127.0.0.1 for local access only)
-LLM_HOST=127.0.0.1
+LCHAT_HOST=127.0.0.1
 
 # ---------------------------------------------------------------------------
 # CHAT/VISION MODEL SETTINGS
 # ---------------------------------------------------------------------------
 # Path to the chat model file
-LLM_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
 
 # Model alias used by client integrations (default: qwen3)
-LLM_ALIAS=qwen3
+LCHAT_ALIAS=qwen3
 
 # Context size (default: 240000)
-LLM_N_CTX=240000
+LCHAT_N_CTX=240000
 
 # Parallel request slots (default: 3)
-LLM_PARALLEL=3
+LCHAT_PARALLEL=3
 
 # Multimodal projector arguments (optional)
-LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
+LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
 
 # Chat template file (optional)
-LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
+LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
 
 # ---------------------------------------------------------------------------
 # RUNTIME SETTINGS
 # ---------------------------------------------------------------------------
 
 # Number of layers to offload to GPU (all=999)
-LLM_N_GPU_LAYERS=999
+LCHAT_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
-# LLM_N_GPU_LAYERS=0
+# LCHAT_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LLM_DEVICE="ROCm0"
-# LLM_DEVICE="Vulkan0"
-# LLM_DEVICE="BLAS"
+# LCHAT_DEVICE="ROCm0"
+# LCHAT_DEVICE="Vulkan0"
+# LCHAT_DEVICE="BLAS"
 
 # Number of threads to use (default: 4)
 # Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
-LLM_THREADS=4
+LCHAT_THREADS=4
 
 # Extra arguments to pass to llama-server (default: "--flash-attn auto --spec-type ngram-simple ...")
-LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 
 EOF
 }
@@ -401,37 +401,37 @@ cmd_exec() {
     set -- "${COMMAND_ARGS[@]}"
 
     local args=(
-        --model "${LLM_MODEL}"
-        --alias "${LLM_ALIAS}"
-        --ctx-size "${LLM_N_CTX}"
-        --parallel "${LLM_PARALLEL}"
-        --threads "${LLM_THREADS}"
-        --n-gpu-layers "${LLM_N_GPU_LAYERS}"
+        --model "${LCHAT_MODEL}"
+        --alias "${LCHAT_ALIAS}"
+        --ctx-size "${LCHAT_N_CTX}"
+        --parallel "${LCHAT_PARALLEL}"
+        --threads "${LCHAT_THREADS}"
+        --n-gpu-layers "${LCHAT_N_GPU_LAYERS}"
         --cache-type-k q4_0
         --cache-type-v q4_0
         --batch-size 2048
         --ubatch-size 1024
-        --host "${LLM_HOST}"
-        --port "${LLM_PORT}"
+        --host "${LCHAT_HOST}"
+        --port "${LCHAT_PORT}"
     )
 
-    if [[ -n "${LLM_MMPROJ_ARGS:-}" ]]; then
+    if [[ -n "${LCHAT_MMPROJ_ARGS:-}" ]]; then
         # shellcheck disable=SC2206
-        args+=(${LLM_MMPROJ_ARGS})
+        args+=(${LCHAT_MMPROJ_ARGS})
     fi
 
-    if [[ -n "${LLM_CHAT_TEMPLATE_ARGS:-}" ]]; then
+    if [[ -n "${LCHAT_CHAT_TEMPLATE_ARGS:-}" ]]; then
         # shellcheck disable=SC2206
-        args+=(${LLM_CHAT_TEMPLATE_ARGS})
+        args+=(${LCHAT_CHAT_TEMPLATE_ARGS})
     fi
 
-    if [[ -n "${LLM_DEVICE:-}" ]]; then
-        args+=(--device "${LLM_DEVICE}")
+    if [[ -n "${LCHAT_DEVICE:-}" ]]; then
+        args+=(--device "${LCHAT_DEVICE}")
     fi
 
-    if [[ -n "${LLM_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LCHAT_EXTRA_ARGS:-}" ]]; then
         # shellcheck disable=SC2206
-        args+=(${LLM_EXTRA_ARGS})
+        args+=(${LCHAT_EXTRA_ARGS})
     fi
 
     if ! is_systemd_running; then
@@ -521,12 +521,12 @@ cmd_run() {
 }
 
 cmd_test() {
-    echo "Running local-llm validation tests..."
+    echo "Running local-chat validation tests..."
     load_env
 
-    local host="${LLM_HOST:-127.0.0.1}"
-    local port="${LLM_PORT:-50080}"
-    local alias="${LLM_ALIAS:-qwen3}"
+    local host="${LCHAT_HOST:-127.0.0.1}"
+    local port="${LCHAT_PORT:-50080}"
+    local alias="${LCHAT_ALIAS:-qwen3}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
@@ -549,7 +549,7 @@ cmd_test() {
             # Keep as dummy option for backward compatibility
             ;;
         --only-embeddings)
-            echo "Error: Embeddings are no longer served by local-llm. Use local-embedding instead." >&2
+            echo "Error: Embeddings are no longer served by local-chat. Use local-embedding instead." >&2
             exit 1
             ;;
         *)
@@ -563,7 +563,7 @@ cmd_test() {
         local context_file
         context_file="/data/public/machine-learning/models/benchmark-context.md"
         if [[ ! -f "$context_file" ]]; then
-            context_file="$(dirname "$(dirname "$LLM_MODEL")")/benchmark-context.md"
+            context_file="$(dirname "$(dirname "$LCHAT_MODEL")")/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
             context_file="/tmp/benchmark-context.md"

@@ -24,8 +24,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Define service metadata
 SERVICES: Dict[str, Dict[str, Any]] = {
     "chat": {
-        "script": os.path.join(REPO_ROOT, "assistants", "local-llm.sh"),
-        "env_file": os.path.join(SYSTEMD_USER_DIR, "local-llm.env"),
+        "script": os.path.join(REPO_ROOT, "assistants", "local-chat.sh"),
+        "env_file": os.path.join(SYSTEMD_USER_DIR, "local-chat.env"),
         "port": 50080,
         "proc_pattern": "llama-server.*--port 50080",
     },
@@ -945,7 +945,7 @@ def get_mock_output(mode: str, config: str) -> str:
 
     if mode == "chat":
         return f"""
-Running local-llm validation tests...
+Running local-chat validation tests...
 Using endpoint base: http://127.0.0.1:50080
 --- Phase 0: Warmup ---
   Prompt Tokens:        19
@@ -1079,8 +1079,8 @@ def generate_report(
             env = data[cfg][mode]["env"]
             if isinstance(env, dict):
                 for k in [
-                    "LLM_DEVICE",
-                    "EMBED_DEVICE",
+                    "LCHAT_DEVICE",
+                    "LMBD_DEVICE",
                     "LRR_DEVICE",
                     "LSTT_DEVICE",
                     "LTTS_DEVICE",
@@ -1131,7 +1131,7 @@ def generate_report(
             if isinstance(env, dict):
                 if mode == "tts" and "LTTS_MODE" in env:
                     return f"mode: {env['LTTS_MODE']}"
-                for k in ["LLM_N_GPU_LAYERS", "EMBED_N_GPU_LAYERS", "LRR_N_GPU_LAYERS"]:
+                for k in ["LCHAT_N_GPU_LAYERS", "LMBD_N_GPU_LAYERS", "LRR_N_GPU_LAYERS"]:
                     if k in env:
                         return f"Layers: {env[k]}"
                 if "LSTT_NO_GPU" in env:
@@ -1297,7 +1297,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### 📊 Performance Comparison Matrix
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
 |---|---|---|---|---|---|---|---|---|---|---|
 {chat_table_body}
@@ -1350,7 +1350,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
         # Chat details
         if "chat" in data[cfg]:
-            report += f"""#### Text Chat (`local-llm`)
+            report += f"""#### Text Chat (`local-chat`)
 - **Benchmark Test Name:** `{get_test_name(cfg, "chat")}`
 - **Device Setting:** `{get_device_setting(cfg, "chat")}`
 - **Special Setting:** `{get_special_setting(cfg, "chat")}`
@@ -1702,10 +1702,10 @@ def main() -> None:
                     baseline_vram = get_gpu_memory_mb(llm_device)
 
                     updates = {
-                        "LLM_DEVICE": llm_device,
-                        "LLM_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
-                        "LLM_N_CTX": llm_n_ctx,
-                        "LLM_SERVE_EMBEDDINGS": "false",
+                        "LCHAT_DEVICE": llm_device,
+                        "LCHAT_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
+                        "LCHAT_N_CTX": llm_n_ctx,
+                        "LCHAT_SERVE_EMBEDDINGS": "false",
                     }
                     hip_vis, cuda_vis = get_visible_devices_env(
                         run_cfg, llm_device, hip_devices_resolved
@@ -1872,16 +1872,16 @@ def main() -> None:
                     )
 
                     mock_updates = {
-                        "LLM_DEVICE": dev
+                        "LCHAT_DEVICE": dev
                         if dev
                         else (
                             "ROCm0"
                             if run_cfg == "hip"
                             else ("Vulkan0" if run_cfg == "vulkan" else "")
                         ),
-                        "LLM_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
-                        "LLM_N_CTX": str(llm_n_ctx),
-                        "LLM_SERVE_EMBEDDINGS": "false",
+                        "LCHAT_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
+                        "LCHAT_N_CTX": str(llm_n_ctx),
+                        "LCHAT_SERVE_EMBEDDINGS": "false",
                     }
                     try:
                         env_dict = read_env_file(srv["env_file"])
@@ -1946,8 +1946,8 @@ def main() -> None:
                     baseline_vram = get_gpu_memory_mb(embed_device)
 
                     updates = {
-                        "EMBED_DEVICE": embed_device,
-                        "EMBED_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
+                        "LMBD_DEVICE": embed_device,
+                        "LMBD_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
                     }
                     hip_vis, cuda_vis = get_visible_devices_env(
                         run_cfg, embed_device, hip_devices_resolved
@@ -1957,9 +1957,9 @@ def main() -> None:
 
                     if dev and "1" in dev:
                         # Limit context size to 4096 on integrated GPUs to prevent out-of-memory buffer errors
-                        updates["EMBED_N_CTX"] = 4096
+                        updates["LMBD_N_CTX"] = 4096
                     else:
-                        updates["EMBED_N_CTX"] = 8192
+                        updates["LMBD_N_CTX"] = 8192
 
                     # Build environment arguments
                     env_args = []
@@ -2104,15 +2104,15 @@ def main() -> None:
                     )
 
                     mock_updates = {
-                        "EMBED_DEVICE": dev
+                        "LMBD_DEVICE": dev
                         if dev
                         else (
                             "ROCm0"
                             if run_cfg == "hip"
                             else ("Vulkan0" if run_cfg == "vulkan" else "")
                         ),
-                        "EMBED_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
-                        "EMBED_N_CTX": "4096" if (dev and "1" in dev) else "8192",
+                        "LMBD_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
+                        "LMBD_N_CTX": "4096" if (dev and "1" in dev) else "8192",
                     }
                     try:
                         env_dict = read_env_file(srv["env_file"])

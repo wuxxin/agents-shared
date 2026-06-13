@@ -25,15 +25,15 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # ---------------------------------------------------------------------------
 load_env() {
     # Default parameters
-    EMBED_PORT=50082
-    EMBED_HOST=127.0.0.1
-    EMBED_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-    EMBED_ALIAS=qwen3-embedding
-    EMBED_N_CTX=8192
-    EMBED_N_GPU_LAYERS=999
-    EMBED_THREADS=4
-    EMBED_DEVICE=""
-    EMBED_EXTRA_ARGS=""
+    LMBD_PORT=50082
+    LMBD_HOST=127.0.0.1
+    LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    LMBD_ALIAS=qwen3-embedding
+    LMBD_N_CTX=8192
+    LMBD_N_GPU_LAYERS=999
+    LMBD_THREADS=4
+    LMBD_DEVICE=""
+    LMBD_EXTRA_ARGS=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -74,7 +74,7 @@ parse_env_args() {
         local key="${update%%=*}"
         local val="${update#*=}"
         export "${key}"="${val}"
-        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^EMBED_ || "$key" =~ ^LLM_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
+        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^LMBD_ || "$key" =~ ^LCHAT_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
             printf -v "$key" "%s" "$val"
         fi
         SETENV_OPTS+=("--setenv=${key}=${val}")
@@ -148,26 +148,26 @@ generate_service_file() {
     load_env
 
     local exec_cmd="llama-server \\
-    --model ${EMBED_MODEL} \\
+    --model ${LMBD_MODEL} \\
     --embedding \\
     --pooling mean \\
-    --ctx-size ${EMBED_N_CTX} \\
-    --batch-size ${EMBED_N_CTX} \\
-    --ubatch-size ${EMBED_N_CTX} \\
-    --alias ${EMBED_ALIAS} \\
-    --threads ${EMBED_THREADS} \\
-    --n-gpu-layers ${EMBED_N_GPU_LAYERS} \\
-    --host ${EMBED_HOST} \\
-    --port ${EMBED_PORT}"
+    --ctx-size ${LMBD_N_CTX} \\
+    --batch-size ${LMBD_N_CTX} \\
+    --ubatch-size ${LMBD_N_CTX} \\
+    --alias ${LMBD_ALIAS} \\
+    --threads ${LMBD_THREADS} \\
+    --n-gpu-layers ${LMBD_N_GPU_LAYERS} \\
+    --host ${LMBD_HOST} \\
+    --port ${LMBD_PORT}"
 
-    if [[ -n "${EMBED_DEVICE:-}" ]]; then
+    if [[ -n "${LMBD_DEVICE:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    --device ${EMBED_DEVICE}"
+    --device ${LMBD_DEVICE}"
     fi
 
-    if [[ -n "${EMBED_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LMBD_EXTRA_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
-    ${EMBED_EXTRA_ARGS}"
+    ${LMBD_EXTRA_ARGS}"
     fi
 
     cat <<EOF
@@ -207,37 +207,37 @@ generate_env_file() {
 # ---------------------------------------------------------------------------
 
 # Port to bind the server to (default: 50082)
-EMBED_PORT=50082
+LMBD_PORT=50082
 
 # Host to bind the server to (127.0.0.1 for local access only)
-EMBED_HOST=127.0.0.1
+LMBD_HOST=127.0.0.1
 
 # Path to the text embedding model file
-EMBED_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
 
 # Model alias used by client integrations (default: qwen3-embedding)
-EMBED_ALIAS=qwen3-embedding
+LMBD_ALIAS=qwen3-embedding
 
 # Context size (default: 8192)
-EMBED_N_CTX=8192
+LMBD_N_CTX=8192
 
 # Number of layers to offload to GPU (all=999)
-EMBED_N_GPU_LAYERS=999
+LMBD_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
-# EMBED_N_GPU_LAYERS=0
+# LMBD_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# EMBED_DEVICE="ROCm0"
-# EMBED_DEVICE="Vulkan0"
-# EMBED_DEVICE="BLAS"
+# LMBD_DEVICE="ROCm0"
+# LMBD_DEVICE="Vulkan0"
+# LMBD_DEVICE="BLAS"
 
 # Number of threads to use (default: 4)
-EMBED_THREADS=4
+LMBD_THREADS=4
 
 # Extra arguments to pass to llama-server
-EMBED_EXTRA_ARGS=""
+LMBD_EXTRA_ARGS=""
 
 EOF
 }
@@ -366,25 +366,25 @@ cmd_exec() {
     set -- "${COMMAND_ARGS[@]}"
 
     local args=(
-        --model "${EMBED_MODEL}"
+        --model "${LMBD_MODEL}"
         --embedding
         --pooling mean
-        --ctx-size "${EMBED_N_CTX}"
-        --batch-size "${EMBED_N_CTX}"
-        --ubatch-size "${EMBED_N_CTX}"
-        --alias "${EMBED_ALIAS}"
-        --threads "${EMBED_THREADS}"
-        --n-gpu-layers "${EMBED_N_GPU_LAYERS}"
-        --host "${EMBED_HOST}"
-        --port "${EMBED_PORT}"
+        --ctx-size "${LMBD_N_CTX}"
+        --batch-size "${LMBD_N_CTX}"
+        --ubatch-size "${LMBD_N_CTX}"
+        --alias "${LMBD_ALIAS}"
+        --threads "${LMBD_THREADS}"
+        --n-gpu-layers "${LMBD_N_GPU_LAYERS}"
+        --host "${LMBD_HOST}"
+        --port "${LMBD_PORT}"
     )
-    if [[ -n "${EMBED_DEVICE:-}" ]]; then
-        args+=(--device "${EMBED_DEVICE}")
+    if [[ -n "${LMBD_DEVICE:-}" ]]; then
+        args+=(--device "${LMBD_DEVICE}")
     fi
-    if [[ -n "${EMBED_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LMBD_EXTRA_ARGS:-}" ]]; then
         # We want word splitting for extra args
         # shellcheck disable=SC2206
-        args+=(${EMBED_EXTRA_ARGS})
+        args+=(${LMBD_EXTRA_ARGS})
     fi
 
     if ! is_systemd_running; then
@@ -477,9 +477,9 @@ cmd_test() {
     echo "Running local-embedding validation tests..."
     load_env
 
-    local host="${EMBED_HOST:-127.0.0.1}"
-    local port="${EMBED_PORT:-50082}"
-    local alias="${EMBED_ALIAS:-qwen3-embedding}"
+    local host="${LMBD_HOST:-127.0.0.1}"
+    local port="${LMBD_PORT:-50082}"
+    local alias="${LMBD_ALIAS:-qwen3-embedding}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
@@ -505,7 +505,7 @@ cmd_test() {
         local context_file
         context_file="/data/public/machine-learning/models/benchmark-context.md"
         if [[ ! -f "$context_file" ]]; then
-            context_file="$(dirname "$(dirname "$EMBED_MODEL")")/benchmark-context.md"
+            context_file="$(dirname "$(dirname "$LMBD_MODEL")")/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
             context_file="/tmp/benchmark-context.md"

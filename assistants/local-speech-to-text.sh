@@ -231,7 +231,7 @@ parse_env_args() {
         local key="${update%%=*}"
         local val="${update#*=}"
         export "${key}"="${val}"
-        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^EMBED_ || "$key" =~ ^LLM_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
+        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^LMBD_ || "$key" =~ ^LCHAT_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
             printf -v "$key" "%s" "$val"
         fi
         SETENV_OPTS+=("--setenv=${key}=${val}")

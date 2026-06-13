@@ -6,7 +6,7 @@ It automates target environment setups, captures VRAM/RAM resource utilization, 
 
 ## Supported Services
 
-- **Chat (`chat` / `local-llm.sh`)**: Measures prompt prefill speed, generation/decode throughput, and Time-To-First-Token (TTFT).
+- **Chat (`chat` / `local-chat.sh`)**: Measures prompt prefill speed, generation/decode throughput, and Time-To-First-Token (TTFT).
 - **Text Embedding (`embedding` / `local-embedding.sh`)**: Measures document embedding throughput (tokens/second) and average chunk latency.
 - **Document Reranking (`rerank` / `local-rerank.sh`)**: Measures reranking throughput (documents/second) and token evaluation speed.
 - **Speech-to-Text (`stt` / `local-speech-to-text.sh`)**: Measures transcription time and the Real-Time Factor (RTF).

@@ -8,7 +8,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### 📊 Performance Comparison Matrix
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 | Configuration | Test Name | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat GPU Mem | Chat CPU Mem |
 |---|---|---|---|---|---|---|---|---|---|---|
 | **HIP-ROCM0** | chat_hip-ROCm0 | ROCm0 | Layers: 999 | 26818.12 ms | 1157.46 t/s | 243.10 ms | 75.60 t/s | 44.80 t/s | 19998.0 MB | 1300.4 MB |
@@ -61,7 +61,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 - **Device Name**: `AMD Radeon Pro W6800` (Total: 30704 MiB, Free: 30668 MiB)
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 - **Benchmark Test Name:** `chat_hip-ROCm0`
 - **Device Setting:** `ROCm0`
 - **Special Setting:** `Layers: 999`
@@ -73,19 +73,19 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES="0"`
   - `HIP_VISIBLE_DEVICES="0"`
-  - `LLM_ALIAS="qwen3"`
-  - `LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
-  - `LLM_DEVICE="ROCm0"`
-  - `LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
-  - `LLM_HOST="127.0.0.1"`
-  - `LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LLM_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
-  - `LLM_N_CTX="240000"`
-  - `LLM_N_GPU_LAYERS="999"`
-  - `LLM_PARALLEL="3"`
-  - `LLM_PORT="50080"`
-  - `LLM_SERVE_EMBEDDINGS="false"`
-  - `LLM_THREADS="4"`
+  - `LCHAT_ALIAS="qwen3"`
+  - `LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
+  - `LCHAT_DEVICE="ROCm0"`
+  - `LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
+  - `LCHAT_HOST="127.0.0.1"`
+  - `LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_N_CTX="240000"`
+  - `LCHAT_N_GPU_LAYERS="999"`
+  - `LCHAT_PARALLEL="3"`
+  - `LCHAT_PORT="50080"`
+  - `LCHAT_SERVE_EMBEDDINGS="false"`
+  - `LCHAT_THREADS="4"`
 - **Errors Count:** 0
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       243.10 ms
@@ -109,15 +109,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** 15.82 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES="0"`
-  - `EMBED_ALIAS="qwen3-embedding"`
-  - `EMBED_DEVICE="ROCm0"`
-  - `EMBED_EXTRA_ARGS=""`
-  - `EMBED_HOST="127.0.0.1"`
-  - `EMBED_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
-  - `EMBED_N_CTX="8192"`
-  - `EMBED_N_GPU_LAYERS="999"`
-  - `EMBED_PORT="50082"`
-  - `EMBED_THREADS="4"`
+  - `LMBD_ALIAS="qwen3-embedding"`
+  - `LMBD_DEVICE="ROCm0"`
+  - `LMBD_EXTRA_ARGS=""`
+  - `LMBD_HOST="127.0.0.1"`
+  - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
+  - `LMBD_N_CTX="8192"`
+  - `LMBD_N_GPU_LAYERS="999"`
+  - `LMBD_PORT="50082"`
+  - `LMBD_THREADS="4"`
   - `HIP_VISIBLE_DEVICES="0"`
 - **Errors Count:** 0
 - **Metrics:**
@@ -210,7 +210,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### HIP-ROCM1 Configuration Details
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 - **Benchmark Test Name:** `chat_hip-ROCm1`
 - **Device Setting:** `ROCm1`
 - **Special Setting:** `Layers: 999 (Context: 20%)`
@@ -222,19 +222,19 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES="1"`
   - `HIP_VISIBLE_DEVICES="1"`
-  - `LLM_ALIAS="qwen3"`
-  - `LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
-  - `LLM_DEVICE="ROCm1"`
-  - `LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
-  - `LLM_HOST="127.0.0.1"`
-  - `LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LLM_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
-  - `LLM_N_CTX="48000"`
-  - `LLM_N_GPU_LAYERS="999"`
-  - `LLM_PARALLEL="3"`
-  - `LLM_PORT="50080"`
-  - `LLM_SERVE_EMBEDDINGS="false"`
-  - `LLM_THREADS="4"`
+  - `LCHAT_ALIAS="qwen3"`
+  - `LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
+  - `LCHAT_DEVICE="ROCm1"`
+  - `LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
+  - `LCHAT_HOST="127.0.0.1"`
+  - `LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_N_CTX="48000"`
+  - `LCHAT_N_GPU_LAYERS="999"`
+  - `LCHAT_PARALLEL="3"`
+  - `LCHAT_PORT="50080"`
+  - `LCHAT_SERVE_EMBEDDINGS="false"`
+  - `LCHAT_THREADS="4"`
 - **Errors Count:** 1
 - **Top Errors:**
   - `Error: llama-server failed to start or port timed out`
@@ -253,7 +253,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 - **Device Name**: `AMD Radeon Pro W6800 (RADV NAVI21)` (Total: 30704 MiB, Free: 29435 MiB)
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 - **Benchmark Test Name:** `chat_vulkan-Vulkan0`
 - **Device Setting:** `Vulkan0`
 - **Special Setting:** `Layers: 999`
@@ -265,19 +265,19 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
-  - `LLM_ALIAS="qwen3"`
-  - `LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
-  - `LLM_DEVICE="Vulkan0"`
-  - `LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
-  - `LLM_HOST="127.0.0.1"`
-  - `LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LLM_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
-  - `LLM_N_CTX="240000"`
-  - `LLM_N_GPU_LAYERS="999"`
-  - `LLM_PARALLEL="3"`
-  - `LLM_PORT="50080"`
-  - `LLM_SERVE_EMBEDDINGS="false"`
-  - `LLM_THREADS="4"`
+  - `LCHAT_ALIAS="qwen3"`
+  - `LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
+  - `LCHAT_DEVICE="Vulkan0"`
+  - `LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
+  - `LCHAT_HOST="127.0.0.1"`
+  - `LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_N_CTX="240000"`
+  - `LCHAT_N_GPU_LAYERS="999"`
+  - `LCHAT_PARALLEL="3"`
+  - `LCHAT_PORT="50080"`
+  - `LCHAT_SERVE_EMBEDDINGS="false"`
+  - `LCHAT_THREADS="4"`
 - **Errors Count:** 0
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       179.85 ms
@@ -301,15 +301,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** 53.76 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
-  - `EMBED_ALIAS="qwen3-embedding"`
-  - `EMBED_DEVICE="Vulkan0"`
-  - `EMBED_EXTRA_ARGS=""`
-  - `EMBED_HOST="127.0.0.1"`
-  - `EMBED_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
-  - `EMBED_N_CTX="8192"`
-  - `EMBED_N_GPU_LAYERS="999"`
-  - `EMBED_PORT="50082"`
-  - `EMBED_THREADS="4"`
+  - `LMBD_ALIAS="qwen3-embedding"`
+  - `LMBD_DEVICE="Vulkan0"`
+  - `LMBD_EXTRA_ARGS=""`
+  - `LMBD_HOST="127.0.0.1"`
+  - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
+  - `LMBD_N_CTX="8192"`
+  - `LMBD_N_GPU_LAYERS="999"`
+  - `LMBD_PORT="50082"`
+  - `LMBD_THREADS="4"`
   - `HIP_VISIBLE_DEVICES=""`
 - **Errors Count:** 1
 - **Top Errors:**
@@ -406,7 +406,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 - **Device Name**: `AMD Radeon Graphics (RADV RENOIR)` (Total: 72645 MiB, Free: 72616 MiB)
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 - **Benchmark Test Name:** `chat_vulkan-Vulkan1`
 - **Device Setting:** `Vulkan1`
 - **Special Setting:** `Layers: 999 (Context: 20%)`
@@ -418,19 +418,19 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
-  - `LLM_ALIAS="qwen3"`
-  - `LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
-  - `LLM_DEVICE="Vulkan1"`
-  - `LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
-  - `LLM_HOST="127.0.0.1"`
-  - `LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LLM_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
-  - `LLM_N_CTX="48000"`
-  - `LLM_N_GPU_LAYERS="999"`
-  - `LLM_PARALLEL="3"`
-  - `LLM_PORT="50080"`
-  - `LLM_SERVE_EMBEDDINGS="false"`
-  - `LLM_THREADS="4"`
+  - `LCHAT_ALIAS="qwen3"`
+  - `LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
+  - `LCHAT_DEVICE="Vulkan1"`
+  - `LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
+  - `LCHAT_HOST="127.0.0.1"`
+  - `LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_N_CTX="48000"`
+  - `LCHAT_N_GPU_LAYERS="999"`
+  - `LCHAT_PARALLEL="3"`
+  - `LCHAT_PORT="50080"`
+  - `LCHAT_SERVE_EMBEDDINGS="false"`
+  - `LCHAT_THREADS="4"`
 - **Errors Count:** 0
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       865.60 ms
@@ -454,15 +454,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** 86.42 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
-  - `EMBED_ALIAS="qwen3-embedding"`
-  - `EMBED_DEVICE="Vulkan1"`
-  - `EMBED_EXTRA_ARGS=""`
-  - `EMBED_HOST="127.0.0.1"`
-  - `EMBED_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
-  - `EMBED_N_CTX="4096"`
-  - `EMBED_N_GPU_LAYERS="999"`
-  - `EMBED_PORT="50082"`
-  - `EMBED_THREADS="4"`
+  - `LMBD_ALIAS="qwen3-embedding"`
+  - `LMBD_DEVICE="Vulkan1"`
+  - `LMBD_EXTRA_ARGS=""`
+  - `LMBD_HOST="127.0.0.1"`
+  - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
+  - `LMBD_N_CTX="4096"`
+  - `LMBD_N_GPU_LAYERS="999"`
+  - `LMBD_PORT="50082"`
+  - `LMBD_THREADS="4"`
   - `HIP_VISIBLE_DEVICES=""`
 - **Errors Count:** 0
 - **Metrics:**
@@ -557,7 +557,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 - **Device Name**: `OpenBLAS` (Total: 0 MiB, Free: 0 MiB)
 
-#### Text Chat (`local-llm`)
+#### Text Chat (`local-chat`)
 - **Benchmark Test Name:** `chat_cpu`
 - **Device Setting:** `Default`
 - **Special Setting:** `Layers: 0 (Context: 5%)`
@@ -569,19 +569,19 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
-  - `LLM_ALIAS="qwen3"`
-  - `LLM_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
-  - `LLM_DEVICE=""`
-  - `LLM_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
-  - `LLM_HOST="127.0.0.1"`
-  - `LLM_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LLM_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
-  - `LLM_N_CTX="12000"`
-  - `LLM_N_GPU_LAYERS="0"`
-  - `LLM_PARALLEL="3"`
-  - `LLM_PORT="50080"`
-  - `LLM_SERVE_EMBEDDINGS="false"`
-  - `LLM_THREADS="4"`
+  - `LCHAT_ALIAS="qwen3"`
+  - `LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
+  - `LCHAT_DEVICE=""`
+  - `LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
+  - `LCHAT_HOST="127.0.0.1"`
+  - `LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_N_CTX="12000"`
+  - `LCHAT_N_GPU_LAYERS="0"`
+  - `LCHAT_PARALLEL="3"`
+  - `LCHAT_PORT="50080"`
+  - `LCHAT_SERVE_EMBEDDINGS="false"`
+  - `LCHAT_THREADS="4"`
 - **Errors Count:** 0
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       663.72 ms
@@ -605,15 +605,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Running Time:** 89.29 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
-  - `EMBED_ALIAS="qwen3-embedding"`
-  - `EMBED_DEVICE="BLAS"`
-  - `EMBED_EXTRA_ARGS=""`
-  - `EMBED_HOST="127.0.0.1"`
-  - `EMBED_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
-  - `EMBED_N_CTX="8192"`
-  - `EMBED_N_GPU_LAYERS="0"`
-  - `EMBED_PORT="50082"`
-  - `EMBED_THREADS="4"`
+  - `LMBD_ALIAS="qwen3-embedding"`
+  - `LMBD_DEVICE="BLAS"`
+  - `LMBD_EXTRA_ARGS=""`
+  - `LMBD_HOST="127.0.0.1"`
+  - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
+  - `LMBD_N_CTX="8192"`
+  - `LMBD_N_GPU_LAYERS="0"`
+  - `LMBD_PORT="50082"`
+  - `LMBD_THREADS="4"`
   - `HIP_VISIBLE_DEVICES=""`
 - **Errors Count:** 0
 - **Metrics:**

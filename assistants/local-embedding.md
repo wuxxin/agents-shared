@@ -47,7 +47,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 
 These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
-./local-embedding.sh exec --env EMBED_N_GPU_LAYERS=0
+./local-embedding.sh exec --env LMBD_N_GPU_LAYERS=0
 ```
 
 
@@ -56,7 +56,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 The local service runs **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF quantization format. 
 
 Key specifications:
-  - **Context Size (`EMBED_N_CTX`):** `8192`
+  - **Context Size (`LMBD_N_CTX`):** `8192`
   - **Pooling:** `mean`
   - **Model File:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
   - **Capabilities**: Translates text blocks into high-density vector representations for similarity checks and vector search databases.
@@ -85,30 +85,30 @@ The service stores its configuration in the systemd user configuration directory
 
 By default, the service offloads embedding layer computation to the GPU to maximize throughput. If GPU memory is constrainted, execution can be offloaded to the CPU.
 
-To run the service on the CPU or GPU, run `./local-embedding.sh edit` (or edit `~/.config/systemd/user/local-embedding.env` directly) and change the parameter `EMBED_N_GPU_LAYERS`:
+To run the service on the CPU or GPU, run `./local-embedding.sh edit` (or edit `~/.config/systemd/user/local-embedding.env` directly) and change the parameter `LMBD_N_GPU_LAYERS`:
 
 ```bash
 # For GPU execution (fully offload all layers)
-EMBED_N_GPU_LAYERS=999
+LMBD_N_GPU_LAYERS=999
 
 # For CPU execution
-EMBED_N_GPU_LAYERS=0
+LMBD_N_GPU_LAYERS=0
 ```
 
 ### Backend Device Selection (Dynamic Backend Loading)
 
 When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
 
-You can configure the target device using the `EMBED_DEVICE` environment variable. Run `./local-embedding.sh edit` (or edit `~/.config/systemd/user/local-embedding.env` directly) and configure the device:
+You can configure the target device using the `LMBD_DEVICE` environment variable. Run `./local-embedding.sh edit` (or edit `~/.config/systemd/user/local-embedding.env` directly) and configure the device:
 
 ```bash
 # GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# EMBED_DEVICE="hip"
-# EMBED_DEVICE="vulkan"
-# EMBED_DEVICE="cpu"
-# EMBED_DEVICE="openblas"
+# LMBD_DEVICE="hip"
+# LMBD_DEVICE="vulkan"
+# LMBD_DEVICE="cpu"
+# LMBD_DEVICE="openblas"
 ```
 
 To list all available devices on your system, run:
