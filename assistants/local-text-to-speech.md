@@ -28,7 +28,7 @@ The `exec`, `run`, and `shell` subcommands support a repeatable `--env KEY=VALUE
 
 These overrides are kept transient, keeping the main `.env` configuration file untouched. For example, to run the server temporarily on CPU without changing your permanent configuration:
 ```bash
-./local-text-to-speech.sh exec --env LTTS_MODE=cpu-only
+./local-text-to-speech.sh exec --env LTTS_MODE=cpu
 ```
 
 ## Architecture
@@ -54,11 +54,10 @@ The service runs `qwen3-tts-server` which loads a Qwen3-TTS talker model and a W
 The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`. This control toggles four primary presets:
 
 1. **`gpu`**: Runs inference on the ROCm GPU. Keeps both the TTS transformer and the vocoder decoder models warm in VRAM, delivering maximum generation throughput.
-2. **`gpu-min-vram`**: Runs inference on the ROCm GPU but uses `QWEN3_TTS_LOW_MEM=1` to lazy-load and unload transformer and vocoder modules dynamically, significantly reducing VRAM idle footprint at the cost of slight compilation startup delay per synthesis.
-3. **`hybrid`** (Performance Sweet Spot): Offloads Code Generation (`TTSTransformer`) to the CPU (setting `QWEN3_TTS_TRANSFORMER_FORCE_CPU=1`), while running Vocoder Decode (`AudioTokenizerDecoder`) on the GPU (`ROCm0`). This bypasses GEMV thread starvation and kernel launch latency on the GPU during the autoregressive stage, yielding a **1.5x to 2x speedup** over GPU-only and saving **1.5 GB to 2.7 GB of VRAM**.
-4. **`cpu-only`** (Default): Completely bypasses ROCm GPU initialization and offloads all tensor computations to the CPU. Propagates dynamic threading settings to all GGML CPU backends.
+2. **`hybrid`** (Performance Sweet Spot): Offloads Code Generation (`TTSTransformer`) to the CPU (setting `QWEN3_TTS_TRANSFORMER_FORCE_CPU=1`), while running Vocoder Decode (`AudioTokenizerDecoder`) on the GPU (`ROCm0`). This bypasses GEMV thread starvation and kernel launch latency on the GPU during the autoregressive stage, yielding a **1.5x to 2x speedup** over GPU-only and saving **1.5 GB to 2.7 GB of VRAM**.
+3. **`cpu`** (Default): Completely bypasses ROCm GPU initialization and offloads all tensor computations to the CPU. Propagates dynamic threading settings to all GGML CPU backends.
 
-To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`). For CPU-bound execution (CPU-only or Hybrid), the optimal thread count is **8 threads**. Setting it to 16 threads causes a ~2.2x slowdown due to CCD boundaries and synchronization overhead.
+To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`). For CPU-bound execution (cpu or Hybrid), the optimal thread count is **8 threads**. Setting it to 16 threads causes a ~2.2x slowdown due to CCD boundaries and synchronization overhead.
 
 ### Backend Device Selection (Dynamic Backend Loading)
 

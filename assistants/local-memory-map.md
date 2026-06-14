@@ -63,9 +63,8 @@ The memory profile of the Text-to-Speech service depends significantly on the co
 | Preset / Mode | Idle GPU VRAM | Active GPU VRAM | System RAM | Notes |
 |---|---|---|---|---|
 | **`gpu`** | ~600 MiB | ~3,567 MiB | ~952 MiB | Runs on GPU; holds all weights warm. (RTF 2.28x) |
-| **`gpu-min-vram`** | ~600 MiB | ~2,083 MiB | ~951 MiB | Streams weights lazily; releases model VRAM when idle. (RTF 2.27x) |
 | **`hybrid`** | ~600 MiB | ~2,194 MiB | ~2,447 MiB | **Recommended.** Code Gen on CPU, Vocoder on GPU. (RTF 1.11x) |
-| **`cpu-only`** | 0 MiB | 0 MiB | ~2,965 MiB | Runs completely on CPU (8 threads). (RTF 1.58x) |
+| **`cpu`** | 0 MiB | 0 MiB | ~2,965 MiB | Runs completely on CPU (8 threads). (RTF 1.58x) |
 
 *Detailed breakdown for `gpu` (0.6B CustomVoice):*
 - Talker Model weights (Q8_0): ~1,264 MiB (1.23 GiB GGUF file)
@@ -78,9 +77,8 @@ The memory profile of the Text-to-Speech service depends significantly on the co
 | Preset / Mode | Idle GPU VRAM | Active GPU VRAM | System RAM | Notes |
 |---|---|---|---|---|
 | **`gpu`** | ~600 MiB | ~4,769 MiB | ~967 MiB | Runs on GPU; holds all weights warm. (RTF 3.88x) |
-| **`gpu-min-vram`** | ~600 MiB | ~2,897 MiB | ~972 MiB | Streams weights lazily; releases model VRAM when idle. (RTF 3.89x) |
 | **`hybrid`** | ~600 MiB | ~2,104 MiB | ~3,523 MiB | **Recommended.** Code Gen on CPU, Vocoder on GPU. (RTF 2.92x) |
-| **`cpu-only`** | 0 MiB | 0 MiB | ~4,415 MiB | Runs completely on CPU (8 threads). (RTF 3.39x) |
+| **`cpu`** | 0 MiB | 0 MiB | ~4,415 MiB | Runs completely on CPU (8 threads). (RTF 3.39x) |
 
 *Detailed breakdown for `gpu` (1.7B CustomVoice):*
 - Talker Model weights (Q8_0): ~2,322 MiB (2.27 GiB GGUF file)
