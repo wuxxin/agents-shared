@@ -11,7 +11,7 @@
 ## Usage
 
 ```bash
-# Install all managed services and generate the default coordinator env configuration
+# Install all managed services and re-create the default configuration for each service
 ./local-inference.sh install [--new-config]
 
 # Start/Stop/Restart all services based on their activation states
@@ -27,6 +27,9 @@
 
 # Edit the coordinator configuration and automatically apply changes / restart services
 ./local-inference.sh edit
+
+# Run validation tests / benchmarks for all enabled services
+./local-inference.sh test [test-args...]
 
 # Uninstall all managed services
 ./local-inference.sh uninstall
@@ -67,6 +70,6 @@ LRR_OVERRIDE=(
 )
 ```
 
-The coordinator automatically extracts these key-value pairs and writes/modifies them in the respective target service env files (e.g. `~/.config/systemd/user/local-rerank.env`) on `install`, `start`, `restart`, and `edit`.
+The coordinator automatically extracts these key-value pairs and writes/modifies them in the respective target service env files (e.g. `~/.config/systemd/user/local-rerank.env`) on `install`, `start`, `restart`, `edit`, and `test`.
 
 Any key matching `^KEY=.*$` or comment `^# KEY=.*$` is replaced with the override value, or appended to the service's env file if not found.

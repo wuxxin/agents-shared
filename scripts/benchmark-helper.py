@@ -14,7 +14,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 
 def post_json(url: str, payload: dict) -> dict:
@@ -152,6 +152,9 @@ def run_llm_chat(
     repeats: int,
     skip_prefill: bool = False,
     skip_distractor: bool = False,
+    skip_chat: bool = False,
+    skip_image: bool = False,
+    image_file: Optional[str] = None,
     fraction_context: float = 1.0,
 ) -> None:
     """Run chat completion prefill/decode benchmark using a large context."""
@@ -177,46 +180,57 @@ def run_llm_chat(
         )
         context_content = context_content[:target_len]
 
+    # Initialize values to avoid reference errors
+    ttft_p0 = 0.0
+    prompt_tokens_p0 = 0
+    completion_tokens_p0 = 0
+    prefill_speed_p0 = 0.0
+    generation_speed_p0 = 0.0
+    text_p0 = ""
+
     # Phase 0: Warmup
-    print("===================================================")
-    print("=== PHASE 0: Warmup (Validation Query) ===")
-    print("===================================================")
-    payload_p0 = {
-        "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": "Hello, respond with exactly: Hello World!",
-            }
-        ],
-        "stream": True,
-        "stream_options": {"include_usage": True},
-        "temperature": 0.0,
-    }
+    if not skip_chat:
+        print("===================================================")
+        print("=== PHASE 0: Warmup (Validation Query) ===")
+        print("===================================================")
+        payload_p0 = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, respond with exactly: Hello World!",
+                }
+            ],
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            "temperature": 0.0,
+        }
 
-    ttft_p0, total_time_p0, text_p0, prompt_tokens_p0, completion_tokens_p0 = (
-        run_streamed_query(url, payload_p0, "[Warmup]", quiet=False)
-    )
+        ttft_p0, total_time_p0, text_p0, prompt_tokens_p0, completion_tokens_p0 = (
+            run_streamed_query(url, payload_p0, "[Warmup]", quiet=False)
+        )
 
-    generation_time_p0 = total_time_p0 - ttft_p0
-    prefill_speed_p0 = (prompt_tokens_p0 / ttft_p0) if ttft_p0 > 0 else 0.0
-    generation_speed_p0 = (
-        (completion_tokens_p0 / generation_time_p0) if generation_time_p0 > 0 else 0.0
-    )
+        generation_time_p0 = total_time_p0 - ttft_p0
+        prefill_speed_p0 = (prompt_tokens_p0 / ttft_p0) if ttft_p0 > 0 else 0.0
+        generation_speed_p0 = (
+            (completion_tokens_p0 / generation_time_p0)
+            if generation_time_p0 > 0
+            else 0.0
+        )
 
-    print(
-        f"  Metrics: TTFT={ttft_p0 * 1000:.1f}ms, Prefill={prefill_speed_p0:.2f} t/s, Gen={generation_speed_p0:.2f} t/s"
-    )
-    print(f'  Response: "{text_p0.strip()}"')
+        print(
+            f"  Metrics: TTFT={ttft_p0 * 1000:.1f}ms, Prefill={prefill_speed_p0:.2f} t/s, Gen={generation_speed_p0:.2f} t/s"
+        )
+        print(f'  Response: "{text_p0.strip()}"')
 
-    # Sleep 10 seconds between Phase 0 and next phase
-    print("\nSleeping 10 seconds between Phase 0 and next phase...")
-    time.sleep(10)
+        # Sleep 10 seconds between Phase 0 and next phase
+        print("\nSleeping 10 seconds between Phase 0 and next phase...")
+        time.sleep(10)
 
     # Phase 1: Sequential Prefill
     phase1_durations = []
     phase1_speeds = []
-    if not skip_prefill:
+    if not skip_chat and not skip_prefill:
         print("\n===================================================")
         print("=== PHASE 1: Sequential Prefill (Warmup) ===")
         print("===================================================")
@@ -278,64 +292,64 @@ def run_llm_chat(
         print("  SKIPPED")
 
     # Phase 2: Chat Generation (300-word summary)
-    print("\n===================================================")
-    print("=== PHASE 2: Chat Generation (300-word summary) ===")
-    print("===================================================")
-    prompt_p2 = (
-        context_content + "\n\nTask: Summarize the text above in exactly 300 words."
-    )
-
     phase2_runs = []
     generated_text = ""
-
-    for r in range(repeats):
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt_p2}],
-            "stream": True,
-            "stream_options": {"include_usage": True},
-            "temperature": 0.0,
-            "max_tokens": 600,
-        }
-
-        display_label = f"[Run {r + 1}/{repeats}]"
-        quiet = r > 0
-
-        ttft, total_time, text, prompt_tokens, completion_tokens = run_streamed_query(
-            url, payload, display_label, quiet=quiet
+    if not skip_chat:
+        print("\n===================================================")
+        print("=== PHASE 2: Chat Generation (300-word summary) ===")
+        print("===================================================")
+        prompt_p2 = (
+            context_content + "\n\nTask: Summarize the text above in exactly 300 words."
         )
 
-        generation_time = total_time - ttft
-        prefill_speed = (prompt_tokens / ttft) if ttft > 0 else 0.0
-        generation_speed = (
-            (completion_tokens / generation_time) if generation_time > 0 else 0.0
-        )
-
-        phase2_runs.append(
-            {
-                "ttft": ttft,
-                "generation_time": generation_time,
-                "prefill_speed": prefill_speed,
-                "generation_speed": generation_speed,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
+        for r in range(repeats):
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt_p2}],
+                "stream": True,
+                "stream_options": {"include_usage": True},
+                "temperature": 0.0,
+                "max_tokens": 600,
             }
-        )
 
-        if r == 0:
-            generated_text = text
+            display_label = f"[Run {r + 1}/{repeats}]"
+            quiet = r > 0
 
-        if quiet:
-            print(
-                f"  [Run {r + 1}/{repeats}] Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} tokens/sec)"
+            ttft, total_time, text, prompt_tokens, completion_tokens = (
+                run_streamed_query(url, payload, display_label, quiet=quiet)
             )
-        else:
-            print(
-                f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
+
+            generation_time = total_time - ttft
+            prefill_speed = (prompt_tokens / ttft) if ttft > 0 else 0.0
+            generation_speed = (
+                (completion_tokens / generation_time) if generation_time > 0 else 0.0
             )
+
+            phase2_runs.append(
+                {
+                    "ttft": ttft,
+                    "generation_time": generation_time,
+                    "prefill_speed": prefill_speed,
+                    "generation_speed": generation_speed,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                }
+            )
+
+            if r == 0:
+                generated_text = text
+
+            if quiet:
+                print(
+                    f"  [Run {r + 1}/{repeats}] Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} tokens/sec)"
+                )
+            else:
+                print(
+                    f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
+                )
 
     # Phase 3: Prefix Caching & Distractor Tests
-    run_phase3 = not skip_distractor
+    run_phase3 = not skip_distractor and not skip_chat
     phase3_results: Dict[str, List[Dict[str, Any]]] = {}
 
     if run_phase3:
@@ -411,6 +425,114 @@ def run_llm_chat(
                     print("  Sleeping 10 seconds to let GPU cool down...")
                     time.sleep(10)
 
+    # Phase 4: Image Description (Vision Test)
+    phase4_runs = []
+    has_vision = False
+    vision_text = ""
+    if not skip_image and image_file:
+        print("\n===================================================")
+        print("=== PHASE 4: Image Description (Vision Test) ===")
+        print("===================================================")
+        if not os.path.exists(image_file):
+            print(
+                f"  Warning: Vision test image not found at {image_file}. Skipping Phase 4."
+            )
+        else:
+            has_vision = True
+            import base64
+
+            with open(image_file, "rb") as img_f:
+                img_bytes = img_f.read()
+            b64_data = base64.b64encode(img_bytes).decode("utf-8")
+
+            ext = os.path.splitext(image_file)[1].lower()
+            mime = "image/jpeg"
+            if ext == ".png":
+                mime = "image/png"
+            elif ext == ".gif":
+                mime = "image/gif"
+            elif ext == ".webp":
+                mime = "image/webp"
+
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Describe this image in detail. What is in this picture?",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime};base64,{b64_data}"},
+                            },
+                        ],
+                    }
+                ],
+                "stream": True,
+                "stream_options": {"include_usage": True},
+                "temperature": 0.0,
+                "max_tokens": 150,
+            }
+
+            for r in range(repeats):
+                display_label = f"[Vision Run {r + 1}/{repeats}]"
+                quiet = r > 0
+
+                ttft, total_time, text, prompt_tokens, completion_tokens = (
+                    run_streamed_query(url, payload, display_label, quiet=quiet)
+                )
+
+                generation_time = total_time - ttft
+                prefill_speed = (prompt_tokens / ttft) if ttft > 0 else 0.0
+                generation_speed = (
+                    (completion_tokens / generation_time)
+                    if generation_time > 0
+                    else 0.0
+                )
+
+                phase4_runs.append(
+                    {
+                        "ttft": ttft,
+                        "generation_time": generation_time,
+                        "prefill_speed": prefill_speed,
+                        "generation_speed": generation_speed,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                    }
+                )
+
+                if r == 0:
+                    vision_text = text
+
+                if quiet:
+                    print(
+                        f"  [Vision Run {r + 1}/{repeats}] Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} tokens/sec)"
+                    )
+                else:
+                    print(
+                        f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
+                    )
+
+            # Compare result: check for keywords
+            expected_keywords = [
+                "eiffel",
+                "tower",
+                "paris",
+                "structure",
+                "architecture",
+                "building",
+                "monument",
+            ]
+            matched = [w for w in expected_keywords if w in vision_text.lower()]
+            match_pct = (len(matched) / len(expected_keywords)) * 100
+            print("\n  Image Description Comparison Results:")
+            print(
+                f"    Matched {len(matched)}/{len(expected_keywords)} expected keywords ({match_pct:.1f}%): {matched}"
+            )
+
     # Compile report
     print("\n===================================================")
     print("=== CHAT BENCHMARK RESULTS SUMMARY ===")
@@ -439,32 +561,35 @@ def run_llm_chat(
         print("  SKIPPED")
 
     # Phase 2 Summary
-    avg_p2_ttft = sum(x["ttft"] for x in phase2_runs) / len(phase2_runs)
-    avg_p2_gen_time = sum(x["generation_time"] for x in phase2_runs) / len(phase2_runs)
-    avg_p2_prefill_speed = sum(x["prefill_speed"] for x in phase2_runs) / len(
-        phase2_runs
-    )
-    avg_p2_gen_speed = sum(x["generation_speed"] for x in phase2_runs) / len(
-        phase2_runs
-    )
-    avg_p2_prompt_tokens = phase2_runs[0]["prompt_tokens"]
-    avg_p2_comp_tokens = sum(x["completion_tokens"] for x in phase2_runs) / len(
-        phase2_runs
-    )
+    if not skip_chat and phase2_runs:
+        avg_p2_ttft = sum(x["ttft"] for x in phase2_runs) / len(phase2_runs)
+        avg_p2_gen_time = sum(x["generation_time"] for x in phase2_runs) / len(
+            phase2_runs
+        )
+        avg_p2_prefill_speed = sum(x["prefill_speed"] for x in phase2_runs) / len(
+            phase2_runs
+        )
+        avg_p2_gen_speed = sum(x["generation_speed"] for x in phase2_runs) / len(
+            phase2_runs
+        )
+        avg_p2_prompt_tokens = phase2_runs[0]["prompt_tokens"]
+        avg_p2_comp_tokens = sum(x["completion_tokens"] for x in phase2_runs) / len(
+            phase2_runs
+        )
 
-    print("\n--- Phase 2: Generation (300-word summary) ---")
-    print(f"  Runs:                 {repeats}")
-    print(f"  Prompt Tokens:        {avg_p2_prompt_tokens}")
-    print(f"  Avg Completion Tokens: {avg_p2_comp_tokens:.1f}")
-    print(f"  Avg TTFT (Prefill):   {avg_p2_ttft * 1000:.2f} ms")
-    print(f"  Avg Prefill Speed:    {avg_p2_prefill_speed:.2f} tokens/sec")
-    print(f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec")
-    print(f"  Avg Decode Time:      {avg_p2_gen_time:.2f} s")
-    print("\n--- Summary Snippet (Run 1) ---")
-    print(generated_text.strip()[:350] + "...")
+        print("\n--- Phase 2: Generation (300-word summary) ---")
+        print(f"  Runs:                 {repeats}")
+        print(f"  Prompt Tokens:        {avg_p2_prompt_tokens}")
+        print(f"  Avg Completion Tokens: {avg_p2_comp_tokens:.1f}")
+        print(f"  Avg TTFT (Prefill):   {avg_p2_ttft * 1000:.2f} ms")
+        print(f"  Avg Prefill Speed:    {avg_p2_prefill_speed:.2f} tokens/sec")
+        print(f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec")
+        print(f"  Avg Decode Time:      {avg_p2_gen_time:.2f} s")
+        print("\n--- Summary Snippet (Run 1) ---")
+        print(generated_text.strip()[:350] + "...")
 
     # Phase 3 Summary
-    if run_phase3:
+    if not skip_chat and run_phase3:
         print("\n--- Phase 3: Prefix Caching & Distractor (Averages over 5 Cycles) ---")
         for name in phase3_results:
             runs = phase3_results[name]
@@ -480,6 +605,34 @@ def run_llm_chat(
     else:
         print("\n--- Phase 3: Prefix Caching & Distractor ---")
         print("  SKIPPED")
+
+    # Phase 4 Summary
+    if has_vision and phase4_runs:
+        avg_p4_ttft = sum(x["ttft"] for x in phase4_runs) / len(phase4_runs)
+        avg_p4_gen_time = sum(x["generation_time"] for x in phase4_runs) / len(
+            phase4_runs
+        )
+        avg_p4_prefill_speed = sum(x["prefill_speed"] for x in phase4_runs) / len(
+            phase4_runs
+        )
+        avg_p4_gen_speed = sum(x["generation_speed"] for x in phase4_runs) / len(
+            phase4_runs
+        )
+        avg_p4_prompt_tokens = phase4_runs[0]["prompt_tokens"]
+        avg_p4_comp_tokens = sum(x["completion_tokens"] for x in phase4_runs) / len(
+            phase4_runs
+        )
+
+        print("\n--- Phase 4: Image Description (Vision) ---")
+        print(f"  Runs:                 {repeats}")
+        print(f"  Prompt Tokens:        {avg_p4_prompt_tokens}")
+        print(f"  Avg Completion Tokens: {avg_p4_comp_tokens:.1f}")
+        print(f"  Avg TTFT (Prefill):   {avg_p4_ttft * 1000:.2f} ms")
+        print(f"  Avg Prefill Speed:    {avg_p4_prefill_speed:.2f} tokens/sec")
+        print(f"  Avg Generation Speed: {avg_p4_gen_speed:.2f} tokens/sec")
+        print(f"  Avg Decode Time:      {avg_p4_gen_time:.2f} s")
+        print("\n--- Vision Snippet (Run 1) ---")
+        print(vision_text.strip()[:350] + "...")
     print("===================================================\n")
 
 
@@ -972,6 +1125,38 @@ def run_stt(url: str, model: str, audio_file: str, repeats: int) -> None:
             os.remove(temp_wav_path)
 
 
+def run_image(url: str, model: str, repeats: int) -> None:
+    """Run image generation benchmark by generating an image and measuring time."""
+    prompt = "A high-resolution, beautiful photograph of a pristine mountain lake at sunrise, highly detailed."
+    payload = {"prompt": prompt, "steps": 8, "cfg_scale": 1.0}
+
+    print(f"Running image generation benchmark with {repeats} repeats...")
+    durations = []
+
+    for r in range(repeats):
+        t0 = time.perf_counter()
+        try:
+            resp = post_json(f"{url}/v1/images/generations", payload)
+            if not resp.get("data"):
+                raise RuntimeError("Empty response or missing 'data' field")
+        except Exception as e:
+            raise RuntimeError(f"Image generation failed on repeat {r + 1}: {e}") from e
+        t1 = time.perf_counter()
+
+        duration = t1 - t0
+        durations.append(duration)
+        print(f"    Completed repeat {r + 1}: {duration:.2f}s")
+
+    avg_duration = sum(durations) / len(durations)
+    print("\n=== Image Generation Benchmark Results (Cumulative Average) ===")
+    print(f"Prompt:            {prompt}")
+    print("Steps:             8")
+    print("CFG Scale:         1.0")
+    print(f"Repeats:           {repeats}")
+    print(f"Avg Generation Time:{avg_duration:.2f} seconds")
+    print("=============================================================\n")
+
+
 def main() -> None:
     """Parse args and dispatch benchmark execution."""
     parser = argparse.ArgumentParser(
@@ -979,7 +1164,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=["chat", "embedding", "rerank", "tts", "stt"],
+        choices=["chat", "embedding", "rerank", "tts", "stt", "image"],
         required=True,
         help="Benchmark mode to run",
     )
@@ -1017,6 +1202,20 @@ def main() -> None:
         help="Skip LLM Chat Phase 3 prefix caching & distractor tests",
     )
     parser.add_argument(
+        "--skip-chat",
+        action="store_true",
+        help="Skip LLM Chat Phase 1, 2, and 3",
+    )
+    parser.add_argument(
+        "--skip-image",
+        action="store_true",
+        help="Skip LLM Chat Phase 4 vision/image test",
+    )
+    parser.add_argument(
+        "--image-file",
+        help="Path to multimodal validation image (for chat vision test)",
+    )
+    parser.add_argument(
         "--fraction-chunks",
         type=float,
         default=1.0,
@@ -1049,6 +1248,9 @@ def main() -> None:
             repeats,
             skip_prefill=args.skip_prefill,
             skip_distractor=args.skip_distractor,
+            skip_chat=args.skip_chat,
+            skip_image=args.skip_image,
+            image_file=args.image_file,
             fraction_context=args.fraction_context,
         )
     elif args.mode == "embedding":
@@ -1071,6 +1273,11 @@ def main() -> None:
         if not args.audio:
             parser.error("--audio is required in stt mode")
         run_stt(args.url, args.model, args.audio, repeats)
+    elif os.path.basename(__file__) == "benchmark-helper.py" and args.mode == "image":
+        # Keep as dummy or just call run_image
+        run_image(args.url, args.model, repeats)
+    elif args.mode == "image":
+        run_image(args.url, args.model, repeats)
 
 
 if __name__ == "__main__":

@@ -52,9 +52,15 @@ also covered, but currently not point of interest:
 
 ### Local Text-to-Speech
 - **Description**: Manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) synthesis. Serves an OpenAI-compatible audio synthesis API on port 50095.
-- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in `cpu-only` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
-- **Features**: Dynamic performance tuning modes (`gpu+max-throughput`, `gpu+min.vram`, `cpu-only`), fully parallelized CPU threading, and streaming/batch PCM generation.
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in `cpu` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
+- **Features**: performance tuning modes cpu, fully parallelized CPU threading, and streaming/batch PCM generation.
 - Documentation: [local-text-to-speech.md](assistants/local-text-to-speech.md)
+
+### Local Image Services
+- **Description**: Manages a persistent `sd-server` instance for image generation. Serves an OpenAI-compatible image generation API on port 50100.
+- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated generation (unless run in `cpu` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
+- **Features**: Generates images using the `z_image_turbo-Q8_0.gguf` model with options for sampler steps, CFG scale, and backend routing.
+- Documentation: [local-image.md](assistants/local-image.md)
 
 ### Local Inference Coordinator
 - **Description**: Coordinator and wrapper script to manage the installation, state, and activation of all 5 local services (`local-inference.sh`).
@@ -97,6 +103,7 @@ The following default ports are used by various agent systems and services to av
 | **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
+| **Local-Image** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
 | **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
 | **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
 | **IronClaw** | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |

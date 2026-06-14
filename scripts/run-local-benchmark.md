@@ -18,6 +18,7 @@ It automates target environment setups, captures VRAM/RAM resource utilization, 
 - **Vulkan (`vulkan`)**: Uses Vulkan compute backend via device `Vulkan0`.
 - **CPU (`cpu`)**: Runs entirely on the host CPU (utilizing OpenBLAS/BLAS for llama-server).
 - **Special (`special`)**: Evaluates custom/hybrid modes. In particular, for Text-to-Speech (TTS), it dynamically tests configurations combining enabled GPU devices with CPU (e.g. `cpu-vulkan-Vulkan1`, `cpu-hip-ROCm0`).
+- **Running (`running`)**: Benchmarks already running services on the host without starting, stopping, or modifying them.
 
 ---
 
@@ -92,7 +93,7 @@ python3 scripts/run-local-benchmark.py --mock --services all
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| `--configs` | `hip,vulkan,cpu,special` | Comma-separated list of hardware configurations to test. |
+| `--configs` | `hip,vulkan,cpu,special` | Comma-separated list of hardware configurations to test, or `running` to test already running services. |
 | `--services` | `chat,embedding,rerank,stt,tts` | Comma-separated list of services to test, or `all` to run all tests. |
 | `--hip-devices` | `ROCm0` | Comma-separated list of HIP/ROCm devices or `all`. |
 | `--vulkan-devices` | `Vulkan0` | Comma-separated list of Vulkan devices or `all`. |

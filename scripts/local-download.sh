@@ -13,6 +13,7 @@ Intelligently downloads local AI models into standard subdirectories:
   - <target_model_dir>/reranker
   - <target_model_dir>/speech-to-text
   - <target_model_dir>/text-to-speech
+  - <target_model_dir>/image
 
 Options:
   --all             Download all models and build the benchmark context
@@ -21,6 +22,7 @@ Options:
   --reranker        Download the reranker model (with working classification head)
   --speech-to-text  Download the Speech-to-Text (Whisper) model
   --text-to-speech, --tts Download the Text-to-Speech (Qwen3-TTS) models
+  --image           Download the image generation (Z-Image-Turbo) models
   --benchmark-context, --benchmark Build the benchmark-context.md file using downloaded skills
   -h, --help        Show this help message and exit
 
@@ -43,6 +45,7 @@ download_embedding=false
 download_reranker=false
 download_stt=false
 download_tts=false
+download_image=false
 download_benchmark=false
 
 # Check for help
@@ -83,6 +86,10 @@ while [[ $# -gt 0 ]]; do
         download_tts=true
         shift
         ;;
+    --image)
+        download_image=true
+        shift
+        ;;
     --benchmark-context | --benchmark)
         download_benchmark=true
         shift
@@ -95,8 +102,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_benchmark" == false ]]; then
-    echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --benchmark-context)." >&2
+if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_benchmark" == false ]]; then
+    echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --benchmark-context)." >&2
     exit 1
 fi
 
@@ -106,6 +113,7 @@ if [[ "$download_all" == true ]]; then
     download_reranker=true
     download_stt=true
     download_tts=true
+    download_image=true
     download_benchmark=true
 fi
 
@@ -115,7 +123,7 @@ target_dir="$(mkdir -p "$target_dir" && cd "$target_dir" && pwd)"
 echo "Target directory: $target_dir"
 
 acquire_file() {
-    local cache_subpath="$1"
+    local _cache_subpath="$1"
     local download_url="$2"
     local target_path="$3"
     local target_subdir
@@ -226,9 +234,8 @@ convert_and_quantize_reranker() {
     return 0
 }
 
-# ---------------------------------------------------------------------------
 # 1. Vision-Text (LLM)
-# ---------------------------------------------------------------------------
+
 if [[ "$download_llm" == true ]]; then
     echo "=== Acquiring Vision-Text Models ==="
 
@@ -249,11 +256,16 @@ if [[ "$download_llm" == true ]]; then
         "vision-text/Qwen3.6-chat_template.jinja" \
         "https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja" \
         "${target_dir}/vision-text/Qwen3.6-chat_template.jinja"
+
+    # 1d. Multimodal vision test image
+    acquire_file \
+        "vision-text/test_image.jpg" \
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Eiffel_Tower_Gold_Hour_In_Paris_FR.jpg/640px-Eiffel_Tower_Gold_Hour_In_Paris_FR.jpg" \
+        "${target_dir}/vision-text/test_image.jpg"
 fi
 
-# ---------------------------------------------------------------------------
 # 2. Embedding
-# ---------------------------------------------------------------------------
+
 if [[ "$download_embedding" == true ]]; then
     echo "=== Acquiring Embedding Model ==="
     acquire_file \
@@ -262,9 +274,8 @@ if [[ "$download_embedding" == true ]]; then
         "${target_dir}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
 fi
 
-# ---------------------------------------------------------------------------
 # 3. Reranker
-# ---------------------------------------------------------------------------
+
 if [[ "$download_reranker" == true ]]; then
     echo "=== Acquiring Reranker Model ==="
     reranker_target="${target_dir}/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"
@@ -301,9 +312,8 @@ if [[ "$download_reranker" == true ]]; then
     fi
 fi
 
-# ---------------------------------------------------------------------------
 # 4. Speech-to-Text
-# ---------------------------------------------------------------------------
+
 if [[ "$download_stt" == true ]]; then
     echo "=== Acquiring Speech-to-Text Model ==="
     acquire_file \
@@ -316,9 +326,8 @@ if [[ "$download_stt" == true ]]; then
         "${target_dir}/speech-to-text/speech-to-text.ogg"
 fi
 
-# ---------------------------------------------------------------------------
 # 5. Text-to-Speech
-# ---------------------------------------------------------------------------
+
 if [[ "$download_tts" == true ]]; then
     echo "=== Acquiring Text-to-Speech Models ==="
     # 5a. CustomVoice 0.6B
@@ -334,9 +343,31 @@ if [[ "$download_tts" == true ]]; then
         "${target_dir}/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
 fi
 
-# ---------------------------------------------------------------------------
-# 6. Benchmark Context
-# ---------------------------------------------------------------------------
+# 6. Image Generation (Z-Image-Turbo)
+
+if [[ "$download_image" == true ]]; then
+    echo "=== Acquiring Image Generation Models ==="
+    # 6a. Diffusion model
+    acquire_file \
+        "image/z_image_turbo-Q8_0.gguf" \
+        "https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf" \
+        "${target_dir}/image/z_image_turbo-Q8_0.gguf"
+
+    # 6b. VAE
+    acquire_file \
+        "image/ae.safetensors" \
+        "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors" \
+        "${target_dir}/image/ae.safetensors"
+
+    # 6c. Text encoder (LLM)
+    acquire_file \
+        "image/Qwen3-4B-Q4_K_M.gguf" \
+        "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf" \
+        "${target_dir}/image/Qwen3-4B-Q4_K_M.gguf"
+fi
+
+# 7. Benchmark Context
+
 if [[ "$download_benchmark" == true ]]; then
     echo "=== Building Benchmark Context ==="
     python3 "$(dirname "$0")/download_skills_context.py" --output "${target_dir}/benchmark-context.md"
