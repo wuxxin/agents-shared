@@ -8,21 +8,18 @@
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
-# ---------------------------------------------------------------------------
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
+
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-text-to-speech"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
-# ---------------------------------------------------------------------------
 # Load environment
-# ---------------------------------------------------------------------------
+
 load_env() {
     # Default parameters
     LTTS_PORT=50095
@@ -30,7 +27,7 @@ load_env() {
     LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
     LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
     LTTS_THREADS=8
-    LTTS_MODE="cpu-only"
+    LTTS_MODE="cpu"
     LTTS_EXTRA_ARGS=""
     LTTS_DEVICE=""
 
@@ -80,9 +77,8 @@ parse_env_args() {
     done
 }
 
-# ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
-# ---------------------------------------------------------------------------
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -102,16 +98,12 @@ get_shared_options() {
         force_cpu=0
         low_mem=0
         ;;
-    "gpu-min-vram")
-        force_cpu=0
-        low_mem=1
-        ;;
     "hybrid")
         force_cpu=0
         low_mem=0
         transformer_force_cpu=1
         ;;
-    "cpu-only")
+    "cpu")
         force_cpu=1
         low_mem=0
         ;;
@@ -160,9 +152,8 @@ get_shared_options() {
     echo "UMask=0077"
 }
 
-# ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
-# ---------------------------------------------------------------------------
+
 generate_service_file() {
     load_env
 
@@ -175,16 +166,12 @@ generate_service_file() {
         force_cpu=0
         low_mem=0
         ;;
-    "gpu-min-vram")
-        force_cpu=0
-        low_mem=1
-        ;;
     "hybrid")
         force_cpu=0
         low_mem=0
         transformer_force_cpu=1
         ;;
-    "cpu-only")
+    "cpu")
         force_cpu=1
         low_mem=0
         ;;
@@ -235,18 +222,17 @@ WantedBy=default.target
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Embedded default env file (heredoc written by install)
-# ---------------------------------------------------------------------------
+
 generate_env_file() {
     cat <<'EOF'
 # local-text-to-speech.env
-# ---------------------------------------------------------------------------
+
 # Configuration for the local-text-to-speech.service qwen3-tts-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
 # Reload with:  local-text-to-speech.sh restart
-# ---------------------------------------------------------------------------
+
 
 # Port to bind the server to (default: 50095)
 LTTS_PORT=50095
@@ -262,10 +248,9 @@ LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Token
 
 # Performance mode preset:
 #   - gpu                : Runs on GPU, holds models warm (fastest)
-#   - gpu-min-vram       : Runs on GPU, lazy-loads/unloads components (low VRAM)
 #   - hybrid             : Runs Code Gen on CPU, Vocoder on GPU (performance sweet spot)
-#   - cpu-only           : Forces CPU-only execution via GGML backends
-LTTS_MODE="cpu-only"
+#   - cpu                : Forces cpu execution via GGML backends
+LTTS_MODE="cpu"
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, qwen3-tts-server selects the default available backend.
@@ -283,9 +268,8 @@ LTTS_EXTRA_ARGS=""
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
-# ---------------------------------------------------------------------------
+
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
 }
@@ -298,18 +282,15 @@ run_systemctl() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Write service file
-# ---------------------------------------------------------------------------
+
 write_service_file() {
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
     run_systemctl daemon-reload
 }
 
-# ---------------------------------------------------------------------------
 # Actions
-# ---------------------------------------------------------------------------
 
 cmd_install() {
     local no_start=false
@@ -436,7 +417,7 @@ export_tts_env_vars() {
         low_mem=0
         transformer_force_cpu=1
         ;;
-    "cpu-only")
+    "cpu")
         force_cpu=1
         low_mem=0
         ;;
@@ -696,9 +677,8 @@ usage() {
     echo "  test [--play] [--benchmark] - Run synthesis and validation tests or benchmark"
 }
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 if [ $# -lt 1 ]; then
     usage
     exit 1

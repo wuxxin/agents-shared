@@ -125,13 +125,13 @@ cmd_install() {
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
 # Moltis Environment Configuration
-# ---------------------------------------------------------------------------
+
 # Set your password or other configuration here.
 # For unattended deployment, set these before first boot:
 # MOLTIS_PASSWORD=your_secure_password
 # MOLTIS_PROVIDER=openai
 # MOLTIS_API_KEY=sk-...
-# ---------------------------------------------------------------------------
+
 
 # Bind address and ports
 # MOLTIS_BIND=0.0.0.0

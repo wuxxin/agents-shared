@@ -8,21 +8,18 @@
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
-# ---------------------------------------------------------------------------
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
+
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-chat"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
-# ---------------------------------------------------------------------------
 # Load environment
-# ---------------------------------------------------------------------------
+
 load_env() {
     # Default parameters
     LCHAT_PORT=50080
@@ -84,9 +81,7 @@ parse_env_args() {
     done
 }
 
-# ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
-# ---------------------------------------------------------------------------
 
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
@@ -100,9 +95,8 @@ run_systemctl() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
-# ---------------------------------------------------------------------------
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -148,9 +142,8 @@ get_shared_options() {
     echo "UMask=0077"
 }
 
-# ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
-# ---------------------------------------------------------------------------
+
 generate_service_file() {
     load_env
 
@@ -211,18 +204,17 @@ WantedBy=default.target
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Embedded default env file (heredoc written by install)
-# ---------------------------------------------------------------------------
+
 generate_env_file() {
     cat <<'EOF'
 # local-chat.env
-# ---------------------------------------------------------------------------
+
 # Configuration for the local-chat.service llama-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
 # Reload with:  local-chat.sh restart
-# ---------------------------------------------------------------------------
+
 
 # Port to bind the server to (default: 50080)
 LCHAT_PORT=50080
@@ -230,9 +222,9 @@ LCHAT_PORT=50080
 # Host to bind the server to (127.0.0.1 for local access only)
 LCHAT_HOST=127.0.0.1
 
-# ---------------------------------------------------------------------------
+
 # CHAT/VISION MODEL SETTINGS
-# ---------------------------------------------------------------------------
+
 # Path to the chat model file
 LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
 
@@ -251,9 +243,9 @@ LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwe
 # Chat template file (optional)
 LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
 
-# ---------------------------------------------------------------------------
+
 # RUNTIME SETTINGS
-# ---------------------------------------------------------------------------
+
 
 # Number of layers to offload to GPU (all=999)
 LCHAT_N_GPU_LAYERS=999
@@ -277,18 +269,15 @@ LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Write service file
-# ---------------------------------------------------------------------------
+
 write_service_file() {
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
     run_systemctl daemon-reload
 }
 
-# ---------------------------------------------------------------------------
 # Actions
-# ---------------------------------------------------------------------------
 
 cmd_install() {
     local no_start=false
@@ -534,6 +523,8 @@ cmd_test() {
     local benchmark=false
     local skip_prefill=false
     local skip_distractor=false
+    local skip_chat=false
+    local skip_image=false
     local repeat=""
     local extra_args=()
     while [ $# -gt 0 ]; do
@@ -541,6 +532,8 @@ cmd_test() {
         --benchmark) benchmark=true ;;
         --skip-prefill) skip_prefill=true ;;
         --skip-distractor) skip_distractor=true ;;
+        --skip-chat) skip_chat=true ;;
+        --skip-image) skip_image=true ;;
         --repeat)
             shift
             repeat="$1"
@@ -587,6 +580,21 @@ cmd_test() {
         if [ "$skip_distractor" = "true" ]; then
             skip_distractor_arg=(--skip-distractor)
         fi
+        local skip_chat_arg=()
+        if [ "$skip_chat" = "true" ]; then
+            skip_chat_arg=(--skip-chat)
+        fi
+        local skip_image_arg=()
+        if [ "$skip_image" = "true" ]; then
+            skip_image_arg=(--skip-image)
+        fi
+        local image_file_arg=()
+        local image_file_path
+        image_file_path="$(dirname "$LCHAT_MODEL")/test_image.jpg"
+        if [ -f "$image_file_path" ]; then
+            image_file_arg=(--image-file "$image_file_path")
+        fi
+
         python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
             --mode chat \
             --url "${base_url}" \
@@ -595,6 +603,9 @@ cmd_test() {
             "${repeat_arg[@]}" \
             "${skip_prefill_arg[@]}" \
             "${skip_distractor_arg[@]}" \
+            "${skip_chat_arg[@]}" \
+            "${skip_image_arg[@]}" \
+            "${image_file_arg[@]}" \
             "${extra_args[@]}"
         return 0
     fi
@@ -635,14 +646,13 @@ Commands:
   exec      - Run llama-server as a transient systemd user service
   run       - Run a command inside the llama-server environment
   shell     - Spawn an interactive shell in the llama-server environment
-  test [--benchmark] [--skip-prefill] [--skip-distractor] [--repeat XX]
+  test [--benchmark] [--skip-chat] [--skip-prefill] [--skip-distractor] [--skip-image] [--repeat XX]
     - Run validation tests or chat benchmark
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 if [ $# -lt 1 ]; then
     usage
     exit 1

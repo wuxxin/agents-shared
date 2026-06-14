@@ -3,19 +3,16 @@
 #
 # Usage: local-inference.sh <command> [args...]
 #
-# ---------------------------------------------------------------------------
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
+
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 ENV_FILE="${SYSTEMD_USER_DIR}/local-inference.env"
 
-# ---------------------------------------------------------------------------
 # Default parameters
-# ---------------------------------------------------------------------------
+
 # shellcheck disable=SC2034
 LCHAT_ENABLED=0
 # shellcheck disable=SC2034
@@ -27,9 +24,8 @@ LSTT_ENABLED=0
 # shellcheck disable=SC2034
 LTTS_ENABLED=0
 
-# ---------------------------------------------------------------------------
 # Load environment
-# ---------------------------------------------------------------------------
+
 load_env() {
     if [[ -f "$ENV_FILE" ]]; then
         set +u
@@ -40,16 +36,14 @@ load_env() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
-# ---------------------------------------------------------------------------
+
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
 }
 
-# ---------------------------------------------------------------------------
 # Apply override to a specific service env file
-# ---------------------------------------------------------------------------
+
 apply_override() {
     local env_file="$1"
     local key="$2"
@@ -63,13 +57,12 @@ apply_override() {
     else
         # Delete any commented-out instances to avoid duplication, then append the override
         sed -i "/^#[[:space:]]*${key}=/d" "$env_file"
-        echo "${key}=${val}" >> "$env_file"
+        echo "${key}=${val}" >>"$env_file"
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Apply all overrides for a given service prefix
-# ---------------------------------------------------------------------------
+
 apply_service_overrides() {
     local svc_prefix="$1"
     local target_env_file="$2"
@@ -90,18 +83,17 @@ apply_service_overrides() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Embedded default env file (heredoc written by install)
-# ---------------------------------------------------------------------------
+
 generate_env_file() {
     cat <<'EOF'
 # local-inference.env
-# ---------------------------------------------------------------------------
+
 # Configuration wrapper for local AI inference services.
 #
 # Toggle service activation (1=enabled, 0=disabled) and define overrides
 # for individual service environment files.
-# ---------------------------------------------------------------------------
+
 
 LCHAT_ENABLED=1
 LMBD_ENABLED=1
@@ -119,9 +111,7 @@ LRR_OVERRIDE=(
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Actions
-# ---------------------------------------------------------------------------
 
 cmd_install() {
     local new_config=false
@@ -135,7 +125,7 @@ cmd_install() {
     echo "Installing local-inference wrapper configuration..."
     mkdir -p "${SYSTEMD_USER_DIR}"
 
-    if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
+    if [[ -f "${ENV_FILE}" ]]; then
         echo "Warning: Wrapper env file already exists, skipping: ${ENV_FILE}"
     else
         echo "Writing default wrapper env file: ${ENV_FILE}"
@@ -317,6 +307,33 @@ cmd_restart() {
     done
 }
 
+cmd_test() {
+    load_env
+
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS")
+    local script_dir
+    script_dir="$(dirname "$0")"
+
+    for i in "${!services[@]}"; do
+        local svc="${services[$i]}"
+        local pref="${prefixes[$i]}"
+
+        local enabled_var="${pref}_ENABLED"
+        local is_enabled=0
+        eval "is_enabled=\${$enabled_var:-0}"
+
+        if [ "$is_enabled" = "1" ]; then
+            echo "=== Testing enabled service: ${svc} ==="
+            local target_env_file="${SYSTEMD_USER_DIR}/${svc}.env"
+            apply_service_overrides "$pref" "$target_env_file"
+
+            "${script_dir}/${svc}.sh" test "$@"
+            echo ""
+        fi
+    done
+}
+
 usage() {
     cat <<EOF
 Usage: $0 <command> [args...]
@@ -329,12 +346,12 @@ Commands:
   status                - View status of all services
   logs [args...]        - View combined logs of all services
   edit                  - Edit coordinator configuration and restart services
+  test [args...]        - Run validation tests/benchmarks for all enabled services
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 if [ $# -lt 1 ]; then
     usage
     exit 1
@@ -352,6 +369,7 @@ restart) cmd_restart ;;
 status) cmd_status ;;
 logs) cmd_logs "$@" ;;
 edit) cmd_edit ;;
+test) cmd_test "$@" ;;
 *)
     echo "Unknown command: $COMMAND"
     usage

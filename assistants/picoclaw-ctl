@@ -168,9 +168,9 @@ EOF
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
 # picoclaw.env
-# ---------------------------------------------------------------------------
+
 # PicoClaw Environment Configuration
-# ---------------------------------------------------------------------------
+
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)

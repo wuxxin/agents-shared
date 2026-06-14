@@ -212,23 +212,23 @@ EOF
         echo "Writing default env file: $ENV_FILE"
         cat >"$ENV_FILE" <<'EOF'
 # signal-cli.env
-# ---------------------------------------------------------------------------
+
 # Configuration for the signal-cli.service daemon instance.
 # Edit this file to set your account number or adjust runtime options.
 # Reload with:  signal-ctl edit   (reloads daemon and restarts automatically)
-# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
+
+
 # ACCOUNT SETTINGS
-# ---------------------------------------------------------------------------
+
 
 # Your registered Signal phone number in E.164 format, e.g. +491234567890.
 # Leave empty to run in multi-account mode (serves all registered accounts).
 SC_ACCOUNT=
 
-# ---------------------------------------------------------------------------
+
 # NETWORK SETTINGS
-# ---------------------------------------------------------------------------
+
 
 # UNIX domain socket path (recommended for security; isolates daemon access).
 # Real path on host: ~/.local/sandbox/signal-cli/signal.sock
@@ -241,7 +241,7 @@ SC_HOST=
 SC_TCP_PORT=
 SC_HTTP_PORT=
 
-# ---------------------------------------------------------------------------
+
 # EXTRA FLAGS (optional, space-separated)
 
 # Valid options:
@@ -251,12 +251,12 @@ SC_HTTP_PORT=
 #   --ignore-stories       Suppress story messages
 #   --ignore-avatars       Don't download avatars of received messages.
 #   --ignore-stickers      Don't download sticker packs of received messages.
-# ---------------------------------------------------------------------------
+
 SC_EXTRA_SUFFIXES="--no-receive-stdout --ignore-stories --ignore-stickers"
 
 # Valid options:
 #   --verbose for debug, can be repeated for more verbosity
-# ---------------------------------------------------------------------------
+
 SC_EXTRA_PREFIXES=""
 
 EOF
@@ -270,9 +270,9 @@ EOF
         echo "Writing default REST API env file: $ENV_REST_FILE"
         cat >"$ENV_REST_FILE" <<EOF
 # signal-api.env
-# ---------------------------------------------------------------------------
+
 # Configuration for the signal-cli-rest-api.service wrapper.
-# ---------------------------------------------------------------------------
+
 
 # Public bind address and port for the REST API.
 HOST_IP=127.0.0.1

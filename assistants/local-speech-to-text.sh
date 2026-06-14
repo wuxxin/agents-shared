@@ -8,21 +8,18 @@
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
-# ---------------------------------------------------------------------------
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
+
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-speech-to-text"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
-# ---------------------------------------------------------------------------
 # Load environment
-# ---------------------------------------------------------------------------
+
 load_env() {
     # Default parameters
     LSTT_PORT=50090
@@ -49,9 +46,8 @@ load_env() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
-# ---------------------------------------------------------------------------
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -97,9 +93,8 @@ get_shared_options() {
     echo "UMask=0077"
 }
 
-# ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
-# ---------------------------------------------------------------------------
+
 generate_service_file() {
     load_env
 
@@ -157,18 +152,17 @@ WantedBy=default.target
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Embedded default env file (heredoc written by --install)
-# ---------------------------------------------------------------------------
+
 generate_env_file() {
     cat <<'EOF'
 # local-speech-to-text.env
-# ---------------------------------------------------------------------------
+
 # Configuration for the local-speech-to-text.service whisper-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
 # Reload with:  local-speech-to-text.sh restart
-# ---------------------------------------------------------------------------
+
 
 # Port to bind the server to (default: 50090)
 LSTT_PORT=50090
@@ -238,9 +232,8 @@ parse_env_args() {
     done
 }
 
-# ---------------------------------------------------------------------------
 # Helper to execute systemctl commands only if systemd user manager is reachable
-# ---------------------------------------------------------------------------
+
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
 }
@@ -253,18 +246,15 @@ run_systemctl() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Write service file
-# ---------------------------------------------------------------------------
+
 write_service_file() {
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
     run_systemctl daemon-reload
 }
 
-# ---------------------------------------------------------------------------
 # Actions
-# ---------------------------------------------------------------------------
 
 cmd_install() {
     local no_start=false
@@ -597,9 +587,8 @@ usage() {
     echo "  test [--benchmark] - Run validation tests or speech-to-text benchmark"
 }
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 if [ $# -lt 1 ]; then
     usage
     exit 1

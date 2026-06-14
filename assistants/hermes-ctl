@@ -128,9 +128,9 @@ cmd_install() {
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
 # Hermes Agent Environment Configuration
-# ---------------------------------------------------------------------------
+
 # Set your API keys and other configuration here.
-# ---------------------------------------------------------------------------
+
 
 # Path to the hermes home directory
 HERMES_HOME=%h/.local/sandbox/hermes

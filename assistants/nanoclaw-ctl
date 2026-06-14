@@ -119,7 +119,7 @@ cmd_install() {
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
 # nanoclaw.env
-# ---------------------------------------------------------------------------
+
 # WEBHOOK_PORT: Webhook port for NanoClaw (default 3000)
 # WEBHOOK_PORT=3000
 

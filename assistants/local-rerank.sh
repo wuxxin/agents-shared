@@ -8,21 +8,18 @@
 #
 # Hardware target: AMD Radeon Pro W6800.
 #
-# ---------------------------------------------------------------------------
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
+
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-rerank"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
-# ---------------------------------------------------------------------------
 # Load environment
-# ---------------------------------------------------------------------------
+
 load_env() {
     # Default parameters
     LRR_PORT=50086
@@ -93,9 +90,8 @@ run_systemctl() {
     fi
 }
 
-# ---------------------------------------------------------------------------
 # Shared Sandboxing Configuration
-# ---------------------------------------------------------------------------
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -141,9 +137,8 @@ get_shared_options() {
     echo "UMask=0077"
 }
 
-# ---------------------------------------------------------------------------
 # Embedded service file (heredoc written by install/start/restart)
-# ---------------------------------------------------------------------------
+
 generate_service_file() {
     load_env
 
@@ -191,18 +186,17 @@ WantedBy=default.target
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Embedded default env file (heredoc written by --install)
-# ---------------------------------------------------------------------------
+
 generate_env_file() {
     cat <<'EOF'
 # local-rerank.env
-# ---------------------------------------------------------------------------
+
 # Configuration for the local-rerank.service llama-server instance.
 #
 # Edit this file to switch models or tune runtime parameters.
 # Reload with:  local-rerank.sh restart
-# ---------------------------------------------------------------------------
+
 
 # Port to bind the server to (default: 50086)
 LRR_PORT=50086
@@ -240,18 +234,15 @@ LRR_EXTRA_ARGS="--flash-attn auto"
 EOF
 }
 
-# ---------------------------------------------------------------------------
 # Write service file
-# ---------------------------------------------------------------------------
+
 write_service_file() {
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
     run_systemctl daemon-reload
 }
 
-# ---------------------------------------------------------------------------
 # Actions
-# ---------------------------------------------------------------------------
 
 cmd_install() {
     local no_start=false
@@ -586,9 +577,8 @@ usage() {
     echo "  test [--benchmark] - Run validation tests or rerank benchmark"
 }
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 if [ $# -lt 1 ]; then
     usage
     exit 1
