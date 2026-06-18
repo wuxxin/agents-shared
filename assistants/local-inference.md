@@ -1,12 +1,13 @@
 # Local Inference Coordinator Guide
 
-`local-inference.sh` is a wrapper and coordinator script designed to manage multiple local inference services collectively. It is not a systemd service itself, but it simplifies lifecycle management (install, uninstall, start, stop, restart, logs, status) for all 5 underlying local services:
+`local-inference.sh` is a wrapper and coordinator script designed to manage multiple local inference services collectively. It is not a systemd service itself, but it simplifies lifecycle management (install, uninstall, start, stop, restart, logs, status) for all 6 underlying local services:
 
 1. **`local-chat`** (llama-server for chat & vision)
 2. **`local-embedding`** (llama-server for embeddings)
 3. **`local-rerank`** (llama-server for document rerank)
 4. **`local-speech-to-text`** (whisper-server for speech transcription)
 5. **`local-text-to-speech`** (qwen3-tts-server for voice synthesis)
+6. **`local-image`** (sd-server for image generation)
 
 ## Usage
 
@@ -52,6 +53,7 @@ LMBD_ENABLED=1
 LRR_ENABLED=1
 LSTT_ENABLED=1
 LTTS_ENABLED=1
+LIMG_ENABLED=1
 ```
 
 - **`start`** enables and starts all services set to `1`.
@@ -68,8 +70,20 @@ LRR_OVERRIDE=(
     'HIP_VISIBLE_DEVICES=""'
     'LRR_DEVICE="Vulkan1"'
 )
+LIMG_OVERRIDE=(
+    'LIMG_BACKEND="vulkan,te=cpu"'
+)
 ```
 
 The coordinator automatically extracts these key-value pairs and writes/modifies them in the respective target service env files (e.g. `~/.config/systemd/user/local-rerank.env`) on `install`, `start`, `restart`, `edit`, and `test`.
+
+For example, to run the image diffusion and VAE modules on a specific Vulkan GPU (`vulkan1`) while offloading the text encoder parameters to CPU RAM (highly recommended to bypass Vulkan's 1GB parameter buffer limit), configure the following in `local-inference.env`:
+
+```env
+LIMG_OVERRIDE=(
+    'LIMG_BACKEND="vulkan1,te=cpu"'
+    'LIMG_LLM="/home/wuxxin/models/image/Qwen3-4B-Q4_K_M.gguf"'
+)
+```
 
 Any key matching `^KEY=.*$` or comment `^# KEY=.*$` is replaced with the override value, or appended to the service's env file if not found.

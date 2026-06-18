@@ -63,7 +63,7 @@ also covered, but currently not point of interest:
 - Documentation: [local-image.md](assistants/local-image.md)
 
 ### Local Inference Coordinator
-- **Description**: Coordinator and wrapper script to manage the installation, state, and activation of all 5 local services (`local-inference.sh`).
+- **Description**: Coordinator and wrapper script to manage the installation, state, and activation of all 6 local services (`local-inference.sh`).
 - **Sandboxing**: Not a system service itself, but executes individual service scripts which utilize systemd user sandboxing.
 - **Features**: Bulk installation, uninstall, lifecycle control (start, stop, restart), status reports, combined logs, and automatic propagation of environment overrides (e.g. LRR_OVERRIDE) to target services.
 - Documentation: [local-inference.md](assistants/local-inference.md)

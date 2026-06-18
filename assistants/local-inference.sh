@@ -23,6 +23,8 @@ LRR_ENABLED=0
 LSTT_ENABLED=0
 # shellcheck disable=SC2034
 LTTS_ENABLED=0
+# shellcheck disable=SC2034
+LIMG_ENABLED=0
 
 # Load environment
 
@@ -100,13 +102,21 @@ LMBD_ENABLED=1
 LRR_ENABLED=1
 LSTT_ENABLED=1
 LTTS_ENABLED=1
+LIMG_ENABLED=1
 
 # Overrides for specific services (applied on install/start/restart/edit)
 # Overrides can be defined as Bash arrays. E.g.:
+LCHAT_OVERRIDE=(
+    'LCHAT_DEVICE="ROCm0'
+)
+
 LRR_OVERRIDE=(
     'CUDA_VISIBLE_DEVICES=""'
     'HIP_VISIBLE_DEVICES=""'
     'LRR_DEVICE="Vulkan1"'
+)
+LIMG_OVERRIDE=(
+    'LIMG_BACKEND="vulkan1,te=cpu"'
 )
 EOF
 }
@@ -136,8 +146,8 @@ cmd_install() {
     # Reload variables from env file
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -164,7 +174,7 @@ cmd_install() {
 
 cmd_uninstall() {
     echo "Uninstalling all managed local services..."
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -179,7 +189,7 @@ cmd_uninstall() {
 }
 
 cmd_status() {
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
 
     for svc in "${services[@]}"; do
         echo "● ${svc}.service"
@@ -193,7 +203,7 @@ cmd_status() {
 }
 
 cmd_logs() {
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
     local log_args=()
     for svc in "${services[@]}"; do
         log_args+=("-u" "${svc}.service")
@@ -212,8 +222,8 @@ cmd_edit() {
 cmd_start() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -239,8 +249,8 @@ cmd_start() {
 cmd_stop() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -266,8 +276,8 @@ cmd_stop() {
 cmd_restart() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -310,8 +320,8 @@ cmd_restart() {
 cmd_test() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG")
     local script_dir
     script_dir="$(dirname "$0")"
 

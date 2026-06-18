@@ -26,7 +26,7 @@ load_env() {
     LCHAT_HOST=127.0.0.1
     LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
     LCHAT_ALIAS=qwen3
-    LCHAT_N_CTX=240000
+    LCHAT_N_CTX=240384
     LCHAT_PARALLEL=3
     LCHAT_N_GPU_LAYERS=999
     LCHAT_THREADS=4
@@ -231,8 +231,8 @@ LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APE
 # Model alias used by client integrations (default: qwen3)
 LCHAT_ALIAS=qwen3
 
-# Context size (default: 240000)
-LCHAT_N_CTX=240000
+# Context size (default: 240384)
+LCHAT_N_CTX=240384
 
 # Parallel request slots (default: 3)
 LCHAT_PARALLEL=3

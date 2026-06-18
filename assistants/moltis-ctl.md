@@ -53,7 +53,7 @@ Run `./assistants/moltis-ctl edit` (or use the Web UI) to configure a local Open
    models = ["qwen3"]
 
    [providers.openai.model_overrides.qwen3]
-   context_window = 80000
+   context_window = 80128
    ```
 
 ### Reasoning & Thinking Effort

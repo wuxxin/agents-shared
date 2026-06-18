@@ -1,28 +1,24 @@
 {
     "cpu": {
         "chat": {
-            "bench_time_s": 15.4,
+            "bench_time_s": 150.91311144828796,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 61.43,
-            "chat_avg_gen": 9.77,
-            "chat_avg_prefill": 248.94,
-            "chat_avg_ttft": 124690.86,
-            "chat_image_gen": 10.69,
-            "chat_image_ttft": 2340.54,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 16.35,
-            "chat_warmup_prefill": 75.31,
+            "chat_avg_decode": 50.58,
+            "chat_avg_gen": 11.86,
+            "chat_avg_prefill": 49.08,
+            "chat_avg_ttft": 30009.33,
+            "chat_image_gen": 11.89,
+            "chat_image_ttft": 32992.91,
+            "chat_warmup_comp": 173.0,
+            "chat_warmup_gen": 12.45,
+            "chat_warmup_prefill": 29.23,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 252.27,
-            "cpu_mem_mb": 0.0,
-            "device_details": {
-                "device_id": "",
-                "free_mem_mib": 92380.0,
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 56261.0
-            },
+            "chat_warmup_ttft": 649.99,
+            "cpu_mem_mb": 17853.03125,
             "device_setting": "Default",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_DEVICE": "",
@@ -30,18 +26,15 @@
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "12000",
-                "LCHAT_N_GPU_LAYERS": "0",
+                "LCHAT_N_CTX": 12000,
+                "LCHAT_N_GPU_LAYERS": 0,
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
                 "LCHAT_SERVE_EMBEDDINGS": "false",
                 "LCHAT_THREADS": "4"
             },
-            "errors": [
-                "error: simulated configuration mismatch",
-                "error: mock error line 2"
-            ],
-            "gpu_mem_mb": 0.0,
+            "errors": [],
+            "gpu_mem_mb": 1490.91015625,
             "special_setting": "Layers: 0 (Context: 5%)",
             "test_name": "chat_cpu"
         },
@@ -79,21 +72,26 @@
             "test_name": "embedding_cpu"
         },
         "image": {
-            "bench_time_s": 12.5,
-            "cpu_mem_mb": 9500.0,
-            "device_details": {
-                "device_id": "cpu",
-                "free_mem_mib": 92380.0,
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 56261.0
-            },
+            "bench_time_s": 266.5381464958191,
+            "cpu_mem_mb": 10136.99609375,
             "device_setting": "cpu",
             "env": {
-                "LIMG_BACKEND": "cpu"
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LIMG_BACKEND": "cpu",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
             },
             "errors": [],
-            "gpu_mem_mb": 0.0,
-            "image_time": 11.03,
+            "gpu_mem_mb": 8.59765625,
+            "image_time": 266.38,
             "special_setting": "Steps: 8",
             "test_name": "image_cpu"
         },
@@ -313,28 +311,30 @@
     },
     "hip-ROCm0": {
         "chat": {
-            "bench_time_s": 15.4,
+            "bench_time_s": 72.2085189819336,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 13.65,
-            "chat_avg_gen": 43.96,
-            "chat_avg_prefill": 1120.25,
-            "chat_avg_ttft": 27709.08,
-            "chat_image_gen": 48.12,
-            "chat_image_ttft": 520.12,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 73.59,
-            "chat_warmup_prefill": 338.9,
+            "chat_avg_decode": 9.01,
+            "chat_avg_gen": 66.61,
+            "chat_avg_prefill": 643.11,
+            "chat_avg_ttft": 48267.26,
+            "chat_image_gen": 99.18,
+            "chat_image_ttft": 1464.36,
+            "chat_warmup_comp": 158.0,
+            "chat_warmup_gen": 102.18,
+            "chat_warmup_prefill": 78.43,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 56.06,
-            "cpu_mem_mb": 1200.0,
+            "chat_warmup_ttft": 242.26,
+            "cpu_mem_mb": 2032.72265625,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
+                "free_mem_mib": 24524.0,
+                "name": "AMD Radeon RX 7900 XTX",
+                "total_mem_mib": 24560.0
             },
             "device_setting": "ROCm0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_DEVICE": "ROCm0",
@@ -342,33 +342,24 @@
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "240000",
-                "LCHAT_N_GPU_LAYERS": "999",
+                "LCHAT_N_CTX": 240000,
+                "LCHAT_N_GPU_LAYERS": 999,
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
                 "LCHAT_SERVE_EMBEDDINGS": "false",
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 14520.0,
+            "gpu_mem_mb": 20667.71484375,
             "special_setting": "Layers: 999",
             "test_name": "chat_hip-ROCm0"
         },
         "embedding": {
-            "bench_time_s": 15.820204257965088,
-            "cpu_mem_mb": 10004.49609375,
-            "device_details": {
-                "device_id": "ROCm0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "ROCm0",
-            "embed_lat": 1755.0,
-            "embed_p50": 1791.1,
-            "embed_p95": 2515.5,
-            "embed_throughput": 4317.09,
-            "embed_time_s": 10.53,
+            "embed_lat": "-fail-",
+            "embed_throughput": "-fail-",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
                 "HIP_VISIBLE_DEVICES": "0",
@@ -382,116 +373,12 @@
                 "LMBD_PORT": "50082",
                 "LMBD_THREADS": "4"
             },
-            "errors": [],
-            "gpu_mem_mb": 6735.1015625,
+            "errors": [
+                "Error: llama-server failed to start or port timed out"
+            ],
+            "gpu_mem_mb": "-fail-",
             "special_setting": "Layers: 999",
             "test_name": "embedding_hip-ROCm0"
-        },
-        "image": {
-            "bench_time_s": 12.5,
-            "cpu_mem_mb": 500.0,
-            "device_details": {
-                "device_id": "vulkan0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
-            },
-            "device_setting": "vulkan0",
-            "env": {
-                "LIMG_BACKEND": "vulkan0"
-            },
-            "errors": [],
-            "gpu_mem_mb": 8500.0,
-            "image_time": 2.45,
-            "special_setting": "Steps: 8",
-            "test_name": "image_hip-ROCm0"
-        },
-        "rerank": {
-            "bench_time_s": 1.0027544498443604,
-            "cpu_mem_mb": 673.37109375,
-            "device_details": {
-                "device_id": "ROCm0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
-            },
-            "device_setting": "ROCm0",
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-                "HIP_VISIBLE_DEVICES": "0",
-                "LRR_DEVICE": "ROCm0",
-                "LRR_N_GPU_LAYERS": 99,
-                "LR_ALIAS": "qwen3-reranker",
-                "LR_EXTRA_ARGS": "--flash-attn auto",
-                "LR_HOST": "127.0.0.1",
-                "LR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
-                "LR_N_CTX": "8192",
-                "LR_N_GPU_LAYERS": "99",
-                "LR_PORT": "50086",
-                "LR_THREADS": "8"
-            },
-            "errors": [],
-            "gpu_mem_mb": 1836.984375,
-            "rerank_throughput": 11.86,
-            "rerank_time": 843.38,
-            "rerank_token_speed": 4077.64,
-            "special_setting": "Layers: 99",
-            "test_name": "rerank_hip-ROCm0"
-        },
-        "stt": {
-            "bench_time_s": 1.0024116039276123,
-            "cpu_mem_mb": 356.9296875,
-            "device_details": {
-                "device_id": "ROCm0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
-            },
-            "device_setting": "0",
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
-                "HIP_VISIBLE_DEVICES": "0",
-                "LSTT_DEVICE": "0",
-                "LSTT_EXTRA_ARGS": "",
-                "LSTT_HOST": "127.0.0.1",
-                "LSTT_INFERENCE_PATH": "/v1/audio/transcriptions",
-                "LSTT_MODEL": "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
-                "LSTT_MODEL_ALIAS": "whisper-1",
-                "LSTT_NO_GPU": "false",
-                "LSTT_PORT": "50090",
-                "LSTT_THREADS": "8"
-            },
-            "errors": [],
-            "gpu_mem_mb": 1109.6171875,
-            "special_setting": "Use GPU",
-            "stt_rtf": 0.0172,
-            "stt_time": 0.77,
-            "test_name": "stt_hip-ROCm0"
-        },
-        "tts": {
-            "bench_time_s": "-fail-",
-            "cpu_mem_mb": "-fail-",
-            "device_setting": "Default",
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0,1",
-                "HIP_VISIBLE_DEVICES": "0,1",
-                "LTTS_DEVICE": "",
-                "LTTS_EXTRA_ARGS": "",
-                "LTTS_HOST": "127.0.0.1",
-                "LTTS_MODE": "gpu",
-                "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
-                "LTTS_PORT": "50095",
-                "LTTS_THREADS": "8",
-                "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
-            },
-            "errors": [],
-            "gpu_mem_mb": "-fail-",
-            "special_setting": "mode: gpu",
-            "test_name": "tts_hip-ROCm0",
-            "tts_char_speed": "-fail-",
-            "tts_duration": "-fail-",
-            "tts_rtf": "-fail-",
-            "tts_time": "-fail-"
         }
     },
     "hip-ROCm1": {
@@ -527,31 +414,61 @@
             "gpu_mem_mb": "-fail-",
             "special_setting": "Layers: 999 (Context: 20%)",
             "test_name": "chat_hip-ROCm1"
+        },
+        "image": {
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "device_setting": "vulkan1",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1",
+                "HIP_VISIBLE_DEVICES": "0,1",
+                "LIMG_BACKEND": "vulkan1",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
+            },
+            "errors": [
+                "[ERROR] model_manager.cpp:581  - model manager tensor 'text_encoders.llm.model.embed_tokens.weight' is too large for params buffer: 1555824640 > 1073741824",
+                "[ERROR] ggml_extend.hpp:1888 - qwen3 prepare graph weights failed"
+            ],
+            "gpu_mem_mb": "-fail-",
+            "image_time": "-fail-",
+            "special_setting": "Steps: 8",
+            "test_name": "image_hip-ROCm1"
         }
     },
     "running": {
         "chat": {
-            "bench_time_s": 52.46678876876831,
+            "bench_time_s": 22.32827877998352,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 13.39,
-            "chat_avg_gen": 44.81,
-            "chat_avg_prefill": 1153.47,
-            "chat_avg_ttft": 26910.95,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 75.73,
-            "chat_warmup_prefill": 263.27,
+            "chat_avg_decode": 9.08,
+            "chat_avg_gen": 66.09,
+            "chat_avg_prefill": 190844.56,
+            "chat_avg_ttft": 162.65,
+            "chat_image_gen": 99.1,
+            "chat_image_ttft": 149.42,
+            "chat_warmup_comp": 128.0,
+            "chat_warmup_gen": 102.32,
+            "chat_warmup_prefill": 259.9,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 72.17,
+            "chat_warmup_ttft": 73.11,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
+                "LCHAT_DEVICE": "ROCm0",
                 "LCHAT_EXTRA_ARGS": "--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "240000",
+                "LCHAT_N_CTX": "240384",
                 "LCHAT_N_GPU_LAYERS": "999",
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
@@ -665,31 +582,19 @@
             "tts_time": 33.91
         }
     },
-    "special": {},
     "vulkan-Vulkan0": {
         "chat": {
-            "bench_time_s": 15.4,
-            "chat_avg_comp": 600.0,
-            "chat_avg_decode": 15.7,
-            "chat_avg_gen": 38.23,
-            "chat_avg_prefill": 974.13,
-            "chat_avg_ttft": 31865.44,
-            "chat_image_gen": 41.84,
-            "chat_image_ttft": 598.14,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 63.99,
-            "chat_warmup_prefill": 294.7,
-            "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 64.47,
-            "cpu_mem_mb": 1250.0,
-            "device_details": {
-                "device_id": "Vulkan0",
-                "free_mem_mib": 29349.0,
-                "name": "AMD Radeon Pro W6800 (RADV NAVI21)",
-                "total_mem_mib": 30704.0
-            },
+            "bench_time_s": "-fail-",
+            "chat_avg_gen": "-fail-",
+            "chat_avg_prefill": "-fail-",
+            "chat_avg_ttft": "-fail-",
+            "chat_warmup_gen": "-fail-",
+            "chat_warmup_ttft": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "Vulkan0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_DEVICE": "Vulkan0",
@@ -697,15 +602,15 @@
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "240000",
-                "LCHAT_N_GPU_LAYERS": "999",
+                "LCHAT_N_CTX": 240000,
+                "LCHAT_N_GPU_LAYERS": 999,
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
                 "LCHAT_SERVE_EMBEDDINGS": "false",
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 14850.0,
+            "gpu_mem_mb": "-fail-",
             "special_setting": "Layers: 999",
             "test_name": "chat_vulkan-Vulkan0"
         },
@@ -745,21 +650,29 @@
             "test_name": "embedding_vulkan-Vulkan0"
         },
         "image": {
-            "bench_time_s": 12.5,
-            "cpu_mem_mb": 550.0,
-            "device_details": {
-                "device_id": "vulkan0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "vulkan0",
             "env": {
-                "LIMG_BACKEND": "vulkan0"
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LIMG_BACKEND": "vulkan0",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
             },
-            "errors": [],
-            "gpu_mem_mb": 8800.0,
-            "image_time": 2.82,
+            "errors": [
+                "[ERROR] model_manager.cpp:581  - model manager tensor 'text_encoders.llm.model.embed_tokens.weight' is too large for params buffer: 1555824640 > 1073741824",
+                "[ERROR] ggml_extend.hpp:1888 - qwen3 prepare graph weights failed"
+            ],
+            "gpu_mem_mb": "-fail-",
+            "image_time": "-fail-",
             "special_setting": "Steps: 8",
             "test_name": "image_vulkan-Vulkan0"
         },
@@ -859,23 +772,25 @@
     },
     "vulkan-Vulkan1": {
         "chat": {
-            "bench_time_s": 130.29886531829834,
+            "bench_time_s": 21.829824209213257,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 48.33,
-            "chat_avg_gen": 12.41,
-            "chat_avg_prefill": 101.28,
-            "chat_avg_ttft": 57427.08,
-            "chat_warmup_comp": 183.0,
-            "chat_warmup_gen": 13.47,
-            "chat_warmup_prefill": 21.95,
+            "chat_avg_decode": 4.97,
+            "chat_avg_gen": 120.69,
+            "chat_avg_prefill": 2521.05,
+            "chat_avg_ttft": 2306.98,
+            "chat_image_gen": 124.2,
+            "chat_image_ttft": 1486.8,
+            "chat_warmup_comp": 173.0,
+            "chat_warmup_gen": 120.41,
+            "chat_warmup_prefill": 72.14,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 865.6,
-            "cpu_mem_mb": 817.8359375,
+            "chat_warmup_ttft": 263.38,
+            "cpu_mem_mb": 1225.6953125,
             "device_details": {
                 "device_id": "Vulkan1",
-                "free_mem_mib": 72616.0,
-                "name": "AMD Radeon Graphics (RADV RENOIR)",
-                "total_mem_mib": 72645.0
+                "free_mem_mib": 4343.0,
+                "name": "AMD Radeon RX 7900 XTX (RADV NAVI31)",
+                "total_mem_mib": 24560.0
             },
             "device_setting": "Vulkan1",
             "env": {
@@ -896,7 +811,7 @@
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 16210.58203125,
+            "gpu_mem_mb": 0.06640625,
             "special_setting": "Layers: 999 (Context: 20%)",
             "test_name": "chat_vulkan-Vulkan1"
         },
@@ -932,6 +847,33 @@
             "gpu_mem_mb": 3663.890625,
             "special_setting": "Layers: 999",
             "test_name": "embedding_vulkan-Vulkan1"
+        },
+        "image": {
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
+            "device_setting": "vulkan1",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LIMG_BACKEND": "vulkan1",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
+            },
+            "errors": [
+                "[ERROR] model_manager.cpp:581  - model manager tensor 'text_encoders.llm.model.embed_tokens.weight' is too large for params buffer: 1555824640 > 1073741824",
+                "[ERROR] ggml_extend.hpp:1888 - qwen3 prepare graph weights failed"
+            ],
+            "gpu_mem_mb": "-fail-",
+            "image_time": "-fail-",
+            "special_setting": "Steps: 8",
+            "test_name": "image_vulkan-Vulkan1"
         },
         "rerank": {
             "bench_time_s": 5.7107977867126465,

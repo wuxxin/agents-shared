@@ -4,31 +4,31 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-### 📊 Summary of Last 7 Days Activity (June 04, 2026 – June 11, 2026)
+#### 📊 Summary of Last 7 Days Activity (June 11, 2026 – June 18, 2026)
 
 #### Repository Overview & Package Status
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: |
-| **ironclaw** | 12,437 | 1,451 | `main` | 2026-06-11 | `ironclaw-git` @ `ironclaw.v0.29.1.r1256.g4c185e6-1` | 53 | **Highly Active** |
-| **librefang** | 290 | 56 | `main` | 2026-06-11 | `librefang-git` @ `2026.5.31beta.16.r44.g648356c92-1` | 42 | **Active** |
-| **zeroclaw** | 31,874 | 4,719 | `master` | 2026-06-11 | `zeroclaw-git` @ `0.8.0.beta.2.r125.g5eb5eba08-1` | 50 | **Highly Active** |
-| **moltis** | 2,735 | 321 | `main` | 2026-06-05 | `moltis-git` @ `20260603.01.r8.g48c9a4192-1` | 0 | **Active** |
-| **hermes-agent** | 190,411 | 33,019 | `main` | 2026-06-11 | — | — | **Highly Active** |
-| **nanobot** | 44,034 | 7,798 | `main` | 2026-06-09 | — | — | **Active** |
-| **picoclaw** | 29,360 | 4,207 | `main` | 2026-06-10 | `picoclaw-git` @ `0.2.9.nightly.20260609.46b29a0a-1` | 10 | **Active** |
-| **nanoclaw** | 29,802 | 12,921 | `main` | 2026-06-10 | — | — | **Active** |
+| **ironclaw** | 12,456 | 1,458 | `main` | 2026-06-18 | `ironclaw-git` @ `ironclaw.v0.29.1.r1256.g4c185e6-1` | 169 | **Highly Active** |
+| **zeroclaw** | 31,937 | 4,729 | `master` | 2026-06-18 | `zeroclaw-git` @ `0.8.0.beta.2.r125.g5eb5eba08-1` | 274 | **Highly Active** |
+| **hermes-agent** | 196,146 | 34,510 | `main` | 2026-06-17 | — | — | **Highly Active** |
+| **nanobot** | 44,393 | 7,844 | `main` | 2026-06-17 | — | — | **Highly Active** |
+| **picoclaw** | 29,436 | 4,223 | `main` | 2026-06-17 | `picoclaw-git` @ `0.2.9.nightly.20260609.46b29a0a-1` | 60 | **Active** |
+| **nanoclaw** | 29,903 | 12,880 | `main` | 2026-06-16 | — | — | **Active** |
+| **librefang** | 300 | 60 | `main` | 2026-06-18 | `librefang-git` @ `2026.5.31beta.16.r44.g648356c92-1` | 96 | **Active** |
+| **moltis** | 2,747 | 323 | `main` | 2026-06-05 | `moltis-git` @ `20260603.01.r8.g48c9a4192-1` | 0 | **Inactive** |
 
 #### Weekly Activity Metrics (Human vs Bot)
 | Assistant Repo | Commits / Week | Lines Added (Human/Bot) | Lines Deleted (Human/Bot) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **ironclaw** | **145** / 10 | 155.0k / 286 | 20.7k / 216 | 2 | 0 | 186.2 |
-| **librefang** | **43** / 10 | 5.9k / 1.3k | 537 / 1.2k | 0 | 1 | 148.0 |
-| **zeroclaw** | **157** / 0 | 47.5k / 0 | 12.0k / 0 | 0 | 0 | 91.0 |
-| **moltis** | **2** / 0 | 1.9k / 0 | 254 / 0 | 0 | 0 | 30.2 |
-| **hermes-agent** | **773** / 1 | 144.2k / 189 | 45.8k / 5 | 43 | 1 | 730.2 |
-| **nanobot** | **91** / 1 | 29.7k / 315 | 4.3k / 11 | 2 | 0 | 104.8 |
-| **picoclaw** | **47** / 2 | 2.2k / 21 | 383 / 21 | 41 | 1 | 34.5 |
-| **nanoclaw** | **28** / 15 | 9.0k / 30 | 5.6k / 30 | 13 | 0 | 24.8 |
+| **ironclaw** | **132** / 0 | 133.7k / 0 | 14.0k / 0 | 0 | 0 | 151.5 |
+| **zeroclaw** | **233** / 1 | 183.7k / 546 | 112.9k / 1.2k | 0 | 1 | 131.8 |
+| **hermes-agent** | **562** / 0 | 95.9k / 0 | 32.3k / 0 | 56 | 0 | 658.0 |
+| **nanobot** | **155** / 0 | 16.6k / 0 | 7.7k / 0 | 5 | 0 | 106.8 |
+| **picoclaw** | **44** / 4 | 5.6k / 48 | 872 / 48 | 30 | 2 | 39.0 |
+| **nanoclaw** | **24** / 20 | 3.5k / 41 | 705 / 41 | 25 | 1 | 29.0 |
+| **librefang** | **46** / 13 | 19.4k / 689 | 1.5k / 610 | 0 | 2 | 123.5 |
+| **moltis** | **0** / 0 | 0 / 0 | 0 / 0 | 0 | 0 | 21.8 |
 
 ---
 
@@ -37,127 +37,123 @@ This document tracks repository activity, commit counts, merge frequency, and re
 > [!NOTE]
 > The contributor lists and activity metrics for each repository below are compiled according to commits from the last 7 days.
 
-### LibreFang (`librefang/librefang`)
-* **Status**: Active (Total: 53 commits [43 H / 10 B], 1 release in the last week). Lines added/deleted: +5.9k/-537 (Human), +1.3k/-1.2k (Bot). **42 commits since installed 2026.5.31beta.16 (r44.g648356c92).**
-* **Contributors (according to last 7 days commits)** (Total: 4 Humans, 2 Bots):
-  - **Top Humans**:
-    - `Evan <suzukaze.haduki@gmail.com>` (Human): 36 commits, +4.5k/-399 lines
-    - `Vignesh Jagadeesh <vignesh.nrfs@gmail.com>` (Human): 3 commits, +591/-51 lines
-    - `Paco Navarrete <paco.j.navarrete@gmail.com>` (Human): 3 commits, +741/-49 lines
-    - `Copilot <198982749+Copilot@users.noreply.github.com>` (Human): 1 commit, +72/-38 lines
-  - **Top Bots**:
-    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 8 commits, +1.3k/-1.2k lines
-    - `github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>` (Bot): 2 commits, +23/-23 lines
-* **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
-* **Recent Focus**: Dependency bumping (dashboard, @whiskeysockets/baileys, @types/react); Nix-build runner disk space optimizations; version bumps to beta release tags; database runtime auditing fixes for SQLite DELETE failures; addressing non-ASCII offset misalignments in memory-wiki; fixing unauthenticated pre-handshake buffer pinning; SSRF allowlist omissions; stack overflow prevention on self-referential MCP/skill schemas; and WASM redirection validation.
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
-* **Status**: Highly Active (Total: 157 commits [157 H / 0 B], 0 releases in the last week). Lines added/deleted: +47.5k/-12.0k (Human), +0/-0 (Bot). **50 commits since installed 0.8.0.beta.2 (r125.g5eb5eba08).**
-* **Contributors (according to last 7 days commits)** (Total: 33 Humans, 0 Bots):
+* **Status**: Highly Active (Total: 234 commits [233 H / 1 B], 1 tag/release in the last week). Lines added/deleted: +183.7k/-112.9k (Human), +546/-1.2k (Bot). **274 commits since installed 0.8.0.beta.2 (r125.g5eb5eba08).**
+* **Contributors (according to last 7 days commits)** (Total: 42 Humans, 1 Bots):
   - **Top Humans**:
-    - `Dan Gilles <dfgilles@uchicago.edu>` (Human): 37 commits, +5.8k/-1.1k lines
-    - `Shane Engelman <contact@shane.gg>` (Human): 29 commits, +25.2k/-8.3k lines
-    - `Alix-007 <li.long15@xydigit.com>` (Human): 12 commits, +504/-72 lines
-    - `Cherilyn Buren <88433283+NiuBlibing@users.noreply.github.com>` (Human): 8 commits, +1.2k/-145 lines
-    - `Argenis De La Rosa <theonlyhennygod@gmail.com>` (Human): 8 commits, +2.8k/-109 lines
-    - `Marc Collins <marc@nnet.tech>` (Human): 6 commits, +1.2k/-74 lines
-    - `chengzhichao-xydt <cheng.zhichao@xydigit.com>` (Human): 5 commits, +393/-14 lines
-    - `Jason Perlow <jperlow@gmail.com>` (Human): 5 commits, +1.4k/-31 lines
-    - `rifuki <rifuki.dev@gmail.com>` (Human): 5 commits, +508/-54 lines
-    - `robinDU <drbparadise@gmail.com>` (Human): 5 commits, +387/-19 lines
-* **Recent Focus**: Local-only empty document send tests for Telegram channel, pinning Node version with nvmrc, trimming whitespace-only assistant content to prevent blank lines, repairing Quickstart model-provider UX defects, making reload banner dismissable, clippy lint cross-platform gate restoration, dashboard live/persisted/loading status distinctions, and performance updates to avoid final CLI output clones.
+    - `Dan Gilles <dfgilles@uchicago.edu>` (Human): 58 commits, +18.7k/-2.8k lines
+    - `Shane Engelman <contact@shane.gg>` (Human): 35 commits, +114.0k/-96.8k lines
+    - `Alix-007 <li.long15@xydigit.com>` (Human): 35 commits, +1.9k/-215 lines
+    - `Marc Collins <marc@nnet.tech>` (Human): 20 commits, +25.4k/-10.2k lines
+    - `chengzhichao-xydt <cheng.zhichao@xydigit.com>` (Human): 13 commits, +695/-92 lines
+    - `JordanTheJet <morepencils@gmail.com>` (Human): 8 commits, +2.9k/-265 lines
+    - `pick-cat <huang.ting3@xydigit.com>` (Human): 6 commits, +563/-46 lines
+    - `Tidux <jon@borg.moe>` (Human): 6 commits, +4.1k/-169 lines
+    - `Jason Perlow <jperlow@gmail.com>` (Human): 5 commits, +846/-21 lines
+    - `Cherilyn Buren <88433283+NiuBlibing@users.noreply.github.com>` (Human): 4 commits, +1.1k/-66 lines
+  - **Top Bots**:
+    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 1 commits, +546/-1.2k lines
+* **Recent Focus**: Introduced the Zerocode doctor pane and restricted the runtime provider boundary by removing `zeroclaw-providers` in favor of RPC-only communication. Enhanced gateway web chat input with slash-command support, added native WhatsApp web media markers, implemented per-channel ack_reactions overrides for Lark/Feishu, and resolved QQ voice redelivery duplication. Refined budget-trimming propagation inside the agent_turn wrapper, bypassed caching for multimodal `[IMAGE:]` markers, normalized Azure OpenAI credentials, and addressed Bedrock structured tool return bugs. Strengthened security with a new agent posture status CLI command and updated default `file_read` tools to reject binary files directly.
 
-### Moltis (`moltis-org/moltis`)
-* **Status**: Active (Total: 2 commits [2 H / 0 B], 0 releases in the last week). Lines added/deleted: +1.9k/-254 (Human), +0/-0 (Bot). **0 commits since installed 20260603.01 (r8.g48c9a4192).**
-* **Contributors (according to last 7 days commits)** (Total: 2 Humans, 0 Bots):
-  - **Top Humans**:
-    - `Sergey Salamatov <55296341+s-salamatov@users.noreply.github.com>` (Human): 1 commit, +1.9k/-231 lines
-    - `Fabien Penso <gpg@pen.so>` (Human): 1 commit, +23/-23 lines
-* **Recent Focus**: Separating Telegram progress stream from final replies in Codex, and documenting/visualizing Polyphony in the workflow presentation deck.
 
 ### IronClaw (`nearai/ironclaw`)
-* **Status**: Highly Active (Total: 155 commits [145 H / 10 B], 0 releases in the last week). Lines added/deleted: +155.0k/-20.7k (Human), +286/-216 (Bot). **53 commits since installed ironclaw.v0.29.1 (r1256.g4c185e6).**
-* **Contributors (according to last 7 days commits)** (Total: 10 Humans, 1 Bots):
+* **Status**: Highly Active (Total: 132 commits [132 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +133.7k/-14.0k (Human), +0/-0 (Bot). **169 commits since installed ironclaw.v0.29.1 (r1256.g4c185e6).**
+* **Contributors (according to last 7 days commits)** (Total: 14 Humans, 0 Bots):
   - **Top Humans**:
-    - `firat.sertgoz <firat.sertgoz@near.ai>` (Human): 57 commits, +45.9k/-6.8k lines
-    - `Henry Park <henrypark133@gmail.com>` (Human): 30 commits, +41.7k/-5.7k lines
-    - `Robert Yan <46699230+think-in-universe@users.noreply.github.com>` (Human): 16 commits, +14.2k/-1.3k lines
-    - `Coffee <zjchen1234@foxmail.com>` (Human): 11 commits, +10.8k/-562 lines
-    - `jinxin <106428113+italic-jinxin@users.noreply.github.com>` (Human): 9 commits, +12.7k/-3.2k lines
-    - `Zaki Manian <zaki@iqlusion.io>` (Human): 9 commits, +18.3k/-2.6k lines
-    - `Daniel Wang <5139554+danielwpz@users.noreply.github.com>` (Human): 5 commits, +4.7k/-226 lines
-    - `Benjamin Kurrek <57506486+BenKurrek@users.noreply.github.com>` (Human): 3 commits, +565/-41 lines
-    - `Illia Polosukhin <ilblackdragon@gmail.com>` (Human): 3 commits, +5.5k/-275 lines
-    - `Josh Ford <thisisjoshford@gmail.com>` (Human): 2 commits, +572/-48 lines
-  - **Top Bots**:
-    - `IronClaw Agent <agent@ironclaw.com>` (Bot): 10 commits, +286/-216 lines
-* **Recent Focus**: Improving WebUI approval prompt context in codex, parity readiness diagnostics tests, model credential error summary fixes, forcing IANA timezones on cron triggers, Slack DM outbound runs thread owner persistence, documenting Reborn contract APIs, enabling NEAR AI MCP from Reborn env configuration, cutover production gate enforcement, and resume auth-gate re-dispatching of original capability calls.
+    - `Henry Park <henrypark133@gmail.com>` (Human): 28 commits, +49.7k/-5.4k lines
+    - `firat.sertgoz <firat.sertgoz@near.ai>` (Human): 25 commits, +18.9k/-2.9k lines
+    - `Illia Polosukhin <ilblackdragon@gmail.com>` (Human): 18 commits, +23.6k/-1.2k lines
+    - `Coffee <zjchen1234@foxmail.com>` (Human): 18 commits, +7.4k/-864 lines
+    - `Robert Yan <46699230+think-in-universe@users.noreply.github.com>` (Human): 14 commits, +6.2k/-550 lines
+    - `jinxin <106428113+italic-jinxin@users.noreply.github.com>` (Human): 9 commits, +6.0k/-1.3k lines
+    - `Pranav Raja <pranavraja99@gmail.com>` (Human): 6 commits, +1.8k/-45 lines
+    - `Zaki Manian <zaki@iqlusion.io>` (Human): 6 commits, +13.9k/-583 lines
+    - `Josh Ford <thisisjoshford@gmail.com>` (Human): 2 commits, +2.5k/-668 lines
+    - `Daniel Wang <5139554+danielwpz@users.noreply.github.com>` (Human): 2 commits, +2.1k/-151 lines
+* **Recent Focus**: Developed live tool argument streams during execution inside the Reborn operator interface, integrated correlation of thread/run IDs in the Logs panel, stabilized activity visualization, and resolved stuck recurring runs on the automations dashboard. Implemented byte budgets for `read_file` to control context window expansion, refined `apply_patch` matching algorithm, and enhanced HTTP binary/PDF extraction pathways. Restored persistent-approval grant to prevent Gmail auth-resume failures, auto-denied stale AuthFlows on Slack, and moved WebUI v2 to self-host all frontend assets for better latency.
 
 ### Hermes Agent (`NousResearch/hermes-agent`)
-* **Status**: Highly Active (Total: 774 commits [773 H / 1 B], 43 merges, 1 release in the last week). Lines added/deleted: +144.2k/-45.8k (Human), +189/-5 (Bot).
-* **Contributors (according to last 7 days commits)** (Total: 137 Humans, 1 Bots):
+* **Status**: Highly Active (Total: 562 commits [562 H / 0 B], 56 merges, 0 tags/releases in the last week). Lines added/deleted: +95.9k/-32.3k (Human), +0/-0 (Bot).
+* **Contributors (according to last 7 days commits)** (Total: 102 Humans, 0 Bots):
   - **Top Humans**:
-    - `Teknium <127238744+teknium1@users.noreply.github.com>` (Human): 168 commits, +28.4k/-12.9k lines
-    - `teknium1 <127238744+teknium1@users.noreply.github.com>` (Human): 97 commits, +20.2k/-14.2k lines
-    - `Brooklyn Nicholson <brooklyn.bb.nicholson@gmail.com>` (Human): 71 commits, +12.7k/-3.7k lines
-    - `brooklyn! <brooklyn.bb.nicholson@gmail.com>` (Human): 37 commits, +12.5k/-3.5k lines
-    - `xxxigm <tuancanhnguyen706@gmail.com>` (Human): 23 commits, +1.2k/-86 lines
-    - `kshitijk4poor <82637225+kshitijk4poor@users.noreply.github.com>` (Human): 21 commits, +1.8k/-253 lines
-    - `underthestars-zhy <zhuhaoyu0909@icloud.com>` (Human): 17 commits, +4.4k/-1.5k lines
-    - `helix4u <4317663+helix4u@users.noreply.github.com>` (Human): 16 commits, +1.4k/-138 lines
-    - `Ben Barclay <ben@nousresearch.com>` (Human): 15 commits, +2.3k/-80 lines
-    - `yoniebans <jonny@nousresearch.com>` (Human): 14 commits, +1.0k/-342 lines
-  - **Top Bots**:
-    - `Sol Aitken <solaiagent@gmail.com>` (Bot): 1 commit, +189/-5 lines
-* **Recent Focus**: Desktop sidebar row deduplication by compression lineage in merge session page, official-SSH remote detection for passive updates, merging PATH in Update-ProcessPathForPackages on Windows instead of overwriting, staging SQLite snapshots beside output zip in update paths, archiving compressed conversation lineages, and preserving detached gateway restart watcher environments.
+    - `Teknium <127238744+teknium1@users.noreply.github.com>` (Human): 154 commits, +20.9k/-5.4k lines
+    - `Brooklyn Nicholson <brooklyn.bb.nicholson@gmail.com>` (Human): 57 commits, +8.2k/-3.0k lines
+    - `xxxigm <tuancanhnguyen706@gmail.com>` (Human): 30 commits, +2.0k/-134 lines
+    - `brooklyn! <brooklyn.bb.nicholson@gmail.com>` (Human): 30 commits, +10.1k/-1.8k lines
+    - `kshitijk4poor <82637225+kshitijk4poor@users.noreply.github.com>` (Human): 27 commits, +1.7k/-481 lines
+    - `teknium1 <127238744+teknium1@users.noreply.github.com>` (Human): 27 commits, +5.0k/-578 lines
+    - `Austin Pickett <pickett.austin@gmail.com>` (Human): 18 commits, +2.7k/-298 lines
+    - `helix4u <4317663+helix4u@users.noreply.github.com>` (Human): 14 commits, +1.7k/-170 lines
+    - `ethernet <arilotter@gmail.com>` (Human): 13 commits, +666/-1.1k lines
+    - `liuhao1024 <sunsky.lau@gmail.com>` (Human): 12 commits, +1.1k/-67 lines
+* **Recent Focus**: Enhanced desktop application stability with stranded session recovery on boot failure, custom chat error banner dismissals, immediate title synchronization, continuous streaming paint in secondary chat windows, and Electron version pinning to fix zip extraction failures. Restructured command routing inside OpenViking by utilizing turn locks instead of blocking the main thread, and removed the agent-callable `send_message` tool. Added search headroom compression evaluation reports to `search_files`, integrated Grok-Composer-2.5-Fast, preserved mixed iMessage attachments, and added rate-limiting retries for Codex device logins.
 
 ### NanoBot (`HKUDS/nanobot`)
-* **Status**: Active (Total: 92 commits [91 H / 1 B], 2 merges, 0 releases in the last week). Lines added/deleted: +29.7k/-4.3k (Human), +315/-11 (Bot).
-* **Contributors (according to last 7 days commits)** (Total: 23 Humans, 1 Bots):
+* **Status**: Highly Active (Total: 155 commits [155 H / 0 B], 5 merges, 0 tags/releases in the last week). Lines added/deleted: +16.6k/-7.7k (Human), +0/-0 (Bot).
+* **Contributors (according to last 7 days commits)** (Total: 23 Humans, 0 Bots):
   - **Top Humans**:
-    - `chengyongru <chengyongru.ai@gmail.com>` (Human): 24 commits, +2.9k/-455 lines
-    - `Xubin Ren <52506698+Re-bin@users.noreply.github.com>` (Human): 24 commits, +16.2k/-2.8k lines
-    - `axelray-dev <110029405+axelray-dev@users.noreply.github.com>` (Human): 8 commits, +668/-110 lines
-    - `Flávio Veloso Soares <flaviovs@magnux.com>` (Human): 7 commits, +720/-82 lines
-    - `chengyongru <2755839590@qq.com>` (Human): 4 commits, +206/-12 lines
-    - `Kunal Karmakar <kkdthunlshd@gmail.com>` (Human): 4 commits, +420/-34 lines
-    - `moran <moranfong@gmail.com>` (Human): 2 commits, +669/-6 lines
-    - `04cb <0x04cb@gmail.com>` (Human): 2 commits, +50/-1 lines
-    - `chengyongru <61816729+chengyongru@users.noreply.github.com>` (Human): 2 commits, +4.2k/-583 lines
-    - `Jiajun Xie <jiajunbernoulli@foxmail.com>` (Human): 1 commit, +200/-0 lines
-  - **Top Bots**:
-    - `NanoBot <nanobot@local>` (Bot): 1 commit, +315/-11 lines
-* **Recent Focus**: Balanced code block streaming over Telegram, splitting message helper refactoring for fenced code block awareness, SiliconFlow ASR/transcription settings integration and settings views, refactoring sidebar index out of WebUI session manager, index session list metadata optimizations, segmented transcript storage, and click-to-check version updates.
+    - `chengyongru <chengyongru.ai@gmail.com>` (Human): 61 commits, +6.8k/-2.9k lines
+    - `chengyongru <2755839590@qq.com>` (Human): 46 commits, +7.3k/-1.7k lines
+    - `Xubin Ren <52506698+Re-bin@users.noreply.github.com>` (Human): 9 commits, +278/-2.9k lines
+    - `Ilya Gusev <phoenixilya@gmail.com>` (Human): 7 commits, +173/-37 lines
+    - `axelray-dev <110029405+axelray-dev@users.noreply.github.com>` (Human): 4 commits, +286/-107 lines
+    - `tangtaizhong666 <tangtaizhong792@gmail.com>` (Human): 4 commits, +222/-4 lines
+    - `comadreja <comadreja@email.com>` (Human): 3 commits, +27/-2 lines
+    - `michaelxer <michaelxer@users.noreply.github.com>` (Human): 2 commits, +83/-14 lines
+    - `Haisam <you@example.com>` (Human): 2 commits, +68/-12 lines
+    - `w.antar <w.antar@romulus.live>` (Human): 2 commits, +60/-8 lines
+* **Recent Focus**: Introduced first-class integration for the Keenable search provider with API key authentication requirements (falling back to DuckDuckGo), including full WebUI, test suite, and documentation support. Added first-class Mistral model support. Refactored the exact-file workspace security allowlist by pruning unused states, enforcing exact writes to Dream memory files, and locking down parent directory link escapes. Improved chat history logic to preserve user turns and block replaying older long turns. Added incoming message read receipts (blue ticks) and corrected activity duration metrics in WebUI.
 
 ### PicoClaw (`sipeed/picoclaw`)
-* **Status**: Active (Total: 49 commits [47 H / 2 B], 41 merges, 1 release in the last week). Lines added/deleted: +2.2k/-383 (Human), +21/-21 (Bot). **10 commits since installed 0.2.9.nightly.20260609.46b29a0a-1.**
-* **Contributors (according to last 7 days commits)** (Total: 14 Humans, 1 Bots):
+* **Status**: Active (Total: 48 commits [44 H / 4 B], 30 merges, 2 tags/releases in the last week). Lines added/deleted: +5.6k/-872 (Human), +48/-48 (Bot). **60 commits since installed 0.2.9.nightly.20260609.46b29a0a-1.**
+* **Contributors (according to last 7 days commits)** (Total: 11 Humans, 1 Bots):
   - **Top Humans**:
-    - `程智超0668000959 <cheng.zhichao@xydigit.com>` (Human): 33 commits, +654/-212 lines
-    - `lc6464 <lclc6464@outlook.com>` (Human): 2 commits, +566/-75 lines
-    - `肆月 <2835601846@qq.com>` (Human): 1 commit, +71/-21 lines
-    - `LC <lclc6464@outlook.com>` (Human): 1 commit, +1/-0 lines
-    - `cs8425 <cs8425@gmail.com>` (Human): 1 commit, +3/-0 lines
-    - `Guoguo <i@qwq.trade>` (Human): 1 commit, +0/-0 lines
-    - `Yue_chen <1737456545@qq.com>` (Human): 1 commit, +8/-2 lines
-    - `pancake <pancake@nopcode.org>` (Human): 1 commit, +5/-0 lines
-    - `2023478 <2694762037@qq.com>` (Human): 1 commit, +43/-0 lines
-    - `jp39 <jp39@gmx.com>` (Human): 1 commit, +675/-13 lines
+    - `程智超0668000959 <cheng.zhichao@xydigit.com>` (Human): 10 commits, +59/-17 lines
+    - `lc6464 <lclc6464@outlook.com>` (Human): 7 commits, +1.5k/-513 lines
+    - `not-the-author <andreacamilleri21@gmail.com>` (Human): 7 commits, +1.7k/-195 lines
+    - `SiYue-ZO <2835601846@qq.com>` (Human): 5 commits, +735/-56 lines
+    - `jp39 <jp39@gmx.com>` (Human): 4 commits, +764/-48 lines
+    - `徐闻涵0668001344 <xu.wenhan1@xydigit.com>` (Human): 3 commits, +13/-7 lines
+    - `肆月 <2835601846@qq.com>` (Human): 2 commits, +73/-23 lines
+    - `LC <lclc6464@outlook.com>` (Human): 2 commits, +348/-7 lines
+    - `Carlos Prados <carlos.prados@gmail.com>` (Human): 2 commits, +73/-0 lines
+    - `Guoguo <i@qwq.trade>` (Human): 1 commits, +134/-4 lines
   - **Top Bots**:
-    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 2 commits, +21/-21 lines
-* **Recent Focus**: Hardening trusted proxy client IP parsing, launcher access control hardening, hiding console flashes in Windows child processes, normalizing gitignore text encoding, adding ok checks for type assertions in http.Transport CreateHTTPClient, checking strconv.Atoi and json.Unmarshal errors, blocking 198.18.0.0/15 in SSRF guard, and resolving health check defects.
+    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 4 commits, +48/-48 lines
+* **Recent Focus**: Scoped and configured remote cron command access while warning against remote wildcards. Added a shift-enter hint below the chat composer and adjusted the Sogou search parser regex to support new HTML layouts. Improved OneBot integration security by restricting private inbound media fetches and limiting media downloads. Configured composite chat IDs for Telegram forum topics, resolved several core-path goroutine panic recovery issues, updated Gemini provider logic to send both camelCase and snake_case thought signatures, and switched to Cond-based counter mechanisms inside the agent launcher.
 
 ### NanoClaw (`nanocoai/nanoclaw`)
-* **Status**: Active (Total: 43 commits [28 H / 15 B], 13 merges, 0 releases in the last week). Lines added/deleted: +9.0k/-5.6k (Human), +30/-30 (Bot). **Not installed as system package.**
-* **Contributors (according to last 7 days commits)** (Total: 4 Humans, 1 Bots):
+* **Status**: Active (Total: 44 commits [24 H / 20 B], 25 merges, 1 tag/release in the last week). Lines added/deleted: +3.5k/-705 (Human), +41/-41 (Bot). **Not installed as system package.**
+* **Contributors (according to last 7 days commits)** (Total: 5 Humans, 1 Bots):
   - **Top Humans**:
-    - `gavrielc <gabicohen22@yahoo.com>` (Human): 23 commits, +6.2k/-5.0k lines
-    - `Amit Shafnir <amit@nanoco.ai>` (Human): 3 commits, +2.6k/-602 lines
-    - `Omri Maya <omri@nanoco.ai>` (Human): 1 commit, +157/-2 lines
-    - `markbala <22162779+markbala@users.noreply.github.com>` (Human): 1 commit, +74/-0 lines
+    - `gavrielc <gabicohen22@yahoo.com>` (Human): 12 commits, +1.3k/-273 lines
+    - `Omri Maya <omri@nanoco.ai>` (Human): 6 commits, +2.0k/-401 lines
+    - `Koshkoshinsk <daniel.milliner@gmail.com>` (Human): 4 commits, +26/-2 lines
+    - `glifocat <glifocat@gmail.com>` (Human): 1 commits, +3/-3 lines
+    - `assafpin <assaf.pinhasi@gmail.com>` (Human): 1 commits, +132/-26 lines
   - **Top Bots**:
-    - `github-actions[bot] <github-actions[bot]@users.noreply.github.com>` (Bot): 15 commits, +30/-30 lines
-* **Recent Focus**: Token count updates to 185k tokens, TS uninstaller porting and uninstall.sh creation with OneCLI agent cleanup, host-side authorization gate for confined group create_agent, alignment of README and CONTRIBUTING with registry-branch install instructions, and version bumping.
+    - `github-actions[bot] <github-actions[bot]@users.noreply.github.com>` (Bot): 20 commits, +41/-41 lines
+* **Recent Focus**: Upgraded OneCLI gateway tracking upstream changes, integrated Codex CLI installations via `cli-tools.json`, added host-restart setup steps, and resolved interactive device-login warnings. Enabled operator-driven provider selection, dynamic model switching, memory migrations (restricting the schema to `/migrate-memory`), and delivered budget/billing errors gracefully inside the agent runner. Updated documentation tracking maximum context window usage limits up to 196k tokens.
+
+### LibreFang (`librefang/librefang`)
+* **Status**: Active (Total: 59 commits [46 H / 13 B], 2 tags/releases in the last week). Lines added/deleted: +19.4k/-1.5k (Human), +689/-610 (Bot). **96 commits since installed 2026.5.31beta.16 (r44.g648356c92).**
+* **Contributors (according to last 7 days commits)** (Total: 4 Humans, 2 Bots):
+  - **Top Humans**:
+    - `Evan <suzukaze.haduki@gmail.com>` (Human): 41 commits, +12.5k/-1.4k lines
+    - `Paco Navarrete <paco.j.navarrete@gmail.com>` (Human): 3 commits, +145/-50 lines
+    - `HuaGu-Dragon <1801943622@qq.com>` (Human): 1 commits, +28/-19 lines
+    - `Павло <pavvers1@gmail.com>` (Human): 1 commits, +6.7k/-97 lines
+  - **Top Bots**:
+    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 7 commits, +611/-548 lines
+    - `github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>` (Bot): 6 commits, +78/-62 lines
+* **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
+* **Recent Focus**: Focused heavily on dashboard enhancements including enlarging the TOML view, supporting reset-to-default for agent prompts/tools, adding a resizable sidebar for the agent panel with a larger editor, and establishing a central prompt repository with versioning/binding. Introduced WebAuthn/FIDO2 passkey logins for dashboard authentication. Enhanced runtime capabilities by disabling rather than deleting cron jobs, propagating W3C traceparents on outbound MCP requests, and accurately reporting model usage. Configured channel-instance bindings for deterministic inbound dispatch, added GitHub/Codeberg source selection for hands, and resolved Windows CI test lane compilation issues by pinning and building vendored OpenSSL.
+
+### Moltis (`moltis-org/moltis`)
+* **Status**: Inactive (Total: 0 commits [0 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +0/-0 (Human), +0/-0 (Bot). **0 commits since installed 20260603.01 (r8.g48c9a4192).**
+* **Contributors (according to last 7 days commits)** (Total: 0 Humans, 0 Bots):
+* **Recent Focus**: Stable with no active commits this week.
 
 ---
 

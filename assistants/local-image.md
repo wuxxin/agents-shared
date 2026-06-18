@@ -61,10 +61,11 @@ You can configure the target device/backends using the `LIMG_BACKEND` environmen
 #   - cpu                                     : Force CPU-only execution for all components
 #   - vulkan0, vulkan1, etc.                 : Run everything on the specified Vulkan device
 #   - cuda0, cuda1, etc.                     : Run everything on the specified CUDA device
+#   - vulkan1,te=cpu                         : Run diffusion/VAE on Vulkan1 and offload text encoder (te) to CPU
+#                                               (highly recommended to bypass Vulkan's 1GB parameter buffer limit)
 #   - clip=cpu,vae=vulkan1,diffusion=vulkan1  : Custom heterogeneous backend routing
 #                                               (e.g., keeping clip on CPU, and others on Vulkan)
-# Default is vulkan1.
-LIMG_BACKEND="vulkan1"
+# LIMG_BACKEND="vulkan1"
 ```
 
 ## Models & Repositories

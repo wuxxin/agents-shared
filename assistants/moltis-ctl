@@ -170,7 +170,7 @@ api_key = "unused"
 models = ["qwen3"]
 
 [providers.openai.model_overrides.qwen3]
-context_window = 80000
+context_window = 80128
 
 # --- Memory & Embeddings
 [memory]

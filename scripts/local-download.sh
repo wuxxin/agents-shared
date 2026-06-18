@@ -260,7 +260,7 @@ if [[ "$download_llm" == true ]]; then
     # 1d. Multimodal vision test image
     acquire_file \
         "vision-text/test_image.jpg" \
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Eiffel_Tower_Gold_Hour_In_Paris_FR.jpg/640px-Eiffel_Tower_Gold_Hour_In_Paris_FR.jpg" \
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/960px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg" \
         "${target_dir}/vision-text/test_image.jpg"
 fi
 

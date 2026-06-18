@@ -51,7 +51,7 @@ Configure the default model in `~/.librefang/config.toml` (located under the iso
 provider = "openai"
 model = "qwen3"
 api_key_env = "unused"
-context_window = 80000
+context_window = 80128
 temperature = 1.0
 reasoning_effort = "low"
 

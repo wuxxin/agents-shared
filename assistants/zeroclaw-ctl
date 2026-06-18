@@ -154,13 +154,13 @@ schema_version = 3
 uri = "http://localhost:50080/v1"
 model = "qwen3"
 api_key = "unused"
-max_tokens = 80000
+max_tokens = 80128
 temperature = 1.0
 
 # --- Default Agent Settings
 [agents.default]
 model_provider = "openai.local"
-max_context_tokens = 80000
+max_context_tokens = 80128
 tts_provider = "openai.local"
 transcription_provider = "local_whisper.localstt"
 risk_profile = "default"

@@ -168,7 +168,7 @@ EOF
 api_key_env = "LOCAL_CHAT_API_KEY"
 provider = "local-chat"
 model = "qwen3"
-context_window = 80000
+context_window = 80128
 temperature = 1.0
 reasoning_effort = "low"
 

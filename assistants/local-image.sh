@@ -20,11 +20,11 @@ load_env() {
     LIMG_MODEL=/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf
     LIMG_VAE=/data/public/machine-learning/models/image/ae.safetensors
     LIMG_LLM=/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf
-    LIMG_BACKEND="vulkan1"
+    LIMG_BACKEND=""
     LIMG_STEPS=8
     LIMG_CFG_SCALE="1.0"
     LIMG_THREADS=8
-    LIMG_EXTRA_ARGS=""
+    LIMG_EXTRA_ARGS="-fa"
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -144,9 +144,13 @@ generate_service_file() {
     --listen-ip ${LIMG_HOST} \\
     --listen-port ${LIMG_PORT} \\
     --threads ${LIMG_THREADS} \\
-    --backend ${LIMG_BACKEND} \\
     --steps ${LIMG_STEPS} \\
     --cfg-scale ${LIMG_CFG_SCALE}"
+
+    if [[ -n "${LIMG_BACKEND:-}" ]]; then
+        exec_cmd="${exec_cmd} \\
+    --backend ${LIMG_BACKEND}"
+    fi
 
     if [[ -n "${LIMG_EXTRA_ARGS:-}" ]]; then
         exec_cmd="${exec_cmd} \\
@@ -208,10 +212,11 @@ LIMG_LLM=/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf
 #   - cpu                                     : Force CPU-only execution for all components
 #   - vulkan0, vulkan1, etc.                 : Run everything on the specified Vulkan device
 #   - cuda0, cuda1, etc.                     : Run everything on the specified CUDA device
+#   - vulkan1,te=cpu                         : Run diffusion/VAE on Vulkan1 and offload text encoder (te) to CPU
+#                                               (highly recommended to bypass Vulkan's 1GB parameter buffer limit)
 #   - clip=cpu,vae=vulkan1,diffusion=vulkan1  : Custom heterogeneous backend routing
 #                                               (e.g., keeping clip on CPU, and others on Vulkan)
-# Default is vulkan1.
-LIMG_BACKEND="vulkan1"
+# LIMG_BACKEND="vulkan1"
 
 # Number of sample steps (default: 8, optimized for Turbo models)
 LIMG_STEPS=8
@@ -223,7 +228,7 @@ LIMG_CFG_SCALE="1.0"
 LIMG_THREADS=8
 
 # Extra arguments to pass to sd-server (e.g. "--vae-tiling", "--diffusion-fa")
-LIMG_EXTRA_ARGS=""
+LIMG_EXTRA_ARGS="--fa"
 
 EOF
 }
@@ -355,10 +360,13 @@ cmd_exec() {
         --listen-ip "${LIMG_HOST}"
         --listen-port "${LIMG_PORT}"
         --threads "${LIMG_THREADS}"
-        --backend "${LIMG_BACKEND}"
         --steps "${LIMG_STEPS}"
         --cfg-scale "${LIMG_CFG_SCALE}"
     )
+
+    if [[ -n "${LIMG_BACKEND:-}" ]]; then
+        args+=(--backend "${LIMG_BACKEND}")
+    fi
 
     if [[ -n "${LIMG_EXTRA_ARGS:-}" ]]; then
         # shellcheck disable=SC2206
@@ -494,7 +502,7 @@ cmd_test() {
 
     echo "=== Testing Image Generation API ==="
     local temp_output="/tmp/local_image_test_output.png"
-    rm -f "${temp_output}"
+    if test -e "${temp_output}"; then rm -f "${temp_output}"; fi
 
     local resp
     resp=$(curl -s -f -X POST "${base_url}/v1/images/generations" \
