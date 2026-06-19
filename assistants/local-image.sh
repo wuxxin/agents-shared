@@ -508,8 +508,8 @@ cmd_test() {
     resp=$(curl -s -f -X POST "${base_url}/v1/images/generations" \
         -H "Content-Type: application/json" \
         -d '{
-          "prompt": "A simple red square on a solid black background.",
-          "steps": 4,
+          "prompt": "A high-resolution, beautiful photograph of a pristine mountain lake at sunrise, highly detailed.",
+          "steps": 8,
           "cfg_scale": 1.0
         }')
 

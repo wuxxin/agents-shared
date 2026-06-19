@@ -179,19 +179,19 @@
     },
     "cpu-hip-ROCm0": {
         "tts": {
-            "bench_time_s": 27.363837718963623,
-            "cpu_mem_mb": 2202.26171875,
+            "bench_time_s": 17.43073844909668,
+            "cpu_mem_mb": 1121.88671875,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 30668.0,
-                "name": "AMD Radeon Pro W6800",
-                "total_mem_mib": 30704.0
+                "free_mem_mib": 24524.0,
+                "name": "AMD Radeon RX 7900 XTX",
+                "total_mem_mib": 24560.0
             },
-            "device_setting": "Default",
+            "device_setting": "ROCm0",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "",
-                "HIP_VISIBLE_DEVICES": "",
-                "LTTS_DEVICE": "",
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
+                "LTTS_DEVICE": "ROCm0",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
                 "LTTS_MODE": "hybrid",
@@ -201,13 +201,13 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 32.1171875,
+            "gpu_mem_mb": 3571.83984375,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-hip-ROCm0",
-            "tts_char_speed": 10.06,
-            "tts_duration": 21.1,
-            "tts_rtf": 1.2914,
-            "tts_time": 27.25
+            "tts_char_speed": 15.84,
+            "tts_duration": 18.54,
+            "tts_rtf": 0.9332,
+            "tts_time": 17.3
         }
     },
     "cpu-hip-ROCm1": {
@@ -278,19 +278,19 @@
     },
     "cpu-vulkan-Vulkan1": {
         "tts": {
-            "bench_time_s": 24.654261589050293,
-            "cpu_mem_mb": 2164.109375,
+            "bench_time_s": 6.8100197315216064,
+            "cpu_mem_mb": 711.09375,
             "device_details": {
                 "device_id": "Vulkan1",
-                "free_mem_mib": 72616.0,
-                "name": "AMD Radeon Graphics (RADV RENOIR)",
-                "total_mem_mib": 72645.0
+                "free_mem_mib": 24533.0,
+                "name": "AMD Radeon RX 7900 XTX (RADV NAVI31)",
+                "total_mem_mib": 24560.0
             },
-            "device_setting": "Default",
+            "device_setting": "Vulkan1",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
                 "HIP_VISIBLE_DEVICES": "",
-                "LTTS_DEVICE": "",
+                "LTTS_DEVICE": "Vulkan1",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
                 "LTTS_MODE": "hybrid",
@@ -300,31 +300,31 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 1803.31640625,
+            "gpu_mem_mb": 0.0546875,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-vulkan-Vulkan1",
-            "tts_char_speed": 11.18,
-            "tts_duration": 19.66,
-            "tts_rtf": 1.2471,
-            "tts_time": 24.52
+            "tts_char_speed": 40.77,
+            "tts_duration": 20.54,
+            "tts_rtf": 0.3272,
+            "tts_time": 6.72
         }
     },
     "hip-ROCm0": {
         "chat": {
-            "bench_time_s": 72.2085189819336,
+            "bench_time_s": 72.21110796928406,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 9.01,
-            "chat_avg_gen": 66.61,
-            "chat_avg_prefill": 643.11,
-            "chat_avg_ttft": 48267.26,
-            "chat_image_gen": 99.18,
-            "chat_image_ttft": 1464.36,
+            "chat_avg_decode": 9.1,
+            "chat_avg_gen": 65.95,
+            "chat_avg_prefill": 643.65,
+            "chat_avg_ttft": 48226.75,
+            "chat_image_gen": 98.52,
+            "chat_image_ttft": 1460.75,
             "chat_warmup_comp": 158.0,
-            "chat_warmup_gen": 102.18,
-            "chat_warmup_prefill": 78.43,
+            "chat_warmup_gen": 102.36,
+            "chat_warmup_prefill": 78.15,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 242.26,
-            "cpu_mem_mb": 2032.72265625,
+            "chat_warmup_ttft": 243.11,
+            "cpu_mem_mb": 2014.67578125,
             "device_details": {
                 "device_id": "ROCm0",
                 "free_mem_mib": 24524.0,
@@ -350,16 +350,25 @@
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 20667.71484375,
+            "gpu_mem_mb": 20667.74609375,
             "special_setting": "Layers: 999",
             "test_name": "chat_hip-ROCm0"
         },
         "embedding": {
-            "bench_time_s": "-fail-",
-            "cpu_mem_mb": "-fail-",
+            "bench_time_s": 30.643616676330566,
+            "cpu_mem_mb": 10114.46484375,
+            "device_details": {
+                "device_id": "ROCm0",
+                "free_mem_mib": 24524.0,
+                "name": "AMD Radeon RX 7900 XTX",
+                "total_mem_mib": 24560.0
+            },
             "device_setting": "ROCm0",
-            "embed_lat": "-fail-",
-            "embed_throughput": "-fail-",
+            "embed_lat": 4211.8,
+            "embed_p50": 4578.0,
+            "embed_p95": 5325.3,
+            "embed_throughput": 1798.91,
+            "embed_time_s": 25.27,
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
                 "HIP_VISIBLE_DEVICES": "0",
@@ -373,12 +382,126 @@
                 "LMBD_PORT": "50082",
                 "LMBD_THREADS": "4"
             },
-            "errors": [
-                "Error: llama-server failed to start or port timed out"
-            ],
-            "gpu_mem_mb": "-fail-",
+            "errors": [],
+            "gpu_mem_mb": 7119.71875,
             "special_setting": "Layers: 999",
             "test_name": "embedding_hip-ROCm0"
+        },
+        "image": {
+            "bench_time_s": 96.2666323184967,
+            "cpu_mem_mb": 424.48046875,
+            "device_setting": "vulkan0",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
+                "LIMG_BACKEND": "vulkan0",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
+            },
+            "errors": [],
+            "gpu_mem_mb": 0.0546875,
+            "image_time": 96.15,
+            "special_setting": "Steps: 8",
+            "test_name": "image_hip-ROCm0"
+        },
+        "rerank": {
+            "bench_time_s": 1.202775001525879,
+            "cpu_mem_mb": 826.73046875,
+            "device_details": {
+                "device_id": "ROCm0",
+                "free_mem_mib": 24524.0,
+                "name": "AMD Radeon RX 7900 XTX",
+                "total_mem_mib": 24560.0
+            },
+            "device_setting": "ROCm0",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
+                "LRR_ALIAS": "qwen3-reranker",
+                "LRR_DEVICE": "ROCm0",
+                "LRR_EXTRA_ARGS": "--flash-attn auto",
+                "LRR_HOST": "127.0.0.1",
+                "LRR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
+                "LRR_N_CTX": "8192",
+                "LRR_N_GPU_LAYERS": 99,
+                "LRR_PORT": "50086",
+                "LRR_THREADS": "8"
+            },
+            "errors": [],
+            "gpu_mem_mb": 2719.57421875,
+            "rerank_throughput": 9.3,
+            "rerank_time": 1075.04,
+            "rerank_token_speed": 3198.95,
+            "special_setting": "Layers: 99",
+            "test_name": "rerank_hip-ROCm0"
+        },
+        "stt": {
+            "bench_time_s": 3.906294584274292,
+            "cpu_mem_mb": 489.56640625,
+            "device_details": {
+                "device_id": "ROCm0",
+                "free_mem_mib": 24524.0,
+                "name": "AMD Radeon RX 7900 XTX",
+                "total_mem_mib": 24560.0
+            },
+            "device_setting": "0",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
+                "LSTT_DEVICE": "0",
+                "LSTT_EXTRA_ARGS": "",
+                "LSTT_HOST": "127.0.0.1",
+                "LSTT_INFERENCE_PATH": "/v1/audio/transcriptions",
+                "LSTT_MODEL": "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
+                "LSTT_MODEL_ALIAS": "whisper-1",
+                "LSTT_NO_GPU": "false",
+                "LSTT_PORT": "50090",
+                "LSTT_THREADS": "8"
+            },
+            "errors": [],
+            "gpu_mem_mb": 1264.328125,
+            "special_setting": "Use GPU",
+            "stt_rtf": 0.0828,
+            "stt_time": 3.72,
+            "test_name": "stt_hip-ROCm0"
+        },
+        "tts": {
+            "bench_time_s": 16.729785442352295,
+            "cpu_mem_mb": 1102.8828125,
+            "device_details": {
+                "device_id": "ROCm0",
+                "free_mem_mib": 24524.0,
+                "name": "AMD Radeon RX 7900 XTX",
+                "total_mem_mib": 24560.0
+            },
+            "device_setting": "ROCm0",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
+                "LTTS_DEVICE": "ROCm0",
+                "LTTS_EXTRA_ARGS": "",
+                "LTTS_HOST": "127.0.0.1",
+                "LTTS_MODE": "gpu",
+                "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
+                "LTTS_PORT": "50095",
+                "LTTS_THREADS": "8",
+                "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
+            },
+            "errors": [],
+            "gpu_mem_mb": 3519.83984375,
+            "special_setting": "mode: gpu",
+            "test_name": "tts_hip-ROCm0",
+            "tts_char_speed": 16.54,
+            "tts_duration": 17.82,
+            "tts_rtf": 0.93,
+            "tts_time": 16.57
         }
     },
     "hip-ROCm1": {
@@ -480,33 +603,51 @@
             "test_name": "chat_running"
         },
         "embedding": {
-            "bench_time_s": 52.49267578125,
+            "bench_time_s": 30.54525399208069,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
-            "embed_lat": 7875.2,
-            "embed_p50": 8245.1,
-            "embed_p95": 11509.8,
-            "embed_throughput": 962.1,
-            "embed_time_s": 47.25,
+            "embed_lat": 4215.9,
+            "embed_p50": 4588.0,
+            "embed_p95": 5292.5,
+            "embed_throughput": 1797.16,
+            "embed_time_s": 25.3,
             "env": {
-                "CUDA_VISIBLE_DEVICES": "",
-                "HIP_VISIBLE_DEVICES": "",
                 "LMBD_ALIAS": "qwen3-embedding",
+                "LMBD_DEVICE": "ROCm0",
                 "LMBD_EXTRA_ARGS": "",
                 "LMBD_HOST": "127.0.0.1",
                 "LMBD_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
                 "LMBD_N_CTX": "8192",
                 "LMBD_N_GPU_LAYERS": "999",
                 "LMBD_PORT": "50082",
-                "LMBD_THREADS": "4",
-                "LRR_DEVICE": "Vulkan1"
+                "LMBD_THREADS": "4"
             },
-            "errors": [
-                "Jun 13 03:11:22 power local-embedding[1554715]: 40.35.614.083 W ggml_vulkan: Failed to allocate pinned memory (Requested buffer size exceeds device buffer size limit: ErrorOutOfDeviceMemory)"
-            ],
+            "errors": [],
             "gpu_mem_mb": "-n.a.-",
             "special_setting": "unknown",
             "test_name": "embedding_running"
+        },
+        "image": {
+            "bench_time_s": 3.1049587726593018,
+            "cpu_mem_mb": "-n.a.-",
+            "device_setting": "running on host",
+            "env": {
+                "LIMG_BACKEND": "rocm0,te=cpu",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
+            },
+            "errors": [],
+            "gpu_mem_mb": "-n.a.-",
+            "image_time": 2.94,
+            "special_setting": "unknown",
+            "test_name": "image_running"
         },
         "rerank": {
             "bench_time_s": 17.359076499938965,
@@ -582,6 +723,7 @@
             "tts_time": 33.91
         }
     },
+    "special": {},
     "vulkan-Vulkan0": {
         "chat": {
             "bench_time_s": "-fail-",
@@ -772,23 +914,23 @@
     },
     "vulkan-Vulkan1": {
         "chat": {
-            "bench_time_s": 21.829824209213257,
+            "bench_time_s": 21.43095302581787,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 4.97,
-            "chat_avg_gen": 120.69,
-            "chat_avg_prefill": 2521.05,
-            "chat_avg_ttft": 2306.98,
-            "chat_image_gen": 124.2,
-            "chat_image_ttft": 1486.8,
+            "chat_avg_decode": 5.04,
+            "chat_avg_gen": 119.04,
+            "chat_avg_prefill": 2828.55,
+            "chat_avg_ttft": 2056.18,
+            "chat_image_gen": 122.26,
+            "chat_image_ttft": 1376.26,
             "chat_warmup_comp": 173.0,
-            "chat_warmup_gen": 120.41,
-            "chat_warmup_prefill": 72.14,
+            "chat_warmup_gen": 122.68,
+            "chat_warmup_prefill": 133.63,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 263.38,
-            "cpu_mem_mb": 1225.6953125,
+            "chat_warmup_ttft": 142.18,
+            "cpu_mem_mb": 1214.00390625,
             "device_details": {
                 "device_id": "Vulkan1",
-                "free_mem_mib": 4343.0,
+                "free_mem_mib": 24533.0,
                 "name": "AMD Radeon RX 7900 XTX (RADV NAVI31)",
                 "total_mem_mib": 24560.0
             },
@@ -811,25 +953,16 @@
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 0.06640625,
+            "gpu_mem_mb": 0.0,
             "special_setting": "Layers: 999 (Context: 20%)",
             "test_name": "chat_vulkan-Vulkan1"
         },
         "embedding": {
-            "bench_time_s": 86.42378497123718,
-            "cpu_mem_mb": 5218.9921875,
-            "device_details": {
-                "device_id": "Vulkan1",
-                "free_mem_mib": 72616.0,
-                "name": "AMD Radeon Graphics (RADV RENOIR)",
-                "total_mem_mib": 72645.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "Vulkan1",
-            "embed_lat": 6769.7,
-            "embed_p50": 7264.4,
-            "embed_p95": 7963.1,
-            "embed_throughput": 559.6,
-            "embed_time_s": 81.24,
+            "embed_lat": "-fail-",
+            "embed_throughput": "-fail-",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
                 "HIP_VISIBLE_DEVICES": "",
@@ -844,13 +977,13 @@
                 "LMBD_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 3663.890625,
+            "gpu_mem_mb": "-fail-",
             "special_setting": "Layers: 999",
             "test_name": "embedding_vulkan-Vulkan1"
         },
         "image": {
-            "bench_time_s": "-fail-",
-            "cpu_mem_mb": "-fail-",
+            "bench_time_s": 7.129466533660889,
+            "cpu_mem_mb": 498.04296875,
             "device_setting": "vulkan1",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
@@ -866,55 +999,45 @@
                 "LIMG_THREADS": "8",
                 "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
             },
-            "errors": [
-                "[ERROR] model_manager.cpp:581  - model manager tensor 'text_encoders.llm.model.embed_tokens.weight' is too large for params buffer: 1555824640 > 1073741824",
-                "[ERROR] ggml_extend.hpp:1888 - qwen3 prepare graph weights failed"
-            ],
-            "gpu_mem_mb": "-fail-",
-            "image_time": "-fail-",
+            "errors": [],
+            "gpu_mem_mb": 8.6171875,
+            "image_time": 6.95,
             "special_setting": "Steps: 8",
             "test_name": "image_vulkan-Vulkan1"
         },
         "rerank": {
-            "bench_time_s": 5.7107977867126465,
-            "cpu_mem_mb": 241.08203125,
-            "device_details": {
-                "device_id": "Vulkan1",
-                "free_mem_mib": 72616.0,
-                "name": "AMD Radeon Graphics (RADV RENOIR)",
-                "total_mem_mib": 72645.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "Vulkan1",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
                 "HIP_VISIBLE_DEVICES": "",
+                "LRR_ALIAS": "qwen3-reranker",
                 "LRR_DEVICE": "Vulkan1",
+                "LRR_EXTRA_ARGS": "--flash-attn auto",
+                "LRR_HOST": "127.0.0.1",
+                "LRR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
+                "LRR_N_CTX": "8192",
                 "LRR_N_GPU_LAYERS": 99,
-                "LR_ALIAS": "qwen3-reranker",
-                "LR_EXTRA_ARGS": "--flash-attn auto",
-                "LR_HOST": "127.0.0.1",
-                "LR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
-                "LR_N_CTX": "8192",
-                "LR_N_GPU_LAYERS": "99",
-                "LR_PORT": "50086",
-                "LR_THREADS": "8"
+                "LRR_PORT": "50086",
+                "LRR_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 1576.6875,
-            "rerank_throughput": 1.79,
-            "rerank_time": 5571.62,
-            "rerank_token_speed": 617.24,
+            "gpu_mem_mb": "-fail-",
+            "rerank_throughput": "-fail-",
+            "rerank_time": "-fail-",
+            "rerank_token_speed": "-fail-",
             "special_setting": "Layers: 99",
             "test_name": "rerank_vulkan-Vulkan1"
         },
         "stt": {
-            "bench_time_s": 5.5095624923706055,
-            "cpu_mem_mb": 120.125,
+            "bench_time_s": 1.0025854110717773,
+            "cpu_mem_mb": 150.21484375,
             "device_details": {
                 "device_id": "Vulkan1",
-                "free_mem_mib": 72616.0,
-                "name": "AMD Radeon Graphics (RADV RENOIR)",
-                "total_mem_mib": 72645.0
+                "free_mem_mib": 24533.0,
+                "name": "AMD Radeon RX 7900 XTX (RADV NAVI31)",
+                "total_mem_mib": 24560.0
             },
             "device_setting": "1",
             "env": {
@@ -931,26 +1054,26 @@
                 "LSTT_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 808.82421875,
+            "gpu_mem_mb": 0.0546875,
             "special_setting": "Use GPU",
-            "stt_rtf": 0.1189,
-            "stt_time": 5.35,
+            "stt_rtf": 0.0187,
+            "stt_time": 0.84,
             "test_name": "stt_vulkan-Vulkan1"
         },
         "tts": {
-            "bench_time_s": 44.67904472351074,
-            "cpu_mem_mb": 626.1328125,
+            "bench_time_s": 307.2214081287384,
+            "cpu_mem_mb": 857.22265625,
             "device_details": {
                 "device_id": "Vulkan1",
-                "free_mem_mib": 72616.0,
-                "name": "AMD Radeon Graphics (RADV RENOIR)",
-                "total_mem_mib": 72645.0
+                "free_mem_mib": 24533.0,
+                "name": "AMD Radeon RX 7900 XTX (RADV NAVI31)",
+                "total_mem_mib": 24560.0
             },
-            "device_setting": "Default",
+            "device_setting": "Vulkan1",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
                 "HIP_VISIBLE_DEVICES": "",
-                "LTTS_DEVICE": "",
+                "LTTS_DEVICE": "Vulkan1",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
                 "LTTS_MODE": "gpu",
@@ -960,13 +1083,13 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 3205.78515625,
+            "gpu_mem_mb": 0.05078125,
             "special_setting": "mode: gpu",
             "test_name": "tts_vulkan-Vulkan1",
-            "tts_char_speed": 6.16,
-            "tts_duration": 18.14,
-            "tts_rtf": 2.4534,
-            "tts_time": 44.5
+            "tts_char_speed": 0.89,
+            "tts_duration": 18.7,
+            "tts_rtf": 16.4244,
+            "tts_time": 307.09
         }
     }
 }
