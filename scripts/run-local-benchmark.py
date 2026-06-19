@@ -579,17 +579,15 @@ def build_gpu_registry(mock: bool = False):
         for card_key, info in data.items():
             if not card_key.startswith("card"):
                 continue
-            name = info.get("Card series", "Unknown GPU")
-            # wait, rocm-smi doesn't show gfx_version directly. Wait, the user said "gfx1100".
-            # We can get gfx_version from rocm_agent_enumerator or from name.
-            # For now, let's just parse VRAM
+            name = info.get("Card Series", "Unknown GPU")
+            gfx_version = info.get("GFX Version", "unknown")
             vram_bytes = info.get("VRAM Total Memory (B)", "0")
             vram_mb = float(vram_bytes) / (1024 * 1024)
             is_igpu = "Graphics" in name or "Renoir" in name
             GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
                 rocm_smi_card=card_key,
                 name=name,
-                gfx_version="unknown",
+                gfx_version=gfx_version,
                 vram_total_mb=vram_mb,
                 is_igpu=is_igpu,
                 rocm_index=None,
@@ -612,7 +610,7 @@ def build_gpu_registry(mock: bool = False):
     for line in cli_out.splitlines():
         # ROCm0: AMD Radeon RX 7900 XTX (24576 MiB, 24000 MiB free)
         # Vulkan1: AMD Radeon RX 7900 XTX (NAVI31) (24576 MiB)
-        match = re.match(r"(ROCm|Vulkan)(\d+):\s+(.*?)\s+\(", line)
+        match = re.search(r"(ROCm|Vulkan)(\d+):\s+(.*?)\s+\(", line)
         if match:
             backend = match.group(1)
             idx = int(match.group(2))
@@ -1574,32 +1572,32 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 ### 📊 Performance Comparison Matrix
 
 #### Text Chat (`local-chat`)
-| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat Image TTFT | Chat Image Gen | Chat GPU Mem | Chat CPU Mem |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat Image TTFT | Chat Image Gen | Chat GPU Mem | Chat CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
 {chat_table_body}
 
 #### Text Embedding (`local-embedding`)
-| Configuration | Test Name | GPU | Device Setting | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
-|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
+|---|---|---|---|---|---|---|---|
 {embed_table_body}
 
 #### Document Reranking (`local-rerank`)
-| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|
 {rerank_table_body}
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
-| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|
 {stt_table_body}
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|
 {tts_table_body}
 
 #### Image Generation (`local-image`)
-| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
+| Configuration | Test Name | GPU | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|
 {image_table_body}
 
@@ -2024,7 +2022,7 @@ def main() -> None:
                 if run_cfg == "running":
                     llm_device = "running on host"
                     fraction = 1.0
-                    llm_n_ctx = 240000
+                    llm_n_ctx = 240384
                 else:
                     device_map = {
                         "hip": dev if dev else "ROCm0",
@@ -2037,9 +2035,11 @@ def main() -> None:
                     fraction = 1.0
                     if run_cfg == "cpu":
                         fraction = 0.05
-                    elif dev and "1" in dev:
-                        fraction = 0.20
-                    llm_n_ctx = int(240000 * fraction)
+                    elif dev:
+                        gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
+                        if gpu and gpu.is_igpu:
+                            fraction = 0.20
+                    llm_n_ctx = int(240384 * fraction)
 
                 if not args.mock:
                     if run_cfg == "running":

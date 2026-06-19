@@ -28,7 +28,7 @@ load_env() {
     LRR_N_CTX=8192
     LRR_N_GPU_LAYERS=99
     LRR_THREADS=8
-    LRR_EXTRA_ARGS=""
+    LRR_EXTRA_ARGS="--flash-attn on"
     LRR_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
@@ -228,7 +228,7 @@ LRR_N_GPU_LAYERS=0
 LRR_THREADS=8
 
 # Use Flash Attention if on gpu and available
-LRR_EXTRA_ARGS="--flash-attn auto"
+LRR_EXTRA_ARGS="--flash-attn on"
 
 EOF
 }

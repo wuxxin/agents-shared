@@ -1190,9 +1190,9 @@ def main() -> None:
     )
     parser.add_argument("--audio", help="Path to input audio file (for speech-to-text)")
     parser.add_argument(
-        "--output",
-        default=None,
-        help="Path to save output synthesized speech (for text-to-speech)",
+        "--output-dir",
+        default="/tmp",
+        help="Directory to save outputs (e.g. synthesized speech)",
     )
     parser.add_argument(
         "--repeat",

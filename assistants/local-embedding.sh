@@ -29,7 +29,7 @@ load_env() {
     LMBD_N_GPU_LAYERS=999
     LMBD_THREADS=4
     LMBD_DEVICE=""
-    LMBD_EXTRA_ARGS=""
+    LMBD_EXTRA_ARGS="--flash-attn on"
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -230,7 +230,7 @@ LMBD_N_GPU_LAYERS=999
 LMBD_THREADS=4
 
 # Extra arguments to pass to llama-server
-LMBD_EXTRA_ARGS=""
+LMBD_EXTRA_ARGS="--flash-attn on"
 
 EOF
 }

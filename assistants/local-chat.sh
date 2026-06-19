@@ -31,7 +31,7 @@ load_env() {
     LCHAT_THREADS=4
     LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
     LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-    LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+    LCHAT_EXTRA_ARGS="--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
     LCHAT_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
@@ -262,8 +262,8 @@ LCHAT_N_GPU_LAYERS=999
 # Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
 LCHAT_THREADS=4
 
-# Extra arguments to pass to llama-server (default: "--flash-attn auto --spec-type ngram-simple ...")
-LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# Extra arguments to pass to llama-server (default: "--flash-attn on --spec-type ngram-simple ...")
+LCHAT_EXTRA_ARGS="--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 
 EOF
 }

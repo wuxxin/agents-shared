@@ -166,16 +166,16 @@ Llama.cpp automatically splits model layers proportionally based on each GPU's a
 
 ```bash
 # Example: Distribute model layers evenly (50/50) across two identical GPUs
-LCHAT_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1"
+LCHAT_EXTRA_ARGS="--flash-attn on --tensor-split 1,1"
 
 # Example: Distribute across a 24GB GPU and a 12GB GPU (2:1 ratio)
-LCHAT_EXTRA_ARGS="--flash-attn auto --tensor-split 2,1"
+LCHAT_EXTRA_ARGS="--flash-attn on --tensor-split 2,1"
 ```
 
 You can also specify which GPU handles consolidations and intermediate compute using `--main-gpu` (defaults to GPU 0):
 ```bash
 # Consolidate intermediate calculations on GPU 1
-LCHAT_EXTRA_ARGS="--flash-attn auto --tensor-split 1,1 --main-gpu 1"
+LCHAT_EXTRA_ARGS="--flash-attn on --tensor-split 1,1 --main-gpu 1"
 ```
 
 
@@ -192,12 +192,12 @@ This is configured via `LCHAT_EXTRA_ARGS` in the environment file:
 
 ```bash
 # Enabled by default in LCHAT_EXTRA_ARGS:
-LCHAT_EXTRA_ARGS="--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+LCHAT_EXTRA_ARGS="--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 ```
 
 To disable speculative decoding, edit the environment file and remove the speculative arguments, leaving only:
 ```bash
-LCHAT_EXTRA_ARGS="--flash-attn auto"
+LCHAT_EXTRA_ARGS="--flash-attn on"
 ```
 
 ## VRAM Usage
