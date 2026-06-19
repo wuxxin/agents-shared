@@ -251,7 +251,6 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
      - *3a. Half Prefill Prompt + Question* (measures prefix cache hit/latency).
      - *3b. Distractor Prompt* (a short, unrelated question to test cache eviction/interference).
      - *3c. Full Prefill Prompt + Question* (measures prompt re-parsing speed after distractor cache eviction).
-   - To avoid GPU overheating on target hardware (Radeon Pro W6800), a 10-second cooldown sleep is executed *only* after the full context query (`3c`). No sleeps are executed after the half-prefill or distractor queries.
    - Can be skipped entirely using the `--skip-distractor` parameter (e.g. `./local-chat.sh test --benchmark --skip-distractor`) to avoid overheating during extended test suites.
 
 > [!NOTE]

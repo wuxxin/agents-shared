@@ -8,13 +8,24 @@ and throughput without external dependencies.
 import argparse
 import json
 import os
+import sys
+
+
+
 import struct
 import subprocess
 import tempfile
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+_OUTPUT_FORMAT = "text"
+
+def tprint(*args, **kwargs):
+    if _OUTPUT_FORMAT != "text":
+        kwargs['file'] = sys.stderr
+    print(*args, **kwargs)
 
 
 def post_json(url: str, payload: dict) -> dict:
@@ -77,7 +88,7 @@ def run_streamed_query(
     completion_tokens = 0
 
     if not quiet:
-        print(f"  {display_label} Prefilling... ", end="", flush=True)
+        tprint(f"  {display_label} Prefilling... ", end="", flush=True)
 
     try:
         with urllib.request.urlopen(req) as response:
@@ -106,7 +117,7 @@ def run_streamed_query(
                                 first_token_time = time.perf_counter()
                                 if not quiet:
                                     ttft = first_token_time - t0
-                                    print(
+                                    tprint(
                                         f"Completed in {ttft:.2f}s. Generating... ",
                                         end="",
                                         flush=True,
@@ -118,11 +129,11 @@ def run_streamed_query(
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
         if not quiet:
-            print()
+            tprint()
         raise RuntimeError(f"HTTP Error {e.code}: {error_body}") from e
     except Exception as e:
         if not quiet:
-            print()
+            tprint()
         raise RuntimeError(f"Request failed: {e}") from e
 
     if first_token_time is None:
@@ -134,7 +145,7 @@ def run_streamed_query(
     generation_time = total_time - ttft
 
     if not quiet:
-        print(f"Completed in {generation_time:.2f}s.")
+        tprint(f"Completed in {generation_time:.2f}s.")
 
     if prompt_tokens == 0:
         content_len = len(payload.get("messages", [{}])[0].get("content", ""))
@@ -156,7 +167,7 @@ def run_llm_chat(
     skip_image: bool = False,
     image_file: Optional[str] = None,
     fraction_context: float = 1.0,
-) -> None:
+    output_format: str = 'text') -> None:
     """Run chat completion prefill/decode benchmark using a large context."""
     if not os.path.exists(context_file):
         raise FileNotFoundError(f"Context file not found: {context_file}")
@@ -167,7 +178,7 @@ def run_llm_chat(
     # Truncate context to ~29k tokens (~115k characters) to avoid GPU memory allocation failures
     MAX_CONTEXT_CHARS = 115000
     if len(context_content) > MAX_CONTEXT_CHARS:
-        print(
+        tprint(
             f"Warning: Context file is very large ({len(context_content)} chars). "
             f"Truncating to {MAX_CONTEXT_CHARS} chars to prevent GPU memory/caching issues."
         )
@@ -175,7 +186,7 @@ def run_llm_chat(
 
     if fraction_context < 1.0:
         target_len = max(1, int(len(context_content) * fraction_context))
-        print(
+        tprint(
             f"Limiting context content to fraction={fraction_context} ({target_len} chars)"
         )
         context_content = context_content[:target_len]
@@ -190,9 +201,9 @@ def run_llm_chat(
 
     # Phase 0: Warmup
     if not skip_chat:
-        print("===================================================")
-        print("=== PHASE 0: Warmup (Validation Query) ===")
-        print("===================================================")
+        tprint("===================================================")
+        tprint("=== PHASE 0: Warmup (Validation Query) ===")
+        tprint("===================================================")
         payload_p0 = {
             "model": model,
             "messages": [
@@ -218,22 +229,19 @@ def run_llm_chat(
             else 0.0
         )
 
-        print(
+        tprint(
             f"  Metrics: TTFT={ttft_p0 * 1000:.1f}ms, Prefill={prefill_speed_p0:.2f} t/s, Gen={generation_speed_p0:.2f} t/s"
         )
-        print(f'  Response: "{text_p0.strip()}"')
+        tprint(f'  Response: "{text_p0.strip()}"')
 
-        # Sleep 10 seconds between Phase 0 and next phase
-        print("\nSleeping 10 seconds between Phase 0 and next phase...")
-        time.sleep(10)
 
     # Phase 1: Sequential Prefill
     phase1_durations = []
     phase1_speeds = []
     if not skip_chat and not skip_prefill:
-        print("\n===================================================")
-        print("=== PHASE 1: Sequential Prefill (Warmup) ===")
-        print("===================================================")
+        tprint("\n===================================================")
+        tprint("=== PHASE 1: Sequential Prefill (Warmup) ===")
+        tprint("===================================================")
         prompt_p1 = (
             context_content + "\n\nTask: Summarize the text above in exactly 100 words."
         )
@@ -271,7 +279,7 @@ def run_llm_chat(
             phase1_speeds.append(speed_new_chunk)
 
             pct = (current_len / total_len) * 100
-            print(
+            tprint(
                 f"  [Cycle {step_idx}/10] Prefilled {current_len}/{total_len} characters ({pct:.1f}%) in {delta:.2f}s "
                 f"(New chunk: {delta_tokens} tokens at {speed_new_chunk:.2f} t/s)"
             )
@@ -282,22 +290,19 @@ def run_llm_chat(
             if current_len >= total_len:
                 break
 
-        # Sleep 10 seconds between Phase 1 and Phase 2
-        print("\nSleeping 10 seconds between Phase 1 and Phase 2...")
-        time.sleep(10)
     else:
-        print("\n===================================================")
-        print("=== PHASE 1: Sequential Prefill (Warmup) ===")
-        print("===================================================")
-        print("  SKIPPED")
+        tprint("\n===================================================")
+        tprint("=== PHASE 1: Sequential Prefill (Warmup) ===")
+        tprint("===================================================")
+        tprint("  SKIPPED")
 
     # Phase 2: Chat Generation (300-word summary)
     phase2_runs = []
     generated_text = ""
     if not skip_chat:
-        print("\n===================================================")
-        print("=== PHASE 2: Chat Generation (300-word summary) ===")
-        print("===================================================")
+        tprint("\n===================================================")
+        tprint("=== PHASE 2: Chat Generation (300-word summary) ===")
+        tprint("===================================================")
         prompt_p2 = (
             context_content + "\n\nTask: Summarize the text above in exactly 300 words."
         )
@@ -340,11 +345,11 @@ def run_llm_chat(
                 generated_text = text
 
             if quiet:
-                print(
+                tprint(
                     f"  [Run {r + 1}/{repeats}] Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} tokens/sec)"
                 )
             else:
-                print(
+                tprint(
                     f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
                 )
 
@@ -353,14 +358,11 @@ def run_llm_chat(
     phase3_results: Dict[str, List[Dict[str, Any]]] = {}
 
     if run_phase3:
-        # Sleep 10 seconds between Phase 2 and Phase 3
-        print("\nSleeping 10 seconds between Phase 2 and Phase 3...")
-        time.sleep(10)
 
-        print("\n===================================================")
-        print("=== PHASE 3: Prefix Caching & Distractor Tests ===")
-        print("===================================================")
-        print("Cycling [Half Prefill, Distractor, Full Prefill] 5 times...")
+        tprint("\n===================================================")
+        tprint("=== PHASE 3: Prefix Caching & Distractor Tests ===")
+        tprint("===================================================")
+        tprint("Cycling [Half Prefill, Distractor, Full Prefill] 5 times...")
 
         half_context = context_content[: len(context_content) // 2]
         prompt_3a = (
@@ -383,7 +385,7 @@ def run_llm_chat(
         phase3_results = {s[0]: [] for s in scenarios}
 
         for cycle in range(1, 6):
-            print(f"\n--- Cycle {cycle}/5 ---")
+            tprint(f"\n--- Cycle {cycle}/5 ---")
             for name, p_text in scenarios:
                 payload = {
                     "model": model,
@@ -418,23 +420,20 @@ def run_llm_chat(
                 }
                 phase3_results[name].append(result_item)
 
-                print(
+                tprint(
                     f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
                 )
-                if "Full Prefill" in name:
-                    print("  Sleeping 10 seconds to let GPU cool down...")
-                    time.sleep(10)
 
     # Phase 4: Image Description (Vision Test)
     phase4_runs = []
     has_vision = False
     vision_text = ""
     if not skip_image and image_file:
-        print("\n===================================================")
-        print("=== PHASE 4: Image Description (Vision Test) ===")
-        print("===================================================")
+        tprint("\n===================================================")
+        tprint("=== PHASE 4: Image Description (Vision Test) ===")
+        tprint("===================================================")
         if not os.path.exists(image_file):
-            print(
+            tprint(
                 f"  Warning: Vision test image not found at {image_file}. Skipping Phase 4."
             )
         else:
@@ -508,11 +507,11 @@ def run_llm_chat(
                     vision_text = text
 
                 if quiet:
-                    print(
+                    tprint(
                         f"  [Vision Run {r + 1}/{repeats}] Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} tokens/sec)"
                     )
                 else:
-                    print(
+                    tprint(
                         f"  Metrics: TTFT={ttft * 1000:.1f}ms, Prefill={prefill_speed:.2f} t/s, Gen={generation_speed:.2f} t/s"
                     )
 
@@ -528,37 +527,37 @@ def run_llm_chat(
             ]
             matched = [w for w in expected_keywords if w in vision_text.lower()]
             match_pct = (len(matched) / len(expected_keywords)) * 100
-            print("\n  Image Description Comparison Results:")
-            print(
+            tprint("\n  Image Description Comparison Results:")
+            tprint(
                 f"    Matched {len(matched)}/{len(expected_keywords)} expected keywords ({match_pct:.1f}%): {matched}"
             )
 
     # Compile report
-    print("\n===================================================")
-    print("=== CHAT BENCHMARK RESULTS SUMMARY ===")
-    print("===================================================")
-    print(f"Context File:      {context_file}")
+    tprint("\n===================================================")
+    tprint("=== CHAT BENCHMARK RESULTS SUMMARY ===")
+    tprint("===================================================")
+    tprint(f"Context File:      {context_file}")
 
     # Phase 0 Summary
-    print("\n--- Phase 0: Warmup ---")
-    print(f"  Prompt Tokens:        {prompt_tokens_p0}")
-    print(f"  Completion Tokens:    {completion_tokens_p0}")
-    print(f"  TTFT (Prefill):       {ttft_p0 * 1000:.2f} ms")
-    print(f"  Prefill Speed:        {prefill_speed_p0:.2f} tokens/sec")
-    print(f"  Generation Speed:     {generation_speed_p0:.2f} tokens/sec")
+    tprint("\n--- Phase 0: Warmup ---")
+    tprint(f"  Prompt Tokens:        {prompt_tokens_p0}")
+    tprint(f"  Completion Tokens:    {completion_tokens_p0}")
+    tprint(f"  TTFT (Prefill):       {ttft_p0 * 1000:.2f} ms")
+    tprint(f"  Prefill Speed:        {prefill_speed_p0:.2f} tokens/sec")
+    tprint(f"  Generation Speed:     {generation_speed_p0:.2f} tokens/sec")
 
     # Phase 1 Summary
-    print("\n--- Phase 1: Sequential Prefill ---")
+    tprint("\n--- Phase 1: Sequential Prefill ---")
     if not skip_prefill:
         avg_p1_duration = (
             sum(phase1_durations) / len(phase1_durations) if phase1_durations else 0.0
         )
         avg_p1_speed = sum(phase1_speeds) / len(phase1_speeds) if phase1_speeds else 0.0
-        print(f"  Cycles:               {len(phase1_durations)}")
-        print(f"  Avg Cycle Prefill Time: {avg_p1_duration:.2f} s")
-        print(f"  Avg New Chunk Prefill Speed: {avg_p1_speed:.2f} tokens/sec")
+        tprint(f"  Cycles:               {len(phase1_durations)}")
+        tprint(f"  Avg Cycle Prefill Time: {avg_p1_duration:.2f} s")
+        tprint(f"  Avg New Chunk Prefill Speed: {avg_p1_speed:.2f} tokens/sec")
     else:
-        print("  SKIPPED")
+        tprint("  SKIPPED")
 
     # Phase 2 Summary
     if not skip_chat and phase2_runs:
@@ -577,34 +576,34 @@ def run_llm_chat(
             phase2_runs
         )
 
-        print("\n--- Phase 2: Generation (300-word summary) ---")
-        print(f"  Runs:                 {repeats}")
-        print(f"  Prompt Tokens:        {avg_p2_prompt_tokens}")
-        print(f"  Avg Completion Tokens: {avg_p2_comp_tokens:.1f}")
-        print(f"  Avg TTFT (Prefill):   {avg_p2_ttft * 1000:.2f} ms")
-        print(f"  Avg Prefill Speed:    {avg_p2_prefill_speed:.2f} tokens/sec")
-        print(f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec")
-        print(f"  Avg Decode Time:      {avg_p2_gen_time:.2f} s")
-        print("\n--- Summary Snippet (Run 1) ---")
-        print(generated_text.strip()[:350] + "...")
+        tprint("\n--- Phase 2: Generation (300-word summary) ---")
+        tprint(f"  Runs:                 {repeats}")
+        tprint(f"  Prompt Tokens:        {avg_p2_prompt_tokens}")
+        tprint(f"  Avg Completion Tokens: {avg_p2_comp_tokens:.1f}")
+        tprint(f"  Avg TTFT (Prefill):   {avg_p2_ttft * 1000:.2f} ms")
+        tprint(f"  Avg Prefill Speed:    {avg_p2_prefill_speed:.2f} tokens/sec")
+        tprint(f"  Avg Generation Speed: {avg_p2_gen_speed:.2f} tokens/sec")
+        tprint(f"  Avg Decode Time:      {avg_p2_gen_time:.2f} s")
+        tprint("\n--- Summary Snippet (Run 1) ---")
+        tprint(generated_text.strip()[:350] + "...")
 
     # Phase 3 Summary
     if not skip_chat and run_phase3:
-        print("\n--- Phase 3: Prefix Caching & Distractor (Averages over 5 Cycles) ---")
+        tprint("\n--- Phase 3: Prefix Caching & Distractor (Averages over 5 Cycles) ---")
         for name in phase3_results:
             runs = phase3_results[name]
             avg_ttft = sum(x["ttft"] for x in runs) / len(runs)
             avg_prefill = sum(x["prefill_speed"] for x in runs) / len(runs)
             avg_gen = sum(x["generation_speed"] for x in runs) / len(runs)
             last_answer = runs[-1]["answer"]
-            print(f"  {name}:")
-            print(f"    Avg TTFT:           {avg_ttft * 1000:.2f} ms")
-            print(f"    Avg Prefill Speed:  {avg_prefill:.2f} tokens/sec")
-            print(f"    Avg Gen Speed:      {avg_gen:.2f} tokens/sec")
-            print(f'    Last Answer:        "{last_answer}"')
+            tprint(f"  {name}:")
+            tprint(f"    Avg TTFT:           {avg_ttft * 1000:.2f} ms")
+            tprint(f"    Avg Prefill Speed:  {avg_prefill:.2f} tokens/sec")
+            tprint(f"    Avg Gen Speed:      {avg_gen:.2f} tokens/sec")
+            tprint(f'    Last Answer:        "{last_answer}"')
     else:
-        print("\n--- Phase 3: Prefix Caching & Distractor ---")
-        print("  SKIPPED")
+        tprint("\n--- Phase 3: Prefix Caching & Distractor ---")
+        tprint("  SKIPPED")
 
     # Phase 4 Summary
     if has_vision and phase4_runs:
@@ -623,17 +622,17 @@ def run_llm_chat(
             phase4_runs
         )
 
-        print("\n--- Phase 4: Image Description (Vision) ---")
-        print(f"  Runs:                 {repeats}")
-        print(f"  Prompt Tokens:        {avg_p4_prompt_tokens}")
-        print(f"  Avg Completion Tokens: {avg_p4_comp_tokens:.1f}")
-        print(f"  Avg TTFT (Prefill):   {avg_p4_ttft * 1000:.2f} ms")
-        print(f"  Avg Prefill Speed:    {avg_p4_prefill_speed:.2f} tokens/sec")
-        print(f"  Avg Generation Speed: {avg_p4_gen_speed:.2f} tokens/sec")
-        print(f"  Avg Decode Time:      {avg_p4_gen_time:.2f} s")
-        print("\n--- Vision Snippet (Run 1) ---")
-        print(vision_text.strip()[:350] + "...")
-    print("===================================================\n")
+        tprint("\n--- Phase 4: Image Description (Vision) ---")
+        tprint(f"  Runs:                 {repeats}")
+        tprint(f"  Prompt Tokens:        {avg_p4_prompt_tokens}")
+        tprint(f"  Avg Completion Tokens: {avg_p4_comp_tokens:.1f}")
+        tprint(f"  Avg TTFT (Prefill):   {avg_p4_ttft * 1000:.2f} ms")
+        tprint(f"  Avg Prefill Speed:    {avg_p4_prefill_speed:.2f} tokens/sec")
+        tprint(f"  Avg Generation Speed: {avg_p4_gen_speed:.2f} tokens/sec")
+        tprint(f"  Avg Decode Time:      {avg_p4_gen_time:.2f} s")
+        tprint("\n--- Vision Snippet (Run 1) ---")
+        tprint(vision_text.strip()[:350] + "...")
+    tprint("===================================================\n")
 
 
 def run_llm_embed(
@@ -642,7 +641,7 @@ def run_llm_embed(
     context_file: str,
     repeats: int,
     fraction_chunks: float = 1.0,
-) -> None:
+    output_format: str = 'text') -> None:
     """Run embedding benchmark using the full context file (~44.5k tokens).
 
     Tokenizes the full context via the server's /tokenize endpoint to get exact
@@ -665,13 +664,13 @@ def run_llm_embed(
             n_ctx = props["default_generation_settings"].get("n_ctx", 8192)
             if n_ctx > 0:
                 max_tokens_per_chunk = min(8192, n_ctx)
-                print(
+                tprint(
                     f"  Dynamic chunk size resolved from server: {max_tokens_per_chunk}"
                 )
     except Exception as e:
-        print(f"  Warning: Failed to query server props for n_ctx: {e}")
+        tprint(f"  Warning: Failed to query server props for n_ctx: {e}")
 
-    print("  Tokenizing full context via server...")
+    tprint("  Tokenizing full context via server...")
     tokenize_resp = post_json(
         f"{url}/tokenize",
         {"model": model, "content": context_content, "add_special": False},
@@ -692,26 +691,26 @@ def run_llm_embed(
         limit = max(1, int(len(chunks) * fraction_chunks))
         chunks = chunks[:limit]
 
-    print("===================================================")
-    print("=== EMBEDDING BENCHMARK                         ===")
-    print("===================================================")
-    print(f"Context File:      {context_file}")
-    print(
+    tprint("===================================================")
+    tprint("=== EMBEDDING BENCHMARK                         ===")
+    tprint("===================================================")
+    tprint(f"Context File:      {context_file}")
+    tprint(
         f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
     )
-    print(f"Chunk Size:        {max_tokens_per_chunk} tokens (max)")
+    tprint(f"Chunk Size:        {max_tokens_per_chunk} tokens (max)")
     if fraction_chunks < 1.0:
-        print(
+        tprint(
             f"Total Chunks:      {len(chunks)} ({', '.join(str(len(c)) for c in chunks)} tokens) [limited from {full_chunk_count} (fraction={fraction_chunks})]"
         )
     else:
-        print(
+        tprint(
             f"Total Chunks:      {len(chunks)} ({', '.join(str(len(c)) for c in chunks)} tokens)"
         )
-    print(f"Repeats:           {repeats}")
+    tprint(f"Repeats:           {repeats}")
 
     # Phase 0: Warmup — single short embedding to prime the model
-    print("\n--- Phase 0: Warmup ---")
+    tprint("\n--- Phase 0: Warmup ---")
     warmup_payload = {"model": model, "input": "warmup embedding test"}
     t0 = time.perf_counter()
     warmup_resp = post_json(f"{url}/v1/embeddings", warmup_payload)
@@ -721,19 +720,16 @@ def run_llm_embed(
     if warmup_resp.get("data"):
         embed_vec = warmup_resp["data"][0].get("embedding", [])
         embed_dim = len(embed_vec)
-    print(f"  Warmup latency:  {(t1 - t0) * 1000:.1f} ms")
-    print(f"  Embedding dim:   {embed_dim}")
+    tprint(f"  Warmup latency:  {(t1 - t0) * 1000:.1f} ms")
+    tprint(f"  Embedding dim:   {embed_dim}")
 
-    # Sleep to let GPU settle
-    print("  Sleeping 5 seconds before benchmark runs...")
-    time.sleep(5)
 
     # Phase 1: Full context embedding
-    print("\n--- Phase 1: Full Context Embedding ---")
+    tprint("\n--- Phase 1: Full Context Embedding ---")
     run_results: List[Dict[str, Any]] = []
 
     for r in range(repeats):
-        print(
+        tprint(
             f"  [Run {r + 1}/{repeats}] Embedding {len(chunks)} chunks sequentially..."
         )
         chunk_latencies: List[float] = []
@@ -791,26 +787,26 @@ def run_llm_embed(
         }
         run_results.append(run_info)
 
-        print(
+        tprint(
             f"    Total: {run_duration_s:.2f}s | {run_total_tokens} tokens | "
             f"{run_speed:.2f} t/s"
         )
-        print(
+        tprint(
             f"    Chunk latency: avg={avg_lat:.1f}ms  p50={p50_lat:.1f}ms  "
             f"p95={p95_lat:.1f}ms  min={min_lat:.1f}ms  max={max_lat:.1f}ms"
         )
 
     # Summary report
-    print("\n===================================================")
-    print("=== EMBEDDING BENCHMARK RESULTS SUMMARY         ===")
-    print("===================================================")
-    print(f"Context File:      {context_file}")
-    print(
+    tprint("\n===================================================")
+    tprint("=== EMBEDDING BENCHMARK RESULTS SUMMARY         ===")
+    tprint("===================================================")
+    tprint(f"Context File:      {context_file}")
+    tprint(
         f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
     )
-    print(f"Chunks:            {len(chunks)} × {max_tokens_per_chunk} tokens (max)")
-    print(f"Embedding Dim:     {embed_dim}")
-    print(f"Repeats:           {repeats}")
+    tprint(f"Chunks:            {len(chunks)} × {max_tokens_per_chunk} tokens (max)")
+    tprint(f"Embedding Dim:     {embed_dim}")
+    tprint(f"Repeats:           {repeats}")
 
     avg_duration = sum(r["duration_s"] for r in run_results) / len(run_results)
     avg_tokens = sum(r["total_tokens"] for r in run_results) / len(run_results)
@@ -819,16 +815,16 @@ def run_llm_embed(
     avg_p50 = sum(r["latency_p50_ms"] for r in run_results) / len(run_results)
     avg_p95 = sum(r["latency_p95_ms"] for r in run_results) / len(run_results)
 
-    print(f"\n  Avg Tokens/Run:       {avg_tokens:.0f}")
-    print(f"  Avg Time/Run:         {avg_duration:.2f} s")
-    print(f"  Avg Throughput:       {avg_speed:.2f} tokens/sec")
-    print(f"\n  Avg Chunk Latency:    {avg_lat:.1f} ms")
-    print(f"  Avg Chunk p50:        {avg_p50:.1f} ms")
-    print(f"  Avg Chunk p95:        {avg_p95:.1f} ms")
-    print("===================================================")
+    tprint(f"\n  Avg Tokens/Run:       {avg_tokens:.0f}")
+    tprint(f"  Avg Time/Run:         {avg_duration:.2f} s")
+    tprint(f"  Avg Throughput:       {avg_speed:.2f} tokens/sec")
+    tprint(f"\n  Avg Chunk Latency:    {avg_lat:.1f} ms")
+    tprint(f"  Avg Chunk p50:        {avg_p50:.1f} ms")
+    tprint(f"  Avg Chunk p95:        {avg_p95:.1f} ms")
+    tprint("===================================================")
 
 
-def run_rerank(url: str, model: str, context_file: str, repeats: int) -> None:
+def run_rerank(url: str, model: str, context_file: str, repeats: int, output_format: str = 'text') -> None:
     """Run rerank benchmark by splitting a portion of context into 10 safe chunks."""
     if not os.path.exists(context_file):
         raise FileNotFoundError(f"Context file not found: {context_file}")
@@ -858,7 +854,7 @@ def run_rerank(url: str, model: str, context_file: str, repeats: int) -> None:
         "top_n": 3,
     }
 
-    print(f"Running rerank benchmark with {repeats} repeats...")
+    tprint(f"Running rerank benchmark with {repeats} repeats...")
     durations_ms = []
     docs_speeds = []
     tokens_speeds = []
@@ -880,7 +876,7 @@ def run_rerank(url: str, model: str, context_file: str, repeats: int) -> None:
         durations_ms.append(duration)
         docs_speeds.append(docs_per_sec)
         tokens_speeds.append(tokens_per_sec)
-        print(
+        tprint(
             f"    Completed repeat {r + 1}: {duration:.2f} ms ({tokens_per_sec:.2f} tokens/sec)"
         )
 
@@ -888,24 +884,24 @@ def run_rerank(url: str, model: str, context_file: str, repeats: int) -> None:
     avg_docs_speed = sum(docs_speeds) / len(docs_speeds)
     avg_tokens_speed = sum(tokens_speeds) / len(tokens_speeds)
 
-    print("\n=== Rerank Benchmark Results (Cumulative Average) ===")
-    print(f"Query:             {query}")
-    print(f"Number of Docs:    {len(chunks)}")
-    print(f"Repeats:           {repeats}")
-    print(f"Total Chars:       {total_chars}")
-    print(f"Estimated Tokens:  {estimated_tokens}")
-    print(f"Avg Reranking Time:{avg_duration:.2f} ms")
-    print(f"Avg Docs Throughput:{avg_docs_speed:.2f} docs/sec")
-    print(f"Avg Token Speed:   {avg_tokens_speed:.2f} tokens/sec")
+    tprint("\n=== Rerank Benchmark Results (Cumulative Average) ===")
+    tprint(f"Query:             {query}")
+    tprint(f"Number of Docs:    {len(chunks)}")
+    tprint(f"Repeats:           {repeats}")
+    tprint(f"Total Chars:       {total_chars}")
+    tprint(f"Estimated Tokens:  {estimated_tokens}")
+    tprint(f"Avg Reranking Time:{avg_duration:.2f} ms")
+    tprint(f"Avg Docs Throughput:{avg_docs_speed:.2f} docs/sec")
+    tprint(f"Avg Token Speed:   {avg_tokens_speed:.2f} tokens/sec")
     results = resp.get("results", [])
     if results:
-        print("--- Top 3 Results (Last Run) ---")
+        tprint("--- Top 3 Results (Last Run) ---")
         for i, r_item in enumerate(results[:3]):
             idx = r_item.get("index", 0)
             score = r_item.get("relevance_score", 0.0)
             text_snippet = chunks[idx].strip()[:100].replace("\n", " ")
-            print(f"  {i + 1}. Index {idx:02d} (Score: {score:.4f}): {text_snippet}...")
-    print("=====================================================\n")
+            tprint(f"  {i + 1}. Index {idx:02d} (Score: {score:.4f}): {text_snippet}...")
+    tprint("=====================================================\n")
 
 
 def parse_wav_duration(file_path: str) -> float:
@@ -928,7 +924,7 @@ def parse_wav_duration(file_path: str) -> float:
         return data_size / bytes_per_second
 
 
-def run_tts(url: str, model: str, output_wav: str, repeats: int) -> None:
+def run_tts(url: str, model: str, output_wav: str, repeats: int, output_format: str = 'text') -> None:
     """Synthesize a fixed 45-word sentence and measure synthesis speed/RTF."""
     text = (
         "The quick brown fox jumps over the lazy dog. This sentence has exactly "
@@ -944,7 +940,7 @@ def run_tts(url: str, model: str, output_wav: str, repeats: int) -> None:
         "response_format": "wav",
     }
 
-    print(f"Running text-to-speech benchmark with {repeats} repeats...")
+    tprint(f"Running text-to-speech benchmark with {repeats} repeats...")
     durations = []
     rtfs = []
     char_speeds = []
@@ -981,7 +977,7 @@ def run_tts(url: str, model: str, output_wav: str, repeats: int) -> None:
         rtfs.append(rtf)
         char_speeds.append(char_speed)
         word_speeds.append(word_speed)
-        print(
+        tprint(
             f"    Completed repeat {r + 1}: {synthesis_duration:.2f}s (RTF: {rtf:.4f})"
         )
 
@@ -991,17 +987,17 @@ def run_tts(url: str, model: str, output_wav: str, repeats: int) -> None:
     avg_word_speed = sum(word_speeds) / len(word_speeds)
     audio_len = parse_wav_duration(output_wav)
 
-    print("\n=== Text-to-Speech Benchmark Results (Cumulative Average) ===")
-    print(f"Sentence:          {text}")
-    print(f"Sentence Length:   45 words / {len(text)} chars")
-    print(f"Repeats:           {repeats}")
-    print(f"Audio Duration:    {audio_len:.2f} seconds")
-    print(f"Avg Synthesis Time:{avg_duration:.2f} seconds")
-    print(f"Avg RTF:           {avg_rtf:.4f} (RTF < 1 is faster than real-time)")
-    print(
+    tprint("\n=== Text-to-Speech Benchmark Results (Cumulative Average) ===")
+    tprint(f"Sentence:          {text}")
+    tprint(f"Sentence Length:   45 words / {len(text)} chars")
+    tprint(f"Repeats:           {repeats}")
+    tprint(f"Audio Duration:    {audio_len:.2f} seconds")
+    tprint(f"Avg Synthesis Time:{avg_duration:.2f} seconds")
+    tprint(f"Avg RTF:           {avg_rtf:.4f} (RTF < 1 is faster than real-time)")
+    tprint(
         f"Avg Speed:         {avg_char_speed:.2f} chars/sec ({avg_word_speed:.2f} words/sec)"
     )
-    print("=============================================================\n")
+    tprint("=============================================================\n")
 
 
 def make_multipart(
@@ -1036,12 +1032,12 @@ def make_multipart(
     return payload, content_type
 
 
-def run_stt(url: str, model: str, audio_file: str, repeats: int) -> None:
+def run_stt(url: str, model: str, audio_file: str, repeats: int, output_format: str = 'text') -> None:
     """Trim audio file to 45 seconds using ffmpeg, transcribe, and measure RTF."""
     if not os.path.exists(audio_file):
         raise FileNotFoundError(f"Input audio file not found: {audio_file}")
 
-    print(f"Trimming {audio_file} to 45 seconds (16kHz, mono WAV)...")
+    tprint(f"Trimming {audio_file} to 45 seconds (16kHz, mono WAV)...")
     temp_wav_fd, temp_wav_path = tempfile.mkstemp(suffix=".wav", dir=get_tmp_dir())
     os.close(temp_wav_fd)
 
@@ -1076,7 +1072,7 @@ def run_stt(url: str, model: str, audio_file: str, repeats: int) -> None:
         with open(temp_wav_path, "rb") as f:
             wav_bytes = f.read()
 
-        print(f"Running speech-to-text benchmark with {repeats} repeats...")
+        tprint(f"Running speech-to-text benchmark with {repeats} repeats...")
         durations = []
         rtfs = []
         text = ""
@@ -1105,32 +1101,32 @@ def run_stt(url: str, model: str, audio_file: str, repeats: int) -> None:
 
             if r == 0:
                 text = resp_data.get("text", "").strip()
-            print(f"    Completed repeat {r + 1}: {duration:.2f}s (RTF: {rtf:.4f})")
+            tprint(f"    Completed repeat {r + 1}: {duration:.2f}s (RTF: {rtf:.4f})")
 
         avg_duration = sum(durations) / len(durations)
         avg_rtf = sum(rtfs) / len(rtfs)
 
-        print("\n=== Speech-to-Text Benchmark Results (Cumulative Average) ===")
-        print(f"Source Audio:      {audio_file}")
-        print(f"Repeats:           {repeats}")
-        print("Trimmed Segment:   45.0 seconds")
-        print(f"Avg Transcribe Time:{avg_duration:.2f} seconds")
-        print(f"Avg RTF:           {avg_rtf:.4f} (RTF < 1 is faster than real-time)")
-        print("\n--- Transcription Snippet (Repeat 1) ---")
-        print(text[:300] + ("..." if len(text) > 300 else ""))
-        print("=============================================================\n")
+        tprint("\n=== Speech-to-Text Benchmark Results (Cumulative Average) ===")
+        tprint(f"Source Audio:      {audio_file}")
+        tprint(f"Repeats:           {repeats}")
+        tprint("Trimmed Segment:   45.0 seconds")
+        tprint(f"Avg Transcribe Time:{avg_duration:.2f} seconds")
+        tprint(f"Avg RTF:           {avg_rtf:.4f} (RTF < 1 is faster than real-time)")
+        tprint("\n--- Transcription Snippet (Repeat 1) ---")
+        tprint(text[:300] + ("..." if len(text) > 300 else ""))
+        tprint("=============================================================\n")
 
     finally:
         if os.path.exists(temp_wav_path):
             os.remove(temp_wav_path)
 
 
-def run_image(url: str, model: str, repeats: int) -> None:
+def run_image(url: str, model: str, repeats: int, output_format: str = 'text') -> None:
     """Run image generation benchmark by generating an image and measuring time."""
     prompt = "A high-resolution, beautiful photograph of a pristine mountain lake at sunrise, highly detailed."
     payload = {"prompt": prompt, "steps": 8, "cfg_scale": 1.0}
 
-    print(f"Running image generation benchmark with {repeats} repeats...")
+    tprint(f"Running image generation benchmark with {repeats} repeats...")
     durations = []
 
     for r in range(repeats):
@@ -1145,16 +1141,29 @@ def run_image(url: str, model: str, repeats: int) -> None:
 
         duration = t1 - t0
         durations.append(duration)
-        print(f"    Completed repeat {r + 1}: {duration:.2f}s")
+        tprint(f"    Completed repeat {r + 1}: {duration:.2f}s")
 
     avg_duration = sum(durations) / len(durations)
-    print("\n=== Image Generation Benchmark Results (Cumulative Average) ===")
-    print(f"Prompt:            {prompt}")
-    print("Steps:             8")
-    print("CFG Scale:         1.0")
-    print(f"Repeats:           {repeats}")
-    print(f"Avg Generation Time:{avg_duration:.2f} seconds")
-    print("=============================================================\n")
+
+    if output_format in ("json", "yaml"):
+        result = {
+            "mode": "image",
+            "prompt": prompt,
+            "steps": 8,
+            "cfg_scale": 1.0,
+            "repeats": repeats,
+            "image_time": avg_duration
+        }
+        print(json.dumps(result, indent=2))
+        return
+
+    tprint("\n=== Image Generation Benchmark Results (Cumulative Average) ===")
+    tprint(f"Prompt:            {prompt}")
+    tprint("Steps:             8")
+    tprint("CFG Scale:         1.0")
+    tprint(f"Repeats:           {repeats}")
+    tprint(f"Avg Generation Time:{avg_duration:.2f} seconds")
+    tprint("=============================================================\n")
 
 
 def main() -> None:
@@ -1227,16 +1236,23 @@ def main() -> None:
         default=1.0,
         help="Fraction of context length to use for the LLM Chat benchmark (between 0.0 and 1.0)",
     )
+    parser.add_argument(
+        "--format",
+        choices=["text", "json", "yaml"],
+        default="text",
+        help="Output format (default: text)",
+    )
 
     args = parser.parse_args()
+    global _OUTPUT_FORMAT
+    _OUTPUT_FORMAT = args.format
 
     repeats = (
         args.repeat if args.repeat is not None else (10 if args.mode in ["stt"] else 1)
     )
 
-    output_path = args.output
-    if output_path is None:
-        output_path = os.path.join(get_tmp_dir(), "tts_benchmark_output.wav")
+    output_dir = args.output_dir if args.output_dir else "/tmp"
+    output_path = os.path.join(output_dir, "tts_benchmark_output.wav")
 
     if args.mode == "chat":
         if not args.context:
@@ -1252,6 +1268,7 @@ def main() -> None:
             skip_image=args.skip_image,
             image_file=args.image_file,
             fraction_context=args.fraction_context,
+            output_format=args.format,
         )
     elif args.mode == "embedding":
         if not args.context:
@@ -1262,22 +1279,23 @@ def main() -> None:
             args.context,
             repeats,
             fraction_chunks=args.fraction_chunks,
+            output_format=args.format,
         )
     elif args.mode == "rerank":
         if not args.context:
             parser.error("--context is required in rerank mode")
-        run_rerank(args.url, args.model, args.context, repeats)
+        run_rerank(args.url, args.model, args.context, repeats, output_format=args.format)
     elif args.mode == "tts":
-        run_tts(args.url, args.model, output_path, repeats)
+        run_tts(args.url, args.model, output_path, repeats, output_format=args.format)
     elif args.mode == "stt":
         if not args.audio:
             parser.error("--audio is required in stt mode")
-        run_stt(args.url, args.model, args.audio, repeats)
+        run_stt(args.url, args.model, args.audio, repeats, output_format=args.format)
     elif os.path.basename(__file__) == "benchmark-helper.py" and args.mode == "image":
         # Keep as dummy or just call run_image
-        run_image(args.url, args.model, repeats)
+        run_image(args.url, args.model, repeats, output_format=args.format)
     elif args.mode == "image":
-        run_image(args.url, args.model, repeats)
+        run_image(args.url, args.model, repeats, output_format=args.format)
 
 
 if __name__ == "__main__":

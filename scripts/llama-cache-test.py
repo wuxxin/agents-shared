@@ -1,13 +1,25 @@
+
 #!/usr/bin/env python3
 import argparse
 import json
 import random
 import sys
+
+
+
+
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
 import requests
+
+_OUTPUT_FORMAT = "text"
+
+def tprint(*args, **kwargs):
+    if _OUTPUT_FORMAT != "text":
+        kwargs['file'] = sys.stderr
+    print(*args, **kwargs)
 
 
 @dataclass
@@ -258,10 +270,10 @@ def measure_request(
 
 def incremental_prefill(args, full_text):
     """Incremental prefill with fail-fast support and granular reporting."""
-    print("\n### Incremental Prefill & Warmup\n")
-    print(f"**Step size:** {args.step} chars\n")
-    print("| Chars | Delta (ms) | Char/s |")
-    print("| ---: | ---: | ---: |")
+    tprint("\n### Incremental Prefill & Warmup\n")
+    tprint(f"**Step size:** {args.step} chars\n")
+    tprint("| Chars | Delta (ms) | Char/s |")
+    tprint("| ---: | ---: | ---: |")
 
     step_chars = args.step
     current_len = step_chars
@@ -281,15 +293,15 @@ def incremental_prefill(args, full_text):
         step_start_time = time.time()
 
         # max_tokens=1 to force processing up to this point
-        res = measure_request(args.url, args.api_key, args.model, subset, max_tokens=1)
+        warmup_res = measure_request(args.url, args.api_key, args.model, subset, max_tokens=1)
 
         step_end_time = time.time()
 
-        if res.status != "SUCCESS":
-            print(f"| {current_len:<7} | ERROR | ERROR | ERROR | ERROR |")
+        if warmup_res.status != "SUCCESS":
+            tprint(f"| {current_len:<7} | ERROR | ERROR | ERROR | ERROR |")
             break
 
-        current_tokens = res.prompt_tokens
+        current_tokens = warmup_res.prompt_tokens
 
         # Calculate Deltas
         # Delta time is the time taken for *this request* alone, which effectively measures
@@ -312,13 +324,13 @@ def incremental_prefill(args, full_text):
         step_tok_s = delta_tokens / delta_time_s if delta_time_s > 0.0001 else 0
         step_char_s = delta_chars / delta_time_s if delta_time_s > 0.0001 else 0
 
-        print(f"| {len(subset)} | {delta_time_s * 1000:.0f} | {step_char_s:.2f} |")
+        tprint(f"| {len(subset)} | {delta_time_s * 1000:.0f} | {step_char_s:.2f} |")
 
         # Fail-fast check
         if args.min_cps > 0 and len(results) >= 1:
             # We check per-step performance for fail-fast
             if step_char_s < args.min_cps:
-                print(
+                tprint(
                     f"\n! Aborting: Step Char/s {step_char_s:.2f} < Threshold {args.min_cps}"
                 )
                 raise RuntimeError(f"Performance too low ({step_char_s:.2f} Char/s)")
@@ -338,7 +350,7 @@ def incremental_prefill(args, full_text):
     total_time = sum(r[2] for r in results)
     if total_time > 0 and results:
         total_chars = results[-1][0]
-        print(
+        tprint(
             f"\n**Overall Prefill Speed:** {total_chars / total_time:.2f} Char/s (Total Time: {total_time:.2f}s)\n"
         )
 
@@ -356,11 +368,11 @@ def run_test(args):
         static_prefix = generate_lorem_ipsum(args.context_len)
 
     # Print Header
-    print("# LLM Benchmark Report\n")
-    print(f"- **URL:** `{args.url}`")
-    print(f"- **Model:** `{args.model}`")
-    print(f"- **Payload:** {len(static_prefix)} chars")
-    print(f"- **Vision:** {'ENABLED' if args.vision else 'DISABLED'}\n")
+    tprint("# LLM Benchmark Report\n")
+    tprint(f"- **URL:** `{args.url}`")
+    tprint(f"- **Model:** `{args.model}`")
+    tprint(f"- **Payload:** {len(static_prefix)} chars")
+    tprint(f"- **Vision:** {'ENABLED' if args.vision else 'DISABLED'}\n")
 
     # 1. Warmup / Incremental Prefill
     # Always use incremental prefill if 'step' is reasonable, or if user asked for it.
@@ -371,16 +383,16 @@ def run_test(args):
         incremental_prefill(args, static_prefix)
     else:
         # Fallback for single-shot if step is larger than payload
-        print("\n### Warmup (Single Shot)\n")
-        res = measure_request(
+        tprint("\n### Warmup (Single Shot)\n")
+        warmup_res = measure_request(
             args.url, args.api_key, args.model, static_prefix, max_tokens=1
         )
-        print(f"Single shot complete. Latency: {res.ttft_ms:.2f} ms")
+        tprint(f"Single shot complete. Latency: {warmup_res.ttft_ms:.2f} ms")
 
     # 2. Main Loop
-    print("\n### Cache Hit Latency Test (8 Loops)\n")
-    print("| Loop | Distractor (ms) | Target Hit (ms) | Status |")
-    print("| :--- | :--- | :--- | :--- |")
+    tprint("\n### Cache Hit Latency Test (8 Loops)\n")
+    tprint("| Loop | Distractor (ms) | Target Hit (ms) | Status |")
+    tprint("| :--- | :--- | :--- | :--- |")
 
     hits = 0
 
@@ -416,14 +428,14 @@ def run_test(args):
             status = "MISS"
 
         # Print Row
-        print(f"| {i:02d} | {res_d.ttft_ms:.1f} | {res_t.ttft_ms:.1f} | {status} |")
+        tprint(f"| {i:02d} | {res_d.ttft_ms:.1f} | {res_t.ttft_ms:.1f} | {status} |")
 
     # 4. Summary
-    print("\n### Summary\n")
-    print(f"- **Cache Hit Rate:** {(hits / 8) * 100:.1f}% ({hits}/8)")
+    tprint("\n### Summary\n")
+    tprint(f"- **Cache Hit Rate:** {(hits / 8) * 100:.1f}% ({hits}/8)")
 
     if args.vision:
-        print("- **Vision Test:** ENABLED")
+        tprint("- **Vision Test:** ENABLED")
 
 
 if __name__ == "__main__":
@@ -471,13 +483,21 @@ if __name__ == "__main__":
         help="Maximum Time-To-First-Token (ms) to consider a request as a cache hit",
     )
 
+    parser.add_argument(
+        "--format",
+        choices=["text", "json", "yaml"],
+        default="text",
+        help="Output format (default: text)",
+    )
     args = parser.parse_args()
+    global _OUTPUT_FORMAT
+    _OUTPUT_FORMAT = args.format
     try:
         if args.min_cps > 0:
-            print(f"- **Fail-Fast:** Enabled (< {args.min_cps} Char/s)")
+            tprint(f"- **Fail-Fast:** Enabled (< {args.min_cps} Char/s)")
         run_test(args)
     except KeyboardInterrupt:
-        print("\n> **Test Aborted by User.**")
+        tprint("\n> **Test Aborted by User.**")
     except RuntimeError as e:
-        print(f"\n> **Test Aborted:** {e}")
+        tprint(f"\n> **Test Aborted:** {e}")
         sys.exit(1)

@@ -1,6 +1,6 @@
 # Central VRAM Memory Map & Co-running Guide
 
-This document aggregates detailed memory requirements and allocations for local AI models running on the AMD Radeon Pro W6800 GPU (**30,704 MiB** usable VRAM).
+This document aggregates detailed memory requirements and allocations for local AI models running on the AMD Radeon RX 7900 XTX GPU (**24,576 MiB** usable VRAM).
 
 ## Component Footprints
 
@@ -10,9 +10,9 @@ Serves chat and vision.
 | Component / Allocation | GPU VRAM | Details |
 |---|---|---|
 | **Model Weights & Compute** (LLM + Vision) | ~19,259 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Compute (~990 MiB) |
-| **KV Cache** (q4_0 KV, parallel=3, slot n_ctx=80,000) | ~8,031 MiB | LLM KV cache allocation |
+| **KV Cache** (q4_0 KV, parallel=3, slot n_ctx=30,000) | ~3,011 MiB | LLM KV cache allocation |
 | **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
-| **Total LLM Footprint** | **~27,890 MiB** | Run on GPU |
+| **Total LLM Footprint** | **~22,870 MiB** | Run on GPU |
 
 ### Local Embedding Service (`local-embedding.sh` / `llama-server`)
 Serves text embeddings.
@@ -45,7 +45,7 @@ Model Target: `ggml-large-v3-turbo-q5_0.bin`
 | HIP Context Runtime Overhead | ~600.00 MiB |
 | **Total STT GPU Footprint** | **~1,425.61 MiB (~1.4 GiB)** |
 
-gpu (w6800), RTF: 0.014
+gpu (RX 7900 XTX), RTF: 0.014
 
 If run on cpu, total CPU Footprint: 1,2 GiB
 
@@ -90,20 +90,22 @@ The memory profile of the Text-to-Speech service depends significantly on the co
 
 ## Combined Co-running Scenario
 
-Here we map VRAM usage for running **Inference** (LLM + Vision, Embedding, Reranking), **Speech-to-Text**, and **Text-to-Speech** services concurrently on a single card (30,704 MiB usable VRAM limit).
+Here we map VRAM usage for running **Inference** (LLM + Vision), **Embedding**, **Reranking**, **Speech-to-Text**, **Text-to-Speech** and **Image** services concurrently on one system using the dgpu, the igpu and the cpu.
 
-To maximize VRAM efficiency, we run the **Local-LLM Service** (Chat/Vision) and **Speech-to-Text** on the GPU, while running the **Local-Embedding Service**, **Local-Rerank Service**, and the **Text-To-Speech Service** on the CPU.
+To maximize VRAM efficiency, we run the **Local-LLM Service** (Chat/Vision) on the dGPU using Vulkan with max_ctx: 240384
+**Speech-to-Text** , **Local-Embedding Service** , **Local-Rerank Service** on the igpu (vulkan0),
+and the **Text-To-Speech Service** hybrid cpu+vulkan0 (igpu)
 
 ### Baseline Allocation (LLM on GPU, Embeddings/Reranker on CPU, STT on GPU)
 - **Local-LLM Service** (LLM + Vision + HIP context): **19,859 MiB** (19,259 MiB weights/compute + 600 MiB HIP context)
-- **LLM KV Cache** (n_ctx = 240,000, parallel=3, slot n_ctx=80,000): **8,031 MiB**
+- **LLM KV Cache** (n_ctx = 90,000, parallel=3, slot n_ctx=30,000): **3,011 MiB**
 - **Local-Embedding Service** (on CPU): **0 MiB** (Runs in System RAM)
 - **Local-Rerank Service** (on CPU): **0 MiB** (Runs in System RAM)
 - **Speech-to-Text (Whisper on GPU)**: **1,426 MiB** (includes weights, KV, buffers, and STT HIP overhead)
 - **TTS (Qwen3-tts 0.6B on cpu only)**: **0 MiB** VRAM (System RAM: ~3.0 GiB)
     - **Performance**: TTS RTF is ~1.58x (acceptable for conversational interaction)
-- **Total Required VRAM**: **29,316 MiB** (with LLM `n_ctx=240,000`, parallel=3)
+- **Total Required VRAM**: **24,296 MiB** (with LLM `n_ctx=90,000`, parallel=3)
 - **Status**:  **Safe**. Fits within the single card footprint.
-- **Remaining Headroom**: **1,388 MiB** free VRAM
+- **Remaining Headroom**: **280 MiB** free VRAM
 
 

@@ -6,7 +6,6 @@
 # Manages a systemd user service (local-embedding.service) that runs llama-server
 # serving the Text Embedding model.
 #
-# Hardware target: AMD Radeon Pro W6800.
 #
 
 set -euo pipefail

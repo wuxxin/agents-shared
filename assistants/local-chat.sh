@@ -6,7 +6,6 @@
 # Manages a systemd user service (local-chat.service) that runs llama-server
 # serving the Chat/Vision LLM.
 #
-# Hardware target: AMD Radeon Pro W6800.
 #
 
 set -euo pipefail

@@ -6,7 +6,6 @@
 # Manages a systemd user service (local-speech-to-text.service) that runs whisper-server
 # for speech-to-text (STT) transcription.
 #
-# Hardware target: AMD Radeon Pro W6800.
 #
 
 set -euo pipefail

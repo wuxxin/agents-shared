@@ -46,3 +46,6 @@ python3 scripts/llama-cache-test.py \
 
 1. **Incremental Prefill:** Reports the delta time and character processing speed for each chunk added to the context. A healthy server should maintain or slightly decrease its `Char/s` as the context grows.
 2. **Cache Hit Test:** Alternates between a random math distractor query and a target payload query. A `**HIT**` indicates the TTFT was beneath `--hit-threshold` (default 1500ms), proving the cache survived the distractor query. A `MISS` indicates a full or partial context recalculation was required.
+
+### Structured Output (`--output-format json`)
+Using the `--output-format json` flag changes the output to a machine-readable JSON representation containing incremental timings and aggregate speed metrics, useful for CI/CD environments or wrapper tools (like `run-local-benchmark.py`).

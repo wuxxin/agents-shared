@@ -14,7 +14,51 @@ import re
 import socket
 import subprocess
 import time
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+# Known iGPU GFX versions
+IGPU_GFX_IDS = frozenset({
+    "gfx90c", "gfx902", "gfx909", "gfx1035", "gfx1036", "gfx1103", "gfx1150"
+})
+
+@dataclass
+class GPUCard:
+    rocm_smi_card: str         # e.g. "card0"
+    name: str                  # e.g. "AMD Radeon RX 7900 XTX"
+    gfx_version: str           # e.g. "gfx1100"
+    vram_total_mb: float
+    is_igpu: bool
+    rocm_index: Optional[int]  # ROCm device index
+    vulkan_index: Optional[int] # Vulkan device index
+
+class GPURegistry:
+    def __init__(self):
+        self.cards: List[GPUCard] = []
+
+    def get_by_smi_card(self, card: str) -> Optional[GPUCard]:
+        return next((c for c in self.cards if c.rocm_smi_card == card), None)
+
+    def get_by_rocm_index(self, idx: int) -> Optional[GPUCard]:
+        return next((c for c in self.cards if c.rocm_index == idx), None)
+
+    def get_by_vulkan_index(self, idx: int) -> Optional[GPUCard]:
+        return next((c for c in self.cards if c.vulkan_index == idx), None)
+        
+    def get_by_device_string(self, device: str) -> Optional[GPUCard]:
+        if not device:
+            return None
+        match = re.search(r"\d+", device)
+        if not match:
+            return None
+        idx = int(match.group(0))
+        if "rocm" in device.lower():
+            return self.get_by_rocm_index(idx)
+        if "vulkan" in device.lower():
+            return self.get_by_vulkan_index(idx)
+        return None
+
+GLOBAL_GPU_REGISTRY = GPURegistry()
 
 # Configuration & Constants
 
@@ -122,15 +166,23 @@ def get_visible_devices_env(
 
     if is_hip or is_special_hip:
         if device and ("rocm" in device.lower() or "hip" in device.lower()):
-            idx_match = re.search(r"\d+", device)
-            idx = idx_match.group(0) if idx_match else "0"
+            gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(device)
+            if gpu and gpu.rocm_index is not None:
+                idx = str(gpu.rocm_index)
+            else:
+                idx_match = re.search(r"\d+", device)
+                idx = idx_match.group(0) if idx_match else "0"
             return idx, idx
         else:
             indices = []
             for d in hip_devices_resolved:
-                idx_match = re.search(r"\d+", d)
-                if idx_match:
-                    indices.append(idx_match.group(0))
+                gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(d)
+                if gpu and gpu.rocm_index is not None:
+                    indices.append(str(gpu.rocm_index))
+                else:
+                    idx_match = re.search(r"\d+", d)
+                    if idx_match:
+                        indices.append(idx_match.group(0))
             if indices:
                 val = ",".join(indices)
                 return val, val
@@ -230,25 +282,14 @@ def get_gpu_memory_mb(device_id: str | None = None) -> float:
                 break
         if json_str:
             data = json.loads(json_str)
-            card_idx = 0
+            target_key = None
             if device_id:
-                # Extract digits from device_id, e.g., "Vulkan1" -> 1, "ROCm1" -> 1
-                digits = re.findall(r"\d+", device_id)
-                if digits:
-                    card_idx = int(digits[0])
-
-            # Try exact matches or device keys
-            target_keys = [f"card{card_idx}", f"device{card_idx}", str(card_idx)]
-            for key in target_keys:
-                if key in data and "VRAM Total Used Memory (B)" in data[key]:
-                    bytes_used = float(data[key]["VRAM Total Used Memory (B)"])
-                    return bytes_used / (1024.0 * 1024.0)
-
-            # Fallback to look for a key containing the digit
-            for key, card in data.items():
-                if str(card_idx) in key and "VRAM Total Used Memory (B)" in card:
-                    bytes_used = float(card["VRAM Total Used Memory (B)"])
-                    return bytes_used / (1024.0 * 1024.0)
+                gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(device_id)
+                if gpu:
+                    target_key = gpu.rocm_smi_card
+            
+            if target_key and target_key in data and "VRAM Total Used Memory (B)" in data[target_key]:
+                return float(data[target_key]["VRAM Total Used Memory (B)"]) / (1024.0 * 1024.0)
 
             # Fallback to the first card with memory info
             for card in data.values():
@@ -464,7 +505,7 @@ def parse_devices(output: str) -> Dict[str, Dict[str, Any]]:
     """
     devices: Dict[str, Dict[str, Any]] = {}
     for line in output.splitlines():
-        # Match e.g. "  ROCm0: AMD Radeon Pro W6800 (30704 MiB, 30668 MiB free)"
+        # Match e.g. "  ROCm0: AMD Radeon RX 7900 XTX (30704 MiB, 30668 MiB free)"
         match = re.search(
             r"^\s*([^:]+):\s*(.*?)\s*\(([\d\.]+)\s*(\w+),\s*([\d\.]+)\s*(\w+)\s+free\)",
             line,
@@ -502,44 +543,134 @@ def parse_devices(output: str) -> Dict[str, Dict[str, Any]]:
     return devices
 
 
-def get_available_devices(mock: bool = False) -> Dict[str, Dict[str, Any]]:
-    """Execute llama-cli --list-devices and parse available devices."""
+
+def build_gpu_registry(mock: bool = False):
+    GLOBAL_GPU_REGISTRY.cards.clear()
+    
     if mock:
-        mock_output = """Available devices:
-  BLAS: OpenBLAS (0 MiB, 0 MiB free)
-  ROCm0: AMD Radeon Pro W6800 (30704 MiB, 30668 MiB free)
-  ROCm1: AMD Radeon Graphics (56261 MiB, 92380 MiB free)
-  Vulkan0: AMD Radeon Pro W6800 (RADV NAVI21) (30704 MiB, 29349 MiB free)
-  Vulkan1: AMD Radeon Graphics (RADV RENOIR) (72645 MiB, 72616 MiB free)"""
-        return parse_devices(mock_output)
+        # Hardcode mock W6800 and iGPU
+        GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
+            rocm_smi_card="card0",
+            name="AMD Radeon RX 7900 XTX",
+            gfx_version="gfx1100",
+            vram_total_mb=24576.0,
+            is_igpu=False,
+            rocm_index=0,
+            vulkan_index=1
+        ))
+        GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
+            rocm_smi_card="card1",
+            name="AMD Radeon Graphics",
+            gfx_version="gfx90c",
+            vram_total_mb=4096.0,
+            is_igpu=True,
+            rocm_index=1,
+            vulkan_index=0
+        ))
+        return
 
+    # 1. rocm-smi
     try:
-        res = subprocess.run(
-            ["llama-cli", "--list-devices"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+        out = subprocess.check_output(
+            ["/opt/rocm/bin/rocm-smi", "--showproductname", "--showmeminfo", "vram", "--json"],
+            text=True
         )
-        if res.returncode == 0:
-            return parse_devices(res.stdout)
-    except Exception:
-        pass
+        data = json.loads(out)
+        for card_key, info in data.items():
+            if not card_key.startswith("card"):
+                continue
+            name = info.get("Card series", "Unknown GPU")
+            # wait, rocm-smi doesn't show gfx_version directly. Wait, the user said "gfx1100".
+            # We can get gfx_version from rocm_agent_enumerator or from name.
+            # For now, let's just parse VRAM
+            vram_bytes = info.get("VRAM Total Memory (B)", "0")
+            vram_mb = float(vram_bytes) / (1024 * 1024)
+            is_igpu = "Graphics" in name or "Renoir" in name
+            GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
+                rocm_smi_card=card_key,
+                name=name,
+                gfx_version="unknown",
+                vram_total_mb=vram_mb,
+                is_igpu=is_igpu,
+                rocm_index=None,
+                vulkan_index=None
+            ))
+    except Exception as e:
+        print(f"Warning: rocm-smi failed: {e}")
 
-    # Fallback to check other paths
-    for path in ["/usr/bin/llama-cli", "/usr/local/bin/llama-cli"]:
-        if os.path.exists(path):
-            try:
-                res = subprocess.run(
-                    [path, "--list-devices"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if res.returncode == 0:
-                    return parse_devices(res.stdout)
-            except Exception:
+    # 2. llama-cli
+    cli_paths = ["llama-cli", "/usr/bin/llama-cli", "/usr/local/bin/llama-cli"]
+    cli_out = ""
+    for path in cli_paths:
+        try:
+            cli_out = subprocess.check_output([path, "--list-devices"], text=True, stderr=subprocess.STDOUT)
+            break
+        except Exception:
+            continue
+    
+    # Parse llama-cli output
+    for line in cli_out.splitlines():
+        # ROCm0: AMD Radeon RX 7900 XTX (24576 MiB, 24000 MiB free)
+        # Vulkan1: AMD Radeon RX 7900 XTX (NAVI31) (24576 MiB)
+        match = re.match(r"(ROCm|Vulkan)(\d+):\s+(.*?)\s+\(", line)
+        if match:
+            backend = match.group(1)
+            idx = int(match.group(2))
+            name = match.group(3).strip()
+            
+            # Find matching card in registry by name or VRAM size
+            # This is a bit fuzzy, but usually iGPU has "Graphics" or "RENOIR" and dGPU has "XTX" or "PRO"
+            for card in GLOBAL_GPU_REGISTRY.cards:
+                # Naive matching based on name overlap or if we just have 2 cards, sorting by VRAM
                 pass
-    return {}
+            
+
+            # Assign ROCm/Vulkan indices based on heuristics since UUID mapping is hard without full ROCm APIs.
+            # We know dGPU is 24GB, iGPU is much smaller.
+            is_llama_igpu = "Graphics" in name or "RENOIR" in name or "gfx90c" in name
+            
+            for card in GLOBAL_GPU_REGISTRY.cards:
+                if card.is_igpu == is_llama_igpu:
+                    if backend == "ROCm":
+                        card.rocm_index = idx
+                    elif backend == "Vulkan":
+                        card.vulkan_index = idx
+
+
+def get_available_devices(mock: bool = False) -> Dict[str, Dict[str, Any]]:
+    """Run llama-cli --list-devices to get available GPUs."""
+    build_gpu_registry(mock)
+    
+    devices = {}
+    for card in GLOBAL_GPU_REGISTRY.cards:
+        if card.rocm_index is not None:
+            key = f"ROCm{card.rocm_index}"
+            devices[key] = {
+                "device_id": key,
+                "name": card.name,
+                "total_mem_mib": card.vram_total_mb,
+                "free_mem_mib": card.vram_total_mb,
+                "gfx_version": card.gfx_version,
+            }
+        if card.vulkan_index is not None:
+            key = f"Vulkan{card.vulkan_index}"
+            devices[key] = {
+                "device_id": key,
+                "name": card.name,
+                "total_mem_mib": card.vram_total_mb,
+                "free_mem_mib": card.vram_total_mb,
+                "gfx_version": card.gfx_version,
+            }
+    
+    # Add dummy BLAS
+    devices["BLAS0"] = {
+        "device_id": "BLAS0",
+        "name": "CPU BLAS",
+        "total_mem_mib": 0.0,
+        "free_mem_mib": 0.0,
+        "gfx_version": "cpu",
+    }
+    return devices
 
 
 def warmup_model(url: str, payload: dict, timeout: int = 180) -> bool:
@@ -1438,37 +1569,37 @@ def generate_report(
 
 ## Local Inference Services Benchmarks
 
-We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text (STT), document reranking, and image generation on the AMD Radeon Pro W6800 hardware target. All services run inside isolated sandboxed environments.
+We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text (STT), document reranking, and image generation on the AMD Radeon RX 7900 XTX hardware target. All services run inside isolated sandboxed environments.
 
 ### 📊 Performance Comparison Matrix
 
 #### Text Chat (`local-chat`)
-| Configuration | Test Name | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat Image TTFT | Chat Image Gen | Chat GPU Mem | Chat CPU Mem |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Chat TTFT | Avg Chat Prefill | Chat TTFT (Warmup) | Chat Gen Speed | Avg Chat Gen | Chat Image TTFT | Chat Image Gen | Chat GPU Mem | Chat CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 {chat_table_body}
 
 #### Text Embedding (`local-embedding`)
-| Configuration | Test Name | Device Setting | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
-|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Device Setting | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
+|---|---|---|---|---|---|---|---|---|
 {embed_table_body}
 
 #### Document Reranking (`local-rerank`)
-| Configuration | Test Name | Device Setting | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|
 {rerank_table_body}
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
-| Configuration | Test Name | Device Setting | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|
 {stt_table_body}
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
-| Configuration | Test Name | Device Setting | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
-|---|---|---|---|---|---|---|---|---|
+| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|
 {tts_table_body}
 
 #### Image Generation (`local-image`)
-| Configuration | Test Name | Device Setting | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
+| Configuration | Test Name | GPU | Device Setting | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|
 {image_table_body}
 
@@ -1677,6 +1808,11 @@ def main() -> None:
         help="Simulate execution and parsing (dry-run/mocking mode for systemd-less environments)",
     )
     parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Do not load existing benchmark cache, useful for clean runs.",
+    )
+    parser.add_argument(
         "--report",
         type=str,
         default=os.path.join(REPO_ROOT, "assistants", "local-benchmark.md"),
@@ -1766,6 +1902,10 @@ def main() -> None:
     for cfg in target_configs:
         if cfg == "hip":
             for dev in hip_devices_resolved:
+                gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
+                if gpu and gpu.is_igpu:
+                    print(f"Skipping HIP test for {dev} ({gpu.name}) as it is an unsupported iGPU.")
+                    continue
                 run_configs.append((cfg, dev))
         elif cfg == "vulkan":
             for dev in vulkan_devices_resolved:
@@ -2182,13 +2322,13 @@ def main() -> None:
                         if not dev_details:
                             dev_details = {
                                 "device_id": llm_device,
-                                "name": "AMD Radeon Pro W6800"
+                                "name": "AMD Radeon RX 7900 XTX"
                                 if "0" in llm_device
                                 else "AMD Radeon Graphics",
-                                "total_mem_mib": 30704.0
+                                "total_mem_mib": 24576.0
                                 if "0" in llm_device
                                 else 56261.0,
-                                "free_mem_mib": 30668.0
+                                "free_mem_mib": 24000.0
                                 if "0" in llm_device
                                 else 92380.0,
                             }
@@ -2495,13 +2635,13 @@ def main() -> None:
                         if not dev_details:
                             dev_details = {
                                 "device_id": embed_device,
-                                "name": "AMD Radeon Pro W6800"
+                                "name": "AMD Radeon RX 7900 XTX"
                                 if "0" in embed_device
                                 else "AMD Radeon Graphics",
-                                "total_mem_mib": 30704.0
+                                "total_mem_mib": 24576.0
                                 if "0" in embed_device
                                 else 56261.0,
-                                "free_mem_mib": 30668.0
+                                "free_mem_mib": 24000.0
                                 if "0" in embed_device
                                 else 92380.0,
                             }
@@ -2639,7 +2779,7 @@ def main() -> None:
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1"],
+                        ["--benchmark", "--repeat", "1", "--format", "json"],
                         server_proc=proc,
                     )
                     if not success:
@@ -2788,13 +2928,13 @@ def main() -> None:
                         if not dev_details:
                             dev_details = {
                                 "device_id": lrr_device,
-                                "name": "AMD Radeon Pro W6800"
+                                "name": "AMD Radeon RX 7900 XTX"
                                 if "0" in lrr_device
                                 else "AMD Radeon Graphics",
-                                "total_mem_mib": 30704.0
+                                "total_mem_mib": 24576.0
                                 if "0" in lrr_device
                                 else 56261.0,
-                                "free_mem_mib": 30668.0
+                                "free_mem_mib": 24000.0
                                 if "0" in lrr_device
                                 else 92380.0,
                             }
@@ -2930,7 +3070,7 @@ def main() -> None:
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1"],
+                        ["--benchmark", "--repeat", "1", "--format", "json"],
                         server_proc=proc,
                     )
                     if not success:
@@ -3058,11 +3198,11 @@ def main() -> None:
                         if not dev_details:
                             dev_details = {
                                 "device_id": dev,
-                                "name": "AMD Radeon Pro W6800"
+                                "name": "AMD Radeon RX 7900 XTX"
                                 if "0" in dev
                                 else "AMD Radeon Graphics",
-                                "total_mem_mib": 30704.0 if "0" in dev else 56261.0,
-                                "free_mem_mib": 30668.0 if "0" in dev else 92380.0,
+                                "total_mem_mib": 24576.0 if "0" in dev else 56261.0,
+                                "free_mem_mib": 24000.0 if "0" in dev else 92380.0,
                             }
                         benchmark_data[cache_key]["stt"]["device_details"] = dev_details
 
@@ -3218,7 +3358,7 @@ def main() -> None:
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1"],
+                        ["--benchmark", "--repeat", "1", "--format", "json"],
                         server_proc=proc,
                     )
                     if not success:
@@ -3328,13 +3468,13 @@ def main() -> None:
                         if not dev_details and ltts_device != "cpu":
                             dev_details = {
                                 "device_id": ltts_device,
-                                "name": "AMD Radeon Pro W6800"
+                                "name": "AMD Radeon RX 7900 XTX"
                                 if "0" in ltts_device
                                 else "AMD Radeon Graphics",
-                                "total_mem_mib": 30704.0
+                                "total_mem_mib": 24576.0
                                 if "0" in ltts_device
                                 else 56261.0,
-                                "free_mem_mib": 30668.0
+                                "free_mem_mib": 24000.0
                                 if "0" in ltts_device
                                 else 92380.0,
                             }
@@ -3373,9 +3513,15 @@ def main() -> None:
                         img_backend = "cpu"
                     else:
                         target_dev = dev if dev else "vulkan1"
-                        idx_match = re.search(r"\d+", target_dev)
-                        idx = idx_match.group(0) if idx_match else "1"
-                        img_backend = f"vulkan{idx}"
+                        gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(target_dev)
+                        if run_cfg == "hip" or run_cfg == "special":
+                            idx = gpu.rocm_index if gpu and gpu.rocm_index is not None else 0
+                            img_backend = f"rocm{idx}"
+                        else:
+                            idx = gpu.vulkan_index if gpu and gpu.vulkan_index is not None else 1
+                            img_backend = f"vulkan{idx}"
+                            if gpu and gpu.is_igpu:
+                                img_backend += ",te=cpu"  # offload text encoder for iGPU
 
                 if not args.mock:
                     if run_cfg == "running":
@@ -3462,7 +3608,7 @@ def main() -> None:
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1"],
+                        ["--benchmark", "--repeat", "1", "--format", "json"],
                         server_proc=proc,
                     )
                     if not success:
@@ -3579,13 +3725,13 @@ def main() -> None:
                         if not dev_details:
                             dev_details = {
                                 "device_id": img_backend,
-                                "name": "AMD Radeon Pro W6800"
+                                "name": "AMD Radeon RX 7900 XTX"
                                 if "0" in img_backend
                                 else "AMD Radeon Graphics",
-                                "total_mem_mib": 30704.0
+                                "total_mem_mib": 24576.0
                                 if "0" in img_backend
                                 else 56261.0,
-                                "free_mem_mib": 30668.0
+                                "free_mem_mib": 24000.0
                                 if "0" in img_backend
                                 else 92380.0,
                             }

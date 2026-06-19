@@ -6,7 +6,6 @@
 # Manages a systemd user service (local-text-to-speech.service) that runs qwen3-tts-server
 # for text-to-speech (TTS) synthesis.
 #
-# Hardware target: AMD Radeon Pro W6800.
 #
 
 set -euo pipefail
@@ -574,7 +573,7 @@ cmd_test() {
             --mode tts \
             --url "http://${host}:${port}" \
             --model "qwen3-tts" \
-            --output "/tmp/tts_benchmark_output.wav" \
+            --output-dir "/tmp" \
             "${repeat_arg[@]}"
         return 0
     fi
