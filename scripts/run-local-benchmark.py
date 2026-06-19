@@ -18,19 +18,21 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Known iGPU GFX versions
-IGPU_GFX_IDS = frozenset({
-    "gfx90c", "gfx902", "gfx909", "gfx1035", "gfx1036", "gfx1103", "gfx1150"
-})
+IGPU_GFX_IDS = frozenset(
+    {"gfx90c", "gfx902", "gfx909", "gfx1035", "gfx1036", "gfx1103", "gfx1150"}
+)
+
 
 @dataclass
 class GPUCard:
-    rocm_smi_card: str         # e.g. "card0"
-    name: str                  # e.g. "AMD Radeon RX 7900 XTX"
-    gfx_version: str           # e.g. "gfx1100"
+    rocm_smi_card: str  # e.g. "card0"
+    name: str  # e.g. "AMD Radeon RX 7900 XTX"
+    gfx_version: str  # e.g. "gfx1100"
     vram_total_mb: float
     is_igpu: bool
     rocm_index: Optional[int]  # ROCm device index
-    vulkan_index: Optional[int] # Vulkan device index
+    vulkan_index: Optional[int]  # Vulkan device index
+
 
 class GPURegistry:
     def __init__(self):
@@ -44,7 +46,7 @@ class GPURegistry:
 
     def get_by_vulkan_index(self, idx: int) -> Optional[GPUCard]:
         return next((c for c in self.cards if c.vulkan_index == idx), None)
-        
+
     def get_by_device_string(self, device: str) -> Optional[GPUCard]:
         if not device:
             return None
@@ -57,6 +59,7 @@ class GPURegistry:
         if "vulkan" in device.lower():
             return self.get_by_vulkan_index(idx)
         return None
+
 
 GLOBAL_GPU_REGISTRY = GPURegistry()
 
@@ -287,9 +290,15 @@ def get_gpu_memory_mb(device_id: str | None = None) -> float:
                 gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(device_id)
                 if gpu:
                     target_key = gpu.rocm_smi_card
-            
-            if target_key and target_key in data and "VRAM Total Used Memory (B)" in data[target_key]:
-                return float(data[target_key]["VRAM Total Used Memory (B)"]) / (1024.0 * 1024.0)
+
+            if (
+                target_key
+                and target_key in data
+                and "VRAM Total Used Memory (B)" in data[target_key]
+            ):
+                return float(data[target_key]["VRAM Total Used Memory (B)"]) / (
+                    1024.0 * 1024.0
+                )
 
             # Fallback to the first card with memory info
             for card in data.values():
@@ -543,37 +552,46 @@ def parse_devices(output: str) -> Dict[str, Dict[str, Any]]:
     return devices
 
 
-
 def build_gpu_registry(mock: bool = False):
     GLOBAL_GPU_REGISTRY.cards.clear()
-    
+
     if mock:
         # Hardcode mock W6800 and iGPU
-        GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
-            rocm_smi_card="card0",
-            name="AMD Radeon RX 7900 XTX",
-            gfx_version="gfx1100",
-            vram_total_mb=24576.0,
-            is_igpu=False,
-            rocm_index=0,
-            vulkan_index=1
-        ))
-        GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
-            rocm_smi_card="card1",
-            name="AMD Radeon Graphics",
-            gfx_version="gfx90c",
-            vram_total_mb=4096.0,
-            is_igpu=True,
-            rocm_index=1,
-            vulkan_index=0
-        ))
+        GLOBAL_GPU_REGISTRY.cards.append(
+            GPUCard(
+                rocm_smi_card="card0",
+                name="AMD Radeon RX 7900 XTX",
+                gfx_version="gfx1100",
+                vram_total_mb=24576.0,
+                is_igpu=False,
+                rocm_index=0,
+                vulkan_index=1,
+            )
+        )
+        GLOBAL_GPU_REGISTRY.cards.append(
+            GPUCard(
+                rocm_smi_card="card1",
+                name="AMD Radeon Graphics",
+                gfx_version="gfx90c",
+                vram_total_mb=4096.0,
+                is_igpu=True,
+                rocm_index=1,
+                vulkan_index=0,
+            )
+        )
         return
 
     # 1. rocm-smi
     try:
         out = subprocess.check_output(
-            ["/opt/rocm/bin/rocm-smi", "--showproductname", "--showmeminfo", "vram", "--json"],
-            text=True
+            [
+                "/opt/rocm/bin/rocm-smi",
+                "--showproductname",
+                "--showmeminfo",
+                "vram",
+                "--json",
+            ],
+            text=True,
         )
         data = json.loads(out)
         for card_key, info in data.items():
@@ -584,15 +602,17 @@ def build_gpu_registry(mock: bool = False):
             vram_bytes = info.get("VRAM Total Memory (B)", "0")
             vram_mb = float(vram_bytes) / (1024 * 1024)
             is_igpu = "Graphics" in name or "Renoir" in name
-            GLOBAL_GPU_REGISTRY.cards.append(GPUCard(
-                rocm_smi_card=card_key,
-                name=name,
-                gfx_version=gfx_version,
-                vram_total_mb=vram_mb,
-                is_igpu=is_igpu,
-                rocm_index=None,
-                vulkan_index=None
-            ))
+            GLOBAL_GPU_REGISTRY.cards.append(
+                GPUCard(
+                    rocm_smi_card=card_key,
+                    name=name,
+                    gfx_version=gfx_version,
+                    vram_total_mb=vram_mb,
+                    is_igpu=is_igpu,
+                    rocm_index=None,
+                    vulkan_index=None,
+                )
+            )
     except Exception as e:
         print(f"Warning: rocm-smi failed: {e}")
 
@@ -601,11 +621,13 @@ def build_gpu_registry(mock: bool = False):
     cli_out = ""
     for path in cli_paths:
         try:
-            cli_out = subprocess.check_output([path, "--list-devices"], text=True, stderr=subprocess.STDOUT)
+            cli_out = subprocess.check_output(
+                [path, "--list-devices"], text=True, stderr=subprocess.STDOUT
+            )
             break
         except Exception:
             continue
-    
+
     # Parse llama-cli output
     for line in cli_out.splitlines():
         # ROCm0: AMD Radeon RX 7900 XTX (24576 MiB, 24000 MiB free)
@@ -615,18 +637,17 @@ def build_gpu_registry(mock: bool = False):
             backend = match.group(1)
             idx = int(match.group(2))
             name = match.group(3).strip()
-            
+
             # Find matching card in registry by name or VRAM size
             # This is a bit fuzzy, but usually iGPU has "Graphics" or "RENOIR" and dGPU has "XTX" or "PRO"
             for card in GLOBAL_GPU_REGISTRY.cards:
                 # Naive matching based on name overlap or if we just have 2 cards, sorting by VRAM
                 pass
-            
 
             # Assign ROCm/Vulkan indices based on heuristics since UUID mapping is hard without full ROCm APIs.
             # We know dGPU is 24GB, iGPU is much smaller.
             is_llama_igpu = "Graphics" in name or "RENOIR" in name or "gfx90c" in name
-            
+
             for card in GLOBAL_GPU_REGISTRY.cards:
                 if card.is_igpu == is_llama_igpu:
                     if backend == "ROCm":
@@ -638,7 +659,7 @@ def build_gpu_registry(mock: bool = False):
 def get_available_devices(mock: bool = False) -> Dict[str, Dict[str, Any]]:
     """Run llama-cli --list-devices to get available GPUs."""
     build_gpu_registry(mock)
-    
+
     devices = {}
     for card in GLOBAL_GPU_REGISTRY.cards:
         if card.rocm_index is not None:
@@ -659,7 +680,7 @@ def get_available_devices(mock: bool = False) -> Dict[str, Dict[str, Any]]:
                 "free_mem_mib": card.vram_total_mb,
                 "gfx_version": card.gfx_version,
             }
-    
+
     # Add dummy BLAS
     devices["BLAS0"] = {
         "device_id": "BLAS0",
@@ -1098,12 +1119,16 @@ def parse_chat_output(output: str) -> Dict[str, float]:
     return res
 
 
-def parse_image_output(output: str) -> Dict[str, float]:
+def parse_image_output(output: str) -> Dict[str, Any]:
     """Parse image benchmark stats from stdout."""
     res = {}
-    res["image_time"] = extract_metric(
-        r"Avg Generation Time:\s*([\d\.]+)\s*seconds", output
-    )
+    try:
+        data = json.loads(output)
+        res["image_time"] = float(data.get("image_time", 0.0))
+    except json.JSONDecodeError:
+        res["image_time"] = extract_metric(
+            r"Avg Generation Time:\s*([\d\.]+)\s*seconds", output
+        )
     return res
 
 
@@ -1133,28 +1158,66 @@ def parse_rerank_output(output: str) -> Dict[str, float]:
     return res
 
 
-def parse_stt_output(output: str) -> Dict[str, float]:
+def parse_stt_output(output: str) -> Dict[str, Any]:
     """Parse STT benchmark stats from stdout."""
     res = {}
-    res["stt_time"] = extract_metric(
-        r"Avg Transcribe Time:\s*([\d\.]+)\s*seconds", output
-    )
-    res["stt_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
+    try:
+        data = json.loads(output)
+        res["stt_time"] = float(data.get("stt_time", 0.0))
+        res["stt_rtf"] = float(data.get("stt_rtf", 0.0))
+        res["stt_text"] = data.get("stt_text", "")
+    except json.JSONDecodeError:
+        res["stt_time"] = extract_metric(
+            r"Avg Transcribe Time:\s*([\d\.]+)\s*seconds", output
+        )
+        res["stt_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
+        res["stt_text"] = ""
     return res
 
 
-def parse_tts_output(output: str) -> Dict[str, float]:
+def parse_tts_output(output: str) -> Dict[str, Any]:
     """Parse TTS benchmark stats from stdout."""
     res = {}
-    res["tts_duration"] = extract_metric(
-        r"Audio Duration:\s*([\d\.]+)\s*seconds", output
-    )
-    res["tts_time"] = extract_metric(
-        r"Avg Synthesis Time:\s*([\d\.]+)\s*seconds", output
-    )
-    res["tts_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
-    res["tts_char_speed"] = extract_metric(r"Avg Speed:\s*([\d\.]+)\s*chars", output)
+    try:
+        data = json.loads(output)
+        res["tts_duration"] = float(data.get("tts_duration", 0.0))
+        res["tts_time"] = float(data.get("tts_time", 0.0))
+        res["tts_rtf"] = float(data.get("tts_rtf", 0.0))
+        res["tts_char_speed"] = float(data.get("tts_char_speed", 0.0))
+    except json.JSONDecodeError:
+        res["tts_duration"] = extract_metric(
+            r"Audio Duration:\s*([\d\.]+)\s*seconds", output
+        )
+        res["tts_time"] = extract_metric(
+            r"Avg Synthesis Time:\s*([\d\.]+)\s*seconds", output
+        )
+        res["tts_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
+        res["tts_char_speed"] = extract_metric(
+            r"Avg Speed:\s*([\d\.]+)\s*chars", output
+        )
     return res
+
+
+def check_text_match(actual: str, expected: str, min_words_match: int = 20) -> bool:
+    """Check if the actual text loosely matches the expected text."""
+    if not actual:
+        return False
+
+    def normalize(text: str) -> str:
+        text = text.lower()
+        text = re.sub(r"[^\w\s]", " ", text)
+        return " ".join(text.split())
+
+    act_norm = normalize(actual)
+    exp_norm = normalize(expected)
+    act_words = act_norm.split()
+    exp_words = exp_norm.split()
+
+    if len(act_words) < min_words_match:
+        return False
+
+    expected_prefix = " ".join(exp_words[:min_words_match])
+    return expected_prefix in act_norm or act_norm.startswith(expected_prefix)
 
 
 # Mock Outputs for Validation
@@ -1902,7 +1965,9 @@ def main() -> None:
             for dev in hip_devices_resolved:
                 gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
                 if gpu and gpu.is_igpu:
-                    print(f"Skipping HIP test for {dev} ({gpu.name}) as it is an unsupported iGPU.")
+                    print(
+                        f"Skipping HIP test for {dev} ({gpu.name}) as it is an unsupported iGPU."
+                    )
                     continue
                 run_configs.append((cfg, dev))
         elif cfg == "vulkan":
@@ -3099,6 +3164,28 @@ def main() -> None:
                     else:
                         elapsed_time = time.time() - start_time
                         benchmark_data[cache_key]["stt"] = parse_stt_output(stdout)
+
+                        expected_stt_text = (
+                            "As campaigns go, the one in 1892 was not a particularly exciting one. "
+                            "Both candidates had already served a term in the White House. "
+                            "Cleveland from 1884 to 1888, Harrison succeeding him and running now for re-election. "
+                            "Both men were well known to the voters. It was a time of industrial expansi"
+                        )
+                        stt_actual_text = benchmark_data[cache_key]["stt"].get(
+                            "stt_text", ""
+                        )
+                        if not check_text_match(
+                            stt_actual_text, expected_stt_text, min_words_match=20
+                        ):
+                            error_lines.append(
+                                "Warning: STT Transcription text mismatch (garbled output)"
+                            )
+                            success = False
+                            benchmark_data[cache_key]["stt"]["errors"] = error_lines
+                            # Update metric with FAIL
+                            benchmark_data[cache_key]["stt"]["stt_time"] = "FAIL"
+                            benchmark_data[cache_key]["stt"]["stt_rtf"] = "FAIL"
+
                         benchmark_data[cache_key]["stt"]["bench_time_s"] = elapsed_time
                         if run_cfg == "running":
                             journal_errors = get_journal_errors(
@@ -3393,6 +3480,51 @@ def main() -> None:
                             error_lines.extend(journal_errors)
                         benchmark_data[data_key]["tts"]["errors"] = error_lines
 
+                        expected_tts_text = (
+                            "The quick brown fox jumps over the lazy dog. This sentence has exactly forty five words "
+                            "to verify that the speech generation pipeline functions correctly. The generated audio file is "
+                            "sent to local speech to text service to measure synthesis performance of this audio system."
+                        )
+                        print("Validating TTS audio with STT...")
+                        tts_val_proc = subprocess.run(
+                            [
+                                os.path.join(
+                                    os.path.dirname(srv["script"]),
+                                    "local-speech-to-text.sh",
+                                ),
+                                "run",
+                                "whisper-cli",
+                                "-m",
+                                "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
+                                "-f",
+                                "/tmp/tts_benchmark_output.wav",
+                                "-nt",
+                            ],
+                            capture_output=True,
+                            text=True,
+                        )
+                        if tts_val_proc.returncode != 0:
+                            error_lines.append(
+                                "Warning: TTS Audio validation failed (STT process error)"
+                            )
+                            success = False
+                            benchmark_data[data_key]["tts"]["errors"] = error_lines
+                            benchmark_data[data_key]["tts"]["tts_duration"] = "FAIL"
+                            benchmark_data[data_key]["tts"]["tts_time"] = "FAIL"
+                        else:
+                            if not check_text_match(
+                                tts_val_proc.stdout,
+                                expected_tts_text,
+                                min_words_match=20,
+                            ):
+                                error_lines.append(
+                                    "Warning: TTS Audio validation failed (garbled audio output)"
+                                )
+                                success = False
+                                benchmark_data[data_key]["tts"]["errors"] = error_lines
+                                benchmark_data[data_key]["tts"]["tts_duration"] = "FAIL"
+                                benchmark_data[data_key]["tts"]["tts_time"] = "FAIL"
+
                         # Measure VRAM and RAM
                         if run_cfg == "running":
                             gpu_mem_mb = "-n.a.-"
@@ -3515,13 +3647,23 @@ def main() -> None:
                         target_dev = dev if dev else "vulkan1"
                         gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(target_dev)
                         if run_cfg == "hip" or run_cfg == "special":
-                            idx = gpu.rocm_index if gpu and gpu.rocm_index is not None else 0
+                            idx = (
+                                gpu.rocm_index
+                                if gpu and gpu.rocm_index is not None
+                                else 0
+                            )
                             img_backend = f"rocm{idx}"
                         else:
-                            idx = gpu.vulkan_index if gpu and gpu.vulkan_index is not None else 1
+                            idx = (
+                                gpu.vulkan_index
+                                if gpu and gpu.vulkan_index is not None
+                                else 1
+                            )
                             img_backend = f"vulkan{idx}"
                             if gpu and gpu.is_igpu:
-                                img_backend += ",te=cpu"  # offload text encoder for iGPU
+                                img_backend += (
+                                    ",te=cpu"  # offload text encoder for iGPU
+                                )
 
                 if not args.mock:
                     if run_cfg == "running":

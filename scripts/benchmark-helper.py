@@ -11,7 +11,6 @@ import os
 import sys
 
 
-
 import struct
 import subprocess
 import tempfile
@@ -22,9 +21,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _OUTPUT_FORMAT = "text"
 
+
 def tprint(*args, **kwargs):
     if _OUTPUT_FORMAT != "text":
-        kwargs['file'] = sys.stderr
+        kwargs["file"] = sys.stderr
     print(*args, **kwargs)
 
 
@@ -167,7 +167,8 @@ def run_llm_chat(
     skip_image: bool = False,
     image_file: Optional[str] = None,
     fraction_context: float = 1.0,
-    output_format: str = 'text') -> None:
+    output_format: str = "text",
+) -> None:
     """Run chat completion prefill/decode benchmark using a large context."""
     if not os.path.exists(context_file):
         raise FileNotFoundError(f"Context file not found: {context_file}")
@@ -233,7 +234,6 @@ def run_llm_chat(
             f"  Metrics: TTFT={ttft_p0 * 1000:.1f}ms, Prefill={prefill_speed_p0:.2f} t/s, Gen={generation_speed_p0:.2f} t/s"
         )
         tprint(f'  Response: "{text_p0.strip()}"')
-
 
     # Phase 1: Sequential Prefill
     phase1_durations = []
@@ -358,7 +358,6 @@ def run_llm_chat(
     phase3_results: Dict[str, List[Dict[str, Any]]] = {}
 
     if run_phase3:
-
         tprint("\n===================================================")
         tprint("=== PHASE 3: Prefix Caching & Distractor Tests ===")
         tprint("===================================================")
@@ -589,7 +588,9 @@ def run_llm_chat(
 
     # Phase 3 Summary
     if not skip_chat and run_phase3:
-        tprint("\n--- Phase 3: Prefix Caching & Distractor (Averages over 5 Cycles) ---")
+        tprint(
+            "\n--- Phase 3: Prefix Caching & Distractor (Averages over 5 Cycles) ---"
+        )
         for name in phase3_results:
             runs = phase3_results[name]
             avg_ttft = sum(x["ttft"] for x in runs) / len(runs)
@@ -641,7 +642,8 @@ def run_llm_embed(
     context_file: str,
     repeats: int,
     fraction_chunks: float = 1.0,
-    output_format: str = 'text') -> None:
+    output_format: str = "text",
+) -> None:
     """Run embedding benchmark using the full context file (~44.5k tokens).
 
     Tokenizes the full context via the server's /tokenize endpoint to get exact
@@ -722,7 +724,6 @@ def run_llm_embed(
         embed_dim = len(embed_vec)
     tprint(f"  Warmup latency:  {(t1 - t0) * 1000:.1f} ms")
     tprint(f"  Embedding dim:   {embed_dim}")
-
 
     # Phase 1: Full context embedding
     tprint("\n--- Phase 1: Full Context Embedding ---")
@@ -824,7 +825,9 @@ def run_llm_embed(
     tprint("===================================================")
 
 
-def run_rerank(url: str, model: str, context_file: str, repeats: int, output_format: str = 'text') -> None:
+def run_rerank(
+    url: str, model: str, context_file: str, repeats: int, output_format: str = "text"
+) -> None:
     """Run rerank benchmark by splitting a portion of context into 10 safe chunks."""
     if not os.path.exists(context_file):
         raise FileNotFoundError(f"Context file not found: {context_file}")
@@ -900,7 +903,9 @@ def run_rerank(url: str, model: str, context_file: str, repeats: int, output_for
             idx = r_item.get("index", 0)
             score = r_item.get("relevance_score", 0.0)
             text_snippet = chunks[idx].strip()[:100].replace("\n", " ")
-            tprint(f"  {i + 1}. Index {idx:02d} (Score: {score:.4f}): {text_snippet}...")
+            tprint(
+                f"  {i + 1}. Index {idx:02d} (Score: {score:.4f}): {text_snippet}..."
+            )
     tprint("=====================================================\n")
 
 
@@ -924,7 +929,9 @@ def parse_wav_duration(file_path: str) -> float:
         return data_size / bytes_per_second
 
 
-def run_tts(url: str, model: str, output_wav: str, repeats: int, output_format: str = 'text') -> None:
+def run_tts(
+    url: str, model: str, output_wav: str, repeats: int, output_format: str = "text"
+) -> None:
     """Synthesize a fixed 45-word sentence and measure synthesis speed/RTF."""
     text = (
         "The quick brown fox jumps over the lazy dog. This sentence has exactly "
@@ -987,6 +994,20 @@ def run_tts(url: str, model: str, output_wav: str, repeats: int, output_format: 
     avg_word_speed = sum(word_speeds) / len(word_speeds)
     audio_len = parse_wav_duration(output_wav)
 
+    if output_format in ("json", "yaml"):
+        result = {
+            "mode": "tts",
+            "sentence": text,
+            "repeats": repeats,
+            "tts_duration": audio_len,
+            "tts_time": avg_duration,
+            "tts_rtf": avg_rtf,
+            "tts_char_speed": avg_char_speed,
+            "tts_word_speed": avg_word_speed,
+        }
+        print(json.dumps(result, indent=2))
+        return
+
     tprint("\n=== Text-to-Speech Benchmark Results (Cumulative Average) ===")
     tprint(f"Sentence:          {text}")
     tprint(f"Sentence Length:   45 words / {len(text)} chars")
@@ -1032,7 +1053,9 @@ def make_multipart(
     return payload, content_type
 
 
-def run_stt(url: str, model: str, audio_file: str, repeats: int, output_format: str = 'text') -> None:
+def run_stt(
+    url: str, model: str, audio_file: str, repeats: int, output_format: str = "text"
+) -> None:
     """Trim audio file to 45 seconds using ffmpeg, transcribe, and measure RTF."""
     if not os.path.exists(audio_file):
         raise FileNotFoundError(f"Input audio file not found: {audio_file}")
@@ -1106,6 +1129,18 @@ def run_stt(url: str, model: str, audio_file: str, repeats: int, output_format: 
         avg_duration = sum(durations) / len(durations)
         avg_rtf = sum(rtfs) / len(rtfs)
 
+        if output_format in ("json", "yaml"):
+            result = {
+                "mode": "stt",
+                "source_audio": audio_file,
+                "repeats": repeats,
+                "stt_time": avg_duration,
+                "stt_rtf": avg_rtf,
+                "stt_text": text,
+            }
+            print(json.dumps(result, indent=2))
+            return
+
         tprint("\n=== Speech-to-Text Benchmark Results (Cumulative Average) ===")
         tprint(f"Source Audio:      {audio_file}")
         tprint(f"Repeats:           {repeats}")
@@ -1121,7 +1156,7 @@ def run_stt(url: str, model: str, audio_file: str, repeats: int, output_format: 
             os.remove(temp_wav_path)
 
 
-def run_image(url: str, model: str, repeats: int, output_format: str = 'text') -> None:
+def run_image(url: str, model: str, repeats: int, output_format: str = "text") -> None:
     """Run image generation benchmark by generating an image and measuring time."""
     prompt = "A high-resolution, beautiful photograph of a pristine mountain lake at sunrise, highly detailed."
     payload = {"prompt": prompt, "steps": 8, "cfg_scale": 1.0}
@@ -1152,7 +1187,7 @@ def run_image(url: str, model: str, repeats: int, output_format: str = 'text') -
             "steps": 8,
             "cfg_scale": 1.0,
             "repeats": repeats,
-            "image_time": avg_duration
+            "image_time": avg_duration,
         }
         print(json.dumps(result, indent=2))
         return
@@ -1284,7 +1319,9 @@ def main() -> None:
     elif args.mode == "rerank":
         if not args.context:
             parser.error("--context is required in rerank mode")
-        run_rerank(args.url, args.model, args.context, repeats, output_format=args.format)
+        run_rerank(
+            args.url, args.model, args.context, repeats, output_format=args.format
+        )
     elif args.mode == "tts":
         run_tts(args.url, args.model, output_path, repeats, output_format=args.format)
     elif args.mode == "stt":
