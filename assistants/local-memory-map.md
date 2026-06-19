@@ -1,76 +1,109 @@
 # Central VRAM Memory Map & Co-running Guide
 
-This document aggregates detailed memory requirements and allocations for local AI models running on the AMD Radeon RX 7900 XTX GPU (**24,576 MiB** usable VRAM).
+This document aggregates detailed memory requirements and allocations for local AI models running on the AMD Radeon RX 7900 XTX GPU (**24,576 MiB** usable VRAM) and AMD Radeon Graphics (integrated iGPU sharing System RAM).
+
+---
 
 ## Component Footprints
 
-### Local LLM Service (`local-llm.sh` / `llama-server`)
+### Local LLM Service ([local-chat.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-chat.sh) / `llama-server`)
 Serves chat and vision.
 
-| Component / Allocation | GPU VRAM | Details |
-|---|---|---|
-| **Model Weights & Compute** (LLM + Vision) | ~19,259 MiB | LLM Weights (~17,408 MiB) + mmproj (~861 MiB) + Compute (~990 MiB) |
-| **KV Cache** (q4_0 KV, parallel=3, slot n_ctx=30,000) | ~3,011 MiB | LLM KV cache allocation |
-| **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
-| **Total LLM Footprint** | **~22,870 MiB** | Run on GPU |
+**Model Target:** `Qwen3.6-35B-A3B-APEX-I-Compact` (LLM: ~17.0 GiB GGUF, mmproj: ~861 MiB)
 
-### Local Embedding Service (`local-embedding.sh` / `llama-server`)
+**Theoretical Footprint Breakdown:**
+- **Model Weights & Compute (LLM + Vision):** ~19,259 MiB (LLM weights: ~17,408 MiB, mmproj: ~861 MiB, compute buffers: ~990 MiB)
+- **KV Cache (q4_0 KV, parallel=3, slot n_ctx=30,000):** ~3,011 MiB
+- **HIP Context Overhead:** ~600 MiB (ROCm driver context overhead)
+- **Total Theoretical Footprint:** ~22,870 MiB
+
+**Benchmarked Footprint (Active Memory Usage):**
+- **Vulkan-Vulkan1 (dGPU):** **19,197.6 MiB** (active VRAM at `n_ctx=240,384`, parallel=3, generation speed: 111.94 t/s).
+- **HIP-ROCm0 (dGPU):** **20,668.3 MiB** (active VRAM at `n_ctx=240,384`, parallel=3, generation speed: 65.73 t/s).
+- **Vulkan-Vulkan0 (iGPU):** **14,468.3 MiB** (active VRAM at `n_ctx=48,076`, parallel=3, generation speed: 12.59 t/s).
+- **CPU:** **1,168.7 MiB** VRAM, **21,392.5 MiB** System RAM (active at `n_ctx=12,019`, parallel=3, generation speed: 12.64 t/s).
+
+---
+
+### Local Embedding Service ([local-embedding.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-embedding.sh) / `llama-server`)
 Serves text embeddings.
 
-| Component / Allocation | GPU VRAM | Details |
-|---|---|---|
-| **Model Weights & Compute** (Embedding) | ~2,020 MiB | Embedding Weights (~700 MiB) + Compute/Buffers (~1,320 MiB) |
-| **HIP Context Overhead** (1 process) | ~600 MiB | ROCm driver context overhead |
-| **Total Embedding Footprint** | **~2,620 MiB** | Run on GPU |
+**Model Target:** `Qwen3-Embedding-0.6B-Q8_0.gguf` (~700 MiB GGUF)
 
-### Local Rerank Service (`local-rerank.sh` / `llama-server`)
-Serves document reranking. Can run on GPU or CPU.
+**Theoretical Footprint Breakdown:**
+- **Model Weights & Compute:** ~2,020 MiB (Weights: ~700 MiB, Compute/Buffers: ~1,320 MiB)
+- **HIP Context Overhead:** ~600 MiB (ROCm driver overhead)
+- **Total Theoretical Footprint:** ~2,620 MiB
 
-| Mode / Component | GPU VRAM | Details |
-|---|---|---|
-| **GPU Execution** (Weights + Compute + HIP Overhead) | ~1,050 MiB | Weights (~450 MiB) + HIP Overhead (~600 MiB) |
-| **CPU Execution** | **0 MiB** | Runs entirely in System RAM (~450 MiB) |
-
----
-
-### Local Speech-to-Text (`local-speech-to-text.sh` / `whisper-server`)
-
-Model Target: `ggml-large-v3-turbo-q5_0.bin`
-
-| Component | GPU VRAM |
-|---|---|
-| Model Weights | ~573.45 MiB |
-| KV Caches | ~49.81 MiB |
-| Compute Buffers | ~202.35 MiB |
-| HIP Context Runtime Overhead | ~600.00 MiB |
-| **Total STT GPU Footprint** | **~1,425.61 MiB (~1.4 GiB)** |
-
-gpu (RX 7900 XTX), RTF: 0.014
-
-If run on cpu, total CPU Footprint: 1,2 GiB
-
-cpu 8 threads, RTF 0.4
-
+**Benchmarked Footprint:**
+- **HIP-ROCm0 (dGPU):** **7,119.7 MiB** (active VRAM at `n_ctx=8,192`, throughput: 1,799.58 t/s).
+- **Vulkan-Vulkan0 (iGPU):** **5,229.6 MiB** (active VRAM/System RAM at `n_ctx=8,192`, batch=2048, throughput: 493.77 t/s).
+- **Vulkan-Vulkan1 (dGPU):** *Failed* (warmup/initialization hang under Vulkan driver).
+- **CPU:** **~0.1 MiB** VRAM, **11,898.1 MiB** System RAM (throughput: 99.29 t/s).
 
 ---
 
-### Local Text-to-Speech (`local-text-to-speech.sh` / `qwen3-tts-server`)
+### Local Rerank Service ([local-rerank.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-rerank.sh) / `llama-server`)
+Serves document reranking.
+
+**Model Target:** `Qwen3-Reranker-0.6B.Q4_K_M.gguf` (~450 MiB GGUF)
+
+**Theoretical Footprint Breakdown:**
+- **GPU Mode:** ~1,050 MiB (Weights/Compute: ~450 MiB + HIP overhead: ~600 MiB)
+- **CPU Mode:** ~450 MiB System RAM
+
+**Benchmarked Footprint:**
+- **HIP-ROCm0 (dGPU):** **2,719.6 MiB** (active VRAM at `n_ctx=8,192`).
+- **Vulkan-Vulkan0 (iGPU):** **1,574.7 MiB** (active VRAM at `n_ctx=8,192`).
+- **Vulkan-Vulkan1 (dGPU):** *Failed* to start.
+- **CPU:** **~0.1 MiB** VRAM, **2,716.7 MiB** System RAM.
+
+---
+
+### Local Speech-to-Text ([local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh) / `whisper-server`)
+Serves audio transcription.
+
+**Model Target:** `ggml-large-v3-turbo-q5_0.bin` (~573.45 MiB GGUF)
+
+**Theoretical Footprint Breakdown:**
+- **Model Weights:** ~573.45 MiB
+- **KV Caches:** ~49.81 MiB
+- **Compute Buffers:** ~202.35 MiB
+- **HIP Context Overhead:** ~600.00 MiB
+- **Total STT GPU Footprint:** ~1,425.61 MiB
+
+**Benchmarked Footprint:**
+- **Vulkan-Vulkan1 (dGPU):** **828.0 MiB** VRAM, RTF: **0.0116** (86.2x speedup).
+- **Vulkan-Vulkan0 (iGPU):** **808.8 MiB** VRAM, RTF: **0.1224** (8.2x speedup).
+- **HIP-ROCm0 (dGPU):** **1,264.3 MiB** VRAM, RTF: *FAIL* (Garbled output).
+- **CPU:** **~0.1 MiB** VRAM, **1,102.3 MiB** System RAM, RTF: **0.3032** (3.3x speedup).
+
+---
+
+### Local Text-to-Speech ([local-text-to-speech.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-text-to-speech.sh) / `qwen3-tts-server`)
+Serves voice synthesis.
 
 The memory profile of the Text-to-Speech service depends significantly on the configured **`LTTS_MODE`** preset:
 
 #### Variant: 0.6B Model (CustomVoice/Base) + Vocoder
 
-| Preset / Mode | Idle GPU VRAM | Active GPU VRAM | System RAM | Notes |
-|---|---|---|---|---|
-| **`gpu`** | ~600 MiB | ~3,567 MiB | ~952 MiB | Runs on GPU; holds all weights warm. (RTF 2.28x) |
-| **`hybrid`** | ~600 MiB | ~2,194 MiB | ~2,447 MiB | **Recommended.** Code Gen on CPU, Vocoder on GPU. (RTF 1.11x) |
-| **`cpu`** | 0 MiB | 0 MiB | ~2,965 MiB | Runs completely on CPU (8 threads). (RTF 1.58x) |
+**Model Target:** `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf` (~1,264 MiB GGUF) + Vocoder `Qwen3-TTS-Tokenizer-12Hz-F16.gguf` (~325 MiB GGUF)
 
-*Detailed breakdown for `gpu` (0.6B CustomVoice):*
-- Talker Model weights (Q8_0): ~1,264 MiB (1.23 GiB GGUF file)
-- Vocoder weights (F16): ~325 MiB (325 MiB GGUF file)
-- KV Cache, Compute buffers, and launch overhead: ~1,378 MiB
-- HIP Context Runtime Overhead: ~600 MiB
+**Theoretical Footprint Breakdown (`gpu` Mode):**
+- **Talker Model weights (Q8_0):** ~1,264 MiB (1.23 GiB GGUF file)
+- **Vocoder weights (F16):** ~325 MiB (325 MiB GGUF file)
+- **KV Cache, Compute buffers, and launch overhead:** ~1,378 MiB
+- **HIP Context Runtime Overhead:** ~600 MiB
+- **Total Theoretical GPU Footprint:** ~3,567 MiB
+
+**Benchmarked Footprint (0.6B Variant):**
+- **Vulkan-Vulkan1 (`gpu`):** **3,399.8 MiB** VRAM, RTF: **0.3272** (41.91 chars/s).
+- **Vulkan-Vulkan1 (`hybrid`):** **3,289.4 MiB** VRAM, RTF: **0.3264** (45.10 chars/s).
+- **HIP-ROCm0 (`gpu`):** **3,585.8 MiB** VRAM, RTF: **0.9190** (15.95 chars/s).
+- **HIP-ROCm0 (`hybrid`):** **3,645.8 MiB** VRAM, RTF: **0.9215** (15.25 chars/s).
+- **Vulkan-Vulkan0 (`gpu`):** **3,352.5 MiB** VRAM, RTF: **2.4535** (5.75 chars/s).
+- **Vulkan-Vulkan0 (`hybrid`):** **3,333.5 MiB** VRAM, RTF: **2.4484** (5.74 chars/s).
+- **CPU (`cpu`):** **~0.1 MiB** VRAM, **2,985.3 MiB** System RAM, RTF: **1.6372** (8.58 chars/s).
 
 #### Variant: 1.7B Model (CustomVoice/Base) + Vocoder
 
@@ -88,24 +121,37 @@ The memory profile of the Text-to-Speech service depends significantly on the co
 
 ---
 
+### Local Image Service ([local-image.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-image.sh) / `sd-server`)
+Serves image generation using stable diffusion.
+
+**Model Target:** `z_image_turbo-Q8_0.gguf` (~Diffusion) + `ae.safetensors` (~VAE) + `Qwen3-4B-Q4_K_M.gguf` (~Text Encoder LLM)
+
+**Benchmarked Footprint:**
+- **HIP-ROCm0 (dGPU):** **10,758.6 MiB** VRAM, Avg Gen Time: **6.18 s** (8 steps).
+- **Vulkan-Vulkan1 (dGPU):** **9,879.0 MiB** VRAM, Avg Gen Time: **6.61 s** (8 steps).
+- **Vulkan-Vulkan0 (iGPU):** **6,368.2 MiB** VRAM, Avg Gen Time: **93.74 s** (special setting: `vulkan0,te=cpu`).
+- **CPU:** **~0.1 MiB** VRAM, **10,141.2 MiB** System RAM, Avg Gen Time: **269.95 s** (8 steps).
+
+---
+
 ## Combined Co-running Scenario
 
 Here we map VRAM usage for running **Inference** (LLM + Vision), **Embedding**, **Reranking**, **Speech-to-Text**, **Text-to-Speech** and **Image** services concurrently on one system using the dgpu, the igpu and the cpu.
 
-To maximize VRAM efficiency, we run the **Local-LLM Service** (Chat/Vision) on the dGPU using Vulkan with max_ctx: 240384
-**Speech-to-Text** , **Local-Embedding Service** , **Local-Rerank Service** on the igpu (vulkan0),
-and the **Text-To-Speech Service** hybrid cpu+vulkan0 (igpu)
+To maximize VRAM efficiency, we route the **Local-LLM Service** (Chat/Vision) on the dGPU using Vulkan with `max_ctx: 240384`, and route **Speech-to-Text** to the dGPU (`vulkan1`). **Local-Rerank Service**, **Local Image Service** (using the CPU text encoder offload), and **Text-To-Speech Service** (hybrid mode) are routed to the iGPU (`vulkan0`). **Local-Embedding Service** runs on the CPU.
 
-### Baseline Allocation (LLM on GPU, Embeddings/Reranker on CPU, STT on GPU)
-- **Local-LLM Service** (LLM + Vision + HIP context): **19,859 MiB** (19,259 MiB weights/compute + 600 MiB HIP context)
-- **LLM KV Cache** (n_ctx = 90,000, parallel=3, slot n_ctx=30,000): **3,011 MiB**
-- **Local-Embedding Service** (on CPU): **0 MiB** (Runs in System RAM)
-- **Local-Rerank Service** (on CPU): **0 MiB** (Runs in System RAM)
-- **Speech-to-Text (Whisper on GPU)**: **1,426 MiB** (includes weights, KV, buffers, and STT HIP overhead)
-- **TTS (Qwen3-tts 0.6B on cpu only)**: **0 MiB** VRAM (System RAM: ~3.0 GiB)
-    - **Performance**: TTS RTF is ~1.58x (acceptable for conversational interaction)
-- **Total Required VRAM**: **24,296 MiB** (with LLM `n_ctx=90,000`, parallel=3)
-- **Status**:  **Safe**. Fits within the single card footprint.
-- **Remaining Headroom**: **280 MiB** free VRAM
+### Co-running Allocation (Vulkan Heterogeneous Mode)
 
+| Service / Component | Device/Backend | VRAM (dGPU Vulkan1) | VRAM (iGPU Vulkan0) | System RAM | Notes |
+|---|---|---|---|---|---|
+| **Local-LLM Service** | Vulkan1 (dGPU) | **19,198 MiB** | 0 MiB | ~1,359 MiB | Active with `n_ctx=240,384`, parallel=3 |
+| **Speech-to-Text** | Vulkan1 (dGPU) | **828 MiB** | 0 MiB | ~128 MiB | Active Whisper transcription |
+| **Local-Embedding Service** | CPU | 0 MiB | 0 MiB | **~11,898 MiB** | Offloaded to CPU due to iGPU allocation failure |
+| **Local-Rerank Service** | Vulkan0 (iGPU) | 0 MiB | **1,575 MiB** | ~248 MiB | Active document reranking |
+| **Local Text-to-Speech** | Vulkan0 (iGPU) | 0 MiB | **3,334 MiB** | ~681 MiB | Hybrid mode (Vocoder on iGPU, CodeGen on CPU) |
+| **Local Image Service** | Vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,808 MiB | `vulkan0,te=cpu` preset |
+| **Total Allocation** | - | **20,026 MiB** | **11,277 MiB** | **~18,122 MiB** | |
 
+**Status:**
+- **dGPU (RX 7900 XTX):** **Safe**. Fits within 24,576 MiB usable VRAM. Remaining headroom: **4,550 MiB** free VRAM.
+- **iGPU (Radeon Graphics):** **Safe**. Fits within 16 GiB shared RAM. Remaining headroom: **5,107 MiB** free VRAM.

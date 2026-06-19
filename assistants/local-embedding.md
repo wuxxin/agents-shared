@@ -57,6 +57,8 @@ The local service runs **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF quantization fo
 
 Key specifications:
   - **Context Size (`LMBD_N_CTX`):** `8192`
+  - **Batch Size:** `2048` (dynamically set to 1/4 of `LMBD_N_CTX` at install/startup to optimize memory usage)
+  - **Micro-batch Size:** `2048`
   - **Pooling:** `mean`
   - **Model File:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
   - **Capabilities**: Translates text blocks into high-density vector representations for similarity checks and vector search databases.

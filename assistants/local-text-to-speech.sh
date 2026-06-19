@@ -578,7 +578,7 @@ cmd_test() {
             --mode tts \
             --url "http://${host}:${port}" \
             --model "qwen3-tts" \
-            --output-dir "/tmp" \
+            --output-dir "$(dirname "$0")/../scratch" \
             "${repeat_arg[@]}" \
             "${extra_args[@]}"
         return 0

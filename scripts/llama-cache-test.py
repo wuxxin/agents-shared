@@ -1,11 +1,8 @@
-
 #!/usr/bin/env python3
 import argparse
 import json
 import random
 import sys
-
-
 
 
 import time
@@ -16,9 +13,10 @@ import requests
 
 _OUTPUT_FORMAT = "text"
 
+
 def tprint(*args, **kwargs):
     if _OUTPUT_FORMAT != "text":
-        kwargs['file'] = sys.stderr
+        kwargs["file"] = sys.stderr
     print(*args, **kwargs)
 
 
@@ -293,7 +291,9 @@ def incremental_prefill(args, full_text):
         step_start_time = time.time()
 
         # max_tokens=1 to force processing up to this point
-        warmup_res = measure_request(args.url, args.api_key, args.model, subset, max_tokens=1)
+        warmup_res = measure_request(
+            args.url, args.api_key, args.model, subset, max_tokens=1
+        )
 
         step_end_time = time.time()
 

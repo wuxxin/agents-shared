@@ -659,15 +659,18 @@ def run_llm_embed(
 
     # Tokenize the full context via the server to get exact token IDs,
     # then split into chunks of size matching the server's context size.
-    max_tokens_per_chunk = 8192
+    # Standard client programs split large texts into smaller chunks (e.g. 2048 tokens max)
+    # to avoid exceeding the server's logical/physical batch size limits, which would
+    # otherwise cause the server to fail the request with a context or batch error.
+    max_tokens_per_chunk = 2048
     try:
         props = get_json(f"{url}/props")
         if props and "default_generation_settings" in props:
             n_ctx = props["default_generation_settings"].get("n_ctx", 8192)
             if n_ctx > 0:
-                max_tokens_per_chunk = min(8192, n_ctx)
+                max_tokens_per_chunk = min(2048, n_ctx)
                 tprint(
-                    f"  Dynamic chunk size resolved from server: {max_tokens_per_chunk}"
+                    f"  Dynamic chunk size resolved from server (capped at 2048): {max_tokens_per_chunk}"
                 )
     except Exception as e:
         tprint(f"  Warning: Failed to query server props for n_ctx: {e}")
@@ -886,6 +889,18 @@ def run_rerank(
     avg_duration = sum(durations_ms) / len(durations_ms)
     avg_docs_speed = sum(docs_speeds) / len(docs_speeds)
     avg_tokens_speed = sum(tokens_speeds) / len(tokens_speeds)
+
+    if output_format in ("json", "yaml"):
+        result = {
+            "mode": "rerank",
+            "query": query,
+            "repeats": repeats,
+            "rerank_time": avg_duration,
+            "rerank_throughput": avg_docs_speed,
+            "rerank_token_speed": avg_tokens_speed,
+        }
+        print(json.dumps(result, indent=2))
+        return
 
     tprint("\n=== Rerank Benchmark Results (Cumulative Average) ===")
     tprint(f"Query:             {query}")

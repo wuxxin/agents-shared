@@ -14,6 +14,7 @@ import re
 import socket
 import subprocess
 import time
+import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -1158,16 +1159,24 @@ def parse_embed_output(output: str) -> Dict[str, float]:
     return res
 
 
-def parse_rerank_output(output: str) -> Dict[str, float]:
+def parse_rerank_output(output: str) -> Dict[str, Any]:
     """Parse reranker benchmark stats from stdout."""
     res = {}
-    res["rerank_time"] = extract_metric(r"Avg Reranking Time:\s*([\d\.]+)\s*ms", output)
-    res["rerank_throughput"] = extract_metric(
-        r"Avg Docs Throughput:\s*([\d\.]+)\s*docs", output
-    )
-    res["rerank_token_speed"] = extract_metric(
-        r"Avg Token Speed:\s*([\d\.]+)\s*tokens", output
-    )
+    data = extract_json_block(output)
+    if data is not None:
+        res["rerank_time"] = float(data.get("rerank_time", 0.0))
+        res["rerank_throughput"] = float(data.get("rerank_throughput", 0.0))
+        res["rerank_token_speed"] = float(data.get("rerank_token_speed", 0.0))
+    else:
+        res["rerank_time"] = extract_metric(
+            r"Avg Reranking Time:\s*([\d\.]+)\s*ms", output
+        )
+        res["rerank_throughput"] = extract_metric(
+            r"Avg Docs Throughput:\s*([\d\.]+)\s*docs", output
+        )
+        res["rerank_token_speed"] = extract_metric(
+            r"Avg Token Speed:\s*([\d\.]+)\s*tokens", output
+        )
     return res
 
 
@@ -1339,6 +1348,17 @@ def generate_report(
 ) -> str:
     """Format parsed metrics into a beautiful markdown benchmark document."""
 
+    def get_cfg_anchor(cfg: str) -> str:
+        cfg_upper = cfg.upper()
+        if cfg.startswith("cpu-hip") or cfg.startswith("cpu-vulkan"):
+            cfg_upper = f"SPECIAL ({cfg.upper()})"
+        header_text = f"{cfg_upper} Configuration Details"
+        anchor = header_text.lower()
+        anchor = re.sub(r"[^a-z0-9\s\-]", "", anchor)
+        anchor = anchor.replace(" ", "-")
+        anchor = re.sub(r"\-+", "-", anchor)
+        return f"#{anchor}"
+
     def format_env(cfg: str, mode: str) -> str:
         if cfg in data and mode in data[cfg] and "env" in data[cfg][mode]:
             env_vars = data[cfg][mode]["env"]
@@ -1367,6 +1387,7 @@ def generate_report(
         fmt: str = ".2f",
         suffix: str = "",
         default: str = "-n.a.-",
+        bold: bool = False,
     ) -> str:
         if cfg in data and mode in data[cfg] and key in data[cfg][mode]:
             v = data[cfg][mode][key]
@@ -1375,19 +1396,25 @@ def generate_report(
             if v is None:
                 return default
             try:
-                return f"{v:{fmt}}{suffix}"
+                formatted = f"{v:{fmt}}{suffix}"
+                if bold:
+                    return f"**{formatted}**"
+                return formatted
             except (ValueError, TypeError):
                 return str(v)
         return default
 
     # Speedup ratio vs Real-time (1 / RTF)
-    def speedup(cfg: str, mode: str, rtf_key: str) -> str:
+    def speedup(cfg: str, mode: str, rtf_key: str, bold: bool = False) -> str:
         if cfg in data and mode in data[cfg] and rtf_key in data[cfg][mode]:
             rtf = data[cfg][mode][rtf_key]
             if isinstance(rtf, str):
                 return rtf
             if rtf > 0:
-                return f"{1.0 / rtf:.1f}x"
+                formatted = f"{1.0 / rtf:.1f}x"
+                if bold:
+                    return f"**{formatted}**"
+                return formatted
         return "-n.a.-"
 
     def get_test_name(cfg: str, mode: str) -> str:
@@ -1498,14 +1525,95 @@ def generate_report(
 
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    chat_keys = [cfg for cfg in data.keys() if "chat" in data[cfg]]
+    chat_keys.sort(key=sort_config_keys)
+    embed_keys = [cfg for cfg in data.keys() if "embedding" in data[cfg]]
+    embed_keys.sort(key=sort_config_keys)
+    rerank_keys = [cfg for cfg in data.keys() if "rerank" in data[cfg]]
+    rerank_keys.sort(key=sort_config_keys)
+    stt_keys = [cfg for cfg in data.keys() if "stt" in data[cfg]]
+    stt_keys.sort(key=sort_config_keys)
+    tts_keys = [cfg for cfg in data.keys() if "tts" in data[cfg]]
+    tts_keys.sort(key=sort_config_keys)
+    image_keys = [cfg for cfg in data.keys() if "image" in data[cfg]]
+    image_keys.sort(key=sort_config_keys)
+
+    # Find the best configuration for each metric
+    best_chat_cfg = None
+    max_chat_gen = -1.0
+    for cfg in chat_keys:
+        if cfg in data and "chat" in data[cfg] and "chat_avg_gen" in data[cfg]["chat"]:
+            v = data[cfg]["chat"]["chat_avg_gen"]
+            if isinstance(v, (int, float)):
+                if v > max_chat_gen:
+                    max_chat_gen = v
+                    best_chat_cfg = cfg
+
+    best_embed_cfg = None
+    max_embed_throughput = -1.0
+    for cfg in embed_keys:
+        if (
+            cfg in data
+            and "embedding" in data[cfg]
+            and "embed_throughput" in data[cfg]["embedding"]
+        ):
+            v = data[cfg]["embedding"]["embed_throughput"]
+            if isinstance(v, (int, float)):
+                if v > max_embed_throughput:
+                    max_embed_throughput = v
+                    best_embed_cfg = cfg
+
+    best_rerank_cfg = None
+    max_rerank_token_speed = -1.0
+    for cfg in rerank_keys:
+        if (
+            cfg in data
+            and "rerank" in data[cfg]
+            and "rerank_token_speed" in data[cfg]["rerank"]
+        ):
+            v = data[cfg]["rerank"]["rerank_token_speed"]
+            if isinstance(v, (int, float)):
+                if v > max_rerank_token_speed:
+                    max_rerank_token_speed = v
+                    best_rerank_cfg = cfg
+
+    best_stt_cfg = None
+    max_stt_speedup = -1.0
+    for cfg in stt_keys:
+        if cfg in data and "stt" in data[cfg] and "stt_rtf" in data[cfg]["stt"]:
+            rtf = data[cfg]["stt"]["stt_rtf"]
+            if isinstance(rtf, (int, float)) and rtf > 0:
+                speedup_val = 1.0 / rtf
+                if speedup_val > max_stt_speedup:
+                    max_stt_speedup = speedup_val
+                    best_stt_cfg = cfg
+
+    best_tts_cfg = None
+    max_tts_char_speed = -1.0
+    for cfg in tts_keys:
+        if cfg in data and "tts" in data[cfg] and "tts_char_speed" in data[cfg]["tts"]:
+            v = data[cfg]["tts"]["tts_char_speed"]
+            if isinstance(v, (int, float)):
+                if v > max_tts_char_speed:
+                    max_tts_char_speed = v
+                    best_tts_cfg = cfg
+
+    best_image_cfg = None
+    min_image_time = 1e9
+    for cfg in image_keys:
+        if cfg in data and "image" in data[cfg] and "image_time" in data[cfg]["image"]:
+            v = data[cfg]["image"]["image_time"]
+            if isinstance(v, (int, float)):
+                if v < min_image_time:
+                    min_image_time = v
+                    best_image_cfg = cfg
+
     # Generate matrix table contents dynamically
     # 1. Chat Table Body
     chat_rows = []
-    chat_keys = [cfg for cfg in data.keys() if "chat" in data[cfg]]
-    chat_keys.sort(key=sort_config_keys)
     for cfg in chat_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'chat')} | {get_device_setting(cfg, 'chat')} | {get_special_setting(cfg, 'chat')} | {val(cfg, 'chat', 'chat_avg_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_avg_prefill', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_warmup_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_warmup_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_avg_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_image_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_image_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'chat', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'chat')} | {get_device_setting(cfg, 'chat')} | {get_special_setting(cfg, 'chat')} | {val(cfg, 'chat', 'chat_avg_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_avg_prefill', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_warmup_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_warmup_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'chat_avg_gen', '.2f', ' t/s', bold=(cfg == best_chat_cfg))} | {val(cfg, 'chat', 'chat_image_ttft', '.2f', ' ms')} | {val(cfg, 'chat', 'chat_image_gen', '.2f', ' t/s')} | {val(cfg, 'chat', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'chat', 'cpu_mem_mb', '.1f', ' MB')} |"
         chat_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in chat_keys):
         chat_rows.append(
@@ -1523,11 +1631,9 @@ def generate_report(
 
     # 2. Embedding Table Body
     embed_rows = []
-    embed_keys = [cfg for cfg in data.keys() if "embedding" in data[cfg]]
-    embed_keys.sort(key=sort_config_keys)
     for cfg in embed_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'embedding')} | {get_device_setting(cfg, 'embedding')} | {get_special_setting(cfg, 'embedding')} | {val(cfg, 'embedding', 'embed_throughput', '.2f', ' t/s')} | {val(cfg, 'embedding', 'embed_lat', '.1f', ' ms')} | {val(cfg, 'embedding', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'embedding', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'embedding')} | {get_device_setting(cfg, 'embedding')} | {get_special_setting(cfg, 'embedding')} | {val(cfg, 'embedding', 'embed_throughput', '.2f', ' t/s', bold=(cfg == best_embed_cfg))} | {val(cfg, 'embedding', 'embed_lat', '.1f', ' ms')} | {val(cfg, 'embedding', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'embedding', 'cpu_mem_mb', '.1f', ' MB')} |"
         embed_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in embed_keys):
         embed_rows.append(
@@ -1545,11 +1651,9 @@ def generate_report(
 
     # 3. Reranking Table Body
     rerank_rows = []
-    rerank_keys = [cfg for cfg in data.keys() if "rerank" in data[cfg]]
-    rerank_keys.sort(key=sort_config_keys)
     for cfg in rerank_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'rerank')} | {get_device_setting(cfg, 'rerank')} | {get_special_setting(cfg, 'rerank')} | {val(cfg, 'rerank', 'rerank_time', '.2f', ' ms')} | {val(cfg, 'rerank', 'rerank_token_speed', '.2f', ' tokens/s')} | {val(cfg, 'rerank', 'rerank_throughput', '.2f', ' docs/s')} | {val(cfg, 'rerank', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'rerank', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'rerank')} | {get_device_setting(cfg, 'rerank')} | {get_special_setting(cfg, 'rerank')} | {val(cfg, 'rerank', 'rerank_time', '.2f', ' ms')} | {val(cfg, 'rerank', 'rerank_token_speed', '.2f', ' tokens/s', bold=(cfg == best_rerank_cfg))} | {val(cfg, 'rerank', 'rerank_throughput', '.2f', ' docs/s')} | {val(cfg, 'rerank', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'rerank', 'cpu_mem_mb', '.1f', ' MB')} |"
         rerank_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in rerank_keys):
         rerank_rows.append(
@@ -1567,11 +1671,9 @@ def generate_report(
 
     # 4. Speech-to-Text Table Body
     stt_rows = []
-    stt_keys = [cfg for cfg in data.keys() if "stt" in data[cfg]]
-    stt_keys.sort(key=sort_config_keys)
     for cfg in stt_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'stt')} | {get_device_setting(cfg, 'stt')} | {get_special_setting(cfg, 'stt')} | {val(cfg, 'stt', 'stt_time', '.2f', ' s')} | {val(cfg, 'stt', 'stt_rtf', '.4f')} | {speedup(cfg, 'stt', 'stt_rtf')} | {val(cfg, 'stt', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'stt', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'stt')} | {get_device_setting(cfg, 'stt')} | {get_special_setting(cfg, 'stt')} | {val(cfg, 'stt', 'stt_time', '.2f', ' s')} | {val(cfg, 'stt', 'stt_rtf', '.4f')} | {speedup(cfg, 'stt', 'stt_rtf', bold=(cfg == best_stt_cfg))} | {val(cfg, 'stt', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'stt', 'cpu_mem_mb', '.1f', ' MB')} |"
         stt_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in stt_keys):
         stt_rows.append(
@@ -1589,11 +1691,9 @@ def generate_report(
 
     # 5. Text-to-Speech Table Body
     tts_rows = []
-    tts_keys = [cfg for cfg in data.keys() if "tts" in data[cfg]]
-    tts_keys.sort(key=sort_config_keys)
     for cfg in tts_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'tts')} | {get_device_setting(cfg, 'tts')} | {get_special_setting(cfg, 'tts')} | {val(cfg, 'tts', 'tts_time', '.2f', ' s')} | {val(cfg, 'tts', 'tts_rtf', '.4f')} | {val(cfg, 'tts', 'tts_char_speed', '.2f', ' chars/s')} | {val(cfg, 'tts', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'tts', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'tts')} | {get_device_setting(cfg, 'tts')} | {get_special_setting(cfg, 'tts')} | {val(cfg, 'tts', 'tts_time', '.2f', ' s')} | {val(cfg, 'tts', 'tts_rtf', '.4f')} | {val(cfg, 'tts', 'tts_char_speed', '.2f', ' chars/s', bold=(cfg == best_tts_cfg))} | {val(cfg, 'tts', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'tts', 'cpu_mem_mb', '.1f', ' MB')} |"
         tts_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in tts_keys):
         tts_rows.append(
@@ -1627,11 +1727,9 @@ def generate_report(
 
     # 6. Image Generation Table Body
     image_rows = []
-    image_keys = [cfg for cfg in data.keys() if "image" in data[cfg]]
-    image_keys.sort(key=sort_config_keys)
     for cfg in image_keys:
         cfg_label = cfg.upper()
-        row = f"| **{cfg_label}** | {get_test_name(cfg, 'image')} | {get_device_setting(cfg, 'image')} | {get_special_setting(cfg, 'image')} | {val(cfg, 'image', 'image_time', '.2f', ' s')} | {val(cfg, 'image', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'image', 'cpu_mem_mb', '.1f', ' MB')} |"
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'image')} | {get_device_setting(cfg, 'image')} | {get_special_setting(cfg, 'image')} | {val(cfg, 'image', 'image_time', '.2f', ' s', bold=(cfg == best_image_cfg))} | {val(cfg, 'image', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'image', 'cpu_mem_mb', '.1f', ' MB')} |"
         image_rows.append(row)
     if not any(cfg.startswith("hip") for cfg in image_keys):
         image_rows.append(
@@ -1915,6 +2013,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if args.mock:
+        # Redirect outputs to scratch directory so we don't overwrite production files during testing
+        if args.report == os.path.join(REPO_ROOT, "assistants", "local-benchmark.md"):
+            args.report = os.path.join(REPO_ROOT, "scratch", "local-benchmark-mock.md")
+        if args.data == os.path.join(REPO_ROOT, "assistants", "local-benchmark.json"):
+            args.data = os.path.join(REPO_ROOT, "scratch", "local-benchmark-mock.json")
+
     target_configs = [c.strip().lower() for c in args.configs.split(",")]
     if args.services.lower() == "all":
         target_services = ["chat", "embedding", "rerank", "stt", "tts", "image"]
@@ -2164,7 +2269,9 @@ def main() -> None:
 
                         updates = {
                             "LCHAT_DEVICE": llm_device,
-                            "LCHAT_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 999,
+                            "LCHAT_N_GPU_LAYERS": 0
+                            if run_cfg.startswith("cpu")
+                            else 999,
                             "LCHAT_N_CTX": llm_n_ctx,
                             "LCHAT_SERVE_EMBEDDINGS": "false",
                         }
@@ -2361,7 +2468,15 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "Default")))
+                                else (
+                                    "Vulkan0"
+                                    if run_cfg == "vulkan"
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "Default")
+                                    )
+                                )
                             )
                         )
                         layers = 999 if not run_cfg.startswith("cpu") else 0
@@ -2384,9 +2499,19 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "")))
+                                else (
+                                    "Vulkan0"
+                                    if run_cfg == "vulkan"
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "")
+                                    )
+                                )
                             ),
-                            "LCHAT_N_GPU_LAYERS": "999" if not run_cfg.startswith("cpu") else "0",
+                            "LCHAT_N_GPU_LAYERS": "999"
+                            if not run_cfg.startswith("cpu")
+                            else "0",
                             "LCHAT_N_CTX": str(llm_n_ctx),
                             "LCHAT_SERVE_EMBEDDINGS": "false",
                         }
@@ -2494,7 +2619,9 @@ def main() -> None:
 
                         updates = {
                             "LMBD_DEVICE": embed_device,
-                            "LMBD_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 999,
+                            "LMBD_N_GPU_LAYERS": 0
+                            if run_cfg.startswith("cpu")
+                            else 999,
                         }
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, embed_device, hip_devices_resolved
@@ -2518,7 +2645,7 @@ def main() -> None:
 
                         # Wait for server readiness
                         print(f"Waiting for llama-server on port {srv['port']}...")
-                        if not wait_for_port(srv["port"], proc=proc):
+                        if not wait_for_port(srv["port"], timeout=180, proc=proc):
                             print(
                                 f"Error: llama-server failed to start on port {srv['port']}."
                             )
@@ -2550,15 +2677,43 @@ def main() -> None:
                 if not args.mock:
                     if run_cfg != "running":
                         print("Warming up embedding model (qwen3-embedding)...")
-                        if not warmup_model(
+                        # Send a quick warmup request with a 5-second timeout to check if shaders are cached
+                        data = json.dumps(
+                            {"model": "qwen3-embedding", "input": "ping"}
+                        ).encode("utf-8")
+                        req = urllib.request.Request(
                             f"http://127.0.0.1:{srv['port']}/v1/embeddings",
-                            {
-                                "model": "qwen3-embedding",
-                                "input": "ping",
-                            },
-                        ):
+                            data=data,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+
+                        try:
+                            with urllib.request.urlopen(req, timeout=5.0) as response:
+                                response.read()
+                                cached = True
+                        except Exception:
+                            cached = False
+
+                        if not cached:
                             print(
-                                "⚠️ Warning: Model warmup timed out. Benchmark might fail."
+                                "⚠️ Shaders needed for this test are not in the cache. Generating shaders now (this will take time)..."
+                            )
+                            # Wait for up to 5 minutes (300 seconds) for shader compilation to finish
+                            success = warmup_model(
+                                f"http://127.0.0.1:{srv['port']}/v1/embeddings",
+                                {
+                                    "model": "qwen3-embedding",
+                                    "input": "ping",
+                                },
+                                timeout=300,
+                            )
+                        else:
+                            success = True
+
+                        if not success:
+                            print(
+                                "⚠️ Warning: Model warmup timed out after 5 minutes. Benchmark might fail."
                             )
                     test_args = [
                         "--benchmark",
@@ -2677,7 +2832,11 @@ def main() -> None:
                                 else (
                                     "Vulkan0"
                                     if run_cfg == "vulkan"
-                                    else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "Default"))
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "Default")
+                                    )
                                 )
                             )
                         )
@@ -2699,9 +2858,19 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "")))
+                                else (
+                                    "Vulkan0"
+                                    if run_cfg == "vulkan"
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "")
+                                    )
+                                )
                             ),
-                            "LMBD_N_GPU_LAYERS": "999" if not run_cfg.startswith("cpu") else "0",
+                            "LMBD_N_GPU_LAYERS": "999"
+                            if not run_cfg.startswith("cpu")
+                            else "0",
                             "LMBD_N_CTX": "4096" if (dev and "1" in dev) else "8192",
                         }
                     try:
@@ -2972,7 +3141,11 @@ def main() -> None:
                                 else (
                                     "Vulkan0"
                                     if run_cfg == "vulkan"
-                                    else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "Default"))
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "Default")
+                                    )
                                 )
                             )
                         )
@@ -2994,9 +3167,19 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "")))
+                                else (
+                                    "Vulkan0"
+                                    if run_cfg == "vulkan"
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "")
+                                    )
+                                )
                             ),
-                            "LRR_N_GPU_LAYERS": "99" if not run_cfg.startswith("cpu") else "0",
+                            "LRR_N_GPU_LAYERS": "99"
+                            if not run_cfg.startswith("cpu")
+                            else "0",
                         }
                     try:
                         env_dict = read_env_file(srv["env_file"])
@@ -3118,7 +3301,9 @@ def main() -> None:
 
                         updates = {
                             "LSTT_DEVICE": env_device,
-                            "LSTT_NO_GPU": "true" if run_cfg.startswith("cpu") else "false",
+                            "LSTT_NO_GPU": "true"
+                            if run_cfg.startswith("cpu")
+                            else "false",
                         }
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, stt_device, hip_devices_resolved
@@ -3216,8 +3401,12 @@ def main() -> None:
                             success = False
                             benchmark_data[cache_key]["stt"]["errors"] = error_lines
                             # Update metric with FAIL
-                            benchmark_data[cache_key]["stt"]["stt_time"] = "FAIL"
-                            benchmark_data[cache_key]["stt"]["stt_rtf"] = "FAIL"
+                            benchmark_data[cache_key]["stt"]["stt_time"] = (
+                                "-fail- VALIDATION"
+                            )
+                            benchmark_data[cache_key]["stt"]["stt_rtf"] = (
+                                "-fail- VALIDATION"
+                            )
 
                         benchmark_data[cache_key]["stt"]["bench_time_s"] = elapsed_time
                         if run_cfg == "running":
@@ -3283,11 +3472,22 @@ def main() -> None:
                             if m_idx:
                                 mock_lstt_dev = m_idx.group(0)
                         else:
-                            mock_lstt_dev = ("none" if run_cfg == "cpu" else ("BLAS" if run_cfg == "cpu-blas" else "Default")) if run_cfg.startswith("cpu") else "0"
+                            mock_lstt_dev = (
+                                (
+                                    "none"
+                                    if run_cfg == "cpu"
+                                    else (
+                                        "BLAS" if run_cfg == "cpu-blas" else "Default"
+                                    )
+                                )
+                                if run_cfg.startswith("cpu")
+                                else "0"
+                            )
 
                         benchmark_data[cache_key]["stt"]["device_setting"] = (
                             "0"
-                            if not run_cfg.startswith("cpu") and mock_lstt_dev not in ("none", "BLAS", "Default")
+                            if not run_cfg.startswith("cpu")
+                            and mock_lstt_dev not in ("none", "BLAS", "Default")
                             else mock_lstt_dev
                         )
                         benchmark_data[cache_key]["stt"]["special_setting"] = (
@@ -3304,7 +3504,9 @@ def main() -> None:
                             "LSTT_DEVICE": mock_lstt_dev
                             if not run_cfg.startswith("cpu")
                             else mock_lstt_dev,
-                            "LSTT_NO_GPU": "false" if not run_cfg.startswith("cpu") else "true",
+                            "LSTT_NO_GPU": "false"
+                            if not run_cfg.startswith("cpu")
+                            else "true",
                         }
                     try:
                         env_dict = read_env_file(srv["env_file"])
@@ -3360,9 +3562,9 @@ def main() -> None:
             else:
                 ltts_mode = "cpu" if run_cfg.startswith("cpu") else "gpu"
                 ltts_device = (
-                    "BLAS" if run_cfg == "cpu-blas"
-                    else ("none" if run_cfg == "cpu"
-                    else (dev if dev else run_cfg))
+                    "BLAS"
+                    if run_cfg == "cpu-blas"
+                    else ("none" if run_cfg == "cpu" else (dev if dev else run_cfg))
                 )
                 tts_modes_to_test = [(cache_key, ltts_mode, ltts_device)]
 
@@ -3534,7 +3736,9 @@ def main() -> None:
                                 "-m",
                                 "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
                                 "-f",
-                                "/tmp/tts_benchmark_output.wav",
+                                os.path.join(
+                                    REPO_ROOT, "scratch", "tts_benchmark_output.wav"
+                                ),
                                 "-nt",
                                 "-ng",
                             ],
@@ -3547,8 +3751,12 @@ def main() -> None:
                             )
                             success = False
                             benchmark_data[data_key]["tts"]["errors"] = error_lines
-                            benchmark_data[data_key]["tts"]["tts_duration"] = "FAIL"
-                            benchmark_data[data_key]["tts"]["tts_time"] = "FAIL"
+                            benchmark_data[data_key]["tts"]["tts_duration"] = (
+                                "-fail- VALIDATION"
+                            )
+                            benchmark_data[data_key]["tts"]["tts_time"] = (
+                                "-fail- VALIDATION"
+                            )
                         else:
                             if not check_text_match(
                                 tts_val_proc.stdout,
@@ -3560,8 +3768,12 @@ def main() -> None:
                                 )
                                 success = False
                                 benchmark_data[data_key]["tts"]["errors"] = error_lines
-                                benchmark_data[data_key]["tts"]["tts_duration"] = "FAIL"
-                                benchmark_data[data_key]["tts"]["tts_time"] = "FAIL"
+                                benchmark_data[data_key]["tts"]["tts_duration"] = (
+                                    "-fail- VALIDATION"
+                                )
+                                benchmark_data[data_key]["tts"]["tts_time"] = (
+                                    "-fail- VALIDATION"
+                                )
 
                         # Measure VRAM and RAM
                         if run_cfg == "running":
@@ -3635,7 +3847,11 @@ def main() -> None:
 
                     if run_cfg != "running":
                         dev_details = available_devices.get(ltts_device, {})
-                        if not dev_details and ltts_device not in ("cpu", "BLAS", "none"):
+                        if not dev_details and ltts_device not in (
+                            "cpu",
+                            "BLAS",
+                            "none",
+                        ):
                             dev_details = {
                                 "device_id": ltts_device,
                                 "name": "AMD Radeon RX 7900 XTX"

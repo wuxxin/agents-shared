@@ -146,8 +146,8 @@ generate_service_file() {
     --embedding \\
     --pooling mean \\
     --ctx-size ${LMBD_N_CTX} \\
-    --batch-size ${LMBD_N_CTX} \\
-    --ubatch-size ${LMBD_N_CTX} \\
+    --batch-size \$((LMBD_N_CTX / 4)) \\
+    --ubatch-size \$((LMBD_N_CTX / 4)) \\
     --alias ${LMBD_ALIAS} \\
     --threads ${LMBD_THREADS} \\
     --n-gpu-layers ${LMBD_N_GPU_LAYERS} \\
@@ -213,6 +213,8 @@ LMBD_ALIAS=qwen3-embedding
 
 # Context size (default: 8192)
 LMBD_N_CTX=8192
+# Note: Batch size and micro-batch size are automatically set to 1/4 of LMBD_N_CTX
+# (e.g. 2048) at startup to significantly reduce memory footprint.
 
 # Number of layers to offload to GPU (all=999)
 LMBD_N_GPU_LAYERS=999
@@ -361,8 +363,8 @@ cmd_exec() {
         --embedding
         --pooling mean
         --ctx-size "${LMBD_N_CTX}"
-        --batch-size "${LMBD_N_CTX}"
-        --ubatch-size "${LMBD_N_CTX}"
+        --batch-size "$((LMBD_N_CTX / 4))"
+        --ubatch-size "$((LMBD_N_CTX / 4))"
         --alias "${LMBD_ALIAS}"
         --threads "${LMBD_THREADS}"
         --n-gpu-layers "${LMBD_N_GPU_LAYERS}"

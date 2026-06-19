@@ -39,6 +39,10 @@ ruff format scripts/*.py
 mypy scripts/*.py
 # Run a single test
 pytest tests/test_file.py::test_function -v
+# Run local benchmark in mock/test mode (does not overwrite production reports)
+python3 scripts/run-local-benchmark.py --configs hip,vulkan,cpu --services all --mock
+# Run local benchmark with custom temporary paths (does not overwrite production reports)
+python3 scripts/run-local-benchmark.py --configs hip,vulkan,cpu --services all --report scratch/test.md --data scratch/test.json
 ```
 
 ### Shell Scripts
@@ -86,4 +90,5 @@ shfmt -i 4 -w scripts/*.sh
   - if bwrapped, do not use systemd to start/stop or otherwise introspect running systemd services.
   - if bwrapped, expect hat the real $HOME of the $USER eg. ~/.local is not available to you, you have a bwrapped ~/.local 
 - whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, `run-local-benchmark.py` must be updated with any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
+- When running `run-local-benchmark.py` for testing or validation (e.g., in `--mock` mode), make sure you do not overwrite the production report/JSON files in `assistants/`. The benchmark script automatically redirects outputs to `scratch/local-benchmark-mock.md` and `scratch/local-benchmark-mock.json` when the `--mock` flag is set. If running other custom test scenarios, explicitly supply temporary paths via `--report scratch/test.md --data scratch/test.json`.
 
