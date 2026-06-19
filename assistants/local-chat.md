@@ -126,13 +126,13 @@ When using a combined backend build (such as `libggml-git-hip`), the service sup
 You can configure the target device using the `LCHAT_DEVICE` environment variable. Run `./local-chat.sh edit` (or edit `~/.config/systemd/user/local-chat.env` directly) and configure the device:
 
 ```bash
-# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LCHAT_DEVICE="hip"
-# LCHAT_DEVICE="vulkan"
-# LCHAT_DEVICE="cpu"
-# LCHAT_DEVICE="openblas"
+# LCHAT_DEVICE="ROCm0"
+# LCHAT_DEVICE="Vulkan0"
+# LCHAT_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LCHAT_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 ```
 
 To list all available devices on your system, run:

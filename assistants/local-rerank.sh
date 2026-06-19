@@ -222,7 +222,8 @@ LRR_N_GPU_LAYERS=0
 # To force a specific backend device, uncomment one of the options below:
 # LRR_DEVICE="ROCm0"
 # LRR_DEVICE="Vulkan0"
-# LRR_DEVICE="BLAS"
+# LRR_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LRR_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 
 # Number of threads to use
 LRR_THREADS=8
@@ -472,12 +473,16 @@ cmd_test() {
 
     local benchmark=false
     local repeat=""
+    local extra_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
         --repeat)
             shift
             repeat="$1"
+            ;;
+        *)
+            extra_args+=("$1")
             ;;
         esac
         shift
@@ -512,7 +517,8 @@ cmd_test() {
             --url "${base_url}" \
             --model "${alias}" \
             --context "${context_file}" \
-            "${repeat_arg[@]}"
+            "${repeat_arg[@]}" \
+            "${extra_args[@]}"
         return 0
     fi
 

@@ -179,14 +179,13 @@ LSTT_MODEL_ALIAS="whisper-1"
 # Number of threads to use for CPU-bound computations/preprocessing
 LSTT_THREADS=8
 
-# GPU/CPU backend device to use (run 'whisper-cli --list-devices' for valid names)
-# By default, whisper-server automatically selects the best available device.
-# To force a specific backend device, uncomment one of the options below:
-# LSTT_DEVICE="ROCm0"
-# LSTT_DEVICE="Vulkan0"
-# LSTT_DEVICE="BLAS"
+# GPU device ID to use (e.g. 0, 1, etc.)
+# By default, whisper-server automatically selects the best available GPU device.
+# To force a specific GPU, uncomment the option below and specify the integer device ID:
+# LSTT_DEVICE="0"
 
 # To run inference on CPU instead of GPU, uncomment the following line:
+# (This automatically utilizes the best CPU/BLAS backend available)
 # LSTT_NO_GPU=true
 
 # Inference API endpoint path (default: /v1/audio/transcriptions for OpenAI-compatibility)
@@ -486,12 +485,16 @@ cmd_test() {
 
     local benchmark=false
     local repeat=""
+    local extra_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
         --repeat)
             shift
             repeat="$1"
+            ;;
+        *)
+            extra_args+=("$1")
             ;;
         esac
         shift
@@ -522,7 +525,8 @@ cmd_test() {
             --url "http://${host}:${port}" \
             --model "${model_alias}" \
             --audio "${audio_file}" \
-            "${repeat_arg[@]}"
+            "${repeat_arg[@]}" \
+            "${extra_args[@]}"
         return 0
     fi
 

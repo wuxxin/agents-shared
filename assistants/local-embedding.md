@@ -102,13 +102,13 @@ When using a combined backend build (such as `libggml-git-hip`), the service sup
 You can configure the target device using the `LMBD_DEVICE` environment variable. Run `./local-embedding.sh edit` (or edit `~/.config/systemd/user/local-embedding.env` directly) and configure the device:
 
 ```bash
-# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
 # To force a specific backend device, uncomment one of the options below:
-# LMBD_DEVICE="hip"
-# LMBD_DEVICE="vulkan"
-# LMBD_DEVICE="cpu"
-# LMBD_DEVICE="openblas"
+# LMBD_DEVICE="ROCm0"
+# LMBD_DEVICE="Vulkan0"
+# LMBD_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LMBD_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 ```
 
 To list all available devices on your system, run:

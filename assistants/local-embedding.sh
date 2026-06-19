@@ -224,7 +224,8 @@ LMBD_N_GPU_LAYERS=999
 # To force a specific backend device, uncomment one of the options below:
 # LMBD_DEVICE="ROCm0"
 # LMBD_DEVICE="Vulkan0"
-# LMBD_DEVICE="BLAS"
+# LMBD_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LMBD_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 
 # Number of threads to use (default: 4)
 LMBD_THREADS=4

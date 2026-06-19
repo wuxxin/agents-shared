@@ -256,7 +256,8 @@ LTTS_MODE="cpu"
 # To force a specific backend device, uncomment one of the options below:
 # LTTS_DEVICE="ROCm0"
 # LTTS_DEVICE="Vulkan0"
-# LTTS_DEVICE="BLAS"
+# LTTS_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LTTS_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 
 # Number of threads to use for computations
 LTTS_THREADS=8
@@ -547,6 +548,7 @@ cmd_test() {
     local play=false
     local benchmark=false
     local repeat=""
+    local extra_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
         --play) play=true ;;
@@ -554,6 +556,9 @@ cmd_test() {
         --repeat)
             shift
             repeat="$1"
+            ;;
+        *)
+            extra_args+=("$1")
             ;;
         esac
         shift
@@ -574,7 +579,8 @@ cmd_test() {
             --url "http://${host}:${port}" \
             --model "qwen3-tts" \
             --output-dir "/tmp" \
-            "${repeat_arg[@]}"
+            "${repeat_arg[@]}" \
+            "${extra_args[@]}"
         return 0
     fi
 

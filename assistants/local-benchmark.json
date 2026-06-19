@@ -1,97 +1,82 @@
 {
     "cpu": {
         "chat": {
-            "bench_time_s": 15.4,
+            "bench_time_s": 156.52177095413208,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 61.43,
-            "chat_avg_gen": 9.77,
-            "chat_avg_prefill": 248.94,
-            "chat_avg_ttft": 124690.86,
-            "chat_image_gen": 10.69,
-            "chat_image_ttft": 2340.54,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 16.35,
-            "chat_warmup_prefill": 75.31,
+            "chat_avg_decode": 47.49,
+            "chat_avg_gen": 12.64,
+            "chat_avg_prefill": 36.5,
+            "chat_avg_ttft": 40361.53,
+            "chat_image_gen": 12.8,
+            "chat_image_ttft": 42711.75,
+            "chat_warmup_comp": 179.0,
+            "chat_warmup_gen": 13.3,
+            "chat_warmup_prefill": 29.0,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 252.27,
-            "cpu_mem_mb": 0.0,
-            "device_details": {
-                "device_id": "",
-                "free_mem_mib": 92380.0,
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 56261.0
-            },
-            "device_setting": "Default",
+            "chat_warmup_ttft": 655.06,
+            "cpu_mem_mb": 21392.48828125,
+            "device_setting": "none",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
-                "LCHAT_DEVICE": "",
-                "LCHAT_EXTRA_ARGS": "--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
+                "LCHAT_DEVICE": "none",
+                "LCHAT_EXTRA_ARGS": "--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "12019",
-                "LCHAT_N_GPU_LAYERS": "0",
+                "LCHAT_N_CTX": 12019,
+                "LCHAT_N_GPU_LAYERS": 0,
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
                 "LCHAT_SERVE_EMBEDDINGS": "false",
                 "LCHAT_THREADS": "4"
             },
-            "errors": [
-                "error: simulated configuration mismatch",
-                "error: mock error line 2"
-            ],
-            "gpu_mem_mb": 0.0,
+            "errors": [],
+            "gpu_mem_mb": 1168.73828125,
             "special_setting": "Layers: 0 (Context: 5%)",
             "test_name": "chat_cpu"
         },
         "embedding": {
-            "bench_time_s": 10.2,
-            "cpu_mem_mb": 2500.0,
-            "device_details": {
-                "device_id": "",
-                "free_mem_mib": 92380.0,
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 56261.0
-            },
-            "device_setting": "BLAS",
-            "embed_lat": 6792.8,
-            "embed_p50": 7371.0,
-            "embed_p95": 8176.1,
-            "embed_throughput": 1115.4,
-            "embed_time_s": 40.77,
+            "bench_time_s": 82.78637671470642,
+            "cpu_mem_mb": 11898.07421875,
+            "device_setting": "none",
+            "embed_lat": 82506.8,
+            "embed_p50": 82506.8,
+            "embed_p95": 82506.8,
+            "embed_throughput": 99.29,
+            "embed_time_s": 82.51,
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LMBD_ALIAS": "qwen3-embedding",
-                "LMBD_DEVICE": "",
-                "LMBD_EXTRA_ARGS": "--flash-attn on",
+                "LMBD_DEVICE": "none",
+                "LMBD_EXTRA_ARGS": "",
                 "LMBD_HOST": "127.0.0.1",
                 "LMBD_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
-                "LMBD_N_CTX": "8192",
-                "LMBD_N_GPU_LAYERS": "0",
+                "LMBD_N_CTX": 8192,
+                "LMBD_N_GPU_LAYERS": 0,
                 "LMBD_PORT": "50082",
                 "LMBD_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 0.0,
+            "gpu_mem_mb": 0.0546875,
             "special_setting": "Layers: 0",
             "test_name": "embedding_cpu"
         },
         "image": {
-            "bench_time_s": 12.5,
-            "cpu_mem_mb": 9500.0,
-            "device_details": {
-                "device_id": "cpu",
-                "free_mem_mib": 92380.0,
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 56261.0
-            },
+            "bench_time_s": 270.0712080001831,
+            "cpu_mem_mb": 10141.2109375,
             "device_setting": "cpu",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LIMG_BACKEND": "cpu",
                 "LIMG_CFG_SCALE": "1.0",
                 "LIMG_EXTRA_ARGS": "--fa",
                 "LIMG_HOST": "127.0.0.1",
-                "LIMG_LLM": "/home/wuxxin/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
                 "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
                 "LIMG_PORT": "50100",
                 "LIMG_STEPS": "8",
@@ -99,45 +84,43 @@
                 "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
             },
             "errors": [],
-            "gpu_mem_mb": 0.0,
-            "image_time": 11.03,
+            "gpu_mem_mb": 0.0546875,
+            "image_time": 269.95419763500104,
             "special_setting": "Steps: 8",
             "test_name": "image_cpu"
         },
         "rerank": {
-            "bench_time_s": 8.7,
-            "cpu_mem_mb": 600.0,
-            "device_details": {
-                "device_id": "",
-                "free_mem_mib": 92380.0,
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 56261.0
-            },
-            "device_setting": "BLAS",
+            "bench_time_s": 11.139830827713013,
+            "cpu_mem_mb": 2716.68359375,
+            "device_setting": "none",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LRR_ALIAS": "qwen3-reranker",
-                "LRR_DEVICE": "",
-                "LRR_EXTRA_ARGS": "--flash-attn on",
+                "LRR_DEVICE": "none",
+                "LRR_EXTRA_ARGS": "--flash-attn auto",
                 "LRR_HOST": "127.0.0.1",
                 "LRR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
                 "LRR_N_CTX": "8192",
-                "LRR_N_GPU_LAYERS": "0",
+                "LRR_N_GPU_LAYERS": 0,
                 "LRR_PORT": "50086",
                 "LRR_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 0.0,
-            "rerank_throughput": 0.09,
-            "rerank_time": 115927.15,
-            "rerank_token_speed": 29.66,
+            "gpu_mem_mb": 0.0546875,
+            "rerank_throughput": 0.0,
+            "rerank_time": 0.0,
+            "rerank_token_speed": 0.0,
             "special_setting": "Layers: 0",
             "test_name": "rerank_cpu"
         },
         "stt": {
-            "bench_time_s": 5.3,
-            "cpu_mem_mb": 1200.0,
-            "device_setting": "Default",
+            "bench_time_s": 13.850912809371948,
+            "cpu_mem_mb": 1102.3359375,
+            "device_setting": "none",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LSTT_DEVICE": "",
                 "LSTT_EXTRA_ARGS": "",
                 "LSTT_HOST": "127.0.0.1",
@@ -149,19 +132,21 @@
                 "LSTT_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 0.0,
+            "gpu_mem_mb": 0.0546875,
             "special_setting": "No GPU",
-            "stt_rtf": 0.1444,
-            "stt_text": "",
-            "stt_time": 6.52,
+            "stt_rtf": 0.30316685391104936,
+            "stt_text": "As campaigns go, the one in 1892 was not a particularly\n exciting one.\n Both candidates had already served a term in the White\n House.\n Cleveland from 1884 to 1888, Harrison succeeding him and\n running now for re-election.\n Both men were well known to the voters.\n It was a time of industrial expansion for the nation, and\n there were no earth-shaking issues at stake,\n save that of governmental spending, which even in a\n prosperous year made many voters dissatisfied with the\n Harrison administration.\n Cleveland sat out the campaign at his home in Buzzards Bay,\n suffering from the gout and making an occasional speech.\n Harrison, whose wife had just died, stayed in the White\n House.",
+            "stt_time": 13.642508425997221,
             "test_name": "stt_cpu"
         },
         "tts": {
-            "bench_time_s": 25.1,
-            "cpu_mem_mb": 800.0,
-            "device_setting": "cpu",
+            "bench_time_s": 32.08575797080994,
+            "cpu_mem_mb": 2985.328125,
+            "device_setting": "none",
             "env": {
-                "LTTS_DEVICE": "cpu",
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LTTS_DEVICE": "none",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
                 "LTTS_MODE": "cpu",
@@ -170,29 +155,201 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 0.0,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 0.05078125,
             "special_setting": "mode: cpu",
             "test_name": "tts_cpu",
-            "tts_char_speed": 2.59,
-            "tts_duration": 15.74,
-            "tts_rtf": 6.7113,
-            "tts_time": 105.61
+            "tts_char_speed": 8.584058527407556,
+            "tts_duration": "FAIL",
+            "tts_rtf": 1.637166635730274,
+            "tts_time": "FAIL"
+        }
+    },
+    "cpu-blas": {
+        "chat": {
+            "bench_time_s": 157.9159710407257,
+            "chat_avg_comp": 600.0,
+            "chat_avg_decode": 47.79,
+            "chat_avg_gen": 12.56,
+            "chat_avg_prefill": 35.8,
+            "chat_avg_ttft": 41145.79,
+            "chat_image_gen": 12.73,
+            "chat_image_ttft": 42880.55,
+            "chat_warmup_comp": 179.0,
+            "chat_warmup_gen": 13.21,
+            "chat_warmup_prefill": 28.98,
+            "chat_warmup_prompt": 19.0,
+            "chat_warmup_ttft": 655.6,
+            "cpu_mem_mb": 21394.21875,
+            "device_setting": "BLAS",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LCHAT_ALIAS": "qwen3",
+                "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
+                "LCHAT_DEVICE": "BLAS",
+                "LCHAT_EXTRA_ARGS": "--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
+                "LCHAT_HOST": "127.0.0.1",
+                "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
+                "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
+                "LCHAT_N_CTX": 12019,
+                "LCHAT_N_GPU_LAYERS": 0,
+                "LCHAT_PARALLEL": "3",
+                "LCHAT_PORT": "50080",
+                "LCHAT_SERVE_EMBEDDINGS": "false",
+                "LCHAT_THREADS": "4"
+            },
+            "errors": [],
+            "gpu_mem_mb": 1168.73828125,
+            "special_setting": "Layers: 0 (Context: 5%)",
+            "test_name": "chat_cpu-blas"
+        },
+        "embedding": {
+            "bench_time_s": 83.98073625564575,
+            "cpu_mem_mb": 11898.8046875,
+            "device_setting": "BLAS",
+            "embed_lat": 83693.3,
+            "embed_p50": 83693.3,
+            "embed_p95": 83693.3,
+            "embed_throughput": 97.88,
+            "embed_time_s": 83.69,
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LMBD_ALIAS": "qwen3-embedding",
+                "LMBD_DEVICE": "BLAS",
+                "LMBD_EXTRA_ARGS": "",
+                "LMBD_HOST": "127.0.0.1",
+                "LMBD_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
+                "LMBD_N_CTX": 8192,
+                "LMBD_N_GPU_LAYERS": 0,
+                "LMBD_PORT": "50082",
+                "LMBD_THREADS": "4"
+            },
+            "errors": [],
+            "gpu_mem_mb": 0.05078125,
+            "special_setting": "Layers: 999",
+            "test_name": "embedding_cpu-blas"
+        },
+        "image": {
+            "bench_time_s": 281.1265637874603,
+            "cpu_mem_mb": 10138.73828125,
+            "device_setting": "cpu",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LIMG_BACKEND": "cpu",
+                "LIMG_CFG_SCALE": "1.0",
+                "LIMG_EXTRA_ARGS": "--fa",
+                "LIMG_HOST": "127.0.0.1",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
+                "LIMG_PORT": "50100",
+                "LIMG_STEPS": "8",
+                "LIMG_THREADS": "8",
+                "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
+            },
+            "errors": [],
+            "gpu_mem_mb": 0.05859375,
+            "image_time": 281.0399543320091,
+            "special_setting": "Steps: 8",
+            "test_name": "image_cpu-blas"
+        },
+        "rerank": {
+            "bench_time_s": 11.241575002670288,
+            "cpu_mem_mb": 2714.875,
+            "device_setting": "BLAS",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LRR_ALIAS": "qwen3-reranker",
+                "LRR_DEVICE": "BLAS",
+                "LRR_EXTRA_ARGS": "--flash-attn auto",
+                "LRR_HOST": "127.0.0.1",
+                "LRR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
+                "LRR_N_CTX": "8192",
+                "LRR_N_GPU_LAYERS": 0,
+                "LRR_PORT": "50086",
+                "LRR_THREADS": "8"
+            },
+            "errors": [],
+            "gpu_mem_mb": 0.0546875,
+            "rerank_throughput": 0.0,
+            "rerank_time": 0.0,
+            "rerank_token_speed": 0.0,
+            "special_setting": "Layers: 99",
+            "test_name": "rerank_cpu-blas"
+        },
+        "stt": {
+            "bench_time_s": 13.550998449325562,
+            "cpu_mem_mb": 1102.36328125,
+            "device_setting": "BLAS",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LSTT_DEVICE": "",
+                "LSTT_EXTRA_ARGS": "",
+                "LSTT_HOST": "127.0.0.1",
+                "LSTT_INFERENCE_PATH": "/v1/audio/transcriptions",
+                "LSTT_MODEL": "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
+                "LSTT_MODEL_ALIAS": "whisper-1",
+                "LSTT_NO_GPU": "true",
+                "LSTT_PORT": "50090",
+                "LSTT_THREADS": "8"
+            },
+            "errors": [],
+            "gpu_mem_mb": 0.0546875,
+            "special_setting": "No GPU",
+            "stt_rtf": 0.29796301979998435,
+            "stt_text": "As campaigns go, the one in 1892 was not a particularly\n exciting one.\n Both candidates had already served a term in the White\n House.\n Cleveland from 1884 to 1888, Harrison succeeding him and\n running now for re-election.\n Both men were well known to the voters.\n It was a time of industrial expansion for the nation, and\n there were no earth-shaking issues at stake,\n save that of governmental spending, which even in a\n prosperous year made many voters dissatisfied with the\n Harrison administration.\n Cleveland sat out the campaign at his home in Buzzards Bay,\n suffering from the gout and making an occasional speech.\n Harrison, whose wife had just died, stayed in the White\n House.",
+            "stt_time": 13.408335890999297,
+            "test_name": "stt_cpu-blas"
+        },
+        "tts": {
+            "bench_time_s": 31.588948488235474,
+            "cpu_mem_mb": 3030.453125,
+            "device_setting": "BLAS",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
+                "LTTS_DEVICE": "BLAS",
+                "LTTS_EXTRA_ARGS": "",
+                "LTTS_HOST": "127.0.0.1",
+                "LTTS_MODE": "cpu",
+                "LTTS_MODEL": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf",
+                "LTTS_PORT": "50095",
+                "LTTS_THREADS": "8",
+                "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
+            },
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 0.0546875,
+            "special_setting": "mode: cpu",
+            "test_name": "tts_cpu-blas",
+            "tts_char_speed": 8.709970512406514,
+            "tts_duration": "FAIL",
+            "tts_rtf": 1.6201474565807752,
+            "tts_time": "FAIL"
         }
     },
     "cpu-hip-ROCm0": {
         "tts": {
-            "bench_time_s": 25.1,
-            "cpu_mem_mb": 1500.0,
+            "bench_time_s": 18.127764225006104,
+            "cpu_mem_mb": 1148.15625,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 24576.0,
+                "free_mem_mib": 24560.0,
                 "gfx_version": "gfx1100",
                 "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
+                "total_mem_mib": 24560.0
             },
             "device_setting": "ROCm0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LTTS_DEVICE": "ROCm0",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
@@ -202,14 +359,16 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 850.0,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 3645.84375,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-hip-ROCm0",
-            "tts_char_speed": 11.67,
-            "tts_duration": 15.74,
-            "tts_rtf": 1.4914,
-            "tts_time": 23.47
+            "tts_char_speed": 15.250417845417235,
+            "tts_duration": "FAIL",
+            "tts_rtf": 0.9215179782402291,
+            "tts_time": "FAIL"
         }
     },
     "cpu-hip-ROCm1": {
@@ -243,17 +402,19 @@
     },
     "cpu-vulkan-Vulkan0": {
         "tts": {
-            "bench_time_s": 25.1,
-            "cpu_mem_mb": 1500.0,
+            "bench_time_s": 47.87551808357239,
+            "cpu_mem_mb": 681.046875,
             "device_details": {
                 "device_id": "Vulkan0",
-                "free_mem_mib": 4096.0,
+                "free_mem_mib": 16384.0,
                 "gfx_version": "gfx90c",
                 "name": "AMD Radeon Graphics",
-                "total_mem_mib": 4096.0
+                "total_mem_mib": 16384.0
             },
             "device_setting": "Vulkan0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LTTS_DEVICE": "Vulkan0",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
@@ -263,20 +424,22 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 850.0,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 3333.54296875,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-vulkan-Vulkan0",
-            "tts_char_speed": 11.67,
-            "tts_duration": 15.74,
-            "tts_rtf": 1.4914,
-            "tts_time": 23.47
+            "tts_char_speed": 5.739791109312099,
+            "tts_duration": "FAIL",
+            "tts_rtf": 2.448440013335587,
+            "tts_time": "FAIL"
         }
     },
     "cpu-vulkan-Vulkan1": {
         "tts": {
-            "bench_time_s": 6.509483337402344,
-            "cpu_mem_mb": 678.109375,
+            "bench_time_s": 6.208740711212158,
+            "cpu_mem_mb": 661.54296875,
             "device_details": {
                 "device_id": "Vulkan1",
                 "free_mem_mib": 24560.0,
@@ -297,108 +460,110 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 3328.3671875,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 3289.41796875,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-vulkan-Vulkan1",
-            "tts_char_speed": 42.9,
-            "tts_duration": 19.1,
-            "tts_rtf": 0.3345,
-            "tts_time": 6.39
+            "tts_char_speed": 45.09643166828483,
+            "tts_duration": "FAIL",
+            "tts_rtf": 0.3263635143921428,
+            "tts_time": "FAIL"
         }
     },
     "hip-ROCm0": {
         "chat": {
-            "bench_time_s": 15.4,
+            "bench_time_s": 62.39786982536316,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 13.65,
-            "chat_avg_gen": 43.96,
-            "chat_avg_prefill": 1120.25,
-            "chat_avg_ttft": 27709.08,
-            "chat_image_gen": 48.12,
-            "chat_image_ttft": 520.12,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 73.59,
-            "chat_warmup_prefill": 338.9,
+            "chat_avg_decode": 9.13,
+            "chat_avg_gen": 65.73,
+            "chat_avg_prefill": 641.7,
+            "chat_avg_ttft": 48373.39,
+            "chat_image_gen": 98.68,
+            "chat_image_ttft": 1454.27,
+            "chat_warmup_comp": 158.0,
+            "chat_warmup_gen": 102.13,
+            "chat_warmup_prefill": 78.62,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 56.06,
-            "cpu_mem_mb": 1200.0,
+            "chat_warmup_ttft": 241.67,
+            "cpu_mem_mb": 2018.75390625,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 24576.0,
+                "free_mem_mib": 24560.0,
                 "gfx_version": "gfx1100",
                 "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
+                "total_mem_mib": 24560.0
             },
             "device_setting": "ROCm0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_DEVICE": "ROCm0",
-                "LCHAT_EXTRA_ARGS": "--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
+                "LCHAT_EXTRA_ARGS": "--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "240384",
-                "LCHAT_N_GPU_LAYERS": "999",
+                "LCHAT_N_CTX": 240384,
+                "LCHAT_N_GPU_LAYERS": 999,
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
                 "LCHAT_SERVE_EMBEDDINGS": "false",
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 14520.0,
+            "gpu_mem_mb": 20668.328125,
             "special_setting": "Layers: 999",
             "test_name": "chat_hip-ROCm0"
         },
         "embedding": {
-            "bench_time_s": 10.2,
-            "cpu_mem_mb": 350.0,
+            "bench_time_s": 25.63349676132202,
+            "cpu_mem_mb": 10116.0234375,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 24576.0,
+                "free_mem_mib": 24560.0,
                 "gfx_version": "gfx1100",
                 "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
+                "total_mem_mib": 24560.0
             },
             "device_setting": "ROCm0",
-            "embed_lat": 1509.5,
-            "embed_p50": 1638.0,
-            "embed_p95": 1816.9,
-            "embed_throughput": 5019.28,
-            "embed_time_s": 9.06,
+            "embed_lat": 4210.2,
+            "embed_p50": 4571.7,
+            "embed_p95": 5326.5,
+            "embed_throughput": 1799.58,
+            "embed_time_s": 25.26,
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LMBD_ALIAS": "qwen3-embedding",
                 "LMBD_DEVICE": "ROCm0",
-                "LMBD_EXTRA_ARGS": "--flash-attn on",
+                "LMBD_EXTRA_ARGS": "",
                 "LMBD_HOST": "127.0.0.1",
                 "LMBD_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
-                "LMBD_N_CTX": "8192",
-                "LMBD_N_GPU_LAYERS": "999",
+                "LMBD_N_CTX": 8192,
+                "LMBD_N_GPU_LAYERS": 999,
                 "LMBD_PORT": "50082",
                 "LMBD_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 2620.0,
+            "gpu_mem_mb": 7119.72265625,
             "special_setting": "Layers: 999",
             "test_name": "embedding_hip-ROCm0"
         },
         "image": {
-            "bench_time_s": 12.5,
-            "cpu_mem_mb": 500.0,
-            "device_details": {
-                "device_id": "rocm0",
-                "free_mem_mib": 24000.0,
-                "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
-            },
+            "bench_time_s": 6.324949502944946,
+            "cpu_mem_mb": 887.8046875,
             "device_setting": "rocm0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LIMG_BACKEND": "rocm0",
                 "LIMG_CFG_SCALE": "1.0",
                 "LIMG_EXTRA_ARGS": "--fa",
                 "LIMG_HOST": "127.0.0.1",
-                "LIMG_LLM": "/home/wuxxin/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
                 "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
                 "LIMG_PORT": "50100",
                 "LIMG_STEPS": "8",
@@ -406,53 +571,57 @@
                 "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
             },
             "errors": [],
-            "gpu_mem_mb": 8500.0,
-            "image_time": 2.45,
+            "gpu_mem_mb": 10758.58203125,
+            "image_time": 6.183610733001842,
             "special_setting": "Steps: 8",
             "test_name": "image_hip-ROCm0"
         },
         "rerank": {
-            "bench_time_s": 8.7,
-            "cpu_mem_mb": 250.0,
+            "bench_time_s": 1.2026805877685547,
+            "cpu_mem_mb": 827.59375,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 24576.0,
+                "free_mem_mib": 24560.0,
                 "gfx_version": "gfx1100",
                 "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
+                "total_mem_mib": 24560.0
             },
             "device_setting": "ROCm0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LRR_ALIAS": "qwen3-reranker",
                 "LRR_DEVICE": "ROCm0",
-                "LRR_EXTRA_ARGS": "--flash-attn on",
+                "LRR_EXTRA_ARGS": "--flash-attn auto",
                 "LRR_HOST": "127.0.0.1",
                 "LRR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
                 "LRR_N_CTX": "8192",
-                "LRR_N_GPU_LAYERS": "99",
+                "LRR_N_GPU_LAYERS": 99,
                 "LRR_PORT": "50086",
                 "LRR_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 680.0,
-            "rerank_throughput": 0.39,
-            "rerank_time": 25761.59,
-            "rerank_token_speed": 133.49,
+            "gpu_mem_mb": 2719.55078125,
+            "rerank_throughput": 0.0,
+            "rerank_time": 0.0,
+            "rerank_token_speed": 0.0,
             "special_setting": "Layers: 99",
             "test_name": "rerank_hip-ROCm0"
         },
         "stt": {
-            "bench_time_s": 5.3,
-            "cpu_mem_mb": 450.0,
+            "bench_time_s": 3.906247615814209,
+            "cpu_mem_mb": 490.53515625,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 24576.0,
+                "free_mem_mib": 24560.0,
                 "gfx_version": "gfx1100",
                 "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
+                "total_mem_mib": 24560.0
             },
             "device_setting": "0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LSTT_DEVICE": "0",
                 "LSTT_EXTRA_ARGS": "",
                 "LSTT_HOST": "127.0.0.1",
@@ -463,26 +632,30 @@
                 "LSTT_PORT": "50090",
                 "LSTT_THREADS": "8"
             },
-            "errors": [],
-            "gpu_mem_mb": 1820.0,
+            "errors": [
+                "Warning: STT Transcription text mismatch (garbled output)"
+            ],
+            "gpu_mem_mb": 1264.328125,
             "special_setting": "Use GPU",
-            "stt_rtf": 0.0321,
-            "stt_text": "",
-            "stt_time": 1.45,
+            "stt_rtf": "FAIL",
+            "stt_text": "of the.\n the.\n the.\n the.\n the.\n the.\n the.\n The.\n The.\n The.\n The.\n The.\n The.\n The.\n The.\n.\n The.\n.\n The.\n The.\n pensando in order.\n ways for me Everyone \u043a\u043e\u0433\u0434\u0430.\n at all.\n P'\n,enin.\n\u00e4che, \uc5c6 as Ta.\n She's a Bar number on the",
+            "stt_time": "FAIL",
             "test_name": "stt_hip-ROCm0"
         },
         "tts": {
-            "bench_time_s": 25.1,
-            "cpu_mem_mb": 0.0,
+            "bench_time_s": 17.326881170272827,
+            "cpu_mem_mb": 1130.77734375,
             "device_details": {
                 "device_id": "ROCm0",
-                "free_mem_mib": 24576.0,
+                "free_mem_mib": 24560.0,
                 "gfx_version": "gfx1100",
                 "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
+                "total_mem_mib": 24560.0
             },
             "device_setting": "ROCm0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "HIP_VISIBLE_DEVICES": "0",
                 "LTTS_DEVICE": "ROCm0",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
@@ -492,109 +665,105 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 0.0,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 3585.84765625,
             "special_setting": "mode: gpu",
             "test_name": "tts_hip-ROCm0",
-            "tts_char_speed": 11.67,
-            "tts_duration": 15.74,
-            "tts_rtf": 1.4914,
-            "tts_time": 23.47
+            "tts_char_speed": 15.945701999100354,
+            "tts_duration": "FAIL",
+            "tts_rtf": 0.9190473661509103,
+            "tts_time": "FAIL"
         }
     },
     "special": {},
     "vulkan-Vulkan0": {
         "chat": {
-            "bench_time_s": 15.4,
+            "bench_time_s": 148.7182834148407,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 15.7,
-            "chat_avg_gen": 38.23,
-            "chat_avg_prefill": 974.13,
-            "chat_avg_ttft": 31865.44,
-            "chat_image_gen": 41.84,
-            "chat_image_ttft": 598.14,
-            "chat_warmup_comp": 148.0,
-            "chat_warmup_gen": 63.99,
-            "chat_warmup_prefill": 294.7,
+            "chat_avg_decode": 47.66,
+            "chat_avg_gen": 12.59,
+            "chat_avg_prefill": 99.19,
+            "chat_avg_ttft": 58637.45,
+            "chat_image_gen": 13.38,
+            "chat_image_ttft": 15953.69,
+            "chat_warmup_comp": 183.0,
+            "chat_warmup_gen": 13.6,
+            "chat_warmup_prefill": 11.61,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 64.47,
-            "cpu_mem_mb": 1250.0,
+            "chat_warmup_ttft": 1635.91,
+            "cpu_mem_mb": 1214.72265625,
             "device_details": {
                 "device_id": "Vulkan0",
-                "free_mem_mib": 4096.0,
+                "free_mem_mib": 16384.0,
                 "gfx_version": "gfx90c",
                 "name": "AMD Radeon Graphics",
-                "total_mem_mib": 4096.0
+                "total_mem_mib": 16384.0
             },
             "device_setting": "Vulkan0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CHAT_TEMPLATE_ARGS": "--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_DEVICE": "Vulkan0",
-                "LCHAT_EXTRA_ARGS": "--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
+                "LCHAT_EXTRA_ARGS": "--flash-attn auto --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4",
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ_ARGS": "--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
                 "LCHAT_MODEL": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf",
-                "LCHAT_N_CTX": "48076",
-                "LCHAT_N_GPU_LAYERS": "999",
+                "LCHAT_N_CTX": 48076,
+                "LCHAT_N_GPU_LAYERS": 999,
                 "LCHAT_PARALLEL": "3",
                 "LCHAT_PORT": "50080",
                 "LCHAT_SERVE_EMBEDDINGS": "false",
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 14850.0,
+            "gpu_mem_mb": 14468.32421875,
             "special_setting": "Layers: 999 (Context: 20%)",
             "test_name": "chat_vulkan-Vulkan0"
         },
         "embedding": {
-            "bench_time_s": 10.2,
-            "cpu_mem_mb": 360.0,
-            "device_details": {
-                "device_id": "Vulkan0",
-                "free_mem_mib": 4096.0,
-                "gfx_version": "gfx90c",
-                "name": "AMD Radeon Graphics",
-                "total_mem_mib": 4096.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "Vulkan0",
-            "embed_lat": 1735.9,
-            "embed_p50": 1883.7,
-            "embed_p95": 2089.4,
-            "embed_throughput": 4364.59,
-            "embed_time_s": 10.42,
+            "embed_lat": "-fail-",
+            "embed_throughput": "-fail-",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LMBD_ALIAS": "qwen3-embedding",
                 "LMBD_DEVICE": "Vulkan0",
-                "LMBD_EXTRA_ARGS": "--flash-attn on",
+                "LMBD_EXTRA_ARGS": "",
                 "LMBD_HOST": "127.0.0.1",
                 "LMBD_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
-                "LMBD_N_CTX": "8192",
-                "LMBD_N_GPU_LAYERS": "999",
+                "LMBD_N_CTX": 8192,
+                "LMBD_N_GPU_LAYERS": 999,
                 "LMBD_PORT": "50082",
                 "LMBD_THREADS": "4"
             },
-            "errors": [],
-            "gpu_mem_mb": 2650.0,
+            "errors": [
+                "\u001b[34m0.04.152.667\u001b[0m \u001b[35mW ggml_vulkan: Failed to allocate pinned memory (Requested buffer size exceeds device buffer size limit: ErrorOutOfDeviceMemory)",
+                "terminate called after throwing an instance of 'vk::DeviceLostError'",
+                "what():  vk::Queue::submit: ErrorDeviceLost"
+            ],
+            "gpu_mem_mb": "-fail-",
             "special_setting": "Layers: 999",
             "test_name": "embedding_vulkan-Vulkan0"
         },
         "image": {
-            "bench_time_s": 12.5,
-            "cpu_mem_mb": 550.0,
-            "device_details": {
-                "device_id": "vulkan0,te=cpu",
-                "free_mem_mib": 24000.0,
-                "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24576.0
-            },
+            "bench_time_s": 93.83927488327026,
+            "cpu_mem_mb": 3807.48828125,
             "device_setting": "vulkan0,te=cpu",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LIMG_BACKEND": "vulkan0,te=cpu",
                 "LIMG_CFG_SCALE": "1.0",
                 "LIMG_EXTRA_ARGS": "--fa",
                 "LIMG_HOST": "127.0.0.1",
-                "LIMG_LLM": "/home/wuxxin/models/image/Qwen3-4B-Q4_K_M.gguf",
+                "LIMG_LLM": "/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf",
                 "LIMG_MODEL": "/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf",
                 "LIMG_PORT": "50100",
                 "LIMG_STEPS": "8",
@@ -602,53 +771,57 @@
                 "LIMG_VAE": "/data/public/machine-learning/models/image/ae.safetensors"
             },
             "errors": [],
-            "gpu_mem_mb": 8800.0,
-            "image_time": 2.82,
+            "gpu_mem_mb": 6368.17578125,
+            "image_time": 93.7387701599946,
             "special_setting": "Steps: 8",
             "test_name": "image_vulkan-Vulkan0"
         },
         "rerank": {
-            "bench_time_s": 8.7,
-            "cpu_mem_mb": 260.0,
+            "bench_time_s": 5.307455062866211,
+            "cpu_mem_mb": 247.96875,
             "device_details": {
                 "device_id": "Vulkan0",
-                "free_mem_mib": 4096.0,
+                "free_mem_mib": 16384.0,
                 "gfx_version": "gfx90c",
                 "name": "AMD Radeon Graphics",
-                "total_mem_mib": 4096.0
+                "total_mem_mib": 16384.0
             },
             "device_setting": "Vulkan0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LRR_ALIAS": "qwen3-reranker",
                 "LRR_DEVICE": "Vulkan0",
-                "LRR_EXTRA_ARGS": "--flash-attn on",
+                "LRR_EXTRA_ARGS": "--flash-attn auto",
                 "LRR_HOST": "127.0.0.1",
                 "LRR_MODEL": "/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf",
                 "LRR_N_CTX": "8192",
-                "LRR_N_GPU_LAYERS": "99",
+                "LRR_N_GPU_LAYERS": 99,
                 "LRR_PORT": "50086",
                 "LRR_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 720.0,
-            "rerank_throughput": 0.34,
-            "rerank_time": 29625.83,
-            "rerank_token_speed": 116.08,
+            "gpu_mem_mb": 1574.6953125,
+            "rerank_throughput": 0.0,
+            "rerank_time": 0.0,
+            "rerank_token_speed": 0.0,
             "special_setting": "Layers: 99",
             "test_name": "rerank_vulkan-Vulkan0"
         },
         "stt": {
-            "bench_time_s": 5.3,
-            "cpu_mem_mb": 460.0,
+            "bench_time_s": 5.707384824752808,
+            "cpu_mem_mb": 127.15234375,
             "device_details": {
                 "device_id": "Vulkan0",
-                "free_mem_mib": 4096.0,
+                "free_mem_mib": 16384.0,
                 "gfx_version": "gfx90c",
                 "name": "AMD Radeon Graphics",
-                "total_mem_mib": 4096.0
+                "total_mem_mib": 16384.0
             },
             "device_setting": "0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LSTT_DEVICE": "0",
                 "LSTT_EXTRA_ARGS": "",
                 "LSTT_HOST": "127.0.0.1",
@@ -660,25 +833,27 @@
                 "LSTT_THREADS": "8"
             },
             "errors": [],
-            "gpu_mem_mb": 1950.0,
+            "gpu_mem_mb": 808.8203125,
             "special_setting": "Use GPU",
-            "stt_rtf": 0.0369,
-            "stt_text": "",
-            "stt_time": 1.67,
+            "stt_rtf": 0.12243447113335909,
+            "stt_text": "As campaigns go, the one in 1892 was not a particularly\n exciting one.\n Both candidates had already served a term in the White\n House.\n Cleveland from 1884 to 1888, Harrison succeeding him and\n running now for re-election.\n Both men were well known to the voters.\n It was a time of industrial expansion for the nation,\n and there were no earth-shaking issues at stake,\n save that of governmental spending, which even in a\n prosperous year\n made many voters dissatisfied with the Harrison\n administration.\n Cleveland sat out the campaign at his home in Buzzards Bay,\n suffering from the gout and making an occasional speech.\n Harrison, whose wife had just died,",
+            "stt_time": 5.509551201001159,
             "test_name": "stt_vulkan-Vulkan0"
         },
         "tts": {
-            "bench_time_s": 25.1,
-            "cpu_mem_mb": 0.0,
+            "bench_time_s": 47.777668476104736,
+            "cpu_mem_mb": 678.8359375,
             "device_details": {
                 "device_id": "Vulkan0",
-                "free_mem_mib": 4096.0,
+                "free_mem_mib": 16384.0,
                 "gfx_version": "gfx90c",
                 "name": "AMD Radeon Graphics",
-                "total_mem_mib": 4096.0
+                "total_mem_mib": 16384.0
             },
             "device_setting": "Vulkan0",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
+                "HIP_VISIBLE_DEVICES": "",
                 "LTTS_DEVICE": "Vulkan0",
                 "LTTS_EXTRA_ARGS": "",
                 "LTTS_HOST": "127.0.0.1",
@@ -688,32 +863,34 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 0.0,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 3352.51171875,
             "special_setting": "mode: gpu",
             "test_name": "tts_vulkan-Vulkan0",
-            "tts_char_speed": 11.67,
-            "tts_duration": 15.74,
-            "tts_rtf": 1.4914,
-            "tts_time": 23.47
+            "tts_char_speed": 5.751520938734985,
+            "tts_duration": "FAIL",
+            "tts_rtf": 2.453513900563612,
+            "tts_time": "FAIL"
         }
     },
     "vulkan-Vulkan1": {
         "chat": {
-            "bench_time_s": 24.13171148300171,
+            "bench_time_s": 24.2322678565979,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 5.34,
-            "chat_avg_gen": 112.3,
-            "chat_avg_prefill": 2138.06,
-            "chat_avg_ttft": 14518.28,
-            "chat_image_gen": 124.09,
-            "chat_image_ttft": 1429.09,
+            "chat_avg_decode": 5.36,
+            "chat_avg_gen": 111.94,
+            "chat_avg_prefill": 2133.81,
+            "chat_avg_ttft": 14547.24,
+            "chat_image_gen": 124.14,
+            "chat_image_ttft": 1430.75,
             "chat_warmup_comp": 173.0,
-            "chat_warmup_gen": 125.1,
-            "chat_warmup_prefill": 134.93,
+            "chat_warmup_gen": 124.99,
+            "chat_warmup_prefill": 134.67,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 140.81,
-            "cpu_mem_mb": 1358.2109375,
+            "chat_warmup_ttft": 141.09,
+            "cpu_mem_mb": 1358.484375,
             "device_details": {
                 "device_id": "Vulkan1",
                 "free_mem_mib": 24560.0,
@@ -740,7 +917,7 @@
                 "LCHAT_THREADS": "4"
             },
             "errors": [],
-            "gpu_mem_mb": 19197.6171875,
+            "gpu_mem_mb": 19197.62109375,
             "special_setting": "Layers: 999",
             "test_name": "chat_vulkan-Vulkan1"
         },
@@ -769,8 +946,8 @@
             "test_name": "embedding_vulkan-Vulkan1"
         },
         "image": {
-            "bench_time_s": 6.726512908935547,
-            "cpu_mem_mb": 441.13671875,
+            "bench_time_s": 6.729291915893555,
+            "cpu_mem_mb": 418.8125,
             "device_setting": "vulkan1",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
@@ -788,7 +965,7 @@
             },
             "errors": [],
             "gpu_mem_mb": 9879.01953125,
-            "image_time": 0.0,
+            "image_time": 6.614259884998319,
             "special_setting": "Steps: 8",
             "test_name": "image_vulkan-Vulkan1"
         },
@@ -818,8 +995,8 @@
             "test_name": "rerank_vulkan-Vulkan1"
         },
         "stt": {
-            "bench_time_s": 0.7016384601593018,
-            "cpu_mem_mb": 127.86328125,
+            "bench_time_s": 0.7018373012542725,
+            "cpu_mem_mb": 128.140625,
             "device_details": {
                 "device_id": "Vulkan1",
                 "free_mem_mib": 24560.0,
@@ -844,13 +1021,14 @@
             "errors": [],
             "gpu_mem_mb": 828.00390625,
             "special_setting": "Use GPU",
-            "stt_rtf": 0.0114,
-            "stt_time": 0.51,
+            "stt_rtf": 0.011603681355740667,
+            "stt_text": "As campaigns go, the one in 1892 was not a particularly\n exciting one.\n Both candidates had already served a term in the White\n House.\n Cleveland from 1884 to 1888, Harrison succeeding him and\n running now for re-election.\n Both men were well known to the voters.\n It was a time of industrial expansion for the nation,\n and there were no earth-shaking issues at stake,\n save that of governmental spending, which even in a\n prosperous year\n made many voters dissatisfied with the Harrison\n administration.\n Cleveland sat out the campaign at his home in Buzzards Bay,\n suffering from the gout and making an occasional speech.\n Harrison, whose wife had just died,",
+            "stt_time": 0.5221656610083301,
             "test_name": "stt_vulkan-Vulkan1"
         },
         "tts": {
-            "bench_time_s": 6.409156084060669,
-            "cpu_mem_mb": 669.75,
+            "bench_time_s": 6.710019826889038,
+            "cpu_mem_mb": 697.4296875,
             "device_details": {
                 "device_id": "Vulkan1",
                 "free_mem_mib": 24560.0,
@@ -871,14 +1049,16 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 3302.390625,
+            "errors": [
+                "Warning: TTS Audio validation failed (STT process error)"
+            ],
+            "gpu_mem_mb": 3399.77734375,
             "special_setting": "mode: gpu",
             "test_name": "tts_vulkan-Vulkan1",
-            "tts_char_speed": 43.72,
-            "tts_duration": 18.78,
-            "tts_rtf": 0.3338,
-            "tts_time": 6.27
+            "tts_char_speed": 41.91450144733842,
+            "tts_duration": "FAIL",
+            "tts_rtf": 0.3272342146108405,
+            "tts_time": "FAIL"
         }
     }
 }

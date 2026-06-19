@@ -157,7 +157,7 @@ def get_visible_devices_env(
 
     Returns a tuple of (hip_visible, cuda_visible) values.
     """
-    if run_cfg in ("vulkan", "cpu"):
+    if run_cfg == "vulkan" or run_cfg.startswith("cpu"):
         return "", ""
 
     is_hip = run_cfg == "hip"
@@ -345,7 +345,7 @@ def get_process_rss_mem_mb(pattern: str) -> float:
 
 def get_mock_gpu_mem(mode: str, config: str) -> float:
     """Get realistic mock GPU memory values for validation runs."""
-    if config == "cpu":
+    if config.startswith("cpu"):
         return 0.0
 
     lookup_cfg = config
@@ -379,6 +379,8 @@ def get_mock_cpu_mem(mode: str, config: str) -> float:
         lookup_cfg = "special-hybrid"
     elif config == "running":
         lookup_cfg = "hip"
+    elif config.startswith("cpu"):
+        lookup_cfg = "cpu"
 
     mems = {
         "chat": {"hip": 1200.0, "vulkan": 1250.0, "cpu": 0.0},
@@ -1119,13 +1121,24 @@ def parse_chat_output(output: str) -> Dict[str, float]:
     return res
 
 
+def extract_json_block(output: str) -> Optional[Dict[str, Any]]:
+    """Find and load the first JSON block (surrounded by curly braces) in output."""
+    match = re.search(r"(\{.*\})", output, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except Exception:
+            pass
+    return None
+
+
 def parse_image_output(output: str) -> Dict[str, Any]:
     """Parse image benchmark stats from stdout."""
     res = {}
-    try:
-        data = json.loads(output)
+    data = extract_json_block(output)
+    if data is not None:
         res["image_time"] = float(data.get("image_time", 0.0))
-    except json.JSONDecodeError:
+    else:
         res["image_time"] = extract_metric(
             r"Avg Generation Time:\s*([\d\.]+)\s*seconds", output
         )
@@ -1161,30 +1174,38 @@ def parse_rerank_output(output: str) -> Dict[str, float]:
 def parse_stt_output(output: str) -> Dict[str, Any]:
     """Parse STT benchmark stats from stdout."""
     res = {}
-    try:
-        data = json.loads(output)
+    data = extract_json_block(output)
+    if data is not None:
         res["stt_time"] = float(data.get("stt_time", 0.0))
         res["stt_rtf"] = float(data.get("stt_rtf", 0.0))
         res["stt_text"] = data.get("stt_text", "")
-    except json.JSONDecodeError:
+    else:
         res["stt_time"] = extract_metric(
             r"Avg Transcribe Time:\s*([\d\.]+)\s*seconds", output
         )
         res["stt_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
-        res["stt_text"] = ""
+        text_match = re.search(
+            r"--- Transcription Snippet \(Repeat 1\) ---\s*\n(.*?)\n={2,}",
+            output,
+            re.DOTALL,
+        )
+        if text_match:
+            res["stt_text"] = text_match.group(1).strip()
+        else:
+            res["stt_text"] = ""
     return res
 
 
 def parse_tts_output(output: str) -> Dict[str, Any]:
     """Parse TTS benchmark stats from stdout."""
     res = {}
-    try:
-        data = json.loads(output)
+    data = extract_json_block(output)
+    if data is not None:
         res["tts_duration"] = float(data.get("tts_duration", 0.0))
         res["tts_time"] = float(data.get("tts_time", 0.0))
         res["tts_rtf"] = float(data.get("tts_rtf", 0.0))
         res["tts_char_speed"] = float(data.get("tts_char_speed", 0.0))
-    except json.JSONDecodeError:
+    else:
         res["tts_duration"] = extract_metric(
             r"Audio Duration:\s*([\d\.]+)\s*seconds", output
         )
@@ -1428,10 +1449,10 @@ def generate_report(
             if len(parts) > 2:
                 return parts[2]
             return "Vulkan1"
+        elif cfg_lower == "cpu-blas":
+            return "BLAS"
         elif cfg_lower == "cpu":
-            return (
-                "BLAS" if mode in ("chat", "embedding", "rerank") else "Default (CPU)"
-            )
+            return "none"
         return "Default"
 
     def get_special_setting(cfg: str, mode: str) -> str:
@@ -1462,7 +1483,9 @@ def generate_report(
         elif cfg_lower.startswith("vulkan"):
             return (1, cfg_lower)
         elif cfg_lower == "cpu":
-            return (2, cfg_lower)
+            return (2, "cpu-0-none")
+        elif cfg_lower == "cpu-blas":
+            return (2, "cpu-1-blas")
         elif cfg_lower.startswith("cpu-hip"):
             return (3, cfg_lower)
         elif cfg_lower.startswith("cpu-vulkan"):
@@ -1492,7 +1515,7 @@ def generate_report(
         chat_rows.append(
             "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg == "cpu" for cfg in chat_keys):
+    if not any(cfg.startswith("cpu") for cfg in chat_keys):
         chat_rows.append(
             "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
@@ -1514,7 +1537,7 @@ def generate_report(
         embed_rows.append(
             "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg == "cpu" for cfg in embed_keys):
+    if not any(cfg.startswith("cpu") for cfg in embed_keys):
         embed_rows.append(
             "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
@@ -1536,7 +1559,7 @@ def generate_report(
         rerank_rows.append(
             "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg == "cpu" for cfg in rerank_keys):
+    if not any(cfg.startswith("cpu") for cfg in rerank_keys):
         rerank_rows.append(
             "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
@@ -1558,7 +1581,7 @@ def generate_report(
         stt_rows.append(
             "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg == "cpu" for cfg in stt_keys):
+    if not any(cfg.startswith("cpu") for cfg in stt_keys):
         stt_rows.append(
             "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
@@ -1580,7 +1603,7 @@ def generate_report(
         tts_rows.append(
             "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg == "cpu" for cfg in tts_keys):
+    if not any(cfg.startswith("cpu") for cfg in tts_keys):
         tts_rows.append(
             "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
@@ -1618,7 +1641,7 @@ def generate_report(
         image_rows.append(
             "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
-    if not any(cfg == "cpu" for cfg in image_keys):
+    if not any(cfg.startswith("cpu") for cfg in image_keys):
         image_rows.append(
             "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
         )
@@ -1842,8 +1865,8 @@ def main() -> None:
     parser.add_argument(
         "--configs",
         type=str,
-        default="hip,vulkan,cpu,special",
-        help="Comma-separated list of hardware configurations to test, or 'running' to test already running services (default: hip,vulkan,cpu,special)",
+        default="hip,vulkan,cpu,cpu-blas,special",
+        help="Comma-separated list of hardware configurations to test, or 'running' to test already running services (default: hip,vulkan,cpu,cpu-blas,special)",
     )
     parser.add_argument(
         "--services",
@@ -2092,13 +2115,14 @@ def main() -> None:
                     device_map = {
                         "hip": dev if dev else "ROCm0",
                         "vulkan": dev if dev else "Vulkan0",
-                        "cpu": "",
+                        "cpu": "none",
+                        "cpu-blas": "BLAS",
                     }
                     llm_device = device_map.get(run_cfg, run_cfg)
 
                     # Determine context scaling fraction and context size
                     fraction = 1.0
-                    if run_cfg == "cpu":
+                    if run_cfg.startswith("cpu"):
                         fraction = 0.05
                     elif dev:
                         gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
@@ -2140,7 +2164,7 @@ def main() -> None:
 
                         updates = {
                             "LCHAT_DEVICE": llm_device,
-                            "LCHAT_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
+                            "LCHAT_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 999,
                             "LCHAT_N_CTX": llm_n_ctx,
                             "LCHAT_SERVE_EMBEDDINGS": "false",
                         }
@@ -2244,7 +2268,7 @@ def main() -> None:
                             "unknown"
                             if run_cfg == "running"
                             else (
-                                f"Layers: {0 if run_cfg == 'cpu' else 999}"
+                                f"Layers: {0 if run_cfg.startswith('cpu') else 999}"
                                 + (
                                     f" (Context: {fraction * 100:.0f}%)"
                                     if fraction < 1.0
@@ -2290,7 +2314,7 @@ def main() -> None:
                                 "unknown"
                             )
                         else:
-                            layers = 999 if run_cfg != "cpu" else 0
+                            layers = 999 if not run_cfg.startswith("cpu") else 0
                             special_setting = f"Layers: {layers}"
                             if fraction < 1.0:
                                 special_setting += f" (Context: {fraction * 100:.0f}%)"
@@ -2322,7 +2346,7 @@ def main() -> None:
                                 "error: simulated configuration mismatch",
                                 "error: mock error line 2",
                             ]
-                            if run_cfg == "cpu"
+                            if run_cfg.startswith("cpu")
                             else []
                         )
                         benchmark_data[cache_key]["chat"]["gpu_mem_mb"] = (
@@ -2337,10 +2361,10 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else "Default")
+                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "Default")))
                             )
                         )
-                        layers = 999 if run_cfg != "cpu" else 0
+                        layers = 999 if not run_cfg.startswith("cpu") else 0
                         special_setting = f"Layers: {layers}"
                         if fraction < 1.0:
                             special_setting += f" (Context: {fraction * 100:.0f}%)"
@@ -2360,9 +2384,9 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else "")
+                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "")))
                             ),
-                            "LCHAT_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
+                            "LCHAT_N_GPU_LAYERS": "999" if not run_cfg.startswith("cpu") else "0",
                             "LCHAT_N_CTX": str(llm_n_ctx),
                             "LCHAT_SERVE_EMBEDDINGS": "false",
                         }
@@ -2431,7 +2455,8 @@ def main() -> None:
                     device_map = {
                         "hip": dev if dev else "ROCm0",
                         "vulkan": dev if dev else "Vulkan0",
-                        "cpu": "BLAS",
+                        "cpu": "none",
+                        "cpu-blas": "BLAS",
                     }
                     embed_device = device_map.get(run_cfg, run_cfg)
 
@@ -2469,7 +2494,7 @@ def main() -> None:
 
                         updates = {
                             "LMBD_DEVICE": embed_device,
-                            "LMBD_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 999,
+                            "LMBD_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 999,
                         }
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, embed_device, hip_devices_resolved
@@ -2540,7 +2565,7 @@ def main() -> None:
                         "--repeat",
                         "1",
                     ]
-                    if run_cfg == "cpu":
+                    if run_cfg.startswith("cpu"):
                         test_args.extend(["--fraction-chunks", "0.1"])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
@@ -2567,7 +2592,7 @@ def main() -> None:
                             else (embed_device if embed_device else "Default"),
                             "unknown"
                             if run_cfg == "running"
-                            else f"Layers: {0 if run_cfg == 'cpu' else 999}",
+                            else f"Layers: {0 if run_cfg.startswith('cpu') else 999}",
                             srv["env_file"],
                             error_lines,
                             updates,
@@ -2652,12 +2677,12 @@ def main() -> None:
                                 else (
                                     "Vulkan0"
                                     if run_cfg == "vulkan"
-                                    else ("BLAS" if run_cfg == "cpu" else "Default")
+                                    else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "Default"))
                                 )
                             )
                         )
                         benchmark_data[cache_key]["embedding"]["special_setting"] = (
-                            f"Layers: {999 if run_cfg != 'cpu' else 0}"
+                            f"Layers: {999 if not run_cfg.startswith('cpu') else 0}"
                         )
 
                     benchmark_data[cache_key]["embedding"]["bench_time_s"] = 10.2
@@ -2674,9 +2699,9 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else "")
+                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "")))
                             ),
-                            "LMBD_N_GPU_LAYERS": "999" if run_cfg != "cpu" else "0",
+                            "LMBD_N_GPU_LAYERS": "999" if not run_cfg.startswith("cpu") else "0",
                             "LMBD_N_CTX": "4096" if (dev and "1" in dev) else "8192",
                         }
                     try:
@@ -2745,7 +2770,8 @@ def main() -> None:
                     device_map = {
                         "hip": dev if dev else "ROCm0",
                         "vulkan": dev if dev else "Vulkan0",
-                        "cpu": "BLAS",
+                        "cpu": "none",
+                        "cpu-blas": "BLAS",
                     }
                     lrr_device = device_map.get(run_cfg, run_cfg)
 
@@ -2782,7 +2808,7 @@ def main() -> None:
                         baseline_vram = get_gpu_memory_mb(lrr_device)
                         updates = {
                             "LRR_DEVICE": lrr_device,
-                            "LRR_N_GPU_LAYERS": 0 if run_cfg == "cpu" else 99,
+                            "LRR_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 99,
                         }
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, lrr_device, hip_devices_resolved
@@ -2946,12 +2972,12 @@ def main() -> None:
                                 else (
                                     "Vulkan0"
                                     if run_cfg == "vulkan"
-                                    else ("BLAS" if run_cfg == "cpu" else "Default")
+                                    else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "Default"))
                                 )
                             )
                         )
                         benchmark_data[cache_key]["rerank"]["special_setting"] = (
-                            f"Layers: {99 if run_cfg != 'cpu' else 0}"
+                            f"Layers: {99 if not run_cfg.startswith('cpu') else 0}"
                         )
 
                     benchmark_data[cache_key]["rerank"]["bench_time_s"] = 8.7
@@ -2968,9 +2994,9 @@ def main() -> None:
                             else (
                                 "ROCm0"
                                 if run_cfg == "hip"
-                                else ("Vulkan0" if run_cfg == "vulkan" else "")
+                                else ("Vulkan0" if run_cfg == "vulkan" else ("BLAS" if run_cfg == "cpu-blas" else ("none" if run_cfg == "cpu" else "")))
                             ),
-                            "LRR_N_GPU_LAYERS": "99" if run_cfg != "cpu" else "0",
+                            "LRR_N_GPU_LAYERS": "99" if not run_cfg.startswith("cpu") else "0",
                         }
                     try:
                         env_dict = read_env_file(srv["env_file"])
@@ -3076,16 +3102,23 @@ def main() -> None:
                     else:
                         baseline_vram = get_gpu_memory_mb(stt_device)
 
-                        # Extract numeric index if dev is e.g. "ROCm1" -> "1"
                         if run_cfg in ("vulkan", "hip") and dev:
                             idx_match = re.search(r"\d+", dev)
                             lstt_device = idx_match.group(0) if idx_match else "0"
+                        elif run_cfg == "cpu-blas":
+                            lstt_device = "BLAS"
+                        elif run_cfg == "cpu":
+                            lstt_device = "none"
                         else:
                             lstt_device = ""
 
+                        # whisper-server requires integer device IDs.
+                        # For CPU runs, LSTT_DEVICE must be empty.
+                        env_device = "" if run_cfg.startswith("cpu") else lstt_device
+
                         updates = {
-                            "LSTT_DEVICE": lstt_device,
-                            "LSTT_NO_GPU": "true" if run_cfg == "cpu" else "false",
+                            "LSTT_DEVICE": env_device,
+                            "LSTT_NO_GPU": "true" if run_cfg.startswith("cpu") else "false",
                         }
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, stt_device, hip_devices_resolved
@@ -3216,7 +3249,7 @@ def main() -> None:
                         benchmark_data[cache_key]["stt"]["special_setting"] = (
                             "unknown"
                             if run_cfg == "running"
-                            else ("No GPU" if run_cfg == "cpu" else "Use GPU")
+                            else ("No GPU" if run_cfg.startswith("cpu") else "Use GPU")
                         )
                         env_dict = read_env_file(srv["env_file"])
                         env_dict.update(updates)
@@ -3250,15 +3283,15 @@ def main() -> None:
                             if m_idx:
                                 mock_lstt_dev = m_idx.group(0)
                         else:
-                            mock_lstt_dev = "Default" if run_cfg == "cpu" else "0"
+                            mock_lstt_dev = ("none" if run_cfg == "cpu" else ("BLAS" if run_cfg == "cpu-blas" else "Default")) if run_cfg.startswith("cpu") else "0"
 
                         benchmark_data[cache_key]["stt"]["device_setting"] = (
                             "0"
-                            if run_cfg != "cpu" and mock_lstt_dev != "Default"
+                            if not run_cfg.startswith("cpu") and mock_lstt_dev not in ("none", "BLAS", "Default")
                             else mock_lstt_dev
                         )
                         benchmark_data[cache_key]["stt"]["special_setting"] = (
-                            "No GPU" if run_cfg == "cpu" else "Use GPU"
+                            "No GPU" if run_cfg.startswith("cpu") else "Use GPU"
                         )
 
                     benchmark_data[cache_key]["stt"]["bench_time_s"] = 5.3
@@ -3269,9 +3302,9 @@ def main() -> None:
                     else:
                         mock_updates = {
                             "LSTT_DEVICE": mock_lstt_dev
-                            if run_cfg != "cpu" and mock_lstt_dev != "Default"
-                            else "",
-                            "LSTT_NO_GPU": "false" if run_cfg != "cpu" else "true",
+                            if not run_cfg.startswith("cpu")
+                            else mock_lstt_dev,
+                            "LSTT_NO_GPU": "false" if not run_cfg.startswith("cpu") else "true",
                         }
                     try:
                         env_dict = read_env_file(srv["env_file"])
@@ -3325,8 +3358,12 @@ def main() -> None:
                 ltts_device = "running on host"
                 tts_modes_to_test = [(cache_key, ltts_mode, ltts_device)]
             else:
-                ltts_mode = "cpu" if run_cfg == "cpu" else "gpu"
-                ltts_device = "cpu" if run_cfg == "cpu" else (dev if dev else run_cfg)
+                ltts_mode = "cpu" if run_cfg.startswith("cpu") else "gpu"
+                ltts_device = (
+                    "BLAS" if run_cfg == "cpu-blas"
+                    else ("none" if run_cfg == "cpu"
+                    else (dev if dev else run_cfg))
+                )
                 tts_modes_to_test = [(cache_key, ltts_mode, ltts_device)]
 
             for data_key, ltts_mode, ltts_device in tts_modes_to_test:
@@ -3499,6 +3536,7 @@ def main() -> None:
                                 "-f",
                                 "/tmp/tts_benchmark_output.wav",
                                 "-nt",
+                                "-ng",
                             ],
                             capture_output=True,
                             text=True,
@@ -3597,7 +3635,7 @@ def main() -> None:
 
                     if run_cfg != "running":
                         dev_details = available_devices.get(ltts_device, {})
-                        if not dev_details and ltts_device != "cpu":
+                        if not dev_details and ltts_device not in ("cpu", "BLAS", "none"):
                             dev_details = {
                                 "device_id": ltts_device,
                                 "name": "AMD Radeon RX 7900 XTX"
@@ -3641,7 +3679,7 @@ def main() -> None:
                 if run_cfg == "running":
                     img_backend = "running on host"
                 else:
-                    if run_cfg == "cpu":
+                    if run_cfg.startswith("cpu"):
                         img_backend = "cpu"
                     else:
                         target_dev = dev if dev else "vulkan1"

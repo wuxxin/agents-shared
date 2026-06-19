@@ -66,13 +66,13 @@ When using a combined backend build (such as `qwen3-tts.cpp-git-ggml-hip`), the 
 You can configure the target device using the `LTTS_DEVICE` environment variable. Run `./local-text-to-speech.sh edit` (or edit `~/.config/systemd/user/local-text-to-speech.env` directly) and configure the device:
 
 ```bash
-# GPU/CPU backend device to use (e.g. hip, vulkan, cpu, openblas)
+# GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, qwen3-tts-server selects the default available backend.
 # To force a specific backend device, uncomment one of the options below:
-# LTTS_DEVICE="hip"
-# LTTS_DEVICE="vulkan"
-# LTTS_DEVICE="cpu"
-# LTTS_DEVICE="openblas"
+# LTTS_DEVICE="ROCm0"
+# LTTS_DEVICE="Vulkan0"
+# LTTS_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LTTS_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 ```
 
 

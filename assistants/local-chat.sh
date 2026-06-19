@@ -256,7 +256,8 @@ LCHAT_N_GPU_LAYERS=999
 # To force a specific backend device, uncomment one of the options below:
 # LCHAT_DEVICE="ROCm0"
 # LCHAT_DEVICE="Vulkan0"
-# LCHAT_DEVICE="BLAS"
+# LCHAT_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LCHAT_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 
 # Number of threads to use (default: 4)
 # Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
