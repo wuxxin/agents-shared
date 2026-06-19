@@ -136,7 +136,7 @@ base_url = "http://localhost:50095/v1"
 
 ## Finding Configuration Environment Variables
 
-LibreFang does **not** feature an arbitrary, dynamic environment override mapping mechanism (such as `ZEROCLAW_*` or `MOLTIS_*` key-path parsers). Instead, configuration parameters must be managed directly in the TOML configuration file or via the CLI.
+LibreFang does **not** feature an arbitrary, dynamic environment override mapping mechanism (such as `ZEROCLAW_*` key-path parsers). Instead, configuration parameters must be managed directly in the TOML configuration file or via the CLI.
 
 ### Locating Configuration Properties in Source Code
 1. **Source Schema Definition**: Open the configuration types module at [types.rs](scratch/librefang/crates/librefang-types/src/config/types.rs) and inspect the `UserConfig` struct (and its nested types).

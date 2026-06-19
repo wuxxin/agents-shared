@@ -16,7 +16,6 @@ This document tracks repository activity, commit counts, merge frequency, and re
 | **picoclaw** | 29,438 | 4,224 | `main` | 2026-06-18 | `picoclaw-git` @ `0.3.0.nightly.20260617.a16a1e15-1` | 12 | **Active** |
 | **nanoclaw** | 29,921 | 12,888 | `main` | 2026-06-18 | — | — | **Active** |
 | **librefang** | 303 | 61 | `main` | 2026-06-19 | — | — | **Active** |
-| **moltis** | 2,748 | 323 | `main` | 2026-06-05 | — | — | **Inactive** |
 
 #### Weekly Activity Metrics (Human vs Bot)
 | Assistant Repo | Commits / Week | Lines Added (Human/Bot) | Lines Deleted (Human/Bot) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) |
@@ -28,7 +27,6 @@ This document tracks repository activity, commit counts, merge frequency, and re
 | **picoclaw** | **37** / 5 | 4.3k / 43 | 752 / 44 | 26 | 1 | 38.5 |
 | **nanoclaw** | **38** / 14 | 3.6k / 32 | 915 / 32 | 24 | 1 | 35.0 |
 | **librefang** | **43** / 11 | 24.9k / 836 | 2.1k / 755 | 0 | 2 | 113.5 |
-| **moltis** | **0** / 0 | 0 / 0 | 0 / 0 | 0 | 0 | 21.5 |
 
 ---
 
@@ -154,12 +152,6 @@ This document tracks repository activity, commit counts, merge frequency, and re
     - `github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>` (Bot): 5 commits, +81/-65 lines
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
 * **Recent Focus**: Dashboard enhancements: enlarged TOML view, enabled editing of agent system prompts and tools with reset-to-default, added a central prompt repository page with version tracking and agent bindings, and docked the agent panel as a resizable sidebar with an expanded prompt editor. CLI and runtime: localized CLI console output and the TUI launcher, added auto system locale support, and configured the cron-management tool to disable jobs rather than delete them. CI and dependencies: raised Windows test-lane timeout to 90 minutes to handle vendored OpenSSL cold builds, pinned vendored OpenSSL to Strawberry Perl on the Windows lane, resolved `webauthn-rs` linking failures on Windows CI, and updated dependencies.
-
-### Moltis (`moltis-org/moltis`)
-* **Status**: Inactive (Total: 0 commits [0 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +0/-0 (Human), +0/-0 (Bot). **Not installed as system package.**
-* **Contributors (according to last 7 days commits)** (Total: 0 Humans, 0 Bots):
-* **Recent Focus**: Stable with no active commits this week. Last commit remains 2026-06-05.
-
 ---
 
 ## 📋 Instruction Guide: Recreating this Analysis
@@ -175,7 +167,6 @@ Here is the list of active upstream GitHub repositories and their corresponding 
 | :--- | :--- | :--- | :--- |
 | **LibreFang** | `librefang/librefang` | `librefang-git` | AUR `-git` |
 | **ZeroClaw** | `zeroclaw-labs/zeroclaw` | `zeroclaw-git` | AUR `-git` |
-| **Moltis** | `moltis-org/moltis` | `moltis-git` | AUR `-git` |
 | **IronClaw** | `nearai/ironclaw` | `ironclaw-git` | AUR `-git` |
 | **Hermes Agent** | `NousResearch/hermes-agent` | — | not installed |
 | **NanoBot** | `HKUDS/nanobot` | — | not installed |
@@ -187,7 +178,7 @@ For each assistant check if installed as a system package and record the version
 
 ```bash
 # Probe all known package names and print installed versions
-for pkg in librefang-git moltis-git zeroclaw-git ironclaw-git nanoclaw-git picoclaw-git; do
+for pkg in librefang-git zeroclaw-git ironclaw-git nanoclaw-git picoclaw-git; do
   ver=$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}')
   if [ -n "$ver" ]; then
     echo "$pkg: $ver"
@@ -291,7 +282,6 @@ from typing import Dict, Any
 PKG_MAP = {
     "librefang": "librefang-git",
     "zeroclaw": "zeroclaw-git",
-    "moltis": "moltis-git",
     "ironclaw": "ironclaw-git",
     "hermes-agent": "",
     "nanobot": "",

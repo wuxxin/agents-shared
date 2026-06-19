@@ -18,7 +18,6 @@ import tiktoken
 # ==============================================================================
 # Repository URL containing the skills to download.
 # Alternative repositories:
-# - Moltis: "https://github.com/moltis-org/moltis.git"
 # - Zeroclaw: "https://github.com/zeroclaw-labs/zeroclaw.git"
 DEFAULT_REPO = "https://github.com/NousResearch/hermes-agent.git"
 

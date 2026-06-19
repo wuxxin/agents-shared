@@ -18,7 +18,6 @@ This report details the support **OpenCode** (autonomous coding agent CLI / LLM 
 | **Hermes-Agent** | No | No | **Yes** (Skill) | Claude Code, Codex | Has agent skills. |
 | **NanoBot** | No | No | No | None | No integrations found in source code. |
 | **LibreFang** | No | No | No | Claude Code, Aider, Qwen Code, Gemini CLI, Codex CLI | Implements CLI coding agents as native LLM drivers (`LlmDriver`) by spawning subprocesses. |
-| **Moltis** | No | No | **Yes** (Tmux) | Alibaba Coding Plan, Claude Code, Codex, Pi AI Agent | Integrates external coding agents as tmux/PTY-based runtimes under `external-agents`. |
 | **PicoClaw** | **Yes** | No | No (Test only) | Claude Code, Codex, GitHub Copilot | Wraps coding CLI execution inside provider classes under the `pkg/providers/cli/` module. |
 | **NanoClaw** | No | **Yes** (Local SDK) | **Yes** (Local SDK Provider) | None | Communicates with `opencode serve` via `@opencode-ai/sdk` (add-opencode skill). |
 
@@ -55,10 +54,6 @@ Under this pattern, the assistant runs the `opencode` binary as a tool/sub-proce
   - Configures the `opencode_cli` tool. When enabled, ZeroClaw delegates complex tasks to the `opencode run` CLI subprocess.
 * **Hermes-Agent**:
   - Includes a bundled skill to delegate tasks to the `opencode` CLI (using `opencode run` for one-shot tasks, or running the interactive TUI shell with a pty).
-* **Moltis**:
-  - **Implementation**: [scratch/moltis/crates/external-agents/src/runtimes/opencode.rs](scratch/moltis/crates/external-agents/src/runtimes/opencode.rs)
-  - Implements an external agent runtime for `opencode`. If configured, it spins up an interactive OpenCode session inside tmux, allowing Moltis to orchestrate it as a sub-worker.
-  - Also includes a dedicated skill ([scratch/moltis/crates/skills/src/assets/autonomous-ai-agents/opencode/SKILL.md](scratch/moltis/crates/skills/src/assets/autonomous-ai-agents/opencode/SKILL.md)) containing tools for running `opencode run` and managing sessions.
 
 ## 4. Other CLI Coding Agent Support Details
 
@@ -79,14 +74,6 @@ A detailed audit of LibreFang (`scratch/librefang/`) confirms that it does not c
 - **Provider Registry**: The LLM drivers registry in [scratch/librefang/crates/librefang-llm-drivers/src/drivers/mod.rs](scratch/librefang/crates/librefang-llm-drivers/src/drivers/mod.rs) contains 47 hardcoded providers (such as Anthropic, Gemini, OpenAI, Groq, Bedrock, and various coding CLI formats like `claude-code` and `qwen-code`), but none match `antigravity` or `opencode` patterns.
 - **Skills & Runtimes**: There are no references to OpenCode or Antigravity under `crates/librefang-skills/` or `examples/`.
 - **Generic Fallback**: Like most multi-provider agents, LibreFang can only connect to these services if configured manually using its generic `openai` driver or `custom` endpoint URLs pointing to the appropriate server base URLs.
-
-### Moltis
-Moltis implements coding agents as external tmux/PTY-based runtimes under the `external-agents` crate:
-* **Alibaba Coding Plan** (`acp`): [scratch/moltis/crates/external-agents/src/runtimes/acp.rs](scratch/moltis/crates/external-agents/src/runtimes/acp.rs)
-* **Claude Code CLI** (`claude-code`): [scratch/moltis/crates/external-agents/src/runtimes/claude_code.rs](scratch/moltis/crates/external-agents/src/runtimes/claude_code.rs)
-* **Codex CLI** (`codex`): [scratch/moltis/crates/external-agents/src/runtimes/codex.rs](scratch/moltis/crates/external-agents/src/runtimes/codex.rs)
-* **OpenCode CLI** (`opencode`): [scratch/moltis/crates/external-agents/src/runtimes/opencode.rs](scratch/moltis/crates/external-agents/src/runtimes/opencode.rs)
-* **Pi AI Agent** (`pi-agent`): [scratch/moltis/crates/external-agents/src/runtimes/pi_agent.rs](scratch/moltis/crates/external-agents/src/runtimes/pi_agent.rs)
 
 ### PicoClaw
 PicoClaw wraps coding CLI execution inside provider classes under the `pkg/providers/cli/` module:
@@ -137,7 +124,6 @@ grep -rn -i "claude" scratch/ --include="*.rs" --include="*.go" --include="*.ts"
 Check the directories where providers and skills are declared:
 - **PicoClaw**: Look in `pkg/providers/`
 - **LibreFang**: Look in `crates/librefang-llm-drivers/src/drivers/`
-- **Moltis**: Look in `crates/external-agents/src/runtimes/`
 - **NanoClaw & Hermes-Agent**: Look in `.claude/skills/` or `skills/`
 - **IronClaw**:
 - **ZeroClaw**

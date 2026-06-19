@@ -2022,7 +2022,7 @@ def main() -> None:
     cache_file = args.data
     old_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
-    if os.path.exists(cache_file):
+    if not args.no_cache and os.path.exists(cache_file):
         try:
             with open(cache_file, "r", encoding="utf-8") as f:
                 old_data = json.load(f)

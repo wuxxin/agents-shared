@@ -82,7 +82,6 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
 - **Client Integration**:
   - In **ZeroClaw**, configuring `reasoning_enabled = true` / `reasoning_effort = "low"` maps to these parameters.
   - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
-  - In **Moltis**, preset configurations mapping to `reasoning_effort = "low"` adjust agent-level thinking budgets and parameters.
 
 ## Service Configuration & Ports
 

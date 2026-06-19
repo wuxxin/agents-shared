@@ -19,7 +19,6 @@ also covered, but currently not point of interest:
 | Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
-| **[Moltis](#moltis)** | Rust (Source) <br> Rust Backend + Web GUI | Remote, Local & QMD | Native (QMD) & Local | SQLite FTS5 / Vector / Hybrid (QMD) | Native | Local |
 | **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
 | **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
 
@@ -78,7 +77,6 @@ The following assistants have native Signal channel integration available in the
 - [Hermes](assistants/hermes-ctl.md)
 - [IronClaw](assistants/ironclaw-ctl.md)
 - [LibreFang](assistants/librefang-ctl.md)
-- [Moltis](assistants/moltis-ctl.md)
 - [NanoBot](assistants/nanobot-ctl.md)
 - [ZeroClaw](assistants/zeroclaw-ctl.md)
 
@@ -110,7 +108,6 @@ The following default ports are used by various agent systems and services to av
 | **Hermes** | [8000](http://localhost:8000), [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
 | **NanoBot** | [8790](http://localhost:8790) | NanoBot Gateway API |
 | **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
-| **Moltis** | [13131](https://localhost:13131) | Moltis agent server Web UI/API (HTTPS) |
 | **PicoClaw** | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
 | **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
 
@@ -233,25 +230,6 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Agent to Agent Protocol**: Yes — Spawns subagents isolated with bubblewrap (`bwrap`), passing context via `SubagentContext` for context inheritance.
 - **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
 
-### Moltis
-- **Major Features**: Agent server featuring web-based configuration, persistent plugin/provider support, native SQLite hybrid retrieval, optional QMD sidecar integration for hybrid BM25 and vector search, and support for privileged port binding.
-- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Config GUI).
-- **Requirements**: Needs a setup code on initial run to unlock the web UI. Uses `~/.local/sandbox/moltis` for data.
-- **Sandboxing**: Uses a mostly strict configuration but relies on specific network capability bounding (`CAP_NET_BIND_SERVICE`) and `PrivateDevices=no` if hardware-backed plugins are used. Isolated `HOME`.
-- **Memory**: Built-in SQLite database with Full-Text Search (FTS5) for keyword-based search and direct vector storage.
-- **Retention/Compression/Compaction**: Context limit handling: automatically extracts facts and summarizes history when approaching context limits (with "summarize" or "truncate" actions).
-- **Search & Retrieval**: Built-in SQLite database with Full-Text Search (FTS5) for keyword-based search and direct vector storage. Can optionally offload heavy search operations to a high-performance **QMD** sidecar for BM25 keyword search, vector similarity search, and hybrid retrieval with LLM reranking.
-- **Autonomous 24/7 Support**: Yes — support for background/asynchronous sub-agent tasks and memory.
-- **Signal Support**: Yes — Native integration connecting to a local `signal-cli` HTTP daemon (port 50889) with a DM/group policy and PIN challenge options.
-- **Coding Agent Support**: Yes — Supports Alibaba Coding Plan (`acp`), Claude Code, Codex, and **OpenCode** via tmux/PTY-based external runtimes.
-- **Local LLM & Inference**: Routes to local GGUF models via `local-chat` (port 50080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-embedding` (port 50082) or Ollama, or QMD vector processing.
-- **Reranking Support**: Yes — Native reranking via the QMD sidecar (`qwen3-reranker-0.6b` by default) or routes to local-rerank endpoint on port 50086.
-- **STT/TTS Support**: Natively supports local STT via `local-speech-to-text` on port 50090 and local TTS via `local-text-to-speech` on port 50095.
-- **Agent Client Protocol**: Yes — Integrates external coding agents via ACP (stdio-based JSON-RPC).
-- **Agent to Agent Protocol**: Yes — Supports spawning child agents (`spawn_agent` tool) up to nesting depth 3, both blocking and nonblocking, with policy-aware session tools.
-- **Detailed Guide & Onboarding**: [moltis-ctl.md](assistants/moltis-ctl.md)
-
 
 ### PicoClaw
 - **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
@@ -330,7 +308,7 @@ This `README.md` serves as the primary system registry and architectural entry p
 
 1. **Update Remote Sources**: Fetch the latest commits for all sandboxed assistants under `scratch/` by running:
    ```bash
-   for d in librefang moltis zeroclaw ironclaw hermes-agent nanobot nanoclaw picoclaw; do
+   for d in librefang zeroclaw ironclaw hermes-agent nanobot nanoclaw picoclaw; do
      cd "scratch/$d" 2>/dev/null && git fetch origin && git pull || true
    done
    ```

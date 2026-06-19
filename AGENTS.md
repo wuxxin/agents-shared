@@ -12,7 +12,7 @@ Overall Readme and Instructions on how to use the Agents and Scripts
 
 - `assistants/`:
 
-Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for running various agents (Hermes, LibreFang, Moltis, NanoBot, NanoClaw, PicoClaw, ZeroClaw) and core local services (Inference, Speech-to-Text, and Signal gateways).
+Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for running various agents (Hermes, LibreFang, NanoBot, NanoClaw, PicoClaw, ZeroClaw) and core local services (Inference, Speech-to-Text, and Signal gateways).
 
 - `scripts/`:
 
