@@ -3,7 +3,6 @@
 - **[local-download.sh](local-download.sh)**: Intelligent downloader for local AI models (LLMs, Embeddings, Reranker, Whisper STT) featuring caching, Hugging Face Hub downloads, and automated GGUF quantization.
 - **[sandbox-launcher.sh](sandbox-launcher.sh)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
 - **[antigravity-launcher.sh](antigravity-launcher.sh)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
-- **[llama-cache-test.py](llama-cache-test.py)**: Measures KV cache performance, context processing speeds, and time-to-first-token (TTFT) metrics for a running `llama.cpp` server (or OpenAI-compatible API).
 - **[run-local-benchmark.py](run-local-benchmark.py)**: Automate running and recording local service benchmarks (chat, embedding, rerank, STT, TTS) across configurations.
 - **[tiktoken_count.py](tiktoken_count.py)** / **[tiktoken_tps_sim.py](tiktoken_tps_sim.py)**: Calibrates timeout thresholds and measures token counts of input texts using OpenAI-compatible counts.
 
@@ -35,12 +34,6 @@ A wrapper for running the Antigravity IDE (and other Electron apps) inside a **B
 ```
 
 Documentation: [antigravity-launcher.md](antigravity-launcher.md)
-
-## `llama-cache-test.py`
-
-A Python utility designed to measure the Key-Value (KV) cache performance, time-to-first-token (TTFT), and context processing speeds of a running `llama.cpp` server (or any OpenAI-compatible `/v1/completions` API).
-
-Documentation: [llama-cache-test.md](llama-cache-test.md)
 
 ## `run-local-benchmark.py`
 

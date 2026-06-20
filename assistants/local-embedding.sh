@@ -26,8 +26,10 @@ load_env() {
     LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
     LMBD_ALIAS=qwen3-embedding
     LMBD_N_CTX=8192
+    LMBD_N_UBATCH=512
     LMBD_N_GPU_LAYERS=999
     LMBD_THREADS=4
+    LMBD_PARALLEL=2
     LMBD_DEVICE=""
     LMBD_EXTRA_ARGS="--flash-attn on"
 
@@ -138,31 +140,59 @@ get_shared_options() {
 
 # Embedded service file (heredoc written by install/start/restart)
 
-generate_service_file() {
-    load_env
-
-    local exec_cmd="llama-server \\
-    --model ${LMBD_MODEL} \\
-    --embedding \\
-    --pooling mean \\
-    --ctx-size ${LMBD_N_CTX} \\
-    --batch-size \$((LMBD_N_CTX / 4)) \\
-    --ubatch-size \$((LMBD_N_CTX / 4)) \\
-    --alias ${LMBD_ALIAS} \\
-    --threads ${LMBD_THREADS} \\
-    --n-gpu-layers ${LMBD_N_GPU_LAYERS} \\
-    --host ${LMBD_HOST} \\
-    --port ${LMBD_PORT}"
+# Helper to get unified arguments for llama-server
+get_llama_args() {
+    local -n out_args=$1
+    out_args=(
+        --model "${LMBD_MODEL}"
+        --embedding
+        --pooling mean
+        --cache-type-k q8_0
+        --cache-type-v q8_0
+        --ctx-size "${LMBD_N_CTX}"
+        --batch-size "${LMBD_N_CTX}"
+        --ubatch-size "${LMBD_N_UBATCH}"
+        --alias "${LMBD_ALIAS}"
+        --threads "${LMBD_THREADS}"
+        --parallel "${LMBD_PARALLEL}"
+        --n-gpu-layers "${LMBD_N_GPU_LAYERS}"
+        --host "${LMBD_HOST}"
+        --port "${LMBD_PORT}"
+    )
 
     if [[ -n "${LMBD_DEVICE:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    --device ${LMBD_DEVICE}"
+        out_args+=(--device "${LMBD_DEVICE}")
     fi
 
     if [[ -n "${LMBD_EXTRA_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LMBD_EXTRA_ARGS}"
+        local extra_arr=()
+        eval "extra_arr=(${LMBD_EXTRA_ARGS})"
+        out_args+=("${extra_arr[@]}")
     fi
+}
+
+# Helper to format array of arguments for systemd ExecStart
+format_exec_start() {
+    local binary="$1"
+    shift
+    local cmd="$binary"
+    for arg in "$@"; do
+        local escaped="${arg//\\/\\\\}"
+        escaped="${escaped//\"/\\\"}"
+        if [[ "$escaped" =~ [[:space:]] ]]; then
+            escaped="\"${escaped}\""
+        fi
+        cmd="${cmd} \\\\\n    ${escaped}"
+    done
+    echo -e "$cmd"
+}
+
+generate_service_file() {
+    load_env
+    local args
+    get_llama_args args
+    local exec_cmd
+    exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
 
     cat <<EOF
 [Unit]
@@ -212,9 +242,11 @@ LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q
 LMBD_ALIAS=qwen3-embedding
 
 # Context size (default: 8192)
+# Note: Batch size is also set to LMBD_N_CTS
 LMBD_N_CTX=8192
-# Note: Batch size and micro-batch size are automatically set to 1/4 of LMBD_N_CTX
-# (e.g. 2048) at startup to significantly reduce memory footprint.
+
+# micro-batch size (default: 512)
+LMBD_N_UBATCH=512
 
 # Number of layers to offload to GPU (all=999)
 LMBD_N_GPU_LAYERS=999
@@ -231,6 +263,9 @@ LMBD_N_GPU_LAYERS=999
 
 # Number of threads to use (default: 4)
 LMBD_THREADS=4
+
+# Parallel request slots (default: 2)
+LMBD_PARALLEL=2
 
 # Extra arguments to pass to llama-server
 LMBD_EXTRA_ARGS="--flash-attn on"
@@ -358,34 +393,15 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
-    local args=(
-        --model "${LMBD_MODEL}"
-        --embedding
-        --pooling mean
-        --ctx-size "${LMBD_N_CTX}"
-        --batch-size "$((LMBD_N_CTX / 4))"
-        --ubatch-size "$((LMBD_N_CTX / 4))"
-        --alias "${LMBD_ALIAS}"
-        --threads "${LMBD_THREADS}"
-        --n-gpu-layers "${LMBD_N_GPU_LAYERS}"
-        --host "${LMBD_HOST}"
-        --port "${LMBD_PORT}"
-    )
-    if [[ -n "${LMBD_DEVICE:-}" ]]; then
-        args+=(--device "${LMBD_DEVICE}")
-    fi
-    if [[ -n "${LMBD_EXTRA_ARGS:-}" ]]; then
-        # We want word splitting for extra args
-        # shellcheck disable=SC2206
-        args+=(${LMBD_EXTRA_ARGS})
-    fi
+    local args
+    get_llama_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec llama-server "$@"
+            exec "${LLAMA_SERVER_BIN:-llama-server}" "$@"
         else
-            exec llama-server "${args[@]}"
+            exec "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
         fi
     fi
 
@@ -408,9 +424,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
     fi
 }
 

@@ -134,28 +134,53 @@ get_shared_options() {
 
 # Embedded service file (heredoc written by install/start/restart)
 
-generate_service_file() {
-    load_env
-
-    local exec_cmd="sd-server \\
-    --diffusion-model ${LIMG_MODEL} \\
-    --vae ${LIMG_VAE} \\
-    --llm ${LIMG_LLM} \\
-    --listen-ip ${LIMG_HOST} \\
-    --listen-port ${LIMG_PORT} \\
-    --threads ${LIMG_THREADS} \\
-    --steps ${LIMG_STEPS} \\
-    --cfg-scale ${LIMG_CFG_SCALE}"
+# Helper to get unified arguments for sd-server
+get_sd_args() {
+    local -n out_args=$1
+    out_args=(
+        --diffusion-model "${LIMG_MODEL}"
+        --vae "${LIMG_VAE}"
+        --llm "${LIMG_LLM}"
+        --listen-ip "${LIMG_HOST}"
+        --listen-port "${LIMG_PORT}"
+        --threads "${LIMG_THREADS}"
+        --steps "${LIMG_STEPS}"
+        --cfg-scale "${LIMG_CFG_SCALE}"
+    )
 
     if [[ -n "${LIMG_BACKEND:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    --backend ${LIMG_BACKEND}"
+        out_args+=(--backend "${LIMG_BACKEND}")
     fi
 
     if [[ -n "${LIMG_EXTRA_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LIMG_EXTRA_ARGS}"
+        local extra_arr=()
+        eval "extra_arr=(${LIMG_EXTRA_ARGS})"
+        out_args+=("${extra_arr[@]}")
     fi
+}
+
+# Helper to format array of arguments for systemd ExecStart
+format_exec_start() {
+    local binary="$1"
+    shift
+    local cmd="$binary"
+    for arg in "$@"; do
+        local escaped="${arg//\\/\\\\}"
+        escaped="${escaped//\"/\\\"}"
+        if [[ "$escaped" =~ [[:space:]] ]]; then
+            escaped="\"${escaped}\""
+        fi
+        cmd="${cmd} \\\\\n    ${escaped}"
+    done
+    echo -e "$cmd"
+}
+
+generate_service_file() {
+    load_env
+    local args
+    get_sd_args args
+    local exec_cmd
+    exec_cmd=$(format_exec_start "${SD_SERVER_BIN:-sd-server}" "${args[@]}")
 
     cat <<EOF
 [Unit]
@@ -353,32 +378,15 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
-    local args=(
-        --diffusion-model "${LIMG_MODEL}"
-        --vae "${LIMG_VAE}"
-        --llm "${LIMG_LLM}"
-        --listen-ip "${LIMG_HOST}"
-        --listen-port "${LIMG_PORT}"
-        --threads "${LIMG_THREADS}"
-        --steps "${LIMG_STEPS}"
-        --cfg-scale "${LIMG_CFG_SCALE}"
-    )
-
-    if [[ -n "${LIMG_BACKEND:-}" ]]; then
-        args+=(--backend "${LIMG_BACKEND}")
-    fi
-
-    if [[ -n "${LIMG_EXTRA_ARGS:-}" ]]; then
-        # shellcheck disable=SC2206
-        args+=(${LIMG_EXTRA_ARGS})
-    fi
+    local args
+    get_sd_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running sd-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec sd-server "$@"
+            exec "${SD_SERVER_BIN:-sd-server}" "$@"
         else
-            exec sd-server "${args[@]}"
+            exec "${SD_SERVER_BIN:-sd-server}" "${args[@]}"
         fi
     fi
 
@@ -401,9 +409,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" sd-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SD_SERVER_BIN:-sd-server}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" sd-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SD_SERVER_BIN:-sd-server}" "${args[@]}"
     fi
 }
 
@@ -510,7 +518,10 @@ cmd_test() {
         -d '{
           "prompt": "A high-resolution, beautiful photograph of a pristine mountain lake at sunrise, highly detailed.",
           "steps": 8,
-          "cfg_scale": 1.0
+          "cfg_scale": 1.0,
+          "width": 128,
+          "height": 128,
+          "size": "128x128"
         }')
 
     if echo "${resp}" | grep -q "data"; then

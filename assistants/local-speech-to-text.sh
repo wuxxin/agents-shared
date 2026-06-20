@@ -92,41 +92,61 @@ get_shared_options() {
     echo "UMask=0077"
 }
 
+# Helper to get unified arguments for whisper-server
+get_whisper_args() {
+    local -n out_args=$1
+    out_args=(
+        --model "${LSTT_MODEL}"
+        --host "${LSTT_HOST}"
+        --port "${LSTT_PORT}"
+        --threads "${LSTT_THREADS}"
+    )
+
+    if [[ -n "${LSTT_DEVICE:-}" ]]; then
+        out_args+=(--device "${LSTT_DEVICE}")
+    fi
+
+    if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
+        out_args+=(--no-gpu)
+    fi
+
+    out_args+=(
+        --inference-path "${LSTT_INFERENCE_PATH}"
+        --convert
+        -fa
+    )
+
+    if [[ -n "${LSTT_EXTRA_ARGS:-}" ]]; then
+        local extra_arr=()
+        eval "extra_arr=(${LSTT_EXTRA_ARGS})"
+        out_args+=("${extra_arr[@]}")
+    fi
+}
+
+# Helper to format array of arguments for systemd ExecStart
+format_exec_start() {
+    local binary="$1"
+    shift
+    local cmd="$binary"
+    for arg in "$@"; do
+        local escaped="${arg//\\/\\\\}"
+        escaped="${escaped//\"/\\\"}"
+        if [[ "$escaped" =~ [[:space:]] ]]; then
+            escaped="\"${escaped}\""
+        fi
+        cmd="${cmd} \\\\\n    ${escaped}"
+    done
+    echo -e "$cmd"
+}
+
 # Embedded service file (heredoc written by install/start/restart)
 
 generate_service_file() {
     load_env
-
-    local no_gpu_flag=""
-    if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
-        no_gpu_flag="--no-gpu"
-    fi
-
-    local exec_cmd="whisper-server \\
-    --model ${LSTT_MODEL} \\
-    --host ${LSTT_HOST} \\
-    --port ${LSTT_PORT} \\
-    --threads ${LSTT_THREADS}"
-
-    if [[ -n "${LSTT_DEVICE:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    --device ${LSTT_DEVICE}"
-    fi
-
-    if [ -n "$no_gpu_flag" ]; then
-        exec_cmd="${exec_cmd} \\
-    ${no_gpu_flag}"
-    fi
-
-    exec_cmd="${exec_cmd} \\
-    --inference-path \"${LSTT_INFERENCE_PATH}\" \\
-    --convert \\
-    -fa"
-
-    if [ -n "${LSTT_EXTRA_ARGS:-}" ]; then
-        exec_cmd="${exec_cmd} \\
-    ${LSTT_EXTRA_ARGS}"
-    fi
+    local args
+    get_whisper_args args
+    local exec_cmd
+    exec_cmd=$(format_exec_start "${WHISPER_SERVER_BIN:-whisper-server}" "${args[@]}")
 
     cat <<EOF
 [Unit]
@@ -364,35 +384,15 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
-    local args=(
-        --model "${LSTT_MODEL}"
-        --host "${LSTT_HOST}"
-        --port "${LSTT_PORT}"
-        --threads "${LSTT_THREADS}"
-    )
-    if [[ -n "${LSTT_DEVICE:-}" ]]; then
-        args+=(--device "${LSTT_DEVICE}")
-    fi
-    if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
-        args+=(--no-gpu)
-    fi
-    args+=(
-        --inference-path "${LSTT_INFERENCE_PATH}"
-        --convert
-        -fa
-    )
-    if [ -n "${LSTT_EXTRA_ARGS:-}" ]; then
-        # We want word splitting for extra args since they can be multiple options
-        # shellcheck disable=SC2206
-        args+=(${LSTT_EXTRA_ARGS})
-    fi
+    local args
+    get_whisper_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running whisper-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec whisper-server "$@"
+            exec "${WHISPER_SERVER_BIN:-whisper-server}" "$@"
         else
-            exec whisper-server "${args[@]}"
+            exec "${WHISPER_SERVER_BIN:-whisper-server}" "${args[@]}"
         fi
     fi
 
@@ -415,9 +415,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" whisper-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${WHISPER_SERVER_BIN:-whisper-server}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" whisper-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${WHISPER_SERVER_BIN:-whisper-server}" "${args[@]}"
     fi
 }
 

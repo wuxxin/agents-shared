@@ -199,6 +199,18 @@ def run_llm_chat(
     prefill_speed_p0 = 0.0
     generation_speed_p0 = 0.0
     text_p0 = ""
+    avg_p2_ttft = 0.0
+    avg_p2_prefill_speed = 0.0
+    avg_p2_gen_speed = 0.0
+    avg_p2_gen_time = 0.0
+    avg_p2_comp_tokens = 0.0
+    avg_p2_prompt_tokens = 0
+    avg_p4_ttft = 0.0
+    avg_p4_prefill_speed = 0.0
+    avg_p4_gen_speed = 0.0
+    avg_p4_gen_time = 0.0
+    avg_p4_comp_tokens = 0.0
+    avg_p4_prompt_tokens = 0
 
     # Phase 0: Warmup
     if not skip_chat:
@@ -635,6 +647,25 @@ def run_llm_chat(
         tprint(vision_text.strip()[:350] + "...")
     tprint("===================================================\n")
 
+    if output_format in ("json", "yaml"):
+        result = {
+            "chat_warmup_prompt": float(prompt_tokens_p0),
+            "chat_warmup_comp": float(completion_tokens_p0),
+            "chat_warmup_ttft": float(ttft_p0 * 1000),
+            "chat_warmup_prefill": float(prefill_speed_p0),
+            "chat_warmup_gen": float(generation_speed_p0),
+            "chat_avg_comp": float(avg_p2_comp_tokens),
+            "chat_avg_ttft": float(avg_p2_ttft * 1000),
+            "chat_avg_prefill": float(avg_p2_prefill_speed),
+            "chat_avg_gen": float(avg_p2_gen_speed),
+            "chat_avg_decode": float(avg_p2_gen_time),
+            "chat_image_ttft": float(avg_p4_ttft * 1000),
+            "chat_image_gen": float(avg_p4_gen_speed),
+            "fraction_context": fraction_context,
+        }
+        print(json.dumps(result, indent=2))
+        return
+
 
 def run_llm_embed(
     url: str,
@@ -662,15 +693,15 @@ def run_llm_embed(
     # Standard client programs split large texts into smaller chunks (e.g. 2048 tokens max)
     # to avoid exceeding the server's logical/physical batch size limits, which would
     # otherwise cause the server to fail the request with a context or batch error.
-    max_tokens_per_chunk = 2048
+    max_tokens_per_chunk = 512
     try:
         props = get_json(f"{url}/props")
         if props and "default_generation_settings" in props:
             n_ctx = props["default_generation_settings"].get("n_ctx", 8192)
             if n_ctx > 0:
-                max_tokens_per_chunk = min(2048, n_ctx)
+                max_tokens_per_chunk = min(512, n_ctx)
                 tprint(
-                    f"  Dynamic chunk size resolved from server (capped at 2048): {max_tokens_per_chunk}"
+                    f"  Dynamic chunk size resolved from server (capped at 512): {max_tokens_per_chunk}"
                 )
     except Exception as e:
         tprint(f"  Warning: Failed to query server props for n_ctx: {e}")
@@ -800,6 +831,25 @@ def run_llm_embed(
             f"p95={p95_lat:.1f}ms  min={min_lat:.1f}ms  max={max_lat:.1f}ms"
         )
 
+    avg_duration = sum(r["duration_s"] for r in run_results) / len(run_results)
+    avg_tokens = sum(r["total_tokens"] for r in run_results) / len(run_results)
+    avg_speed = sum(r["speed_tps"] for r in run_results) / len(run_results)
+    avg_lat = sum(r["latency_avg_ms"] for r in run_results) / len(run_results)
+    avg_p50 = sum(r["latency_p50_ms"] for r in run_results) / len(run_results)
+    avg_p95 = sum(r["latency_p95_ms"] for r in run_results) / len(run_results)
+
+    if output_format in ("json", "yaml"):
+        result = {
+            "embed_throughput": avg_speed,
+            "embed_time_s": avg_duration,
+            "embed_lat": avg_lat,
+            "embed_p50": avg_p50,
+            "embed_p95": avg_p95,
+            "fraction_chunks": fraction_chunks,
+        }
+        print(json.dumps(result, indent=2))
+        return
+
     # Summary report
     tprint("\n===================================================")
     tprint("=== EMBEDDING BENCHMARK RESULTS SUMMARY         ===")
@@ -811,13 +861,6 @@ def run_llm_embed(
     tprint(f"Chunks:            {len(chunks)} × {max_tokens_per_chunk} tokens (max)")
     tprint(f"Embedding Dim:     {embed_dim}")
     tprint(f"Repeats:           {repeats}")
-
-    avg_duration = sum(r["duration_s"] for r in run_results) / len(run_results)
-    avg_tokens = sum(r["total_tokens"] for r in run_results) / len(run_results)
-    avg_speed = sum(r["speed_tps"] for r in run_results) / len(run_results)
-    avg_lat = sum(r["latency_avg_ms"] for r in run_results) / len(run_results)
-    avg_p50 = sum(r["latency_p50_ms"] for r in run_results) / len(run_results)
-    avg_p95 = sum(r["latency_p95_ms"] for r in run_results) / len(run_results)
 
     tprint(f"\n  Avg Tokens/Run:       {avg_tokens:.0f}")
     tprint(f"  Avg Time/Run:         {avg_duration:.2f} s")

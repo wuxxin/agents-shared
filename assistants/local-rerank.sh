@@ -28,6 +28,7 @@ load_env() {
     LRR_N_CTX=8192
     LRR_N_GPU_LAYERS=99
     LRR_THREADS=8
+    LRR_PARALLEL=2
     LRR_EXTRA_ARGS="--flash-attn on"
     LRR_DEVICE=""
 
@@ -138,29 +139,55 @@ get_shared_options() {
 
 # Embedded service file (heredoc written by install/start/restart)
 
-generate_service_file() {
-    load_env
-
-    local exec_cmd="llama-server \\
-    --model ${LRR_MODEL} \\
-    --embedding \\
-    --pooling rank \\
-    --ctx-size ${LRR_N_CTX} \\
-    --alias ${LRR_ALIAS} \\
-    --threads ${LRR_THREADS} \\
-    --n-gpu-layers ${LRR_N_GPU_LAYERS} \\
-    --host ${LRR_HOST} \\
-    --port ${LRR_PORT}"
+# Helper to get unified arguments for llama-server
+get_llama_args() {
+    local -n out_args=$1
+    out_args=(
+        --model "${LRR_MODEL}"
+        --embedding
+        --pooling rank
+        --ctx-size "${LRR_N_CTX}"
+        --alias "${LRR_ALIAS}"
+        --threads "${LRR_THREADS}"
+        --parallel "${LRR_PARALLEL}"
+        --n-gpu-layers "${LRR_N_GPU_LAYERS}"
+        --host "${LRR_HOST}"
+        --port "${LRR_PORT}"
+    )
 
     if [[ -n "${LRR_DEVICE:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    --device ${LRR_DEVICE}"
+        out_args+=(--device "${LRR_DEVICE}")
     fi
 
     if [[ -n "${LRR_EXTRA_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LRR_EXTRA_ARGS}"
+        local extra_arr=()
+        eval "extra_arr=(${LRR_EXTRA_ARGS})"
+        out_args+=("${extra_arr[@]}")
     fi
+}
+
+# Helper to format array of arguments for systemd ExecStart
+format_exec_start() {
+    local binary="$1"
+    shift
+    local cmd="$binary"
+    for arg in "$@"; do
+        local escaped="${arg//\\/\\\\}"
+        escaped="${escaped//\"/\\\"}"
+        if [[ "$escaped" =~ [[:space:]] ]]; then
+            escaped="\"${escaped}\""
+        fi
+        cmd="${cmd} \\\\\n    ${escaped}"
+    done
+    echo -e "$cmd"
+}
+
+generate_service_file() {
+    load_env
+    local args
+    get_llama_args args
+    local exec_cmd
+    exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
 
     cat <<EOF
 [Unit]
@@ -227,6 +254,9 @@ LRR_N_GPU_LAYERS=0
 
 # Number of threads to use
 LRR_THREADS=8
+
+# Parallel request slots (default: 2)
+LRR_PARALLEL=2
 
 # Use Flash Attention if on gpu and available
 LRR_EXTRA_ARGS="--flash-attn on"
@@ -354,32 +384,15 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
-    local args=(
-        --model "${LRR_MODEL}"
-        --embedding
-        --pooling rank
-        --ctx-size "${LRR_N_CTX}"
-        --alias "${LRR_ALIAS}"
-        --threads "${LRR_THREADS}"
-        --n-gpu-layers "${LRR_N_GPU_LAYERS}"
-        --host "${LRR_HOST}"
-        --port "${LRR_PORT}"
-    )
-    if [[ -n "${LRR_DEVICE:-}" ]]; then
-        args+=(--device "${LRR_DEVICE}")
-    fi
-    if [[ -n "${LRR_EXTRA_ARGS:-}" ]]; then
-        # We want word splitting for extra args
-        # shellcheck disable=SC2206
-        args+=(${LRR_EXTRA_ARGS})
-    fi
+    local args
+    get_llama_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec llama-server "$@"
+            exec "${LLAMA_SERVER_BIN:-llama-server}" "$@"
         else
-            exec llama-server "${args[@]}"
+            exec "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
         fi
     fi
 
@@ -402,9 +415,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
     fi
 }
 

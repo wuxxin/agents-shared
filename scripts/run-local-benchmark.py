@@ -621,6 +621,9 @@ def build_gpu_registry(mock: bool = False):
 
     # 2. llama-cli
     cli_paths = ["llama-cli", "/usr/bin/llama-cli", "/usr/local/bin/llama-cli"]
+    custom_cli = os.getenv("LLAMA_CLI_BIN")
+    if custom_cli:
+        cli_paths.insert(0, custom_cli)
     cli_out = ""
     for path in cli_paths:
         try:
@@ -853,8 +856,20 @@ def start_service(
 ) -> Tuple[subprocess.Popen, Optional[int]]:
     """Start the service transiently using the script's exec action."""
     cmd = [script_path, "exec"]
-    if env_args:
-        cmd.extend(env_args)
+    final_env_args = list(env_args) if env_args else []
+    existing_keys = set()
+    for i in range(len(final_env_args) - 1):
+        if final_env_args[i] == "--env":
+            val = final_env_args[i+1]
+            if "=" in val:
+                existing_keys.add(val.split("=", 1)[0])
+
+    for k, v in os.environ.items():
+        k_upper = k.upper()
+        if k_upper.startswith(("LLAMA_", "WHISPER_", "QWEN3_", "SD_", "GGML_", "LCHAT_", "LMBD_", "LRR_", "LSTT_", "LTTS_", "LIMG_")) and k not in existing_keys:
+            final_env_args.extend(["--env", f"{k}={v}"])
+
+    cmd.extend(final_env_args)
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -1059,6 +1074,21 @@ def extract_metric(
 def parse_chat_output(output: str) -> Dict[str, float]:
     """Parse chat benchmark stats from stdout."""
     res = {}
+    data = extract_json_block(output)
+    if data is not None:
+        res["chat_warmup_prompt"] = float(data.get("chat_warmup_prompt", 0.0))
+        res["chat_warmup_comp"] = float(data.get("chat_warmup_comp", 0.0))
+        res["chat_warmup_ttft"] = float(data.get("chat_warmup_ttft", 0.0))
+        res["chat_warmup_prefill"] = float(data.get("chat_warmup_prefill", 0.0))
+        res["chat_warmup_gen"] = float(data.get("chat_warmup_gen", 0.0))
+        res["chat_avg_comp"] = float(data.get("chat_avg_comp", 0.0))
+        res["chat_avg_ttft"] = float(data.get("chat_avg_ttft", 0.0))
+        res["chat_avg_prefill"] = float(data.get("chat_avg_prefill", 0.0))
+        res["chat_avg_gen"] = float(data.get("chat_avg_gen", 0.0))
+        res["chat_avg_decode"] = float(data.get("chat_avg_decode", 0.0))
+        res["chat_image_ttft"] = float(data.get("chat_image_ttft", 0.0))
+        res["chat_image_gen"] = float(data.get("chat_image_gen", 0.0))
+        return res
 
     # Partition Phase 0, Phase 2, and Phase 4
     p0_content = ""
@@ -1149,13 +1179,33 @@ def parse_image_output(output: str) -> Dict[str, Any]:
 def parse_embed_output(output: str) -> Dict[str, float]:
     """Parse embedding benchmark stats from stdout."""
     res = {}
-    res["embed_throughput"] = extract_metric(
-        r"Avg Throughput:\s+([\d\.]+)\s+tokens/sec", output
-    )
-    res["embed_time_s"] = extract_metric(r"Avg Time/Run:\s+([\d\.]+)\s+s", output)
-    res["embed_lat"] = extract_metric(r"Avg Chunk Latency:\s+([\d\.]+)\s+ms", output)
-    res["embed_p50"] = extract_metric(r"Avg Chunk p50:\s+([\d\.]+)\s+ms", output)
-    res["embed_p95"] = extract_metric(r"Avg Chunk p95:\s+([\d\.]+)\s+ms", output)
+    data = extract_json_block(output)
+    if data is not None:
+        res["embed_throughput"] = float(data.get("embed_throughput", 0.0))
+        embed_time = float(data.get("embed_time_s", 0.0))
+        fraction_chunks = float(data.get("fraction_chunks", 1.0))
+        fraction_context = float(data.get("fraction_context", 1.0))
+
+        # Normalize the time to represent a full (1.0 fraction) run
+        fraction = fraction_chunks * fraction_context
+        if fraction > 0.0:
+            res["embed_time_s"] = embed_time / fraction
+        else:
+            res["embed_time_s"] = embed_time
+
+        res["embed_lat"] = float(data.get("embed_lat", 0.0))
+        res["embed_p50"] = float(data.get("embed_p50", 0.0))
+        res["embed_p95"] = float(data.get("embed_p95", 0.0))
+    else:
+        res["embed_throughput"] = extract_metric(
+            r"Avg Throughput:\s+([\d\.]+)\s+tokens/sec", output
+        )
+        res["embed_time_s"] = extract_metric(r"Avg Time/Run:\s+([\d\.]+)\s+s", output)
+        res["embed_lat"] = extract_metric(
+            r"Avg Chunk Latency:\s+([\d\.]+)\s+ms", output
+        )
+        res["embed_p50"] = extract_metric(r"Avg Chunk p50:\s+([\d\.]+)\s+ms", output)
+        res["embed_p95"] = extract_metric(r"Avg Chunk p95:\s+([\d\.]+)\s+ms", output)
     return res
 
 
@@ -1182,7 +1232,7 @@ def parse_rerank_output(output: str) -> Dict[str, Any]:
 
 def parse_stt_output(output: str) -> Dict[str, Any]:
     """Parse STT benchmark stats from stdout."""
-    res = {}
+    res: Dict[str, Any] = {}
     data = extract_json_block(output)
     if data is not None:
         res["stt_time"] = float(data.get("stt_time", 0.0))
@@ -2233,7 +2283,7 @@ def main() -> None:
                         gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
                         if gpu and gpu.is_igpu:
                             fraction = 0.20
-                    llm_n_ctx = int(240384 * fraction)
+                    llm_n_ctx = int(os.environ.get("LCHAT_N_CTX", int(240384 * fraction)))
 
                 if not args.mock:
                     if run_cfg == "running":
@@ -2348,6 +2398,8 @@ def main() -> None:
                         "--only-chat",
                         "--fraction-context",
                         str(fraction),
+                        "--format",
+                        "json",
                     ]
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
@@ -2699,26 +2751,28 @@ def main() -> None:
                             print(
                                 "⚠️ Shaders needed for this test are not in the cache. Generating shaders now (this will take time)..."
                             )
-                            # Wait for up to 5 minutes (300 seconds) for shader compilation to finish
+                            # Wait for up to 10 minutes (600 seconds) for shader compilation to finish
                             success = warmup_model(
                                 f"http://127.0.0.1:{srv['port']}/v1/embeddings",
                                 {
                                     "model": "qwen3-embedding",
                                     "input": "ping",
                                 },
-                                timeout=300,
+                                timeout=600,
                             )
                         else:
                             success = True
 
                         if not success:
                             print(
-                                "⚠️ Warning: Model warmup timed out after 5 minutes. Benchmark might fail."
+                                "⚠️ Warning: Model warmup timed out after 10 minutes. Benchmark might fail."
                             )
                     test_args = [
                         "--benchmark",
                         "--repeat",
                         "1",
+                        "--format",
+                        "json",
                     ]
                     if run_cfg.startswith("cpu"):
                         test_args.extend(["--fraction-chunks", "0.1"])
@@ -3617,8 +3671,9 @@ def main() -> None:
 
                         # Self-healing check: check if qwen3-tts-server supports --device
                         try:
+                            qwen3_tts_server = os.getenv("QWEN3_TTS_SERVER_BIN", "qwen3-tts-server")
                             res = subprocess.run(
-                                ["qwen3-tts-server", "--help"],
+                                [qwen3_tts_server, "--help"],
                                 capture_output=True,
                                 text=True,
                                 timeout=2,
@@ -3725,23 +3780,30 @@ def main() -> None:
                             "sent to local speech to text service to measure synthesis performance of this audio system."
                         )
                         print("Validating TTS audio with STT...")
+                        whisper_cli = os.getenv("WHISPER_CLI_BIN", "whisper-cli")
+                        val_cmd = [
+                            os.path.join(
+                                os.path.dirname(srv["script"]),
+                                "local-speech-to-text.sh",
+                            ),
+                        ]
+                        for k, v in os.environ.items():
+                            if k.upper().startswith(("LLAMA_", "WHISPER_", "QWEN3_", "SD_", "GGML_")):
+                                val_cmd.extend(["--env", f"{k}={v}"])
+                        val_cmd.extend([
+                            "run",
+                            whisper_cli,
+                            "-m",
+                            "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
+                            "-f",
+                            os.path.join(
+                                REPO_ROOT, "scratch", "tts_benchmark_output.wav"
+                            ),
+                            "-nt",
+                            "-ng",
+                        ])
                         tts_val_proc = subprocess.run(
-                            [
-                                os.path.join(
-                                    os.path.dirname(srv["script"]),
-                                    "local-speech-to-text.sh",
-                                ),
-                                "run",
-                                "whisper-cli",
-                                "-m",
-                                "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
-                                "-f",
-                                os.path.join(
-                                    REPO_ROOT, "scratch", "tts_benchmark_output.wav"
-                                ),
-                                "-nt",
-                                "-ng",
-                            ],
+                            val_cmd,
                             capture_output=True,
                             text=True,
                         )

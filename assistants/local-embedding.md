@@ -53,15 +53,45 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Default Embedding Model
 
-The local service runs **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF quantization format. 
+The local service runs **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF quantization format.
 
-Key specifications:
-  - **Context Size (`LMBD_N_CTX`):** `8192`
-  - **Batch Size:** `2048` (dynamically set to 1/4 of `LMBD_N_CTX` at install/startup to optimize memory usage)
-  - **Micro-batch Size:** `2048`
-  - **Pooling:** `mean`
-  - **Model File:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
-  - **Capabilities**: Translates text blocks into high-density vector representations for similarity checks and vector search databases.
+### Architecture (Qwen3-Embedding-0.6B)
+
+| Attribute                  | Value |
+|----------------------------|-------|
+| **Parameters**             | 0.6B |
+| **Transformer Layers**     | 28 |
+| **Hidden Size**            | 1024 |
+| **Attention Heads**        | 16 (GQA KV-heads: 8) |
+| **Head Dimension**         | 64 |
+| **Native Max Context**     | 32,768 tokens |
+| **Embedding Dimension**    | 1024 (MRL: 32–1024 user-selectable) |
+| **Pooling (native)**       | Last-token pooling |
+| **Pooling (service)**      | `mean` (configured via `--pooling mean`) |
+| **Multilingual**           | 100+ languages, 100+ programming languages |
+| **Base Model**             | `Qwen/Qwen3-0.6B-Base` |
+| **License**                | Apache-2.0 |
+| **Paper**                  | [arXiv:2506.05176](https://arxiv.org/abs/2506.05176) |
+
+> **MRL** (Matryoshka Representation Learning) allows truncating the output embedding to any dimension from 32 to 1024, enabling smaller index sizes at a small accuracy cost. The full 1024-dimensional output is used by default.
+
+### GGUF File (Q8_0)
+
+- **File:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
+- **File Size:** ~568 MiB on disk
+- **Quantization:** Q8_0 — 8-bit integer weights, minimal quality loss vs. F16
+
+### Service Configuration Defaults
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `LMBD_N_CTX` | `8192` | Max context length per parallel slot |
+| Batch Size | `8192` | Same as LMBD_N_CTX |
+| µ-Batch Size | `512` | max hardware batch size |
+| `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
+| Pooling | `mean` | Pooling mode passed to `--pooling` |
+
+- **Capabilities**: Translates text blocks into high-density vector representations for similarity checks and vector search databases.
 
 ## Service Configuration & Ports
 
@@ -120,7 +150,61 @@ llama-cli --list-devices
 
 ## VRAM Usage
 
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to the [Central Memory Map](assistants/local-memory-map.md).
+### KV Cache Formula
+
+For `llama-server`, the KV cache is allocated upfront using:
+
+$$\text{KV cache} = n\_\text{parallel} \times n\_\text{ctx} \times 2 \times n\_\text{kv\_heads} \times d\_\text{head} \times n\_\text{layers} \times \text{bytes\_per\_element}$$
+
+For Qwen3-Embedding-0.6B (GQA with 8 KV-heads, head-dim 64, 28 layers) at the default `n_ctx=8192`:
+
+| Parallel Slots | KV Cache (f16, default) | KV Cache (q8_0) | KV Cache (q4_0) |
+|:--------------:|:-----------------------:|:---------------:|:---------------:|
+| 1              | ~224 MiB               | ~112 MiB        | ~56 MiB         |
+| 2 (default)    | ~448 MiB               | ~224 MiB        | ~112 MiB        |
+| 4              | ~896 MiB               | ~448 MiB        | ~224 MiB        |
+
+> **Formula applied:** `1 × 8192 × 2 × 8 × 64 × 28 × 2 bytes (f16) = 224 MiB` per slot.
+
+### KV Cache Quantization (`--cache-type-k/v`)
+
+`llama-server` supports quantizing the KV cache independently from the model weights to reduce VRAM usage:
+
+```bash
+# In local-embedding.env (or via exec --env):
+LMBD_EXTRA_ARGS="--cache-type-k q8_0 --cache-type-v q8_0"
+```
+
+**Available types** (for both `-ctk`/`--cache-type-k` and `-ctv`/`--cache-type-v`):
+
+| Type   | Bits | Default | Memory vs. f16 | Notes |
+|--------|------|---------|---------------|-------|
+| `f32`  | 32   |         | 2× larger     | Full precision |
+| `f16`  | 16   | ✅ Yes  | 1×            | Default |
+| `bf16` | 16   |         | 1×            | Brain float |
+| `q8_0` | 8    |         | ~0.5×         | **Recommended** — negligible quality loss |
+| `q4_0` | 4    |         | ~0.25×        | Aggressive — may affect long-context quality |
+| `q4_1` | 4    |         | ~0.25×        | Slight quality improvement over q4_0 |
+| `q5_0` | 5    |         | ~0.31×        | |
+| `q5_1` | 5    |         | ~0.31×        | |
+| `iq4_nl` | ~4 |         | ~0.25×        | i-quantization variant |
+
+> **Note:** KV cache quantization is most effective with `--flash-attn` enabled. For embedding workloads (no generation), `q8_0` KV cache is very safe as there is no token-by-token autoregressive accumulation of rounding errors.
+
+### Benchmarked Footprints
+
+The following were measured with the **previous default** of `LMBD_PARALLEL=4` and `n_ctx=8192` (note: current default is `LMBD_PARALLEL=1`):
+
+| Backend | Active Memory | Notes |
+|---------|--------------|-------|
+| HIP-ROCm0 (dGPU) | **7,119.7 MiB** VRAM | throughput: 1,799.58 t/s |
+| Vulkan-Vulkan0 (iGPU) | **5,229.6 MiB** VRAM | batch=2048, throughput: 493.77 t/s |
+| Vulkan-Vulkan1 (dGPU) | *Failed* | warmup/initialization hang |
+| CPU | ~0.1 MiB VRAM + **11,898.1 MiB** System RAM | throughput: 99.29 t/s |
+
+> The high observed memory (vs. the ~224 MiB KV cache estimate per slot) comes primarily from compute graph pre-allocation and intermediate activation buffers which scale with `n_ubatch` (physical batch size). With `n_ubatch=2048`, the attention score matrix alone reaches `n_ubatch × n_heads × n_ubatch × 2 bytes` ≈ **256 MiB per layer**, totalling several GiB across 28 layers during active inference.
+
+For detailed co-running breakdowns and allocation tables, refer to the [Central Memory Map](assistants/local-memory-map.md).
 
 ## Verification & Manual Testing
 

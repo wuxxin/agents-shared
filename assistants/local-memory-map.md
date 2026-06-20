@@ -28,14 +28,15 @@ Serves chat and vision.
 ### Local Embedding Service ([local-embedding.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-embedding.sh) / `llama-server`)
 Serves text embeddings.
 
-**Model Target:** `Qwen3-Embedding-0.6B-Q8_0.gguf` (~700 MiB GGUF)
+**Model Target:** `Qwen3-Embedding-0.6B-Q8_0.gguf` (~568 MiB on disk)
 
-**Theoretical Footprint Breakdown:**
-- **Model Weights & Compute:** ~2,020 MiB (Weights: ~700 MiB, Compute/Buffers: ~1,320 MiB)
+**Theoretical Footprint Breakdown (KV cache f16, per-slot n_ctx=8192):**
+- **Model Weights:** ~568 MiB (Q8_0 GGUF file size)
+- **KV Cache (f16):** ~224 MiB per parallel slot (`8192 × 2 × 8kv × 64dim × 28layers × 2B`)
+- **Compute/Activation Buffers:** scales with `n_ubatch` (at ubatch=2048: ~several GiB across 28 layers)
 - **HIP Context Overhead:** ~600 MiB (ROCm driver overhead)
-- **Total Theoretical Footprint:** ~2,620 MiB
 
-**Benchmarked Footprint:**
+**Benchmarked Footprint** *(measured with old default `LMBD_PARALLEL=4`; current default is `LMBD_PARALLEL=1`)*:
 - **HIP-ROCm0 (dGPU):** **7,119.7 MiB** (active VRAM at `n_ctx=8,192`, throughput: 1,799.58 t/s).
 - **Vulkan-Vulkan0 (iGPU):** **5,229.6 MiB** (active VRAM/System RAM at `n_ctx=8,192`, batch=2048, throughput: 493.77 t/s).
 - **Vulkan-Vulkan1 (dGPU):** *Failed* (warmup/initialization hang under Vulkan driver).

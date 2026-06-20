@@ -31,7 +31,10 @@ load_env() {
     LCHAT_THREADS=4
     LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
     LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-    LCHAT_EXTRA_ARGS="--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+    LCHAT_SPECULATIVE_ARGS="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+    LCHAT_CACHE_TYPE_K=q4_0
+    LCHAT_CACHE_TYPE_V=q4_0
+    LCHAT_EXTRA_ARGS=""
     LCHAT_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
@@ -143,42 +146,76 @@ get_shared_options() {
 
 # Embedded service file (heredoc written by install/start/restart)
 
-generate_service_file() {
-    load_env
-
-    local exec_cmd="llama-server \\
-    --model ${LCHAT_MODEL} \\
-    --alias ${LCHAT_ALIAS} \\
-    --ctx-size ${LCHAT_N_CTX} \\
-    --parallel ${LCHAT_PARALLEL} \\
-    --threads ${LCHAT_THREADS} \\
-    --n-gpu-layers ${LCHAT_N_GPU_LAYERS} \\
-    --cache-type-k q4_0 \\
-    --cache-type-v q4_0 \\
-    --batch-size 2048 \\
-    --ubatch-size 1024 \\
-    --host ${LCHAT_HOST} \\
-    --port ${LCHAT_PORT}"
+# Helper to get unified arguments for llama-server
+get_llama_args() {
+    local -n out_args=$1
+    out_args=(
+        --model "${LCHAT_MODEL}"
+        --alias "${LCHAT_ALIAS}"
+        --ctx-size "${LCHAT_N_CTX}"
+        --parallel "${LCHAT_PARALLEL}"
+        --threads "${LCHAT_THREADS}"
+        --n-gpu-layers "${LCHAT_N_GPU_LAYERS}"
+        --cache-type-k "${LCHAT_CACHE_TYPE_K}"
+        --cache-type-v "${LCHAT_CACHE_TYPE_V}"
+        --flash-attn on
+        --batch-size 2048
+        --ubatch-size 1024
+        --host "${LCHAT_HOST}"
+        --port "${LCHAT_PORT}"
+    )
 
     if [[ -n "${LCHAT_MMPROJ_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LCHAT_MMPROJ_ARGS}"
+        local mmproj_arr=()
+        eval "mmproj_arr=(${LCHAT_MMPROJ_ARGS})"
+        out_args+=("${mmproj_arr[@]}")
     fi
 
     if [[ -n "${LCHAT_CHAT_TEMPLATE_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LCHAT_CHAT_TEMPLATE_ARGS}"
+        local chat_template_arr=()
+        eval "chat_template_arr=(${LCHAT_CHAT_TEMPLATE_ARGS})"
+        out_args+=("${chat_template_arr[@]}")
+    fi
+
+    if [[ -n "${LCHAT_SPECULATIVE_ARGS:-}" ]]; then
+        local speculative_arr=()
+        eval "speculative_arr=(${LCHAT_SPECULATIVE_ARGS})"
+        out_args+=("${speculative_arr[@]}")
     fi
 
     if [[ -n "${LCHAT_DEVICE:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    --device ${LCHAT_DEVICE}"
+        out_args+=(--device "${LCHAT_DEVICE}")
     fi
 
     if [[ -n "${LCHAT_EXTRA_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LCHAT_EXTRA_ARGS}"
+        local extra_arr=()
+        eval "extra_arr=(${LCHAT_EXTRA_ARGS})"
+        out_args+=("${extra_arr[@]}")
     fi
+}
+
+# Helper to format array of arguments for systemd ExecStart
+format_exec_start() {
+    local binary="$1"
+    shift
+    local cmd="$binary"
+    for arg in "$@"; do
+        local escaped="${arg//\\/\\\\}"
+        escaped="${escaped//\"/\\\"}"
+        if [[ "$escaped" =~ [[:space:]] ]]; then
+            escaped="\"${escaped}\""
+        fi
+        cmd="${cmd} \\\\\n    ${escaped}"
+    done
+    echo -e "$cmd"
+}
+
+generate_service_file() {
+    load_env
+    local args
+    get_llama_args args
+    local exec_cmd
+    exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
 
     cat <<EOF
 [Unit]
@@ -242,9 +279,10 @@ LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwe
 # Chat template file (optional)
 LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
 
+# Speculative Decoding config (default: "--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4")
+LCHAT_SPECULATIVE_ARGS="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 
 # RUNTIME SETTINGS
-
 
 # Number of layers to offload to GPU (all=999)
 LCHAT_N_GPU_LAYERS=999
@@ -263,8 +301,8 @@ LCHAT_N_GPU_LAYERS=999
 # Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
 LCHAT_THREADS=4
 
-# Extra arguments to pass to llama-server (default: "--flash-attn on --spec-type ngram-simple ...")
-LCHAT_EXTRA_ARGS="--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# Extra arguments to pass to llama-server (default: "")
+LCHAT_EXTRA_ARGS=""
 
 EOF
 }
@@ -389,46 +427,15 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
-    local args=(
-        --model "${LCHAT_MODEL}"
-        --alias "${LCHAT_ALIAS}"
-        --ctx-size "${LCHAT_N_CTX}"
-        --parallel "${LCHAT_PARALLEL}"
-        --threads "${LCHAT_THREADS}"
-        --n-gpu-layers "${LCHAT_N_GPU_LAYERS}"
-        --cache-type-k q4_0
-        --cache-type-v q4_0
-        --batch-size 2048
-        --ubatch-size 1024
-        --host "${LCHAT_HOST}"
-        --port "${LCHAT_PORT}"
-    )
-
-    if [[ -n "${LCHAT_MMPROJ_ARGS:-}" ]]; then
-        # shellcheck disable=SC2206
-        args+=(${LCHAT_MMPROJ_ARGS})
-    fi
-
-    if [[ -n "${LCHAT_CHAT_TEMPLATE_ARGS:-}" ]]; then
-        # shellcheck disable=SC2206
-        args+=(${LCHAT_CHAT_TEMPLATE_ARGS})
-    fi
-
-    if [[ -n "${LCHAT_DEVICE:-}" ]]; then
-        args+=(--device "${LCHAT_DEVICE}")
-    fi
-
-    if [[ -n "${LCHAT_EXTRA_ARGS:-}" ]]; then
-        # shellcheck disable=SC2206
-        args+=(${LCHAT_EXTRA_ARGS})
-    fi
+    local args
+    get_llama_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec llama-server "$@"
+            exec "${LLAMA_SERVER_BIN:-llama-server}" "$@"
         else
-            exec llama-server "${args[@]}"
+            exec "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
         fi
     fi
 
@@ -451,9 +458,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" llama-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
     fi
 }
 
@@ -537,13 +544,6 @@ cmd_test() {
         --repeat)
             shift
             repeat="$1"
-            ;;
-        --only-chat)
-            # Keep as dummy option for backward compatibility
-            ;;
-        --only-embeddings)
-            echo "Error: Embeddings are no longer served by local-chat. Use local-embedding instead." >&2
-            exit 1
             ;;
         *)
             extra_args+=("$1")
@@ -646,7 +646,7 @@ Commands:
   exec      - Run llama-server as a transient systemd user service
   run       - Run a command inside the llama-server environment
   shell     - Spawn an interactive shell in the llama-server environment
-  test [--benchmark] [--skip-chat] [--skip-prefill] [--skip-distractor] [--skip-image] [--repeat XX]
+  test [--benchmark [--skip-prefill] [--skip-chat] [--skip-distractor] [--skip-image] [--repeat XX] ]
     - Run validation tests or chat benchmark
 EOF
 }

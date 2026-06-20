@@ -151,7 +151,43 @@ get_shared_options() {
     echo "UMask=0077"
 }
 
-# Embedded service file (heredoc written by install/start/restart)
+# Helper to get unified arguments for qwen3-tts-server
+get_tts_args() {
+    local -n out_args=$1
+    out_args=(
+        --model "${LTTS_MODEL}"
+        --vocoder "${LTTS_VOCODER}"
+        --host "${LTTS_HOST}"
+        --port "${LTTS_PORT}"
+        --threads "${LTTS_THREADS}"
+    )
+
+    if [[ -n "${LTTS_DEVICE:-}" ]]; then
+        out_args+=(--device "${LTTS_DEVICE}")
+    fi
+
+    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
+        local extra_arr=()
+        eval "extra_arr=(${LTTS_EXTRA_ARGS})"
+        out_args+=("${extra_arr[@]}")
+    fi
+}
+
+# Helper to format array of arguments for systemd ExecStart
+format_exec_start() {
+    local binary="$1"
+    shift
+    local cmd="$binary"
+    for arg in "$@"; do
+        local escaped="${arg//\\/\\\\}"
+        escaped="${escaped//\"/\\\"}"
+        if [[ "$escaped" =~ [[:space:]] ]]; then
+            escaped="\"${escaped}\""
+        fi
+        cmd="${cmd} \\\\\n    ${escaped}"
+    done
+    echo -e "$cmd"
+}
 
 generate_service_file() {
     load_env
@@ -181,22 +217,10 @@ generate_service_file() {
         ;;
     esac
 
-    local exec_cmd="qwen3-tts-server \\
-    --model ${LTTS_MODEL} \\
-    --vocoder ${LTTS_VOCODER} \\
-    --host ${LTTS_HOST} \\
-    --port ${LTTS_PORT} \\
-    --threads ${LTTS_THREADS}"
-
-    if [[ -n "${LTTS_DEVICE:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    --device ${LTTS_DEVICE}"
-    fi
-
-    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
-        exec_cmd="${exec_cmd} \\
-    ${LTTS_EXTRA_ARGS}"
-    fi
+    local args
+    get_tts_args args
+    local exec_cmd
+    exec_cmd=$(format_exec_start "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}")
 
     cat <<EOF
 [Unit]
@@ -439,28 +463,15 @@ cmd_exec() {
 
     export_tts_env_vars
 
-    local args=(
-        --model "${LTTS_MODEL}"
-        --vocoder "${LTTS_VOCODER}"
-        --host "${LTTS_HOST}"
-        --port "${LTTS_PORT}"
-        --threads "${LTTS_THREADS}"
-    )
-    if [[ -n "${LTTS_DEVICE:-}" ]]; then
-        args+=(--device "${LTTS_DEVICE}")
-    fi
-    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
-        # We want word splitting for extra args
-        # shellcheck disable=SC2206
-        args+=(${LTTS_EXTRA_ARGS})
-    fi
+    local args
+    get_tts_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running qwen3-tts-server directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec qwen3-tts-server "$@"
+            exec "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "$@"
         else
-            exec qwen3-tts-server "${args[@]}"
+            exec "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}"
         fi
     fi
 
@@ -483,9 +494,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" qwen3-tts-server "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" qwen3-tts-server "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}"
     fi
 }
 
@@ -591,9 +602,9 @@ cmd_test() {
     }
     trap cleanup EXIT
 
-    # Create a test sentence of around 40 words
-    local text="The quick brown fox jumps over the lazy dog. This sentence has exactly forty words to verify that the speech generation pipeline functions functions correctly. The generated audio file will be sent directly to the local speech to text service for transcription."
-    echo "Synthesizing test sentence (41 words):"
+    # Create a test sentence of 9 words
+    local text="The quick brown fox jumps over the lazy dog."
+    echo "Synthesizing test sentence (9 words):"
     echo "  \"${text}\""
     echo "Sending request to http://${host}:${port}/v1/audio/speech..."
 

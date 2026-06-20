@@ -165,20 +165,19 @@ Llama.cpp automatically splits model layers proportionally based on each GPU's a
 
 ```bash
 # Example: Distribute model layers evenly (50/50) across two identical GPUs
-LCHAT_EXTRA_ARGS="--flash-attn on --tensor-split 1,1"
+LCHAT_EXTRA_ARGS="--tensor-split 1,1"
 
 # Example: Distribute across a 24GB GPU and a 12GB GPU (2:1 ratio)
-LCHAT_EXTRA_ARGS="--flash-attn on --tensor-split 2,1"
+LCHAT_EXTRA_ARGS="--tensor-split 2,1"
 ```
 
 You can also specify which GPU handles consolidations and intermediate compute using `--main-gpu` (defaults to GPU 0):
 ```bash
 # Consolidate intermediate calculations on GPU 1
-LCHAT_EXTRA_ARGS="--flash-attn on --tensor-split 1,1 --main-gpu 1"
+LCHAT_EXTRA_ARGS="--tensor-split 1,1 --main-gpu 1"
 ```
 
-
-### Speculative Decoding (Optional)
+### Speculative Decoding
 
 By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation.
 
@@ -187,16 +186,16 @@ By default, the service enables self-speculative decoding via **N-Gram lookup** 
 * **Mechanism**: It matches the last $N$ tokens (key size `--spec-ngram-simple-size-n`), searches the generation history for identical sequences, and drafts the next $M$ tokens (draft size `--spec-ngram-simple-size-m`) that previously followed. The target model verifies all of them in parallel in a single forward pass.
 * **Performance**: Highly optimized for structured agent outputs (like JSON, YAML, code blocks, or tool schema outputs) where formatting patterns and syntax repeat heavily, offering a **~1.3x to 1.4x speedup** with **zero VRAM overhead**.
 
-This is configured via `LCHAT_EXTRA_ARGS` in the environment file:
+This is configured via `LCHAT_SPECULATIVE_ARGS` in the environment file:
 
 ```bash
-# Enabled by default in LCHAT_EXTRA_ARGS:
-LCHAT_EXTRA_ARGS="--flash-attn on --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# Enabled by default in LCHAT_SPECULATIVE_ARGS
+LCHAT_SPECULATIVE_ARGS="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 ```
 
 To disable speculative decoding, edit the environment file and remove the speculative arguments, leaving only:
 ```bash
-LCHAT_EXTRA_ARGS="--flash-attn on"
+LCHAT_SPECULATIVE_ARGS=""
 ```
 
 ## VRAM Usage
