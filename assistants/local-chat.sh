@@ -48,6 +48,15 @@ load_env() {
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
         export HIP_VISIBLE_DEVICES
     fi
+    if [[ -n "${CUDA_VISIBLE_DEVICES+x}" ]]; then
+        export CUDA_VISIBLE_DEVICES
+    fi
+
+    # Export any GGML_ variables so that child processes see them
+    local var
+    for var in $(compgen -v | grep ^GGML_); do
+        export "${var?}"
+    done
 }
 
 # Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.

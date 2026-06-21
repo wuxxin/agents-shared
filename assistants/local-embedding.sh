@@ -44,6 +44,15 @@ load_env() {
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
         export HIP_VISIBLE_DEVICES
     fi
+    if [[ -n "${CUDA_VISIBLE_DEVICES+x}" ]]; then
+        export CUDA_VISIBLE_DEVICES
+    fi
+
+    # Export any GGML_ variables so that child processes see them
+    local var
+    for var in $(compgen -v | grep ^GGML_); do
+        export "${var?}"
+    done
 }
 
 # Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
@@ -265,6 +274,10 @@ LMBD_N_GPU_LAYERS=999
 LMBD_THREADS=4
 
 # Parallel request slots (default: 2)
+# Note: Each additional slot at default 8192 context size costs:
+#   - ~224 MiB with f16 KV cache (true physical: ~448 MiB)
+#   - ~112 MiB with q8_0 KV cache (true physical: ~224 MiB)
+#   - ~56 MiB with q4_0 KV cache (true physical: ~126 MiB)
 LMBD_PARALLEL=2
 
 # Extra arguments to pass to llama-server

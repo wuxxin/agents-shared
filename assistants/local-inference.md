@@ -65,6 +65,10 @@ LIMG_ENABLED=1
 You can define overrides inside `local-inference.env` using Bash array syntax:
 
 ```env
+LCHAT_OVERRIDE=(
+    'LCHAT_DEVICE="ROCm0"'
+    'GGML_VK_DISABLE_MMVQ=1'
+)
 LRR_OVERRIDE=(
     'CUDA_VISIBLE_DEVICES=""'
     'HIP_VISIBLE_DEVICES=""'
@@ -87,3 +91,13 @@ LIMG_OVERRIDE=(
 ```
 
 Any key matching `^KEY=.*$` or comment `^# KEY=.*$` is replaced with the override value, or appended to the service's env file if not found.
+
+### Backend Environment Variable Propagation (`GGML_*` & GPUs)
+
+For the underlying C++ backend engines (built on `ggml`/`llama.cpp`), environment variables control hardware dispatching and optimizations:
+- **`GGML_*` Backend Controls**: Variables like `GGML_VK_DISABLE_MMVQ=1` (to disable Vulkan MMVQ activation quantization) or `GGML_VULKAN_DEVICE` are automatically propagated.
+- **GPU Visibility Controls**: Variables like `CUDA_VISIBLE_DEVICES` or `HIP_VISIBLE_DEVICES` control which GPU devices are visible to the backends.
+
+To support this seamlessly across different runtimes, the service control scripts automatically detect and **export** all `GGML_*`, `CUDA_VISIBLE_DEVICES`, and `HIP_VISIBLE_DEVICES` variables loaded from their configuration files. This ensures they are correctly set in the environment for:
+1. **Systemd Services**: Read via systemd's `EnvironmentFile=` directive.
+2. **Foreground/Transient Executions**: Sourced and exported during direct/CLI runs (e.g., `./local-chat.sh exec` when systemd is not active).

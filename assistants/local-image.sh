@@ -37,6 +37,15 @@ load_env() {
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
         export HIP_VISIBLE_DEVICES
     fi
+    if [[ -n "${CUDA_VISIBLE_DEVICES+x}" ]]; then
+        export CUDA_VISIBLE_DEVICES
+    fi
+
+    # Export any GGML_ variables so that child processes see them
+    local var
+    for var in $(compgen -v | grep ^GGML_); do
+        export "${var?}"
+    done
 }
 
 # Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
@@ -252,7 +261,7 @@ LIMG_CFG_SCALE="1.0"
 # Number of computation threads to use (default: 8)
 LIMG_THREADS=8
 
-# Extra arguments to pass to sd-server (e.g. "--vae-tiling", "--diffusion-fa")
+# Extra arguments to pass to sd-server (default = "--fa", e.g. "--vae-tiling", "--diffusion-fa")
 LIMG_EXTRA_ARGS="--fa"
 
 EOF
