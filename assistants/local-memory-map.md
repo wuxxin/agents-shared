@@ -83,15 +83,15 @@ LIMG_OVERRIDE=(
 
 ### Resulting Memory Allocation Map
 
-| Service / Component | Device/Backend | VRAM (dGPU Vulkan1) | VRAM (iGPU Vulkan0) | System RAM | Notes |
-|---|---|---|---|---|---|
-| **Local-LLM Service** | Vulkan1 (dGPU) | **19,142 MiB** | 0 MiB | ~851 MiB | Active with `n_ctx=240,384`, parallel=3 |
-| **Speech-to-Text** | Vulkan0 (iGPU) | 0 MiB | **809 MiB** | ~126 MiB | Active Whisper transcription |
-| **Local-Embedding Service** | Vulkan1 (dGPU) | **1,163 MiB** | 0 MiB | ~2,915 MiB | Active text embedding |
-| **Local-Rerank Service** | CPU | 0 MiB | 0 MiB | **~2,711 MiB** | Active document reranking |
-| **Local Text-to-Speech** | CPU | 0 MiB | 0 MiB | **~2,970 MiB** | CPU mode voice synthesis |
-| **Local Image Service** | Vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,812 MiB | `vulkan0,te=cpu` preset |
-| **Total Allocation** | - | **20,305 MiB** | **7,177 MiB** | **~13,385 MiB** | |
+| Service / Component | Device/Backend | VRAM (dGPU Vulkan1) | VRAM (iGPU Vulkan0) | System RAM |
+|---|---|---|---|---|
+| **Chat** | Vulkan1 (dGPU) | **19,142 MiB** | 0 MiB | ~851 MiB |
+| **Embedding** | Vulkan1 (dGPU) | **1,163 MiB** | 0 MiB | ~2,915 MiB |
+| **Rerank** | CPU | 0 MiB | 0 MiB | **~2,711 MiB** |
+| **Speech-to-Text** | Vulkan0 (iGPU) | 0 MiB | **809 MiB** | ~126 MiB |
+| **Text-to-Speech** | CPU | 0 MiB | 0 MiB | **~2,970 MiB** |
+| **Image** | Vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,812 MiB |
+| **Total** | - | **20,305 MiB** | **7,177 MiB** | **~13,385 MiB** |
 
 **Status:**
 - **dGPU (RX 7900 XTX):** **Safe**. Fits within 24,576 MiB usable VRAM. Remaining headroom: **4,271 MiB** free VRAM.
