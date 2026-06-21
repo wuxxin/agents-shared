@@ -86,7 +86,7 @@ shfmt -i 4 -w scripts/*.sh
 ### Agent Software Configuration 
 
 - document all agent software default ports and isolation requirements in `README.md`
-- update documentation whenever any changes are made to scripts, `README.md`  for overall structure and `assistants/*-ctl.md`  for individual agent documentation, same for `scripts/`.
+- update documentation whenever any changes are made to scripts, `README.md`  for overall structure and `assistants/*-ctl.md`  for individual agent documentation, same for `scripts/`, if any assistant introduces new hardware or namespace isolation requirements, update the "## Sandboxing Architecture" profiles accordingly.
 - always use `scratch/` for temporary files, git checkout of sourcecode for research and other testings.
 - check configuration changes for packages by verifying it with the source code of the package checkedout and updated in `scratch/*-sources`.
 - always check with `[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]` if you are bwrapped yourself.
@@ -94,4 +94,9 @@ shfmt -i 4 -w scripts/*.sh
   - if bwrapped, expect hat the real $HOME of the $USER eg. ~/.local is not available to you, you have a bwrapped ~/.local 
 - whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, `run-local-benchmark.py` must be updated with any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
 - When running `run-local-benchmark.py` for testing or validation (e.g., in `--mock` mode), make sure you do not overwrite the production report/JSON files in `assistants/`. The benchmark script automatically redirects outputs to `scratch/local-benchmark-mock.md` and `scratch/local-benchmark-mock.json` when the `--mock` flag is set. If running other custom test scenarios, explicitly supply temporary paths via `--report scratch/test.md --data scratch/test.json`.
-
+- Discover updates of and new configuration features and schemas, by inspecting configuration source code directories:
+  - for ZeroClaw: check crates/zeroclaw-config/src/schema.rs and crates/zeroclaw-memory/
+  - for IronClaw: check .env.example and FEATURE_PARITY.md
+  - for Hermes: check hermes_constants.py, agent/context_compressor.py, and acp_adapter/
+  - for NanoBot: check nanobot/config/schema.py and nanobot/agent/memory.py
+  - FIXME: update hints for missing agents here
