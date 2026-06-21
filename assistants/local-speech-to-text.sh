@@ -109,6 +109,9 @@ get_whisper_args() {
         --host "${LSTT_HOST}"
         --port "${LSTT_PORT}"
         --threads "${LSTT_THREADS}"
+        --inference-path "${LSTT_INFERENCE_PATH}"
+        --convert
+        --flash-attn
     )
 
     if [[ -n "${LSTT_DEVICE:-}" ]]; then
@@ -118,12 +121,6 @@ get_whisper_args() {
     if [ "${LSTT_NO_GPU:-}" = "true" ] || [ "${LSTT_NO_GPU:-}" = "1" ]; then
         out_args+=(--no-gpu)
     fi
-
-    out_args+=(
-        --inference-path "${LSTT_INFERENCE_PATH}"
-        --convert
-        -fa
-    )
 
     if [[ -n "${LSTT_EXTRA_ARGS:-}" ]]; then
         local extra_arr=()

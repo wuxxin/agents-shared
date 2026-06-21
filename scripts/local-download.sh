@@ -7,7 +7,7 @@ show_help() {
     cat <<EOF
 Usage: $(basename "$0") <target_model_dir> [options]
 
-Intelligently downloads local AI models into standard subdirectories:
+Downloads local AI models into standard subdirectories:
   - <target_model_dir>/vision-text
   - <target_model_dir>/embedding
   - <target_model_dir>/reranker

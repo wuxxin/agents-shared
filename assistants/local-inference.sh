@@ -14,17 +14,17 @@ ENV_FILE="${SYSTEMD_USER_DIR}/local-inference.env"
 # Default parameters
 
 # shellcheck disable=SC2034
-LCHAT_ENABLED=0
+LCHAT_ENABLED=1
 # shellcheck disable=SC2034
-LMBD_ENABLED=0
+LMBD_ENABLED=1
 # shellcheck disable=SC2034
-LRR_ENABLED=0
+LRR_ENABLED=1
 # shellcheck disable=SC2034
-LSTT_ENABLED=0
+LSTT_ENABLED=1
 # shellcheck disable=SC2034
-LTTS_ENABLED=0
+LTTS_ENABLED=1
 # shellcheck disable=SC2034
-LIMG_ENABLED=0
+LIMG_ENABLED=1
 
 # Load environment
 
@@ -104,20 +104,42 @@ LSTT_ENABLED=1
 LTTS_ENABLED=1
 LIMG_ENABLED=1
 
-# Overrides for specific services (applied on install/start/restart/edit)
-# Overrides can be defined as Bash arrays. E.g.:
-LCHAT_OVERRIDE=(
-    'LCHAT_DEVICE="ROCm0'
-)
+# ROCm0 = dgpu
+# Vulkan0 = igpu
+# Vulkan1 = dgpu
 
+# Overrides for specific services (applied on install/start/restart/edit), can be defined as Bash arrays. E.g.:
+# run CHAT on vulkan/dgpu
+LCHAT_OVERRIDE=(
+    'LCHAT_DEVICE="Vulkan1"'
+    'GGML_VK_DISABLE_MMVQ=1'
+)
+# run EMBEDDING on vulkan/dgpu
+LMBD_OVERRIDE=(
+    'LMBD_DEVICE="Vulkan1"'
+)
+# run RERANK on cpu
 LRR_OVERRIDE=(
+    'LRR_DEVICE="none"'
+)
+# run SPEECH-TO-TEXT on vulkan/igpu
+LSTT_OVERRIDE=(
+    'CUDA_VISIBLE_DEVICES=""'
+    # "0" selects Vulkan0, because we hide hip/rocm devices
+    'LSTT_DEVICE="0"'
+)
+# run TEXT-TO-SPEECH on cpu
+LTTS_OVERRIDE=(
     'CUDA_VISIBLE_DEVICES=""'
     'HIP_VISIBLE_DEVICES=""'
-    'LRR_DEVICE="Vulkan1"'
+    'LTTS_MODE="cpu"'
+    'LTTS_DEVICE="none"'
 )
+# run IMAGE on vulkan/igpu and te on cpu
 LIMG_OVERRIDE=(
-    'LIMG_BACKEND="vulkan1,te=cpu"'
+    'LIMG_BACKEND="vulkan0,te=cpu"'
 )
+
 EOF
 }
 
