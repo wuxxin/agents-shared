@@ -7,6 +7,10 @@ SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nanoclaw.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/nanoclaw.env"
 NANOCLAW_HOME="$HOME/.local/sandbox/nanoclaw"
 
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -17,6 +21,7 @@ get_shared_options() {
     fi
 
     local AGENT_PRIVATE_MOUNTS=""
+    local AGENT_SANDBOX_MOUNTS=""
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -45,6 +50,14 @@ get_shared_options() {
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
         mkdir -p "$HOME/agent-private/$m"
         echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
+    done
+
+    for m in ${AGENT_SANDBOX_MOUNTS:-}; do
+        local sandbox_name="${m%%/*}"
+        local subpath="${m#*/}"
+        mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+        mkdir -p "$HOME/.local/sandbox/nanoclaw/${subpath}"
+        echo "BindPaths=${home_spec}/.local/sandbox/${sandbox_name}/${subpath}:${home_spec}/.local/sandbox/nanoclaw/${subpath}"
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
@@ -96,7 +109,9 @@ SyslogIdentifier=nanoclaw
 WantedBy=default.target
 EOF
 
-    systemctl --user daemon-reload
+    if is_systemd_running; then
+        systemctl --user daemon-reload
+    fi
 }
 
 cmd_install() {
@@ -127,6 +142,10 @@ cmd_install() {
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 
+# List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
+# (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
+# AGENT_SANDBOX_MOUNTS=""
+
 # Local Inference
 # Default OpenAI-compatible LLM provider (llama-server on port 50080)
 LLM_PROVIDER="openai"
@@ -150,15 +169,19 @@ EOF
 
     write_service_file
 
-    echo "Reloading systemd and enabling service..."
-    systemctl --user enable nanoclaw.service
+    if is_systemd_running; then
+        echo "Reloading systemd and enabling service..."
+        systemctl --user enable nanoclaw.service
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping service if running (--no-start specified)..."
-        systemctl --user stop nanoclaw.service || true
+        if [ "$no_start" = "true" ]; then
+            echo "Stopping service if running (--no-start specified)..."
+            systemctl --user stop nanoclaw.service || true
+        else
+            echo "Starting service automatically..."
+            systemctl --user start nanoclaw.service
+        fi
     else
-        echo "Starting service automatically..."
-        systemctl --user start nanoclaw.service
+        echo "Systemd is not running/available in this environment. Skipping systemd service activation."
     fi
 
     echo "Done! Type '$0 logs' to see the output."
@@ -166,45 +189,77 @@ EOF
 
 cmd_uninstall() {
     echo "Uninstalling nanoclaw systemd service..."
-    systemctl --user stop nanoclaw.service || true
-    systemctl --user disable nanoclaw.service || true
+    if is_systemd_running; then
+        systemctl --user stop nanoclaw.service || true
+        systemctl --user disable nanoclaw.service || true
+    fi
 
     if [ -f "$SERVICE_FILE" ]; then
         rm "$SERVICE_FILE"
-        systemctl --user daemon-reload
+        if is_systemd_running; then
+            systemctl --user daemon-reload
+        fi
         echo "Removed service file."
     fi
     echo "Uninstalled successfully. Data in $NANOCLAW_HOME is preserved."
 }
 
 cmd_start() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user start nanoclaw.service
 }
 
 cmd_stop() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user stop nanoclaw.service
 }
 
 cmd_restart() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user restart nanoclaw.service
 }
 
 cmd_status() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user status nanoclaw.service
 }
 
 cmd_enable() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user enable nanoclaw.service
 }
 
 cmd_disable() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user disable nanoclaw.service
 }
 
 cmd_logs() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     journalctl --user -u nanoclaw.service "$@"
 }
 
@@ -212,11 +267,29 @@ cmd_edit() {
     mkdir -p "$(dirname "$ENV_FILE")"
     touch "$ENV_FILE"
     ${EDITOR:-nano} "$ENV_FILE"
-    echo "Restarting service to apply updated environment..."
-    cmd_restart
+    if is_systemd_running; then
+        echo "Restarting service to apply updated environment..."
+        cmd_restart
+    else
+        echo "Systemd is not running. Service restart skipped."
+    fi
 }
 
 cmd_exec() {
+    if ! is_systemd_running; then
+        echo "Systemd is not running. Running nanoclaw directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$NANOCLAW_HOME"
+        cd "$NANOCLAW_HOME"
+        exec /usr/bin/nanoclaw "$@"
+    fi
     echo "Starting nanoclaw as a transient systemd service with args: $*"
 
     local opts=(
@@ -238,6 +311,20 @@ cmd_exec() {
 }
 
 cmd_shell() {
+    if ! is_systemd_running; then
+        echo "Systemd is not running. Starting direct interactive shell..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$NANOCLAW_HOME"
+        cd "$NANOCLAW_HOME"
+        exec "${SHELL:-/bin/bash}" "$@"
+    fi
     echo "Starting interactive shell as a transient systemd service..."
 
     local opts=(
@@ -262,6 +349,20 @@ cmd_run() {
     if [ $# -lt 1 ]; then
         echo "Error: run requires a command to execute." >&2
         exit 1
+    fi
+    if ! is_systemd_running; then
+        echo "Systemd is not running. Running command directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$NANOCLAW_HOME"
+        cd "$NANOCLAW_HOME"
+        exec "$@"
     fi
     echo "Running command inside the nanoclaw environment: $*"
 

@@ -124,10 +124,10 @@ Add the following configuration blocks to `~/.local/sandbox/nanobot/config.json`
     "provider": "openai_compatible/local",
     "model": "text-embedding-3-small",
     "api_key": "unused",
-    "base_url": "http://localhost:50080/v1"
+    "base_url": "http://localhost:50082/v1"
   },
-  "mcp": {
-    "servers": {
+  "tools": {
+    "mcp_servers": {
       "brave-search": {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-brave-search"],
@@ -146,8 +146,8 @@ NanoBot does not include native reranking support. To add reranking capabilities
 
 ```json
 {
-  "mcp": {
-    "servers": {
+  "tools": {
+    "mcp_servers": {
       "local-reranker": {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-fetch"],
@@ -173,7 +173,7 @@ Add the following environment variables to `~/.config/systemd/user/nanobot.env` 
 
 ```bash
 # Point transcription endpoint to local-speech-to-text service
-OPENAI_TRANSCRIPTION_BASE_URL="http://localhost:50090/v1/audio/transcriptions"
+OPENAI_TRANSCRIPTION_BASE_URL="http://localhost:50090/v1"
 OPENAI_API_KEY="dummy"  # Required placeholder to activate the provider
 ```
 
@@ -185,7 +185,29 @@ Alternatively, you can configure it inside `~/.local/sandbox/nanobot/config.json
     "provider": "openai",
     "openai": {
       "api_key": "dummy",
-      "base_url": "http://localhost:50090/v1/audio/transcriptions"
+      "base_url": "http://localhost:50090/v1"
+    }
+  }
+}
+```
+
+## Image Generation Integration
+
+NanoBot supports local image generation via the `local-image` service (port `50100`). You can configure the `openai` provider client under `providers` and register the `generate_image` tool under `tools.image_generation` in `~/.local/sandbox/nanobot/config.json`:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "unused",
+      "api_base": "http://localhost:50100/v1"
+    }
+  },
+  "tools": {
+    "image_generation": {
+      "enabled": true,
+      "provider": "openai",
+      "model": "stability-ai/sdxl"
     }
   }
 }

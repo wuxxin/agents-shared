@@ -100,7 +100,7 @@ HERMES_EMBEDDING_MODEL="text-embedding-3-small"
 
 # Local Inference Endpoint (llama.cpp or Ollama)
 # Route to local-embedding (port 50082) for system-wide local embeddings
-EMBEDDING_API_BASE="http://localhost:50080/v1"
+EMBEDDING_API_BASE="http://localhost:50082/v1"
 EMBEDDING_API_KEY="unused"
 ```
 
@@ -146,6 +146,19 @@ stt:
     api_key: "dummy"
     base_url: "http://localhost:50090/v1"
     model: "whisper-1"
+```
+
+
+## Text-to-Speech Integration
+
+Hermes does not have a built-in TTS provider in the core service config, but it supports outbound speech using custom command-type tools. You can configure a tool that makes an OpenAI-compatible request to the local TTS service on port `50095`:
+
+```bash
+# Example curl command for local TTS synthesis (sends text to port 50095 and saves/plays the audio)
+curl -X POST http://localhost:50095/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model": "qwen3-tts", "input": "Hello from Hermes", "voice": "serena"}' \
+  --output speech.wav
 ```
 
 

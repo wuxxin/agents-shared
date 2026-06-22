@@ -32,20 +32,22 @@ to create the home directory (`~/.local/sandbox/picoclaw`)
 In the WebUI, add a Custom OpenAI provider with endpoint `http://localhost:50080/v1`, model `qwen3`, and key `unused`. Alternatively, configure `~/.local/sandbox/picoclaw/config.json` manually:
 ```json
 {
-  "providers": {
-    "openai": {
-      "local": {
-        "api_key": "unused",
-        "base_url": "http://localhost:50080/v1"
-      }
+  "version": 3,
+  "agents": {
+    "defaults": {
+      "model_name": "qwen3",
+      "context_window": 80128
     }
   },
-  "agents": {
-    "default": {
-      "model_provider": "openai.local",
-      "model": "qwen3"
+  "model_list": [
+    {
+      "model_name": "qwen3",
+      "provider": "openai",
+      "model": "qwen3",
+      "api_keys": ["unused"],
+      "api_base": "http://localhost:50080/v1"
     }
-  }
+  ]
 }
 ```
 
@@ -67,23 +69,22 @@ Add the following to `~/.local/sandbox/picoclaw/config.json`:
 
 ```json
 {
-  "memory": {
-    "type": "json_file",
-    "history_limit": 50
-  },
+  "version": 3,
   "embeddings": {
     "provider": "openai",
     "model": "qwen3-embedding",
     "base_url": "http://localhost:50082/v1",
     "api_key": "unused"
   },
-  "mcp": {
-    "servers": {
-      "sqlite-vec": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-sqlite-vec"],
-        "env": {
-          "DB_PATH": "/home/wuxxin/.local/sandbox/picoclaw/mcp-vectors.db"
+  "tools": {
+    "mcp": {
+      "servers": {
+        "sqlite-vec": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-sqlite-vec"],
+          "env": {
+            "DB_PATH": "/home/wuxxin/.local/sandbox/picoclaw/mcp-vectors.db"
+          }
         }
       }
     }
@@ -97,14 +98,16 @@ PicoClaw does not include native reranking due to its ultra-lightweight design. 
 
 ```json
 {
-  "mcp": {
-    "servers": {
-      "local-reranker": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-fetch"],
-        "env": {
-          "RERANK_URL": "http://localhost:50086/v1/rerank",
-          "RERANK_MODEL": "qwen3-reranker"
+  "tools": {
+    "mcp": {
+      "servers": {
+        "local-reranker": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-fetch"],
+          "env": {
+            "RERANK_URL": "http://localhost:50086/v1/rerank",
+            "RERANK_MODEL": "qwen3-reranker"
+          }
         }
       }
     }
@@ -124,18 +127,32 @@ Add the following sections to `~/.local/sandbox/picoclaw/config.json`:
 
 ```json
 {
-  "voice": {
-    "model_name": "local_stt"
-  },
-  "models": {
-    "local_stt": {
+  "model_list": [
+    {
+      "model_name": "local_stt",
+      "provider": "openai",
       "model": "whisper-1",
-      "api_key": "dummy",
-      "base_url": "http://localhost:50090/v1"
+      "api_keys": ["dummy"],
+      "api_base": "http://localhost:50090/v1"
+    },
+    {
+      "model_name": "local_tts",
+      "provider": "openai",
+      "model": "qwen3-tts",
+      "api_keys": ["dummy"],
+      "api_base": "http://localhost:50095/v1"
     }
+  ],
+  "voice": {
+    "model_name": "local_stt",
+    "tts_model_name": "local_tts"
   }
 }
 ```
+
+## Text-to-Speech Integration
+
+PicoClaw supports Text-to-Speech (TTS) voice synthesis by configuring an OpenAI-compatible TTS model entry in the `model_list` (port `50095`) and pointing the `voice.tts_model_name` key to it. Outbound audio files are automatically generated and sent to messaging channels (such as Signal) when a message is dispatched. Refer to the configuration block above for details.
 
 ## Implementation & Security Considerations
 

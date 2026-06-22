@@ -7,6 +7,10 @@ SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/picoclaw.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/picoclaw.env"
 PICOCLAW_HOME="$HOME/.local/sandbox/picoclaw"
 
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
 get_shared_options() {
     local mode="$1" # "service" or "transient"
     local home_spec
@@ -17,6 +21,7 @@ get_shared_options() {
     fi
 
     local AGENT_PRIVATE_MOUNTS=""
+    local AGENT_SANDBOX_MOUNTS=""
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -48,6 +53,14 @@ get_shared_options() {
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
         mkdir -p "$HOME/agent-private/$m"
         echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
+    done
+
+    for m in ${AGENT_SANDBOX_MOUNTS:-}; do
+        local sandbox_name="${m%%/*}"
+        local subpath="${m#*/}"
+        mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+        mkdir -p "$HOME/.local/sandbox/picoclaw/${subpath}"
+        echo "BindPaths=${home_spec}/.local/sandbox/${sandbox_name}/${subpath}:${home_spec}/.local/sandbox/picoclaw/${subpath}"
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
@@ -94,7 +107,9 @@ SyslogIdentifier=picoclaw
 WantedBy=default.target
 EOF
 
-    systemctl --user daemon-reload
+    if is_systemd_running; then
+        systemctl --user daemon-reload
+    fi
 }
 
 cmd_install() {
@@ -114,48 +129,59 @@ cmd_install() {
     if [ ! -f "$PICOCLAW_HOME/config.json" ] || [ "$new_config" = "true" ]; then
         cat >"$PICOCLAW_HOME/config.json" <<'EOF'
 {
-  "providers": {
-    "openai": {
-      "local": {
-        "api_key": "unused",
-        "base_url": "http://localhost:50080/v1"
-      }
-    }
-  },
+  "version": 3,
   "agents": {
-    "default": {
-      "model_provider": "openai.local",
-      "model": "qwen3",
+    "defaults": {
+      "model_name": "qwen3",
       "context_window": 80128
     }
   },
+  "model_list": [
+    {
+      "model_name": "qwen3",
+      "provider": "openai",
+      "model": "qwen3",
+      "api_keys": ["unused"],
+      "api_base": "http://localhost:50080/v1"
+    },
+    {
+      "model_name": "local_stt",
+      "provider": "openai",
+      "model": "whisper-1",
+      "api_keys": ["dummy"],
+      "api_base": "http://localhost:50090/v1"
+    },
+    {
+      "model_name": "local_tts",
+      "provider": "openai",
+      "model": "qwen3-tts",
+      "api_keys": ["dummy"],
+      "api_base": "http://localhost:50095/v1"
+    }
+  ],
   "embeddings": {
     "provider": "openai",
     "model": "qwen3-embedding",
     "base_url": "http://localhost:50082/v1",
     "api_key": "unused"
   },
-  "mcp": {
-    "servers": {
-      "local-reranker": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-fetch"],
-        "env": {
-          "RERANK_URL": "http://localhost:50086/v1/rerank",
-          "RERANK_MODEL": "qwen3-reranker"
+  "tools": {
+    "mcp": {
+      "servers": {
+        "local-reranker": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-fetch"],
+          "env": {
+            "RERANK_URL": "http://localhost:50086/v1/rerank",
+            "RERANK_MODEL": "qwen3-reranker"
+          }
         }
       }
     }
   },
   "voice": {
-    "model_name": "local_stt"
-  },
-  "models": {
-    "local_stt": {
-      "model": "whisper-1",
-      "api_key": "dummy",
-      "base_url": "http://localhost:50090/v1"
-    }
+    "model_name": "local_stt",
+    "tts_model_name": "local_tts"
   }
 }
 EOF
@@ -175,21 +201,29 @@ EOF
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
+
+# List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
+# (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
+# AGENT_SANDBOX_MOUNTS=""
 EOF
         chmod 600 "$ENV_FILE"
     fi
 
     write_service_file
 
-    echo "Reloading systemd and enabling service..."
-    systemctl --user enable picoclaw.service
+    if is_systemd_running; then
+        echo "Reloading systemd and enabling service..."
+        systemctl --user enable picoclaw.service
 
-    if [ "$no_start" = "true" ]; then
-        echo "Stopping service if running (--no-start specified)..."
-        systemctl --user stop picoclaw.service || true
+        if [ "$no_start" = "true" ]; then
+            echo "Stopping service if running (--no-start specified)..."
+            systemctl --user stop picoclaw.service || true
+        else
+            echo "Starting service automatically..."
+            systemctl --user start picoclaw.service
+        fi
     else
-        echo "Starting service automatically..."
-        systemctl --user start picoclaw.service
+        echo "Systemd is not running/available in this environment. Skipping systemd service activation."
     fi
 
     echo "Done! Type '$0 logs' to see the output."
@@ -197,45 +231,77 @@ EOF
 
 cmd_uninstall() {
     echo "Uninstalling picoclaw systemd service..."
-    systemctl --user stop picoclaw.service || true
-    systemctl --user disable picoclaw.service || true
+    if is_systemd_running; then
+        systemctl --user stop picoclaw.service || true
+        systemctl --user disable picoclaw.service || true
+    fi
 
     if [ -f "$SERVICE_FILE" ]; then
         rm "$SERVICE_FILE"
-        systemctl --user daemon-reload
+        if is_systemd_running; then
+            systemctl --user daemon-reload
+        fi
         echo "Removed service file."
     fi
     echo "Uninstalled successfully. Data in $PICOCLAW_HOME is preserved."
 }
 
 cmd_start() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user start picoclaw.service
 }
 
 cmd_stop() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user stop picoclaw.service
 }
 
 cmd_restart() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user restart picoclaw.service
 }
 
 cmd_status() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user status picoclaw.service
 }
 
 cmd_enable() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     write_service_file
     systemctl --user enable picoclaw.service
 }
 
 cmd_disable() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     systemctl --user disable picoclaw.service
 }
 
 cmd_logs() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
     journalctl --user -u picoclaw.service "$@"
 }
 
@@ -243,11 +309,32 @@ cmd_edit() {
     mkdir -p "$(dirname "$ENV_FILE")"
     touch "$ENV_FILE"
     ${EDITOR:-nano} "$ENV_FILE"
-    echo "Restarting service to apply updated environment..."
-    cmd_restart
+    if is_systemd_running; then
+        echo "Restarting service to apply updated environment..."
+        cmd_restart
+    else
+        echo "Systemd is not running. Service restart skipped."
+    fi
 }
 
 cmd_exec() {
+    if ! is_systemd_running; then
+        echo "Systemd is not running. Running picoclaw directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$PICOCLAW_HOME"
+        export PICOCLAW_HOME="$PICOCLAW_HOME"
+        export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
+        export PICOCLAW_BINARY=/usr/bin/picoclaw
+        cd "$PICOCLAW_HOME"
+        exec /usr/bin/picoclaw "$@"
+    fi
     echo "Starting picoclaw as a transient systemd service with args: $*"
 
     local opts=(
@@ -269,6 +356,23 @@ cmd_exec() {
 }
 
 cmd_shell() {
+    if ! is_systemd_running; then
+        echo "Systemd is not running. Starting direct interactive shell..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$PICOCLAW_HOME"
+        export PICOCLAW_HOME="$PICOCLAW_HOME"
+        export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
+        export PICOCLAW_BINARY=/usr/bin/picoclaw
+        cd "$PICOCLAW_HOME"
+        exec "${SHELL:-/bin/bash}" "$@"
+    fi
     echo "Starting interactive shell as a transient systemd service..."
 
     local opts=(
@@ -293,6 +397,23 @@ cmd_run() {
     if [ $# -lt 1 ]; then
         echo "Error: run requires a command to execute." >&2
         exit 1
+    fi
+    if ! is_systemd_running; then
+        echo "Systemd is not running. Running command directly..."
+        if [ -f "$ENV_FILE" ]; then
+            set +u
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            set -u
+        fi
+        export HOME="$PICOCLAW_HOME"
+        export PICOCLAW_HOME="$PICOCLAW_HOME"
+        export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
+        export PICOCLAW_BINARY=/usr/bin/picoclaw
+        cd "$PICOCLAW_HOME"
+        exec "$@"
     fi
     echo "Running command inside the picoclaw environment: $*"
 

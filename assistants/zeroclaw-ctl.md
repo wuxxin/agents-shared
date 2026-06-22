@@ -109,7 +109,7 @@ Add the following to your `config.toml` configuration file (located in the sandb
 backend = "sqlite.default"
 
 embedding_model = "qwen3-embedding"
-embedding_provider = "custom:http://localhost:50080/v1"
+embedding_provider = "custom:http://localhost:50082/v1"
 
 ```
 

@@ -21,6 +21,7 @@ get_shared_options() {
     fi
 
     local AGENT_PRIVATE_MOUNTS=""
+    local AGENT_SANDBOX_MOUNTS=""
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -49,6 +50,14 @@ get_shared_options() {
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
         mkdir -p "$HOME/agent-private/$m"
         echo "BindPaths=${home_spec}/agent-private/$m:${home_spec}/agent-private/$m"
+    done
+
+    for m in ${AGENT_SANDBOX_MOUNTS:-}; do
+        local sandbox_name="${m%%/*}"
+        local subpath="${m#*/}"
+        mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+        mkdir -p "$HOME/.local/sandbox/librefang/${subpath}"
+        echo "BindPaths=${home_spec}/.local/sandbox/${sandbox_name}/${subpath}:${home_spec}/.local/sandbox/librefang/${subpath}"
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
@@ -132,6 +141,10 @@ cmd_install() {
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 
+# List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
+# (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
+# AGENT_SANDBOX_MOUNTS=""
+
 
 # Local Presence Detection for Embedding Auto-Detection (embedding_provider = "auto")
 # If these variables are set and non-empty, the daemon will auto-select the provider.
@@ -165,15 +178,16 @@ EOF
 
 # --- Chat Provider
 [default_model]
-api_key_env = "LOCAL_CHAT_API_KEY"
-provider = "local-chat"
+provider = "openai"
 model = "qwen3"
+api_key_env = "unused"
+base_url = "http://localhost:50080/v1"
 context_window = 80128
 temperature = 1.0
 reasoning_effort = "low"
 
 [provider_urls]
-openai = "http://localhost:50080/v1"
+openai = "http://localhost:50082/v1"
 
 # --- Memory & Embeddings
 [memory]
@@ -183,30 +197,21 @@ embedding_model = "qwen3-embedding"
 # --- Speech-to-Text
 [media]
 audio_transcription = true
-audio_provider = "customstt"
+audio_provider = "openai"
 audio_model = "whisper-1"
-# provider openai and audio_base_url requires librefang-git AUR patchset
-# audio_provider = "openai"
-# audio_base_url = "http://localhost:50090/v1"
-
-[media.customstt]
-api_key_env = ""
-base_url = "http://localhost:50090/v1"
-key_required = false
+audio_base_url = "http://localhost:50090/v1"
 
 # --- Text-to-Speech
 [tts]
 enabled = true
-provider = "customtts"
+provider = "openai"
 timeout_secs = 60
 
-[tts.customtts]
-api_key_env = ""
+[tts.openai]
 base_url = "http://localhost:50095/v1"
-format = "wav"
-key_required = false
 model = "qwen3-tts"
 voice = "serena"
+format = "wav"
 
 # --- Signal Sidecar Channel
 [[sidecar_channels]]

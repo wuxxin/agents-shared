@@ -93,7 +93,7 @@ embedding_provider = "openai"
 embedding_model = "qwen3-embedding"
 
 [provider_urls]
-openai = "http://localhost:50080/v1"
+openai = "http://localhost:50082/v1"
 
 ```
 

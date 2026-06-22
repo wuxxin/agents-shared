@@ -101,4 +101,6 @@ shfmt -i 4 -w scripts/*.sh
   - for IronClaw: check .env.example and FEATURE_PARITY.md
   - for Hermes: check hermes_constants.py, agent/context_compressor.py, and acp_adapter/
   - for NanoBot: check nanobot/config/schema.py and nanobot/agent/memory.py
-  - FIXME: update hints for missing agents here
+  - for LibreFang: check librefang.toml.example, .env.example, and crates/librefang-types/src/config/types.rs
+  - for NanoClaw: check .env.example, src/config.ts, and src/env.ts
+  - for PicoClaw: check .env.example, config/config.example.json, and pkg/config/config.go
