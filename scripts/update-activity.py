@@ -377,52 +377,106 @@ def make_contributors_block(stats: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def update_assistant_section(
-    content: str, name_heading: str, stats: Dict[str, Any]
+def update_assistant_section_with_anchor(
+    content: str, name: str, stats: Dict[str, Any]
 ) -> str:
-    """Locate and update status and contributor lists for an assistant section in content."""
-    # Find the heading block starting with "### Name (" up to next heading or end of file
-    pattern = re.compile(
-        rf"(^### {re.escape(name_heading)} \(.*?\n)(.*?)(?=\n### |\n## |\n--- |\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
+    """Locate and update status and contributor lists for an assistant section in content using comment anchors."""
+    anchor_name = name.upper().replace(".", "_").replace("-", "_")
+    start_tag = f"<!-- START_BD_{anchor_name} -->"
+    end_tag = f"<!-- END_BD_{anchor_name} -->"
 
-    match = pattern.search(content)
-    if not match:
-        return content
-
-    header_line = match.group(1)
-    old_section_block = match.group(2)
-
-    # Extract Recent Focus
-    recent_focus = ""
-    focus_match = re.search(
-        r"(\* \*\*Recent Focus\*\*:.*)", old_section_block, re.DOTALL
-    )
-    if focus_match:
-        recent_focus = focus_match.group(1).strip()
-
-    # Extract Note (if any)
-    note = ""
-    note_match = re.search(r"(\* \*\*Note\*\*:.*)", old_section_block)
-    if note_match:
-        note_text = note_match.group(1).strip()
-        if "* **Recent Focus**:" in note_text:
-            note_text = note_text.split("* **Recent Focus**:")[0].strip()
-        note = note_text
-
-    # Rebuild body
     status_line = make_status_line(stats)
     contributors_block = make_contributors_block(stats)
+    new_body = f"{status_line}\n{contributors_block}"
 
-    new_parts = [status_line, contributors_block]
-    if note:
-        new_parts.append(note)
-    if recent_focus:
-        new_parts.append(recent_focus)
+    pattern = re.compile(rf"{re.escape(start_tag)}.*?{re.escape(end_tag)}", re.DOTALL)
+    if not pattern.search(content):
+        print(f"Warning: Comment anchor {start_tag} / {end_tag} not found in markdown.")
+        return content
 
-    new_body = "\n".join(new_parts)
-    return content.replace(match.group(0), f"{header_line}{new_body}\n")
+    new_block = f"{start_tag}\n{new_body}\n{end_tag}"
+    return re.sub(pattern, new_block, content)
+
+
+def make_recent_focus_block(stats: Dict[str, Any], repo_dir: str) -> str:
+    """Fetch and format the Recent Focus block using git log."""
+    installed_ref = stats.get("installed_ref")
+    since_commits_str = stats.get("since_commits", "—")
+    since_commits_int = int(since_commits_str) if since_commits_str.isdigit() else None
+
+    use_installed_range = False
+    if (
+        installed_ref
+        and since_commits_int is not None
+        and since_commits_int < stats.get("commits", 0)
+    ):
+        use_installed_range = True
+
+    if use_installed_range:
+        cmd = [
+            "git",
+            "-C",
+            repo_dir,
+            "log",
+            "--no-merges",
+            "--oneline",
+            f"{installed_ref}..HEAD",
+        ]
+    else:
+        cmd = [
+            "git",
+            "-C",
+            repo_dir,
+            "log",
+            "--since=7 days ago",
+            "--no-merges",
+            "--oneline",
+            "-n",
+            "15",
+        ]
+
+    log_output = run_cmd(cmd)
+
+    lines = ["* **Recent Focus**:"]
+    if not log_output:
+        lines.append("  - No new commits in this period.")
+        return "\n".join(lines)
+
+    for line in log_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            commit_hash, subject = parts[0], parts[1]
+            subject = subject.replace("`", "'")
+            lines.append(f"  - `{commit_hash}` {subject}")
+        else:
+            lines.append(f"  - {line}")
+
+    return "\n".join(lines)
+
+
+def update_focus_section_with_anchor(
+    content: str, name: str, stats: Dict[str, Any]
+) -> str:
+    """Locate and update Recent Focus lists for a section in content using comment anchors."""
+    anchor_name = name.upper().replace(".", "_").replace("-", "_")
+    start_tag = f"<!-- START_RF_{anchor_name} -->"
+    end_tag = f"<!-- END_RF_{anchor_name} -->"
+
+    repo_dir = os.path.join("scratch", name)
+    focus_block = make_recent_focus_block(stats, repo_dir)
+
+    pattern = re.compile(rf"{re.escape(start_tag)}.*?{re.escape(end_tag)}", re.DOTALL)
+    if not pattern.search(content):
+        print(
+            f"Warning: Focus comment anchor {start_tag} / {end_tag} not found in markdown."
+        )
+        return content
+
+    new_block = f"{start_tag}\n{focus_block}\n{end_tag}"
+    return re.sub(pattern, new_block, content)
 
 
 def compile_activity(write_to_file: bool = False) -> None:
@@ -514,17 +568,18 @@ def compile_activity(write_to_file: bool = False) -> None:
         content = re.sub(header_pattern, new_header, content)
 
         # Update tables
-        start_tag = "<!-- START_WEEKLY_ACTIVITY_TABLES -->"
-        end_tag = "<!-- END_WEEKLY_ACTIVITY_TABLES -->"
+        start_tag = "<!-- START_TABLES -->"
+        end_tag = "<!-- END_TABLES -->"
         table_pattern = re.compile(
             rf"{re.escape(start_tag)}.*?{re.escape(end_tag)}", re.DOTALL
         )
         new_block = f"{start_tag}\n{tables_block}\n{end_tag}"
         content = re.sub(table_pattern, new_block, content)
 
-        # Update breakdown sections
+        # Update breakdown and focus sections
         for r in results:
-            content = update_assistant_section(content, r["heading"], r)
+            content = update_assistant_section_with_anchor(content, r["name"], r)
+            content = update_focus_section_with_anchor(content, r["name"], r)
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -538,26 +593,60 @@ def compile_activity(write_to_file: bool = False) -> None:
 
     # Print raw logs for focus areas
     print("\n" + "=" * 40)
-    print("Recent Upstream Commit Logs (Last 7 Days):")
+    print("Recent Upstream Commit Logs:")
     print("=" * 40)
     for r in results:
-        if r["commits"] == 0:
-            continue
-        print(f"\n### {r['name']} ({r['github']}) - {r['commits']} commits")
-        log = run_cmd(
-            [
-                "git",
-                "-C",
-                f"scratch/{r['name']}",
-                "log",
-                "--since=7 days ago",
-                "--no-merges",
-                "--oneline",
-                "-n",
-                "15",
-            ]
+        installed_ref = r.get("installed_ref")
+        since_commits_str = r.get("since_commits", "—")
+        since_commits_int = (
+            int(since_commits_str) if since_commits_str.isdigit() else None
         )
-        print(log)
+
+        use_installed_range = False
+        if (
+            installed_ref
+            and since_commits_int is not None
+            and since_commits_int < r["commits"]
+        ):
+            use_installed_range = True
+
+        if use_installed_range:
+            print(
+                f"\n### {r['name']} ({r['github']}) - {since_commits_int} commits since installed {r['installed_ver']}"
+            )
+            if since_commits_int is not None and since_commits_int > 0:
+                log = run_cmd(
+                    [
+                        "git",
+                        "-C",
+                        f"scratch/{r['name']}",
+                        "log",
+                        "--no-merges",
+                        "--oneline",
+                        f"{installed_ref}..HEAD",
+                    ]
+                )
+                print(log)
+        else:
+            if r["commits"] == 0:
+                continue
+            print(
+                f"\n### {r['name']} ({r['github']}) - {r['commits']} commits (Last 7 Days)"
+            )
+            log = run_cmd(
+                [
+                    "git",
+                    "-C",
+                    f"scratch/{r['name']}",
+                    "log",
+                    "--since=7 days ago",
+                    "--no-merges",
+                    "--oneline",
+                    "-n",
+                    "15",
+                ]
+            )
+            print(log)
 
 
 if __name__ == "__main__":
