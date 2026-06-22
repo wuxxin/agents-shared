@@ -162,6 +162,46 @@ IronClaw supports multiple communication channels beyond Signal:
 
 WASM channels are installed from the IronClaw registry and run in isolated WebAssembly containers with capability-based permissions.
 
+
+## Engine V2 Architecture
+
+IronClaw features a next-generation execution engine (Engine V2) that can be optionally activated.
+
+- **Activation**: Set the environment variable `ENGINE_V2=true` (or `ENGINE_V2=1`) in `~/.local/sandbox/ironclaw/.ironclaw/.env`.
+- **Architectural Difference**: 
+  - **V1 (Legacy)** runs a standard loop in Rust compiling flat tool calls.
+  - **V2 (Engine)** is built as a separate crate (`crates/ironclaw_engine`) that executes a Python-based orchestrator loop inside an embedded **Monty VM** (Python interpreter).
+- **Core Primitives**: V2 unifies 10+ legacy abstractions into 5 core primitives:
+  - `Thread`: Message history and timeline sequence.
+  - `Step`: Single execution step (turn).
+  - `Capability`: Leasable resources (tools, endpoints).
+  - `MemoryDoc`: Project-scoped knowledge assets.
+  - `Project`: Scoping boundary for threads and files.
+- **CodeAct Execution**: Instead of returning single tool invocations, the LLM emits Python code blocks representing tool calls which are executed dynamically by the Monty VM, enabling complex tool compounding and runtime logic verification.
+- **Learning & Missions**: Engine V2 runs self-contained learning loops (Missions) for self-improvement, skill extraction, conversation insights, and skill repair.
+
+
+## Reborn Web GUI (Web UI V2)
+
+IronClaw includes a completely redesigned, premium Web UI codenamed **Reborn**.
+
+- **Separate Binary**: Managed via the `ironclaw-reborn` binary (from `crates/ironclaw_reborn_cli`) rather than the standard `ironclaw` binary.
+- **Default Port**: Reborn runs on port **`3000`** by default (configured via `IRONCLAW_REBORN_SERVE_PORT`), whereas the legacy V1 web gateway serves on port **`8080`**.
+- **Frontend Architecture**: A premium React Single Page Application (SPA) built using React, React Query, Tailwind CSS, and `htm` (JSX alternative), compiling to a standalone bundle.
+- **Key Features**:
+  - Live SSE (Server-Sent Events) and WebSocket message streaming.
+  - Interactive multi-user chat interface.
+  - Projects and files workspace management.
+  - Live tool auth-gate resolution UI.
+  - Skill and extension installer dashboards.
+- **Authentication**: Supports Env Bearer auth (`IRONCLAW_REBORN_WEBUI_TOKEN`), Google/GitHub OAuth, and NEAR Wallet login.
+- **Management Subcommands**: `ironclaw-reborn` includes extensive diagnostics commands such as:
+  - `serve`: Run the React WebUI server.
+  - `doctor`: Check service health and configurations.
+  - `logs`/`traces`: Inspect execution runs.
+  - `skills`/`hooks`/`channels`: Manage installed plugins and integrations.
+- **Environment Variables**: Reborn is configured using `IRONCLAW_REBORN_*` prefixed variables (e.g. `IRONCLAW_REBORN_HOME`, `IRONCLAW_REBORN_WEBUI_TOKEN`, `IRONCLAW_REBORN_POSTGRES_URL`).
+
 ---
 
 ## Implementation & Security Considerations

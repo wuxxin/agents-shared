@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# zeroclaw-ctl - installation and management wrapper for zeroclaw
+# ironclaw-ctl - installation and management wrapper for ironclaw
 
-SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/zeroclaw.service"
-ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/zeroclaw.env"
-ZEROCLAW_HOME="$HOME/.local/sandbox/zeroclaw"
+SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ironclaw.service"
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ironclaw.env"
+IRONCLAW_HOME="$HOME/.local/sandbox/ironclaw"
 
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
@@ -30,21 +30,22 @@ get_shared_options() {
     fi
 
     # Environment & Working Directory
-    echo "Environment=HOME=${home_spec}/.local/sandbox/zeroclaw"
-    echo "Environment=ZEROCLAW_PORT=${ZEROCLAW_PORT:-42617}"
-    echo "Environment=ZEROCLAW_HOST=${ZEROCLAW_HOST:-127.0.0.1}"
-    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/zeroclaw.env"
-    echo "WorkingDirectory=${home_spec}/.local/sandbox/zeroclaw"
+    echo "Environment=HOME=${home_spec}/.local/sandbox/ironclaw"
+    echo "Environment=HTTP_HOST=${HTTP_HOST:-127.0.0.1}"
+    echo "Environment=HTTP_PORT=${HTTP_PORT:-8080}"
+    echo "Environment=DATABASE_URL=${DATABASE_URL:-postgres://localhost/ironclaw}"
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/ironclaw.env"
+    echo "WorkingDirectory=${home_spec}/.local/sandbox/ironclaw"
 
     # Security measures
     echo "NoNewPrivileges=yes"
     echo "CapabilityBoundingSet="
     echo "AmbientCapabilities="
 
-    # Filesystem hiding
+    # Filesystem isolation
     echo "ProtectSystem=strict"
     echo "TemporaryFileSystem=${home_spec}"
-    echo "BindPaths=${home_spec}/.local/sandbox/zeroclaw:${home_spec}/.local/sandbox/zeroclaw"
+    echo "BindPaths=${home_spec}/.local/sandbox/ironclaw:${home_spec}/.local/sandbox/ironclaw"
     echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
 
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
@@ -56,8 +57,8 @@ get_shared_options() {
         local sandbox_name="${m%%/*}"
         local subpath="${m#*/}"
         mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-        mkdir -p "$HOME/.local/sandbox/zeroclaw/${subpath}"
-        echo "BindPaths=${home_spec}/.local/sandbox/${sandbox_name}/${subpath}:${home_spec}/.local/sandbox/zeroclaw/${subpath}"
+        mkdir -p "$HOME/.local/sandbox/ironclaw/${subpath}"
+        echo "BindPaths=${home_spec}/.local/sandbox/${sandbox_name}/${subpath}:${home_spec}/.local/sandbox/ironclaw/${subpath}"
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
@@ -85,25 +86,25 @@ get_shared_options() {
 write_service_file() {
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
-Description=ZeroClaw Agent OS Daemon
-Documentation=https://github.com/zeroclaw-labs/zeroclaw
-After=network-online.target
+Description=IronClaw Agent OS Daemon
+Documentation=https://github.com/nearai/ironclaw
+After=network-online.target postgresql.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=/usr/bin/zeroclaw daemon --host \$ZEROCLAW_HOST --port \$ZEROCLAW_PORT
+ExecStart=/usr/bin/ironclaw run
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=zeroclaw
+SyslogIdentifier=ironclaw
 
 # Note: ProtectProc=invisible, ProcSubset=pid, and RestrictNamespaces=yes
-# are explicitly omitted to allow child processes to use bwrap.
+# are explicitly omitted to allow WASM sandbox and optional Docker workers.
 
 [Install]
 WantedBy=default.target
@@ -125,19 +126,21 @@ cmd_install() {
         shift
     done
 
-    echo "Setting up zeroclaw home directory at $ZEROCLAW_HOME..."
-    mkdir -p "$ZEROCLAW_HOME"
+    echo "Setting up ironclaw home directory at $IRONCLAW_HOME..."
+    mkdir -p "$IRONCLAW_HOME"
 
     echo "Generating systemd user service..."
     mkdir -p "$(dirname "$SERVICE_FILE")"
 
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
-# zeroclaw.env
-# ZEROCLAW_PORT: Gateway port for ZeroClaw (default 42617)
-ZEROCLAW_PORT=42617
-# ZEROCLAW_HOST: Gateway host for ZeroClaw (default *)
-ZEROCLAW_HOST=127.0.0.1
+# ironclaw.env — systemd bootstrap environment
+# HTTP_HOST: Web gateway bind address (default 127.0.0.1)
+HTTP_HOST=127.0.0.1
+# HTTP_PORT: Web gateway listen port (default 8080)
+HTTP_PORT=8080
+# DATABASE_URL: PostgreSQL connection string (requires pgvector extension)
+DATABASE_URL=postgres://localhost/ironclaw
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
@@ -152,121 +155,103 @@ EOF
         echo "Created default environment file at $ENV_FILE"
     fi
 
-    local CONFIG_DIR="$ZEROCLAW_HOME/.zeroclaw"
-    local CONFIG_FILE="$CONFIG_DIR/config.toml"
-    if [ ! -f "$CONFIG_FILE" ] || [ "$new_config" = "true" ]; then
-        mkdir -p "$CONFIG_DIR"
-        cat >"$CONFIG_FILE" <<'EOF'
-# config.toml — ZeroClaw local inference configuration
-# Generated by zeroclaw-ctl install --new-config
-# All settings below target the local inference split services.
+    local APP_DIR="$IRONCLAW_HOME/.ironclaw"
+    local APP_ENV_FILE="$APP_DIR/.env"
+    if [ ! -f "$APP_ENV_FILE" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$APP_DIR"
+        cat >"$APP_ENV_FILE" <<'EOF'
+# .env — IronClaw application configuration
+# Generated by ironclaw-ctl install --new-config
+# Config priority: Database/TOML > Environment > Defaults
+# Note: dotenvy does not override vars already set by systemd EnvironmentFile.
 
-schema_version = 3
+# --- Local Chat / LLM Provider (local-chat on port 50080) ---
+LLM_BACKEND=openai_compatible
+LLM_API_KEY=unused
+LLM_BASE_URL=http://localhost:50080/v1
+LLM_MODEL=qwen3
+# LLM_REQUEST_TIMEOUT_SECS=120
 
-# --- Chat / LLM Provider
-[providers.models.openai.local]
-uri = "http://localhost:50080/v1"
-model = "qwen3"
-api_key = "unused"
-max_tokens = 80128
-temperature = 1.0
+# --- Embeddings (local-embedding on port 50082) ---
+EMBEDDING_ENABLED=true
+EMBEDDING_BASE_URL=http://localhost:50082/v1
+EMBEDDING_MODEL=qwen3-embedding
+# EMBEDDING_DIMENSION=    # auto-detected from model
 
-# --- Default Agent Settings
-[agents.default]
-model_provider = "openai.local"
-max_context_tokens = 80128
-tts_provider = "openai.local"
-transcription_provider = "local_whisper.localstt"
-risk_profile = "default"
-runtime_profile = "default"
-channels = ["signal.default"]
+# --- Reranking ---
+# IronClaw uses built-in Reciprocal Rank Fusion (RRF) for hybrid search
+# combining full-text and vector results. No external reranker required.
 
-[agents.default.memory]
-backend = "sqlite"
+# --- Speech-to-Text (local-speech-to-text on port 50090) ---
+TRANSCRIPTION_ENABLED=true
+TRANSCRIPTION_PROVIDER=openai
+TRANSCRIPTION_BASE_URL=http://localhost:50090/v1
+TRANSCRIPTION_MODEL=whisper-1
 
-# --- Risk & Runtime Profiles
-[risk_profiles.default]
-level = "full"
-workspace_only = false
-allowed_commands = ["*"]
-forbidden_paths = []
-require_approval_for_medium_risk = false
-block_high_risk_commands = false
-sandbox_enabled = false
+# --- Text-to-Speech ---
+# IronClaw does not support TTS natively. No TTS env vars available.
 
-[runtime_profiles.default]
-agentic = false
-max_tool_iterations = 0
-max_actions_per_hour = 20
-max_cost_per_day_cents = 500
-shell_timeout_secs = 60
+# --- Image Generation ---
+# Image generation is handled via MCP tool output parsing.
+# No dedicated image generation env vars are available.
 
-# --- Memory & Embeddings
-[memory]
-backend = "sqlite.default"
-embedding_model = "qwen3-embedding"
-embedding_provider = "custom:http://localhost:50082/v1"
-rerank_enabled = false
-retrieval_stages = ["cache", "fts", "vector"]
-search_mode = "hybrid"
+# --- Signal Channel (signal-ctl on port 50889) ---
+SIGNAL_ENABLED=true
+SIGNAL_HTTP_URL=http://127.0.0.1:50889
+# SIGNAL_ACCOUNT=+1234567890
+# SIGNAL_ALLOW_FROM=+1234567890,uuid:your-uuid-here
+SIGNAL_DM_POLICY=pairing
+SIGNAL_GROUP_POLICY=allowlist
+SIGNAL_IGNORE_ATTACHMENTS=false
+SIGNAL_IGNORE_STORIES=true
 
-# --- Speech-to-Text
-[transcription]
-enabled = true
+# --- ACP (Agent Client Protocol for external coding agents, e.g. OpenCode) ---
+# ACP_ENABLED=false
+# ACP_TIMEOUT_SECS=1800
 
-[providers.transcription.local_whisper.localstt]
-uri = "http://localhost:50090/v1/audio/transcriptions"
-bearer_token = "dummy"
-model = "whisper-1"
+# --- Agent ---
+AGENT_NAME=ironclaw
+# AGENT_MAX_PARALLEL_JOBS=5
+# AGENT_USE_PLANNING=true
+# AGENT_MAX_TOOL_ITERATIONS=50
+# ENGINE_V2=false
 
-# --- Text-to-Speech
-[tts]
-enabled = true
+# --- Sandbox (WASM tool isolation) ---
+SANDBOX_ENABLED=true
+SANDBOX_POLICY=readonly
 
-[providers.tts.openai.local]
-uri = "http://localhost:50095/v1/audio/speech"
-model = "qwen3-tts"
-api_key = "unused"
+# --- Safety ---
+SAFETY_INJECTION_CHECK_ENABLED=true
 
-# --- Signal Channel
-[channels.signal.default]
-enabled = true
-http_url = "http://localhost:50889"
-account = "+1234567890"
-approval_timeout_secs = 0
-dm_only = true
-ignore_attachments = false
-ignore_stories = true
-default_target = "+0000000000"
+# --- Heartbeat ---
+# HEARTBEAT_ENABLED=false
+# HEARTBEAT_INTERVAL_SECS=1800
 
-# --- Runtime Configuration (Thinking/Reasoning)
-[runtime]
-reasoning_enabled = true
-reasoning_effort = "low"
+# --- Memory Hygiene ---
+MEMORY_HYGIENE_ENABLED=true
+# MEMORY_HYGIENE_VERSION_KEEP_COUNT=50
+# MEMORY_HYGIENE_CADENCE_HOURS=12
 
-# --- OpenCode Coding Agent Integration
-[opencode_cli]
-enabled = true
-timeout_secs = 600
-max_output_bytes = 2097152
-env_passthrough = []
+# --- Logging ---
+RUST_LOG=ironclaw=info,tower_http=info
 
 EOF
-        echo "Created default configuration at $CONFIG_FILE"
+        chmod 600 "$APP_ENV_FILE"
+        echo "Created default application config at $APP_ENV_FILE"
     fi
 
     write_service_file
 
     if is_systemd_running; then
         echo "Reloading systemd and enabling service..."
-        systemctl --user enable zeroclaw.service
+        systemctl --user enable ironclaw.service
 
         if [ "$no_start" = "true" ]; then
             echo "Stopping service if running (--no-start specified)..."
-            systemctl --user stop zeroclaw.service || true
+            systemctl --user stop ironclaw.service || true
         else
             echo "Starting service automatically..."
-            systemctl --user start zeroclaw.service
+            systemctl --user start ironclaw.service
         fi
     else
         echo "Systemd is not running. Service file generated but not started/enabled."
@@ -276,10 +261,10 @@ EOF
 }
 
 cmd_uninstall() {
-    echo "Uninstalling zeroclaw systemd service..."
+    echo "Uninstalling ironclaw systemd service..."
     if is_systemd_running; then
-        systemctl --user stop zeroclaw.service || true
-        systemctl --user disable zeroclaw.service || true
+        systemctl --user stop ironclaw.service || true
+        systemctl --user disable ironclaw.service || true
     fi
 
     if [ -f "$SERVICE_FILE" ]; then
@@ -289,7 +274,7 @@ cmd_uninstall() {
         fi
         echo "Removed service file."
     fi
-    echo "Uninstalled successfully. Data in $ZEROCLAW_HOME is preserved."
+    echo "Uninstalled successfully. Data in $IRONCLAW_HOME is preserved."
 }
 
 cmd_start() {
@@ -298,7 +283,7 @@ cmd_start() {
         exit 1
     fi
     write_service_file
-    systemctl --user start zeroclaw.service
+    systemctl --user start ironclaw.service
 }
 
 cmd_stop() {
@@ -306,7 +291,7 @@ cmd_stop() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    systemctl --user stop zeroclaw.service
+    systemctl --user stop ironclaw.service
 }
 
 cmd_restart() {
@@ -315,7 +300,7 @@ cmd_restart() {
         exit 1
     fi
     write_service_file
-    systemctl --user restart zeroclaw.service
+    systemctl --user restart ironclaw.service
 }
 
 cmd_status() {
@@ -323,7 +308,7 @@ cmd_status() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    systemctl --user status zeroclaw.service
+    systemctl --user status ironclaw.service
 }
 
 cmd_enable() {
@@ -332,7 +317,7 @@ cmd_enable() {
         exit 1
     fi
     write_service_file
-    systemctl --user enable zeroclaw.service
+    systemctl --user enable ironclaw.service
 }
 
 cmd_disable() {
@@ -340,7 +325,7 @@ cmd_disable() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    systemctl --user disable zeroclaw.service
+    systemctl --user disable ironclaw.service
 }
 
 cmd_logs() {
@@ -348,14 +333,14 @@ cmd_logs() {
         echo "Error: Systemd is not running. Check direct execution console output instead." >&2
         exit 1
     fi
-    journalctl --user -u zeroclaw.service "$@"
+    journalctl --user -u ironclaw.service "$@"
 }
 
 cmd_edit() {
-    local config_file="$ZEROCLAW_HOME/.zeroclaw/config.toml"
-    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$config_file")"
-    touch "$ENV_FILE" "$config_file"
-    ${EDITOR:-nano} "$ENV_FILE" "$config_file"
+    local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
+    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")"
+    touch "$ENV_FILE" "$app_env_file"
+    ${EDITOR:-nano} "$ENV_FILE" "$app_env_file"
     if is_systemd_running; then
         echo "Restarting service to apply updated environment..."
         cmd_restart
@@ -366,7 +351,7 @@ cmd_edit() {
 
 cmd_exec() {
     if ! is_systemd_running; then
-        echo "Systemd is not running. Running zeroclaw directly..."
+        echo "Systemd is not running. Running ironclaw directly..."
         if [ -f "$ENV_FILE" ]; then
             set +u
             set -a
@@ -375,15 +360,16 @@ cmd_exec() {
             set +a
             set -u
         fi
-        export HOME="$ZEROCLAW_HOME"
-        export ZEROCLAW_PORT="${ZEROCLAW_PORT:-42617}"
-        export ZEROCLAW_HOST="${ZEROCLAW_HOST:-127.0.0.1}"
-        mkdir -p "$ZEROCLAW_HOME"
-        cd "$ZEROCLAW_HOME" || exit 1
-        exec /usr/bin/zeroclaw "$@"
+        export HOME="$IRONCLAW_HOME"
+        export HTTP_PORT="${HTTP_PORT:-8080}"
+        export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
+        export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+        mkdir -p "$IRONCLAW_HOME"
+        cd "$IRONCLAW_HOME" || exit 1
+        exec /usr/bin/ironclaw "$@"
     fi
 
-    echo "Starting zeroclaw as a transient systemd service with args: $*"
+    echo "Starting ironclaw as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -400,7 +386,7 @@ cmd_exec() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" /usr/bin/zeroclaw "$@"
+    systemd-run "${opts[@]}" /usr/bin/ironclaw "$@"
 }
 
 cmd_shell() {
@@ -414,11 +400,12 @@ cmd_shell() {
             set +a
             set -u
         fi
-        export HOME="$ZEROCLAW_HOME"
-        export ZEROCLAW_PORT="${ZEROCLAW_PORT:-42617}"
-        export ZEROCLAW_HOST="${ZEROCLAW_HOST:-127.0.0.1}"
-        mkdir -p "$ZEROCLAW_HOME"
-        cd "$ZEROCLAW_HOME" || exit 1
+        export HOME="$IRONCLAW_HOME"
+        export HTTP_PORT="${HTTP_PORT:-8080}"
+        export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
+        export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+        mkdir -p "$IRONCLAW_HOME"
+        cd "$IRONCLAW_HOME" || exit 1
         exec "${SHELL:-/bin/bash}" "$@"
     fi
 
@@ -449,7 +436,7 @@ cmd_run() {
     fi
 
     if ! is_systemd_running; then
-        echo "Running command inside the zeroclaw environment: $*"
+        echo "Running command inside the ironclaw environment: $*"
         if [ -f "$ENV_FILE" ]; then
             set +u
             set -a
@@ -458,15 +445,16 @@ cmd_run() {
             set +a
             set -u
         fi
-        export HOME="$ZEROCLAW_HOME"
-        export ZEROCLAW_PORT="${ZEROCLAW_PORT:-42617}"
-        export ZEROCLAW_HOST="${ZEROCLAW_HOST:-127.0.0.1}"
-        mkdir -p "$ZEROCLAW_HOME"
-        cd "$ZEROCLAW_HOME" || exit 1
+        export HOME="$IRONCLAW_HOME"
+        export HTTP_PORT="${HTTP_PORT:-8080}"
+        export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
+        export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+        mkdir -p "$IRONCLAW_HOME"
+        cd "$IRONCLAW_HOME" || exit 1
         exec "$@"
     fi
 
-    echo "Running command inside the zeroclaw environment: $*"
+    echo "Running command inside the ironclaw environment: $*"
 
     local opts=(
         --user
@@ -489,7 +477,7 @@ cmd_run() {
 usage() {
     echo "Usage: $0 <command>"
     echo "Commands:"
-    echo "  install [--no-start] [--new-config] - Setup service and zeroclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
+    echo "  install [--no-start] [--new-config] - Setup service and ironclaw home directory (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)"
     echo "  uninstall - Stop and remove systemd service"
     echo "  start     - Start the systemd service"
     echo "  stop      - Stop the systemd service"
@@ -498,10 +486,10 @@ usage() {
     echo "  enable    - Enable systemd service on boot"
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
-    echo "  edit      - Edit the .env and config.toml files"
-    echo "  exec      - Run zeroclaw as a transient systemd user service with args"
-    echo "  run       - Run a command inside the zeroclaw systemd environment"
-    echo "  shell     - Spawn an interactive shell in the zeroclaw systemd environment"
+    echo "  edit      - Edit the .env and application config files"
+    echo "  exec      - Run ironclaw as a transient systemd user service with args"
+    echo "  run       - Run a command inside the ironclaw systemd environment"
+    echo "  shell     - Spawn an interactive shell in the ironclaw systemd environment"
 }
 
 if [ $# -lt 1 ]; then

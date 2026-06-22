@@ -1,36 +1,17 @@
 # AGENTS.md - Guidelines for Agents Working in This Repository
 
-## Overview
-
-- Shell and Python scripts for general agent management.
-
 ## Repository Structure
 
-- `README.md`:
-
-Overall Readme and Instructions on how to use the Agents and Scripts
-
-- `assistants/`:
-
-Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for:
+- `README.md`: Overall Readme and Instructions on how to use the Agents and Scripts
+- `assistants/`: Houses lifecycle management control wrappers (`*-ctl`) and configuration documentation for:
   - running various agents (Hermes, LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, ZeroClaw)
   - running local inference services (chat,embedding,stt,tts,rerank,image) 
-  - running a Signal gateway).
-
-- `scripts/`:
-
-Helper utilities for caching/throughput benchmarking, token counting and token speed simulation.
-
-- `research/`:
-
-Documentation about the assistants git repository activity, llm adapter research and other research findings.
-
-- `scratch/`:
-
-Safe workspace directory for configuration testing, source code cloning, and developmental research.
+  - running a Signal gateway.
+- `scripts/`: Helper utilities for caching/throughput benchmarking, token counting and token speed simulation.
+- `research/`: Documentation about the assistants git repository activity, llm adapter research and other research findings.
+- `scratch/`: Safe workspace directory for configuration testing, source code cloning, and developmental research.
 
 ## Build/Lint/Test Commands
-
 
 ### Python Scripts
 ```bash
@@ -97,10 +78,10 @@ shfmt -i 4 -w scripts/*.sh
 - whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, `run-local-benchmark.py` must be updated with any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
 - When running `run-local-benchmark.py` for testing or validation (e.g., in `--mock` mode), make sure you do not overwrite the production report/JSON files in `assistants/`. The benchmark script automatically redirects outputs to `scratch/local-benchmark-mock.md` and `scratch/local-benchmark-mock.json` when the `--mock` flag is set. If running other custom test scenarios, explicitly supply temporary paths via `--report scratch/test.md --data scratch/test.json`.
 - Discover updates of and new configuration features and schemas, by inspecting configuration source code directories:
-  - for ZeroClaw: check crates/zeroclaw-config/src/schema.rs and crates/zeroclaw-memory/
-  - for IronClaw: check .env.example and FEATURE_PARITY.md
-  - for Hermes: check hermes_constants.py, agent/context_compressor.py, and acp_adapter/
-  - for NanoBot: check nanobot/config/schema.py and nanobot/agent/memory.py
-  - for LibreFang: check librefang.toml.example, .env.example, and crates/librefang-types/src/config/types.rs
-  - for NanoClaw: check .env.example, src/config.ts, and src/env.ts
-  - for PicoClaw: check .env.example, config/config.example.json, and pkg/config/config.go
+  - ZeroClaw: check crates/zeroclaw-config/src/schema.rs and crates/zeroclaw-memory/
+  - IronClaw: check .env.example and FEATURE_PARITY.md
+  - Hermes: check hermes_constants.py, agent/context_compressor.py, and acp_adapter/
+  - NanoBot: check nanobot/config/schema.py and nanobot/agent/memory.py
+  - LibreFang: check librefang.toml.example, .env.example, and crates/librefang-types/src/config/types.rs
+  - NanoClaw: check .env.example, src/config.ts, and src/env.ts
+  - PicoClaw: check .env.example, config/config.example.json, and pkg/config/config.go
