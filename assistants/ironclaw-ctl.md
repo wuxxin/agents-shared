@@ -42,12 +42,13 @@ The `--new-config` flag generates (or overwrites):
 
 ### Common Environment Variables
 
-Define these variables in `~/.config/systemd/user/ironclaw.env` (recommended) or `~/.local/sandbox/ironclaw/.ironclaw/.env` to customize host and port bindings:
+Define these variables in `~/.config/systemd/user/ironclaw.env` (recommended) or `~/.local/sandbox/ironclaw/.ironclaw/.env` to customize engine types, host and port bindings:
 
-*   **`HTTP_HOST`** (Default: `127.0.0.1`): Bind address for the HTTP interfaces.
-*   **`HTTP_PORT`** (Default: `8080`): Listen port (legacy web gateway or reborn HTTP api).
-*   **`SIGNAL_ACCOUNT`**: Phone number associated with the Signal bot account.
-*   **`SIGNAL_ALLOW_FROM`**: Comma-separated list of phone numbers or UUIDs permitted to message the bot.
+
+* **`IRONCLAW_REBORN`** (Default: true): select the newer IronClaw Reborn engine 'true, or for Legacy engine 'false'.
+* **`ENGINE_V2`** (Default: true): select V2 Engine for IronClaw Legacy 'true', or the V1 Engine 'false'
+* **`HTTP_HOST`** (Default: `127.0.0.1`): Bind address for the HTTP interfaces
+* **`HTTP_PORT`** (Default: `8080`): Listen port (legacy web gateway or reborn HTTP api)
 
 ### Diagnostics & Onboarding
 
@@ -68,11 +69,12 @@ The Signal channel connects the IronClaw agent to a running [signal-cli](https:/
 ##### Environment Configuration
 Configure the Signal channel by adding these variables to `~/.config/systemd/user/ironclaw.env` or the application `.env` file:
 
-*   **`SIGNAL_HTTP_URL`** (Default: `http://127.0.0.1:50889`): The endpoint of the running `signal-cli` daemon.
-*   **`SIGNAL_ACCOUNT`**: The phone number associated with the registered Signal bot account (e.g. `+1234567890`).
-*   **`SIGNAL_ALLOW_FROM`**: A comma-separated list of phone numbers or UUIDs allowed to message the bot (e.g. `+1987654321,uuid:xxxx-xxxx-xxxx`). Set to `*` to allow all senders. Leaving it empty forces new senders to go through the pairing flow.
-*   **`SIGNAL_DM_POLICY`** (Default: `pairing`): The policy for direct messages. Can be `open`, `allowlist`, or `pairing`.
-*   **`SIGNAL_GROUP_POLICY`** (Default: `allowlist`): The policy for group chats. Can be `allowlist`, `open`, or `disabled`.
+* **`SIGNAL_HTTP_URL`** (Default: `http://127.0.0.1:50889`): The endpoint of the running `signal-cli` daemon.
+* **`SIGNAL_ACCOUNT`**: The phone number associated with the registered Signal bot account (e.g. `+1234567890`).
+* **`SIGNAL_ALLOW_FROM`**: A comma-separated list of phone numbers or UUIDs allowed to message the bot (e.g. `+1987654321,uuid:xxxx-xxxx-xxxx`)
+    *  Set to `*` to allow all senders. Leaving it empty forces new senders to go through the pairing flow.
+* **`SIGNAL_GROUP_POLICY`** (Default: `allowlist`): The policy for group chats. Can be `allowlist`, `open`, or `disabled`.
+* **`SIGNAL_DM_POLICY`**: (Default: `pairing`): The policy for direct messages. Can be `open`, `allowlist`, or `pairing`
 
 ##### Signal Daemon Setup (signal-cli)
 To link your account and receive messages, run `signal-cli` in daemon mode:

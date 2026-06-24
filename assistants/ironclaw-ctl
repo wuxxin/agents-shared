@@ -541,13 +541,13 @@ cmd_install() {
         cat >"$ENV_FILE" <<'EOF'
 # ironclaw.env — systemd bootstrap environment
 
-# --- ENGINE CONFIGURATION
-# Set to 'true' (default) to run the newer IronClaw Reborn engine (ironclaw-reborn), or 'false' for Legacy (ironclaw).
-# IRONCLAW_REBORN=false
-# Disable V2 Engine for IronClaw Legacy: (default is false, only selectable under legacy)
-# ENGINE_V2=true
-
 # --- COMMON VARIABLES
+
+# IRONCLAW_REBORN (default: true) to select the newer IronClaw Reborn engine or 'false' for Legacy engine.
+# IRONCLAW_REBORN=false
+# V2 Engine for IronClaw Legacy: (default: true, only selectable under legacy)
+# ENGINE_V2=false
+
 # HTTP_HOST: Web gateway bind address (default 127.0.0.1)
 HTTP_HOST=127.0.0.1
 # HTTP_PORT: Web gateway listen port (default 8080 for legacy, default 3000 for reborn serve)
@@ -575,19 +575,6 @@ SIGNAL_DM_POLICY=pairing
 SIGNAL_GROUP_POLICY=allowlist
 
 
-# --- LEGACY VARIABLES
-# DATABASE_URL: PostgreSQL connection string (requires pgvector extension)
-DATABASE_URL=postgres://localhost/ironclaw
-
-# Tracing filter
-# RUST_LOG=ironclaw=info,tower_http=info
-
-# ACP / OpenCode Coding Agent Integration
-# Enable Agent Client Protocol (ACP) for coding agents like OpenCode
-ACP_ENABLED=true
-# ACP_MEMORY_LIMIT_MB=4096
-# ACP_TIMEOUT_SECS=1800
-
 # --- REBORN VARIABLES
 # IRONCLAW_REBORN_PROFILE: Boot profile selector. Supported values: local-dev, local-dev-yolo, production, migration-dry-run.
 IRONCLAW_REBORN_PROFILE=local-dev-yolo
@@ -603,6 +590,21 @@ IRONCLAW_REBORN_WEBUI_USER_ID=default-owner
 
 # Reborn Tracing filter
 # IRONCLAW_REBORN_LOG=debug,ironclaw_reborn=info
+
+
+# --- LEGACY VARIABLES
+# DATABASE_URL: PostgreSQL connection string (requires pgvector extension)
+DATABASE_URL=postgres://localhost/ironclaw
+
+# Tracing filter
+# RUST_LOG=ironclaw=info,tower_http=info
+
+# ACP / OpenCode Coding Agent Integration
+# Enable Agent Client Protocol (ACP) for coding agents like OpenCode
+ACP_ENABLED=true
+# ACP_MEMORY_LIMIT_MB=4096
+# ACP_TIMEOUT_SECS=1800
+
 
 # --- SERVICE CONFIGURATION
 
