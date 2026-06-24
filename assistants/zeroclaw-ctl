@@ -134,10 +134,19 @@ cmd_install() {
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
 # zeroclaw.env
+
 # ZEROCLAW_PORT: Gateway port for ZeroClaw (default 42617)
 ZEROCLAW_PORT=42617
 # ZEROCLAW_HOST: Gateway host for ZeroClaw (default *)
 ZEROCLAW_HOST=127.0.0.1
+
+# Signal Channel Overrides (Optional)
+# ZEROCLAW_channels__signal__default__account: Your registered Signal phone number
+# ZEROCLAW_channels__signal__default__account="+1234567890"
+# ZEROCLAW_channels__signal__default__http_url: URL of the signal-cli HTTP REST API daemon
+# ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
+# ZEROCLAW_peer_groups__signal_group__external_peers: JSON list of allowed senders (e.g. ['+9876543210', '*'])
+# ZEROCLAW_peer_groups__signal_group__external_peers='["+9876543219"]'
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
@@ -146,14 +155,6 @@ ZEROCLAW_HOST=127.0.0.1
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
 # (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
 # AGENT_SANDBOX_MOUNTS=""
-
-# --- Signal Channel Overrides (Optional) ---
-# ZEROCLAW_channels__signal__default__account: Your registered Signal phone number
-# ZEROCLAW_channels__signal__default__account="+1234567890"
-# ZEROCLAW_channels__signal__default__http_url: URL of the signal-cli HTTP REST API daemon
-# ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
-# ZEROCLAW_peer_groups__signal_group__external_peers: JSON list of allowed senders (e.g. ['+1234567890', '*'])
-# ZEROCLAW_peer_groups__signal_group__external_peers='["+1234567890"]'
 
 EOF
         chmod 600 "$ENV_FILE"
