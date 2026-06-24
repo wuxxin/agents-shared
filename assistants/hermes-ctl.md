@@ -96,7 +96,7 @@ HONCHO_API_KEY="your-honcho-key"
 # Embedding Provider Configuration
 # Options: "openai", "cohere", "jina", "voyage", "local", "ollama"
 HERMES_EMBEDDING_PROVIDER="local"
-HERMES_EMBEDDING_MODEL="text-embedding-3-small"
+HERMES_EMBEDDING_MODEL="qwen3-embedding"
 
 # Local Inference Endpoint (llama.cpp or Ollama)
 # Route to local-embedding (port 50082) for system-wide local embeddings

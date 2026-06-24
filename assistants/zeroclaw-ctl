@@ -147,6 +147,14 @@ ZEROCLAW_HOST=127.0.0.1
 # (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
 # AGENT_SANDBOX_MOUNTS=""
 
+# --- Signal Channel Overrides (Optional) ---
+# ZEROCLAW_channels__signal__default__account: Your registered Signal phone number
+# ZEROCLAW_channels__signal__default__account="+1234567890"
+# ZEROCLAW_channels__signal__default__http_url: URL of the signal-cli HTTP REST API daemon
+# ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
+# ZEROCLAW_peer_groups__signal_group__external_peers: JSON list of allowed senders (e.g. ['+1234567890', '*'])
+# ZEROCLAW_peer_groups__signal_group__external_peers='["+1234567890"]'
+
 EOF
         chmod 600 "$ENV_FILE"
         echo "Created default environment file at $ENV_FILE"

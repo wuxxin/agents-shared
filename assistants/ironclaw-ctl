@@ -2,6 +2,9 @@
 set -euo pipefail
 
 # ironclaw-ctl - installation and management wrapper for ironclaw
+#
+# Toggle between versions by setting IRONCLAW_REBORN=true/false or ENGINE_V2=true/false
+# in ~/.config/systemd/user/ironclaw.env or ~/.local/sandbox/ironclaw/.ironclaw/.env.
 
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ironclaw.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ironclaw.env"
@@ -9,6 +12,108 @@ IRONCLAW_HOME="$HOME/.local/sandbox/ironclaw"
 
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
+is_reborn() {
+    local val_reborn="${IRONCLAW_REBORN:-}"
+    local val_v2="${ENGINE_V2:-}"
+
+    # If env vars are not set in shell environment, read from config files
+    if [ -z "$val_reborn" ] && [ -z "$val_v2" ]; then
+        if [ -f "$ENV_FILE" ]; then
+            val_reborn=$(grep -E '^\s*IRONCLAW_REBORN=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'\'' ')
+            val_v2=$(grep -E '^\s*ENGINE_V2=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'\'' ')
+        fi
+        local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
+        if [ -z "$val_reborn" ] && [ -z "$val_v2" ] && [ -f "$app_env_file" ]; then
+            val_reborn=$(grep -E '^\s*IRONCLAW_REBORN=' "$app_env_file" | cut -d= -f2- | tr -d '"'\'' ')
+            val_v2=$(grep -E '^\s*ENGINE_V2=' "$app_env_file" | cut -d= -f2- | tr -d '"'\'' ')
+        fi
+    fi
+
+    if [ "$val_reborn" = "true" ] || [ "$val_v2" = "true" ]; then
+        return 0
+    fi
+    return 1
+}
+
+setup_direct_env() {
+    if [ -f "$ENV_FILE" ]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set +a
+        set -u
+    fi
+    local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$app_env_file"
+        set +a
+        set -u
+    fi
+    export HOME="$IRONCLAW_HOME"
+    export HTTP_PORT="${HTTP_PORT:-8080}"
+    export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
+    export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+    if is_reborn; then
+        export IRONCLAW_REBORN_HOME="$IRONCLAW_HOME/.ironclaw/reborn"
+        export IRONCLAW_REBORN_PROFILE="${IRONCLAW_REBORN_PROFILE:-local-dev-yolo}"
+        export IRONCLAW_REBORN_WEBUI_TOKEN="${IRONCLAW_REBORN_WEBUI_TOKEN:-local_reborn_token}"
+        export IRONCLAW_REBORN_WEBUI_USER_ID="${IRONCLAW_REBORN_WEBUI_USER_ID:-default-owner}"
+    fi
+}
+
+get_exec_cmd_and_args() {
+    # Sets variables EXEC_PATH and EXTRA_ARGS
+    if is_reborn; then
+        EXEC_PATH="/usr/bin/ironclaw-reborn"
+        if [ ! -x "$EXEC_PATH" ]; then
+            echo "Error: Reborn is selected, but $EXEC_PATH is not executable." >&2
+            echo "Please install the ironclaw-reborn-git package." >&2
+            exit 1
+        fi
+        EXTRA_ARGS=()
+        if [ $# -gt 0 ]; then
+            local cmd="$1"
+            if [ "$cmd" = "serve" ] || [ "$cmd" = "repl" ] || [ "$cmd" = "run" ]; then
+                # Check profile
+                local profile="${IRONCLAW_REBORN_PROFILE:-}"
+                if [ -z "$profile" ]; then
+                    if [ -f "$ENV_FILE" ]; then
+                        profile=$(grep -E '^\s*IRONCLAW_REBORN_PROFILE=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'\'' ')
+                    fi
+                    local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
+                    if [ -z "$profile" ] && [ -f "$app_env_file" ]; then
+                        profile=$(grep -E '^\s*IRONCLAW_REBORN_PROFILE=' "$app_env_file" | cut -d= -f2- | tr -d '"'\'' ')
+                    fi
+                fi
+                if [ "$profile" = "local-dev-yolo" ]; then
+                    # Only append if not already present in the arguments
+                    local found_confirm=false
+                    for arg in "$@"; do
+                        if [ "$arg" = "--confirm-host-access" ]; then
+                            found_confirm=true
+                        fi
+                    done
+                    if [ "$found_confirm" = "false" ]; then
+                        EXTRA_ARGS+=("--confirm-host-access")
+                    fi
+                fi
+            fi
+        fi
+    else
+        EXEC_PATH="/usr/bin/ironclaw"
+        if [ ! -x "$EXEC_PATH" ]; then
+            echo "Error: Legacy IronClaw is selected, but $EXEC_PATH is not executable." >&2
+            echo "Please install the ironclaw-git package." >&2
+            exit 1
+        fi
+        EXTRA_ARGS=()
+    fi
 }
 
 get_shared_options() {
@@ -28,13 +133,29 @@ get_shared_options() {
         source "$ENV_FILE"
         set -u
     fi
+    local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$app_env_file"
+        set -u
+    fi
 
     # Environment & Working Directory
     echo "Environment=HOME=${home_spec}/.local/sandbox/ironclaw"
     echo "Environment=HTTP_HOST=${HTTP_HOST:-127.0.0.1}"
     echo "Environment=HTTP_PORT=${HTTP_PORT:-8080}"
     echo "Environment=DATABASE_URL=${DATABASE_URL:-postgres://localhost/ironclaw}"
+    if is_reborn; then
+        echo "Environment=IRONCLAW_REBORN_HOME=${home_spec}/.local/sandbox/ironclaw/.ironclaw/reborn"
+        echo "Environment=IRONCLAW_REBORN_PROFILE=${IRONCLAW_REBORN_PROFILE:-local-dev-yolo}"
+        echo "Environment=IRONCLAW_REBORN_POSTGRES_URL=${IRONCLAW_REBORN_POSTGRES_URL:-}"
+        echo "Environment=IRONCLAW_REBORN_SECRET_MASTER_KEY=${IRONCLAW_REBORN_SECRET_MASTER_KEY:-}"
+        echo "Environment=IRONCLAW_REBORN_WEBUI_TOKEN=${IRONCLAW_REBORN_WEBUI_TOKEN:-local_reborn_token}"
+        echo "Environment=IRONCLAW_REBORN_WEBUI_USER_ID=${IRONCLAW_REBORN_WEBUI_USER_ID:-default-owner}"
+    fi
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/ironclaw.env"
+    echo "EnvironmentFile=-${home_spec}/.local/sandbox/ironclaw/.ironclaw/.env"
     echo "WorkingDirectory=${home_spec}/.local/sandbox/ironclaw"
 
     # Security measures
@@ -84,6 +205,26 @@ get_shared_options() {
 }
 
 write_service_file() {
+    local exec_path
+    local exec_args
+    if is_reborn; then
+        exec_path="/usr/bin/ironclaw-reborn"
+        if [ ! -x "$exec_path" ]; then
+            echo "Warning: $exec_path is not executable. Make sure ironclaw-reborn-git is installed." >&2
+        fi
+        local extra_args=""
+        if [ "${IRONCLAW_REBORN_PROFILE:-}" = "local-dev-yolo" ]; then
+            extra_args=" --confirm-host-access"
+        fi
+        exec_args="serve --host \${HTTP_HOST:-127.0.0.1} --port \${HTTP_PORT:-8080}${extra_args}"
+    else
+        exec_path="/usr/bin/ironclaw"
+        if [ ! -x "$exec_path" ]; then
+            echo "Warning: $exec_path is not executable. Make sure ironclaw-git is installed." >&2
+        fi
+        exec_args="run"
+    fi
+
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=IronClaw Agent OS Daemon
@@ -94,7 +235,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=/usr/bin/ironclaw run
+ExecStart=${exec_path} ${exec_args}
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30
@@ -112,6 +253,270 @@ EOF
 
     if is_systemd_running; then
         systemctl --user daemon-reload
+    fi
+}
+
+write_toml_configs() {
+    local new_config="$1"
+    local legacy_config_file="$IRONCLAW_HOME/.ironclaw/config.toml"
+    local reborn_dir="$IRONCLAW_HOME/.ironclaw/reborn"
+    local reborn_config_file="$reborn_dir/config.toml"
+    local reborn_providers_file="$reborn_dir/providers.json"
+    local reborn_mcp_servers_file="$IRONCLAW_HOME/.ironclaw/mcp-servers.json"
+
+    if [ ! -f "$legacy_config_file" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$(dirname "$legacy_config_file")"
+        cat >"$legacy_config_file" <<'EOF'
+# config.toml — Legacy IronClaw settings configuration
+# Generated by ironclaw-ctl install --new-config
+# Priority: DB settings > Env variables > This file > Defaults
+
+owner_id = "default-owner"
+
+# --- Inference Selection ---
+llm_backend = "openai_compatible"
+openai_compatible_base_url = "http://localhost:50080/v1"
+selected_model = "qwen3"
+temperature = 1.0
+
+# --- Embeddings (local-embedding on port 50082) ---
+[embeddings]
+enabled = true
+provider = "openai"
+model = "qwen3-embedding"
+openai_embedding_base_url = "http://localhost:50082/v1"
+
+# --- Speech-to-Text ---
+[transcription]
+enabled = true
+provider = "openai"
+model = "whisper-1"
+openai_transcription_base_url = "http://localhost:50090/v1"
+
+# --- Channels ---
+[channels]
+gateway_enabled = true
+gateway_auth_token = "local_admin_token"
+signal_enabled = true
+signal_http_url = "http://127.0.0.1:50889"
+signal_dm_policy = "pairing"
+signal_group_policy = "allowlist"
+signal_ignore_attachments = false
+signal_ignore_stories = true
+
+# --- Agent Settings ---
+[agent]
+name = "ironclaw"
+max_parallel_jobs = 5
+use_planning = true
+max_tool_iterations = 50
+
+# --- Sandbox (WASM & Docker tool isolation) ---
+[sandbox]
+enabled = false
+policy = "readonly"
+timeout_secs = 120
+memory_limit_mb = 2048
+image = "ironclaw-worker:latest"
+acp_enabled = true # Enable Agent Client Protocol (ACP) for coding agents like OpenCode
+
+# --- Safety ---
+[safety]
+injection_check_enabled = true
+max_output_length = 100000
+
+# --- Memory Hygiene ---
+[hygiene]
+enabled = true
+version_keep_count = 50
+cadence_hours = 12
+
+EOF
+        echo "Created default Legacy TOML configuration at $legacy_config_file"
+    fi
+
+    if [ ! -f "$reborn_config_file" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$reborn_dir"
+        cat >"$reborn_config_file" <<'EOF'
+# config.toml — IronClaw Reborn boot configuration
+# Generated by ironclaw-ctl
+#
+# Precedence on each field:
+#   compiled defaults < this file < env vars < CLI flags.
+
+api_version = "ironclaw.runtime/v1"
+
+[boot]
+# Composition profile. One of: local-dev, local-dev-yolo, hosted-single-tenant,
+# production, migration-dry-run.
+profile = "local-dev-yolo"
+
+[identity]
+# Owner-user scope this runtime acts under by default.
+default_owner = "default-owner"
+
+[runner]
+heartbeat_interval_secs = 5
+poll_interval_ms = 200
+
+[skills]
+# When false, regex activation criteria do not auto-load full skill context.
+regex_activation_enabled = true
+
+[llm.default]
+# LLM slot selection.
+provider_id = "local-chat"
+model = "qwen3"
+api_key_env = "LLM_API_KEY"
+
+# --- Storage Configuration ---
+# By default, running in "local-dev" or "local-dev-yolo" profiles uses the
+# embedded SQLite/libSQL setup (storing data in "reborn-local-dev.db" in the reborn home).
+#
+# To switch to PostgreSQL:
+# 1. Set the boot profile above to "production" (or "hosted-single-tenant"):
+#    profile = "production"
+# 2. Uncomment the [storage] block below:
+#    [storage]
+#    backend = "postgres"
+#    url_env = "IRONCLAW_REBORN_POSTGRES_URL"
+#    secret_master_key_env = "IRONCLAW_REBORN_SECRET_MASTER_KEY"
+#    pool_max_size = 2
+# 3. Export the matching environment variables in your .env or shell.
+#
+# [storage]
+# backend = "postgres"
+# url_env = "IRONCLAW_REBORN_POSTGRES_URL"
+# secret_master_key_env = "IRONCLAW_REBORN_SECRET_MASTER_KEY"
+# pool_max_size = 2
+
+EOF
+        echo "Created default Reborn TOML configuration at $reborn_config_file"
+    fi
+
+    if [ ! -f "$reborn_providers_file" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$reborn_dir"
+        cat >"$reborn_providers_file" <<'EOF'
+[
+  {
+    "id": "local-chat",
+    "aliases": [],
+    "protocol": "open_ai_completions",
+    "api_key_env": "LLM_API_KEY",
+    "api_key_required": false,
+    "default_base_url": "http://localhost:50080/v1",
+    "default_model": "qwen3",
+    "description": "Local llama-server Chat/Vision (port 50080)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_chat_api_key",
+      "display_name": "Local Chat"
+    }
+  },
+  {
+    "id": "local-embedding",
+    "aliases": [],
+    "protocol": "open_ai_completions",
+    "api_key_env": "EMBEDDING_API_KEY",
+    "api_key_required": false,
+    "default_base_url": "http://localhost:50082/v1",
+    "default_model": "qwen3-embedding",
+    "description": "Local llama-server Embeddings (port 50082)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_embedding_api_key",
+      "display_name": "Local Embedding"
+    }
+  },
+  {
+    "id": "local-rerank",
+    "aliases": [],
+    "protocol": "open_ai_completions",
+    "api_key_env": "RERANK_API_KEY",
+    "api_key_required": false,
+    "default_base_url": "http://localhost:50086/v1",
+    "default_model": "qwen3-reranker",
+    "description": "Local llama-server Reranker (port 50086)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_rerank_api_key",
+      "display_name": "Local Reranker"
+    }
+  },
+  {
+    "id": "local-speech-to-text",
+    "aliases": [],
+    "protocol": "open_ai_completions",
+    "api_key_env": "TRANSCRIPTION_API_KEY",
+    "api_key_required": false,
+    "default_base_url": "http://localhost:50090/v1",
+    "default_model": "whisper-1",
+    "description": "Local Whisper STT (port 50090)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_stt_api_key",
+      "display_name": "Local STT"
+    }
+  },
+  {
+    "id": "local-text-to-speech",
+    "aliases": [],
+    "protocol": "open_ai_completions",
+    "api_key_env": "TTS_API_KEY",
+    "api_key_required": false,
+    "default_base_url": "http://localhost:50095/v1",
+    "default_model": "qwen3-tts",
+    "description": "Local Qwen3 TTS (port 50095)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_tts_api_key",
+      "display_name": "Local TTS"
+    }
+  },
+  {
+    "id": "local-image",
+    "aliases": [],
+    "protocol": "open_ai_completions",
+    "api_key_env": "IMAGE_API_KEY",
+    "api_key_required": false,
+    "default_base_url": "http://localhost:50100/v1",
+    "default_model": "sd-image",
+    "description": "Local sd-server Image Generation (port 50100)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_image_api_key",
+      "display_name": "Local Image"
+    }
+  }
+]
+EOF
+        echo "Created default Reborn providers configuration at $reborn_providers_file"
+    fi
+
+    if [ ! -f "$reborn_mcp_servers_file" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$(dirname "$reborn_mcp_servers_file")"
+        cat >"$reborn_mcp_servers_file" <<'EOF'
+{
+  "schema_version": 1,
+  "servers": [
+    {
+      "name": "opencode",
+      "url": "",
+      "transport": {
+        "transport": "stdio",
+        "command": "opencode",
+        "args": [
+          "--stdio"
+        ]
+      },
+      "enabled": true,
+      "description": "OpenCode coding agent running via Model Context Protocol (MCP)"
+    }
+  ]
+}
+EOF
+        chmod 600 "$reborn_mcp_servers_file"
+        echo "Created default Reborn MCP servers configuration at $reborn_mcp_servers_file"
     fi
 }
 
@@ -135,20 +540,78 @@ cmd_install() {
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
         cat >"$ENV_FILE" <<'EOF'
 # ironclaw.env — systemd bootstrap environment
+
+# --- ENGINE CONFIGURATION
+# Set to 'true' (default) to run the newer IronClaw Reborn engine (ironclaw-reborn), or 'false' for Legacy (ironclaw).
+# IRONCLAW_REBORN=false
+# Disable V2 Engine for IronClaw Legacy: (default is false, only selectable under legacy)
+# ENGINE_V2=true
+
+# --- COMMON VARIABLES
 # HTTP_HOST: Web gateway bind address (default 127.0.0.1)
 HTTP_HOST=127.0.0.1
-# HTTP_PORT: Web gateway listen port (default 8080)
+# HTTP_PORT: Web gateway listen port (default 8080 for legacy, default 3000 for reborn serve)
 HTTP_PORT=8080
+
+# provider keys
+LLM_API_KEY=unused
+EMBEDDING_API_KEY=unused
+RERANK_API_KEY=unused
+TRANSCRIPTION_API_KEY=unused
+TTS_API_KEY=unused
+IMAGE_API_KEY=unused
+
+# signal account settings
+# SIGNAL_HTTP_URL (Default: `http://127.0.0.1:50889`): The endpoint of the running `signal-cli` daemon
+# SIGNAL_ACCOUNT: The phone number associated with the registered Signal bot account
+# SIGNAL_ALLOW_FROM: A comma-separated list of phone numbers or UUIDs allowed to message the bot (e.g. `+1987654321,uuid:xxxx-xxxx-xxxx`)
+#     Set to `*` to allow all senders. Leaving it empty forces new senders to go through the pairing flow.
+# SIGNAL_DM_POLICY: (Default: `pairing`): The policy for direct messages. Can be `open`, `allowlist`, or `pairing`
+# SIGNAL_GROUP_POLICY`** (Default: `allowlist`): The policy for group chats. Can be `allowlist`, `open`, or `disabled`
+SIGNAL_HTTP_URL=http://127.0.0.1:50889
+SIGNAL_ACCOUNT="+1234567890"
+SIGNAL_ALLOW_FROM=""
+SIGNAL_DM_POLICY=pairing
+SIGNAL_GROUP_POLICY=allowlist
+
+
+# --- LEGACY VARIABLES
 # DATABASE_URL: PostgreSQL connection string (requires pgvector extension)
 DATABASE_URL=postgres://localhost/ironclaw
+
+# Tracing filter
+# RUST_LOG=ironclaw=info,tower_http=info
+
+# ACP / OpenCode Coding Agent Integration
+# Enable Agent Client Protocol (ACP) for coding agents like OpenCode
+ACP_ENABLED=true
+# ACP_MEMORY_LIMIT_MB=4096
+# ACP_TIMEOUT_SECS=1800
+
+# --- REBORN VARIABLES
+# IRONCLAW_REBORN_PROFILE: Boot profile selector. Supported values: local-dev, local-dev-yolo, production, migration-dry-run.
+IRONCLAW_REBORN_PROFILE=local-dev-yolo
+
+# Production PostgreSQL storage URL and secret master key when profile = production
+# IRONCLAW_REBORN_POSTGRES_URL=postgres://localhost/ironclaw_reborn
+# IRONCLAW_REBORN_SECRET_MASTER_KEY=your-secret-master-key
+# IRONCLAW_REBORN_POSTGRES_POOL_MAX_SIZE=2
+
+# Reborn Web GUI Auth (local authentication)
+IRONCLAW_REBORN_WEBUI_TOKEN=local_reborn_token
+IRONCLAW_REBORN_WEBUI_USER_ID=default-owner
+
+# Reborn Tracing filter
+# IRONCLAW_REBORN_LOG=debug,ironclaw_reborn=info
+
+# --- SERVICE CONFIGURATION
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
-# (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
-# AGENT_SANDBOX_MOUNTS=""
+AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode"
 
 EOF
         chmod 600 "$ENV_FILE"
@@ -157,87 +620,43 @@ EOF
 
     local APP_DIR="$IRONCLAW_HOME/.ironclaw"
     local APP_ENV_FILE="$APP_DIR/.env"
+
+    write_toml_configs "$new_config"
+
     if [ ! -f "$APP_ENV_FILE" ] || [ "$new_config" = "true" ]; then
         mkdir -p "$APP_DIR"
         cat >"$APP_ENV_FILE" <<'EOF'
-# .env — IronClaw application configuration
+# .env — IronClaw application environment overrides and secrets
 # Generated by ironclaw-ctl install --new-config
-# Config priority: Database/TOML > Environment > Defaults
-# Note: dotenvy does not override vars already set by systemd EnvironmentFile.
 
-# --- Local Chat / LLM Provider (local-chat on port 50080) ---
-LLM_BACKEND=openai_compatible
-LLM_API_KEY=unused
-LLM_BASE_URL=http://localhost:50080/v1
-LLM_MODEL=qwen3
-# LLM_REQUEST_TIMEOUT_SECS=120
-
-# --- Embeddings (local-embedding on port 50082) ---
-EMBEDDING_ENABLED=true
-EMBEDDING_BASE_URL=http://localhost:50082/v1
-EMBEDDING_MODEL=qwen3-embedding
-# EMBEDDING_DIMENSION=    # auto-detected from model
-
-# --- Reranking ---
-# IronClaw uses built-in Reciprocal Rank Fusion (RRF) for hybrid search
-# combining full-text and vector results. No external reranker required.
-
-# --- Speech-to-Text (local-speech-to-text on port 50090) ---
-TRANSCRIPTION_ENABLED=true
-TRANSCRIPTION_PROVIDER=openai
-TRANSCRIPTION_BASE_URL=http://localhost:50090/v1
-TRANSCRIPTION_MODEL=whisper-1
-
-# --- Text-to-Speech ---
-# IronClaw does not support TTS natively. No TTS env vars available.
-
-# --- Image Generation ---
-# Image generation is handled via MCP tool output parsing.
-# No dedicated image generation env vars are available.
-
-# --- Signal Channel (signal-ctl on port 50889) ---
-SIGNAL_ENABLED=true
-SIGNAL_HTTP_URL=http://127.0.0.1:50889
-# SIGNAL_ACCOUNT=+1234567890
-# SIGNAL_ALLOW_FROM=+1234567890,uuid:your-uuid-here
-SIGNAL_DM_POLICY=pairing
-SIGNAL_GROUP_POLICY=allowlist
-SIGNAL_IGNORE_ATTACHMENTS=false
-SIGNAL_IGNORE_STORIES=true
-
-# --- ACP (Agent Client Protocol for external coding agents, e.g. OpenCode) ---
-# ACP_ENABLED=false
-# ACP_TIMEOUT_SECS=1800
-
-# --- Agent ---
-AGENT_NAME=ironclaw
-# AGENT_MAX_PARALLEL_JOBS=5
-# AGENT_USE_PLANNING=true
-# AGENT_MAX_TOOL_ITERATIONS=50
-# ENGINE_V2=false
-
-# --- Sandbox (WASM tool isolation) ---
-SANDBOX_ENABLED=true
-SANDBOX_POLICY=readonly
-
-# --- Safety ---
-SAFETY_INJECTION_CHECK_ENABLED=true
-
-# --- Heartbeat ---
-# HEARTBEAT_ENABLED=false
-# HEARTBEAT_INTERVAL_SECS=1800
-
-# --- Memory Hygiene ---
-MEMORY_HYGIENE_ENABLED=true
-# MEMORY_HYGIENE_VERSION_KEEP_COUNT=50
-# MEMORY_HYGIENE_CADENCE_HOURS=12
-
-# --- Logging ---
-RUST_LOG=ironclaw=info,tower_http=info
 
 EOF
         chmod 600 "$APP_ENV_FILE"
-        echo "Created default application config at $APP_ENV_FILE"
+        echo "Created default environment overrides at $APP_ENV_FILE"
+    fi
+
+    local ACP_FILE="$APP_DIR/acp-agents.json"
+    if [ ! -f "$ACP_FILE" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$APP_DIR"
+        cat >"$ACP_FILE" <<'EOF'
+{
+  "agents": [
+    {
+      "name": "opencode",
+      "command": "opencode",
+      "args": [
+        "--stdio"
+      ],
+      "env": {},
+      "enabled": true,
+      "description": "OpenCode coding agent running via Agent Client Protocol (ACP)"
+    }
+  ],
+  "schema_version": 1
+}
+EOF
+        chmod 600 "$ACP_FILE"
+        echo "Created default ACP agents configuration at $ACP_FILE"
     fi
 
     write_service_file
@@ -338,9 +757,12 @@ cmd_logs() {
 
 cmd_edit() {
     local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
-    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")"
-    touch "$ENV_FILE" "$app_env_file"
-    ${EDITOR:-nano} "$ENV_FILE" "$app_env_file"
+    local config_file="$IRONCLAW_HOME/.ironclaw/config.toml"
+    local reborn_config_file="$IRONCLAW_HOME/.ironclaw/reborn/config.toml"
+    local reborn_providers_file="$IRONCLAW_HOME/.ironclaw/reborn/providers.json"
+    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")" "$IRONCLAW_HOME/.ironclaw/reborn"
+    touch "$ENV_FILE" "$app_env_file" "$config_file" "$reborn_config_file" "$reborn_providers_file"
+    ${EDITOR:-nano} "$ENV_FILE" "$app_env_file" "$config_file" "$reborn_config_file" "$reborn_providers_file"
     if is_systemd_running; then
         echo "Restarting service to apply updated environment..."
         cmd_restart
@@ -350,26 +772,17 @@ cmd_edit() {
 }
 
 cmd_exec() {
+    get_exec_cmd_and_args "$@"
+
     if ! is_systemd_running; then
-        echo "Systemd is not running. Running ironclaw directly..."
-        if [ -f "$ENV_FILE" ]; then
-            set +u
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-            set -u
-        fi
-        export HOME="$IRONCLAW_HOME"
-        export HTTP_PORT="${HTTP_PORT:-8080}"
-        export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
-        export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+        echo "Systemd is not running. Running $EXEC_PATH directly..."
+        setup_direct_env
         mkdir -p "$IRONCLAW_HOME"
         cd "$IRONCLAW_HOME" || exit 1
-        exec /usr/bin/ironclaw "$@"
+        exec "$EXEC_PATH" "$@" "${EXTRA_ARGS[@]}"
     fi
 
-    echo "Starting ironclaw as a transient systemd service with args: $*"
+    echo "Starting $EXEC_PATH as a transient systemd service with args: $* ${EXTRA_ARGS[*]}"
 
     local opts=(
         --user
@@ -386,24 +799,13 @@ cmd_exec() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" /usr/bin/ironclaw "$@"
+    systemd-run "${opts[@]}" "$EXEC_PATH" "$@" "${EXTRA_ARGS[@]}"
 }
 
 cmd_shell() {
     if ! is_systemd_running; then
         echo "Systemd is not running. Running shell directly..."
-        if [ -f "$ENV_FILE" ]; then
-            set +u
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-            set -u
-        fi
-        export HOME="$IRONCLAW_HOME"
-        export HTTP_PORT="${HTTP_PORT:-8080}"
-        export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
-        export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+        setup_direct_env
         mkdir -p "$IRONCLAW_HOME"
         cd "$IRONCLAW_HOME" || exit 1
         exec "${SHELL:-/bin/bash}" "$@"
@@ -437,18 +839,7 @@ cmd_run() {
 
     if ! is_systemd_running; then
         echo "Running command inside the ironclaw environment: $*"
-        if [ -f "$ENV_FILE" ]; then
-            set +u
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-            set -u
-        fi
-        export HOME="$IRONCLAW_HOME"
-        export HTTP_PORT="${HTTP_PORT:-8080}"
-        export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
-        export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
+        setup_direct_env
         mkdir -p "$IRONCLAW_HOME"
         cd "$IRONCLAW_HOME" || exit 1
         exec "$@"

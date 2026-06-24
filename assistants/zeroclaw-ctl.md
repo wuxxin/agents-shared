@@ -27,29 +27,6 @@ The `--new-config` flag generates (or overwrites) both:
 
 - Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`.
 
-### Switch to Local Inference & Qwen3
-
-Edit `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
-```toml
-[providers.models.openai.local]
-uri = "http://localhost:50080/v1"
-model = "qwen3"
-api_key = "unused"
-temperature = 1.0
-```
-Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
-
-### Reasoning & Thinking Effort
-
-You can configure the global thinking/reasoning settings for providers that support thinking level controls (e.g. Qwen3) under the `[runtime]` block in `config.toml`:
-
-```toml
-[runtime]
-reasoning_enabled = true
-reasoning_effort = "low"
-```
-
-
 ### Verify Connection
 
 Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model fallback status. Test chat via `./assistants/zeroclaw-ctl exec agent -a <agent_alias>`.
@@ -75,25 +52,82 @@ ZeroClaw supports importing history and conversation memory logs from an existin
 ```
 This command imports the legacy SQLite database memory logs directly into ZeroClaw's memory format.
 
-## Signal Channel Configuration
+## Local Inference Configuration
+
+Edit `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
+```toml
+[providers.models.openai.local]
+uri = "http://localhost:50080/v1"
+model = "qwen3"
+api_key = "unused"
+temperature = 1.0
+```
+Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
+
+### Reasoning & Thinking Effort
+
+You can configure the global thinking/reasoning settings for providers that support thinking level controls (e.g. Qwen3) under the `[runtime]` block in `config.toml`:
+
+```toml
+[runtime]
+reasoning_enabled = true
+reasoning_effort = "low"
+```
+
+## Signal Channel Configuration & Peer Group Routing
 
 ZeroClaw supports native Signal integration. It communicates with the daemon via the REST API wrapper.
 
-Add the following to your `config.toml` configuration file (located in the sandboxed home directory at `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`):
+#### Centralized Service Env / Common Variables
+For credentials and dynamic overrides, configure environment variables in the centralized service env configuration file: `~/.config/systemd/user/zeroclaw.env` (recommended). ZeroClaw supports dotted-path environment overrides:
+```env
+# Centralized Signal Account & Endpoint Overrides
+ZEROCLAW_channels__signal__default__account="+1234567890"
+ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
+
+# Centralized Peer Group Routing Overrides
+# Map Signal senders to the target agents (e.g. allowing '+1234567890' or wildcard '*' for all)
+ZEROCLAW_peer_groups__signal_group__external_peers='["+1234567890"]'
+```
+
+#### Application Configuration
+Add the Signal channel and peer group routing config to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
 
 ```toml
+# 1. Configure the Signal channel instance
 [channels.signal.default]
-approval_timeout_secs = 0
-dm_only = true
 enabled = true
+http_url = "http://localhost:50889"
+account = "+1234567890"
+approval_timeout_secs = 300
+dm_only = true
 ignore_attachments = false
 ignore_stories = true
-http_url = "http://localhost:50889"
-# account = Your registered Signal phone number
-account = "+1234567890"                  
+
+# 2. Configure peer group routing to map users/senders to agents
+[peer_groups.signal_group]
+channel = "signal.default"                 # Binds to channels.signal.default
+agents = ["default"]                       # Routes inbound messages to the 'default' agent
+external_peers = ["+1234567890", "uuid:xxxx-xxxx-xxxx"] # Allowed senders (E.164 phone numbers or UUIDs)
 ```
 
 Make sure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. ZeroClaw will retrieve message payloads and send messages through this endpoint.
+
+#### Tying Senders to Agents
+Unlike other systems that map senders to a global `default_owner`, ZeroClaw utilizes **Peer Groups** to authorize senders and route them to specific agents:
+
+##### Method A: Auto-Admittance via Peer Group
+Specify the allowed sender phone numbers (or privacy UUIDs) in the `external_peers` list under a `[peer_groups.<name>]` block. 
+- Senders in this list are automatically admitted.
+- Their messages are routed directly to the agents listed in `agents`.
+
+##### Method B: Wildcard Admittance (Open Channel)
+To allow anyone to message the agent without individual phone number allowlisting:
+- Set `external_peers = ["*"]` in the peer group config.
+- Any incoming Signal sender will be accepted and routed to the configured agent.
+
+##### Pairing Guard Note
+While ZeroClaw supports a dynamic `PairingGuard` pairing flow (exchanging a code using `/bind <code>`) for **LINE** and **WeChat** channels when `dm_policy = "pairing"` is active, the **Signal** channel relies on static configuration of the allowed sender E.164 phone numbers/UUIDs in the `external_peers` slice (or environment overrides) to verify and map users.
 
 ## Search, Retrieval, Embedding & Reranking Configuration
 

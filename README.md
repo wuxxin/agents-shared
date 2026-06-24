@@ -89,6 +89,26 @@ The repository contains several scripts under `scripts/` to assist with sandboxi
 
 For details, see the [scripts/README.md](scripts/README.md).
 
+### Generating a Secure Token
+
+To generate a secure, random 32-character alphanumeric token (`0-9A-Za-z`):
+
+*   **Using `/dev/urandom` and `tr` (Standard, no dependencies):**
+    ```bash
+    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; echo
+    ```
+*   **Using `openssl` (Base64 filtering):**
+    ```bash
+    openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; echo
+    ```
+*   **Using `python3` (Cryptographically secure secrets module):**
+    ```bash
+    python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32)))"
+    ```
+*   **Using `pwgen` (If installed on the host):**
+    ```bash
+    pwgen -s 32 1
+    ```
 
 ## Default Ports
 
