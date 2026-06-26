@@ -1,6 +1,6 @@
 # LLM Caching Optimization Benchmarks
 
-**Benchmark Run Time:** `2026-06-21 13:35:24`
+**Benchmark Run Time:** `2026-06-24 23:08:13`
 
 ## Local Inference Services Benchmarks
 
@@ -13,10 +13,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | [**HIP-ROCM0**](#hip-rocm0-configuration-details) | chat_hip-ROCm0 | ROCm0 | Layers: 999 | 48511.01 ms | 639.88 t/s | 263.75 ms | 102.49 t/s | 65.32 t/s | 0.00 ms | 0.00 t/s | 20483.6 MB | 1438.6 MB |
 | [**VULKAN-VULKAN0**](#vulkan-vulkan0-configuration-details) | chat_vulkan-Vulkan0 | Vulkan0 | Layers: 999 (Context: 20%) | 56147.14 ms | 103.58 t/s | 1649.72 ms | 13.84 t/s | 12.88 t/s | 0.00 ms | 0.00 t/s | 14039.5 MB | 845.3 MB |
-| [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | chat_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 14476.21 ms | 2144.28 t/s | 157.72 ms | 130.91 t/s | **116.66 t/s** | 0.00 ms | 0.00 t/s | 19141.9 MB | 851.0 MB |
+| [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | chat_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 14476.21 ms | **2144.28 t/s** | 157.72 ms | 130.91 t/s | **116.66 t/s** | 0.00 ms | 0.00 t/s | 19141.9 MB | 851.0 MB |
 | [**CPU**](#cpu-configuration-details) | chat_cpu | none | Layers: 0 (Context: 5%) | 35398.50 ms | 41.61 t/s | 997.77 ms | 12.20 t/s | 11.64 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 20981.7 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | chat_cpu-blas | BLAS | Layers: 0 (Context: 5%) | 35513.20 ms | 41.48 t/s | 950.71 ms | 12.51 t/s | 11.75 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 20982.3 MB |
-| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 14470.14 ms | **2145.18 t/s** | 85.25 ms | 130.08 t/s | 115.68 t/s | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 14632.52 ms | 2121.37 t/s | 89.76 ms | 122.20 t/s | 116.06 t/s | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
 
 #### Text Embedding (`local-embedding`)
 | Configuration | Test Name | GPU | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
@@ -26,7 +26,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | embedding_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 5245.63 t/s | 97.4 ms | 1162.5 MB | 2914.6 MB |
 | [**CPU**](#cpu-configuration-details) | embedding_cpu | none | Layers: 0 | 143.90 t/s | 3558.1 ms | 0.1 MB | 2645.5 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | embedding_cpu-blas | BLAS | Layers: 999 | 104.30 t/s | 4908.9 ms | 0.0 MB | 2645.9 MB |
-| [**RUNNING**](#running-configuration-details) | embedding_running | running on host | unknown | 5241.94 t/s | 97.4 ms | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | embedding_running | running on host | unknown | 5010.84 t/s | 101.9 ms | -n.a.- | -n.a.- |
 
 #### Document Reranking (`local-rerank`)
 | Configuration | Test Name | GPU | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
@@ -36,7 +36,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | rerank_vulkan-Vulkan1 | Vulkan1 | Layers: 99 | 867.68 ms | 3963.44 tokens/s | 11.52 docs/s | 1590.2 MB | 253.0 MB |
 | [**CPU**](#cpu-configuration-details) | rerank_cpu | none | Layers: 0 | 12563.41 ms | 273.73 tokens/s | 0.80 docs/s | 0.1 MB | 2711.2 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | rerank_cpu-blas | BLAS | Layers: 99 | 12395.55 ms | 277.44 tokens/s | 0.81 docs/s | 0.1 MB | 2712.3 MB |
-| [**RUNNING**](#running-configuration-details) | rerank_running | running on host | unknown | 13629.78 ms | 252.32 tokens/s | 0.73 docs/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | rerank_running | running on host | unknown | 9836.18 ms | 349.63 tokens/s | 1.02 docs/s | -n.a.- | -n.a.- |
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 | Configuration | Test Name | GPU | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
@@ -46,21 +46,21 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | stt_vulkan-Vulkan1 | 1 | Use GPU | 0.55 s | 0.0123 | **81.4x** | 828.0 MB | 126.8 MB |
 | [**CPU**](#cpu-configuration-details) | stt_cpu | none | No GPU | 16.87 s | 0.3748 | 2.7x | 0.1 MB | 1102.1 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | stt_cpu-blas | BLAS | No GPU | 14.02 s | 0.3115 | 3.2x | 0.1 MB | 1101.7 MB |
-| [**RUNNING**](#running-configuration-details) | stt_running | running on host | unknown | 5.51 s | 0.1223 | 8.2x | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | stt_running | running on host | unknown | 5.55 s | 0.1234 | 8.1x | -n.a.- | -n.a.- |
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
 | Configuration | Test Name | GPU | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|---|---|
-| [**HIP-ROCM0**](#hip-rocm0-configuration-details) | tts_hip-ROCm0 | ROCm0 | mode: gpu | 19.92 s | 0.9406 | 13.76 chars/s | 3775.8 MB | 1185.8 MB |
-| [**VULKAN-VULKAN0**](#vulkan-vulkan0-configuration-details) | tts_vulkan-Vulkan0 | Vulkan0 | mode: gpu | 50.07 s | 2.5786 | 5.47 chars/s | 3308.9 MB | 672.5 MB |
-| [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | tts_vulkan-Vulkan1 | Vulkan1 | mode: gpu | 6.47 s | 0.3443 | **42.38 chars/s** | 3302.4 MB | 659.5 MB |
-| [**CPU**](#cpu-configuration-details) | tts_cpu | none | mode: cpu | 32.75 s | 1.6938 | 8.37 chars/s | 0.1 MB | 2970.1 MB |
-| [**CPU-BLAS**](#cpu-blas-configuration-details) | tts_cpu-blas | BLAS | mode: cpu | 34.31 s | 1.7039 | 7.99 chars/s | 0.1 MB | 3065.5 MB |
-| [**CPU-HIP-ROCM0**](#special-cpu-hip-rocm0-configuration-details) | tts_cpu-hip-ROCm0 | ROCm0 | mode: hybrid | 17.27 s | 0.9319 | 15.86 chars/s | 3571.8 MB | 1116.2 MB |
+| [**HIP-ROCM0**](#hip-rocm0-configuration-details) | tts_hip-ROCm0 | ROCm0 | mode: gpu | -fail- | -fail- | -fail- | -fail- | -fail- |
+| [**VULKAN-VULKAN0**](#vulkan-vulkan0-configuration-details) | tts_vulkan-Vulkan0 | Vulkan0 | mode: gpu | -fail- VALIDATION | 2.4410 | 5.73 chars/s | 3323.8 MB | 684.6 MB |
+| [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | tts_vulkan-Vulkan1 | Vulkan1 | mode: gpu | 6.51 s | 0.3270 | **42.12 chars/s** | 3393.3 MB | 693.1 MB |
+| [**CPU**](#cpu-configuration-details) | tts_cpu | none | mode: cpu | 29.31 s | 1.5413 | 9.35 chars/s | 0.1 MB | 2956.2 MB |
+| [**CPU-BLAS**](#cpu-blas-configuration-details) | tts_cpu-blas | BLAS | mode: cpu | 28.31 s | 1.5403 | 9.68 chars/s | 0.1 MB | 2969.4 MB |
+| [**CPU-HIP-ROCM0**](#special-cpu-hip-rocm0-configuration-details) | tts_cpu-hip-ROCm0 | ROCm0 | mode: hybrid | -fail- | -fail- | -fail- | -fail- | -fail- |
 | [**CPU-HIP-ROCM1**](#special-cpu-hip-rocm1-configuration-details) | tts_cpu-hip-ROCm1 | ROCm1 | mode: hybrid | -fail- | -fail- | -fail- | -fail- | -fail- |
-| [**CPU-VULKAN-VULKAN0**](#special-cpu-vulkan-vulkan0-configuration-details) | tts_cpu-vulkan-Vulkan0 | Vulkan0 | mode: hybrid | 49.11 s | 2.5087 | 5.58 chars/s | 3297.8 MB | 676.8 MB |
-| [**CPU-VULKAN-VULKAN1**](#special-cpu-vulkan-vulkan1-configuration-details) | tts_cpu-vulkan-Vulkan1 | Vulkan1 | mode: hybrid | 6.55 s | 0.3416 | 41.83 chars/s | 3334.9 MB | 673.7 MB |
-| [**RUNNING**](#running-configuration-details) | tts_running | running on host | unknown | 30.50 s | 1.6040 | 8.98 chars/s | -n.a.- | -n.a.- |
+| [**CPU-VULKAN-VULKAN0**](#special-cpu-vulkan-vulkan0-configuration-details) | tts_cpu-vulkan-Vulkan0 | Vulkan0 | mode: hybrid | 50.29 s | 2.4393 | 5.45 chars/s | 3345.3 MB | 710.0 MB |
+| [**CPU-VULKAN-VULKAN1**](#special-cpu-vulkan-vulkan1-configuration-details) | tts_cpu-vulkan-Vulkan1 | Vulkan1 | mode: hybrid | 6.76 s | 0.3265 | 40.55 chars/s | 3389.8 MB | 714.3 MB |
+| [**RUNNING**](#running-configuration-details) | tts_running | running on host | unknown | 31.16 s | 1.5980 | 8.79 chars/s | -n.a.- | -n.a.- |
 
 #### Image Generation (`local-image`)
 | Configuration | Test Name | GPU | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
@@ -70,7 +70,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | image_vulkan-Vulkan1 | vulkan1 | Steps: 8 | 6.83 s | 9879.0 MB | 434.7 MB |
 | [**CPU**](#cpu-configuration-details) | image_cpu | cpu | Steps: 8 | 288.11 s | 0.1 MB | 10137.6 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | image_cpu-blas | cpu | Steps: 8 | 287.52 s | 0.1 MB | 10137.6 MB |
-| [**RUNNING**](#running-configuration-details) | image_running | running on host | unknown | 89.24 s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | image_running | running on host | unknown | 89.21 s | -n.a.- | -n.a.- |
 
 ---
 
@@ -213,9 +213,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Special Setting:** `mode: gpu`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `HIP-ROCM0`
-- **GPU Memory Used:** 3775.8 MB
-- **CPU Memory Used:** 1185.8 MB
-- **Benchmark Running Time:** 20.03 s
+- **GPU Memory Used:** -fail-
+- **CPU Memory Used:** -fail-
+- **Benchmark Running Time:** -fail-
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES="0"`
   - `HIP_VISIBLE_DEVICES="0"`
@@ -227,12 +227,14 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_PORT="50095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
-- **Errors Count:** 0
+- **Errors Count:** 1
+- **Top Errors:**
+  - `Error: qwen3-tts-server failed to start or port timed out`
 - **Metrics:**
-  - Generated Audio Duration: 21.18 seconds
-  - Avg Synthesis Time:   19.92 seconds
-  - Avg Real-Time Factor (RTF): 0.9406
-  - Avg Speed:            13.76 chars/sec
+  - Generated Audio Duration: -fail-
+  - Avg Synthesis Time:   -fail-
+  - Avg Real-Time Factor (RTF): -fail-
+  - Avg Speed:            -fail-
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_hip-ROCm0`
@@ -397,9 +399,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Special Setting:** `mode: gpu`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `VULKAN-VULKAN0`
-- **GPU Memory Used:** 3308.9 MB
-- **CPU Memory Used:** 672.5 MB
-- **Benchmark Running Time:** 50.19 s
+- **GPU Memory Used:** 3323.8 MB
+- **CPU Memory Used:** 684.6 MB
+- **Benchmark Running Time:** 47.87 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -411,12 +413,14 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_PORT="50095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
-- **Errors Count:** 0
+- **Errors Count:** 1
+- **Top Errors:**
+  - `Warning: TTS Audio validation failed (garbled audio output)`
 - **Metrics:**
-  - Generated Audio Duration: 19.42 seconds
-  - Avg Synthesis Time:   50.07 seconds
-  - Avg Real-Time Factor (RTF): 2.5786
-  - Avg Speed:            5.47 chars/sec
+  - Generated Audio Duration: -fail- VALIDATION
+  - Avg Synthesis Time:   -fail- VALIDATION
+  - Avg Real-Time Factor (RTF): 2.4410
+  - Avg Speed:            5.73 chars/sec
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_vulkan-Vulkan0`
@@ -581,8 +585,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Special Setting:** `mode: gpu`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `VULKAN-VULKAN1`
-- **GPU Memory Used:** 3302.4 MB
-- **CPU Memory Used:** 659.5 MB
+- **GPU Memory Used:** 3393.3 MB
+- **CPU Memory Used:** 693.1 MB
 - **Benchmark Running Time:** 6.61 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
@@ -597,10 +601,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Generated Audio Duration: 18.78 seconds
-  - Avg Synthesis Time:   6.47 seconds
-  - Avg Real-Time Factor (RTF): 0.3443
-  - Avg Speed:            42.38 chars/sec
+  - Generated Audio Duration: 19.90 seconds
+  - Avg Synthesis Time:   6.51 seconds
+  - Avg Real-Time Factor (RTF): 0.3270
+  - Avg Speed:            42.12 chars/sec
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_vulkan-Vulkan1`
@@ -762,8 +766,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `CPU`
 - **GPU Memory Used:** 0.1 MB
-- **CPU Memory Used:** 2970.1 MB
-- **Benchmark Running Time:** 32.88 s
+- **CPU Memory Used:** 2956.2 MB
+- **Benchmark Running Time:** 29.47 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -777,10 +781,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Generated Audio Duration: 19.34 seconds
-  - Avg Synthesis Time:   32.75 seconds
-  - Avg Real-Time Factor (RTF): 1.6938
-  - Avg Speed:            8.37 chars/sec
+  - Generated Audio Duration: 19.02 seconds
+  - Avg Synthesis Time:   29.31 seconds
+  - Avg Real-Time Factor (RTF): 1.5413
+  - Avg Speed:            9.35 chars/sec
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_cpu`
@@ -942,8 +946,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `CPU-BLAS`
 - **GPU Memory Used:** 0.1 MB
-- **CPU Memory Used:** 3065.5 MB
-- **Benchmark Running Time:** 34.49 s
+- **CPU Memory Used:** 2969.4 MB
+- **Benchmark Running Time:** 28.48 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -957,10 +961,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Generated Audio Duration: 20.14 seconds
-  - Avg Synthesis Time:   34.31 seconds
-  - Avg Real-Time Factor (RTF): 1.7039
-  - Avg Speed:            7.99 chars/sec
+  - Generated Audio Duration: 18.38 seconds
+  - Avg Synthesis Time:   28.31 seconds
+  - Avg Real-Time Factor (RTF): 1.5403
+  - Avg Speed:            9.68 chars/sec
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_cpu-blas`
@@ -990,17 +994,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 
 ### SPECIAL (CPU-HIP-ROCM0) Configuration Details
 
-- **Device Name**: `AMD Radeon RX 7900 XTX` (Total: 24560 MiB, Free: 24560 MiB)
-
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
 - **Benchmark Test Name:** `tts_cpu-hip-ROCm0`
 - **Device Setting:** `ROCm0`
 - **Special Setting:** `mode: hybrid`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `SPECIAL (CPU-HIP-ROCM0)`
-- **GPU Memory Used:** 3571.8 MB
-- **CPU Memory Used:** 1116.2 MB
-- **Benchmark Running Time:** 17.42 s
+- **GPU Memory Used:** -fail-
+- **CPU Memory Used:** -fail-
+- **Benchmark Running Time:** -fail-
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES="0"`
   - `HIP_VISIBLE_DEVICES="0"`
@@ -1012,12 +1014,14 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_PORT="50095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
-- **Errors Count:** 0
+- **Errors Count:** 1
+- **Top Errors:**
+  - `Error: qwen3-tts-server failed to start or port timed out`
 - **Metrics:**
-  - Generated Audio Duration: 18.54 seconds
-  - Avg Synthesis Time:   17.27 seconds
-  - Avg Real-Time Factor (RTF): 0.9319
-  - Avg Speed:            15.86 chars/sec
+  - Generated Audio Duration: -fail-
+  - Avg Synthesis Time:   -fail-
+  - Avg Real-Time Factor (RTF): -fail-
+  - Avg Speed:            -fail-
 
 ### SPECIAL (CPU-HIP-ROCM1) Configuration Details
 
@@ -1060,9 +1064,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Special Setting:** `mode: hybrid`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `SPECIAL (CPU-VULKAN-VULKAN0)`
-- **GPU Memory Used:** 3297.8 MB
-- **CPU Memory Used:** 676.8 MB
-- **Benchmark Running Time:** 49.29 s
+- **GPU Memory Used:** 3345.3 MB
+- **CPU Memory Used:** 710.0 MB
+- **Benchmark Running Time:** 50.47 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -1076,10 +1080,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Generated Audio Duration: 19.58 seconds
-  - Avg Synthesis Time:   49.11 seconds
-  - Avg Real-Time Factor (RTF): 2.5087
-  - Avg Speed:            5.58 chars/sec
+  - Generated Audio Duration: 20.62 seconds
+  - Avg Synthesis Time:   50.29 seconds
+  - Avg Real-Time Factor (RTF): 2.4393
+  - Avg Speed:            5.45 chars/sec
 
 ### SPECIAL (CPU-VULKAN-VULKAN1) Configuration Details
 
@@ -1091,9 +1095,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Special Setting:** `mode: hybrid`
 - **Model:** `qwen3-tts` (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
 - **Execution Target:** `SPECIAL (CPU-VULKAN-VULKAN1)`
-- **GPU Memory Used:** 3334.9 MB
-- **CPU Memory Used:** 673.7 MB
-- **Benchmark Running Time:** 6.71 s
+- **GPU Memory Used:** 3389.8 MB
+- **CPU Memory Used:** 714.3 MB
+- **Benchmark Running Time:** 6.91 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -1107,10 +1111,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Generated Audio Duration: 19.18 seconds
-  - Avg Synthesis Time:   6.55 seconds
-  - Avg Real-Time Factor (RTF): 0.3416
-  - Avg Speed:            41.83 chars/sec
+  - Generated Audio Duration: 20.70 seconds
+  - Avg Synthesis Time:   6.76 seconds
+  - Avg Real-Time Factor (RTF): 0.3265
+  - Avg Speed:            40.55 chars/sec
 
 ### RUNNING Configuration Details
 
@@ -1122,7 +1126,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 21.23 s
+- **Benchmark Running Time:** 21.43 s
 - **Active Environment Settings:**
   - `GGML_VK_DISABLE_MMVQ="1"`
   - `LCHAT_ALIAS="qwen3"`
@@ -1140,15 +1144,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_THREADS="4"`
 - **Errors Count:** 0
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       85.25 ms
-  - Prefill Speed:        222.88 tokens/sec
-  - Generation Speed:     130.08 tokens/sec
+  - TTFT (Prefill):       89.76 ms
+  - Prefill Speed:        211.68 tokens/sec
+  - Generation Speed:     122.20 tokens/sec
 - **Generation (Phase 2):**
   - Avg Completion Tokens: 600.0
-  - Avg TTFT (Prefill):   14470.14 ms
-  - Avg Prefill Speed:    2145.18 tokens/sec
-  - Avg Generation Speed: 115.68 tokens/sec
-  - Avg Decode Time:      5.19 s
+  - Avg TTFT (Prefill):   14632.52 ms
+  - Avg Prefill Speed:    2121.37 tokens/sec
+  - Avg Generation Speed: 116.06 tokens/sec
+  - Avg Decode Time:      5.17 s
 - **Vision Description (Phase 4):**
   - Avg TTFT (Prefill):   0.00 ms
   - Avg Generation Speed: 0.00 tokens/sec
@@ -1161,7 +1165,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 8.92 s
+- **Benchmark Running Time:** 9.32 s
 - **Active Environment Settings:**
   - `LMBD_ALIAS="qwen3-embedding"`
   - `LMBD_DEVICE="Vulkan1"`
@@ -1176,11 +1180,11 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Avg Time/Run:         8.67 s
-  - Avg Throughput:       5241.94 tokens/sec
-  - Avg Chunk Latency:    97.4 ms
-  - Avg Chunk p50:        96.5 ms
-  - Avg Chunk p95:        97.7 ms
+  - Avg Time/Run:         9.07 s
+  - Avg Throughput:       5010.84 tokens/sec
+  - Avg Chunk Latency:    101.9 ms
+  - Avg Chunk p50:        102.7 ms
+  - Avg Chunk p95:        106.4 ms
 
 #### Document Reranking (`local-rerank`)
 - **Benchmark Test Name:** `rerank_running`
@@ -1190,7 +1194,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 13.74 s
+- **Benchmark Running Time:** 9.93 s
 - **Active Environment Settings:**
   - `LRR_ALIAS="qwen3-reranker"`
   - `LRR_DEVICE="none"`
@@ -1204,9 +1208,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Avg Reranking Time:   13629.78 ms
-  - Avg Docs Throughput:  0.73 docs/sec
-  - Avg Token Speed:      252.32 tokens/sec
+  - Avg Reranking Time:   9836.18 ms
+  - Avg Docs Throughput:  1.02 docs/sec
+  - Avg Token Speed:      349.63 tokens/sec
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 - **Benchmark Test Name:** `stt_running`
@@ -1216,7 +1220,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 5.71 s
+- **Benchmark Running Time:** 5.81 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -1230,8 +1234,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Avg Transcribe Time:  5.51 seconds
-  - Avg Real-Time Factor (RTF): 0.1223 (8.2x faster than real-time)
+  - Avg Transcribe Time:  5.55 seconds
+  - Avg Real-Time Factor (RTF): 0.1234 (8.1x faster than real-time)
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
 - **Benchmark Test Name:** `tts_running`
@@ -1241,7 +1245,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 30.67 s
+- **Benchmark Running Time:** 31.28 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
@@ -1255,10 +1259,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Generated Audio Duration: 19.02 seconds
-  - Avg Synthesis Time:   30.50 seconds
-  - Avg Real-Time Factor (RTF): 1.6040
-  - Avg Speed:            8.98 chars/sec
+  - Generated Audio Duration: 19.50 seconds
+  - Avg Synthesis Time:   31.16 seconds
+  - Avg Real-Time Factor (RTF): 1.5980
+  - Avg Speed:            8.79 chars/sec
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_running`
@@ -1268,8 +1272,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 89.41 s
+- **Benchmark Running Time:** 89.39 s
 - **Active Environment Settings:**
+  - `CUDA_VISIBLE_DEVICES=""`
   - `LIMG_BACKEND="vulkan0,te=cpu"`
   - `LIMG_CFG_SCALE="1.0"`
   - `LIMG_EXTRA_ARGS="--fa"`
@@ -1282,5 +1287,5 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
 - **Metrics:**
-  - Avg Generation Time:  89.24 seconds
+  - Avg Generation Time:  89.21 seconds
 

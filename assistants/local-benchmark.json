@@ -143,8 +143,8 @@
             "test_name": "stt_cpu"
         },
         "tts": {
-            "bench_time_s": 32.8819944858551,
-            "cpu_mem_mb": 2970.11328125,
+            "bench_time_s": 29.471277236938477,
+            "cpu_mem_mb": 2956.24609375,
             "device_setting": "none",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
@@ -159,13 +159,13 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 0.0546875,
+            "gpu_mem_mb": 0.05859375,
             "special_setting": "mode: cpu",
             "test_name": "tts_cpu",
-            "tts_char_speed": 8.365484300939897,
-            "tts_duration": 19.336875,
-            "tts_rtf": 1.6938431200489874,
-            "tts_time": 32.75363268199726
+            "tts_char_speed": 9.348387541417415,
+            "tts_duration": 19.016875,
+            "tts_rtf": 1.5412557258225963,
+            "tts_time": 29.309867481002584
         }
     },
     "cpu-blas": {
@@ -312,8 +312,8 @@
             "test_name": "stt_cpu-blas"
         },
         "tts": {
-            "bench_time_s": 34.49072551727295,
-            "cpu_mem_mb": 3065.46875,
+            "bench_time_s": 28.482893705368042,
+            "cpu_mem_mb": 2969.40625,
             "device_setting": "BLAS",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
@@ -331,23 +331,16 @@
             "gpu_mem_mb": 0.0546875,
             "special_setting": "mode: cpu",
             "test_name": "tts_cpu-blas",
-            "tts_char_speed": 7.985875424338009,
-            "tts_duration": 20.136875,
-            "tts_rtf": 1.7038680427825696,
-            "tts_time": 34.31057779400726
+            "tts_char_speed": 9.680010282649581,
+            "tts_duration": 18.376875,
+            "tts_rtf": 1.5402920820855108,
+            "tts_time": 28.30575505597517
         }
     },
     "cpu-hip-ROCm0": {
         "tts": {
-            "bench_time_s": 17.423962116241455,
-            "cpu_mem_mb": 1116.23046875,
-            "device_details": {
-                "device_id": "ROCm0",
-                "free_mem_mib": 24560.0,
-                "gfx_version": "gfx1100",
-                "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24560.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "ROCm0",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
@@ -361,14 +354,16 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 3571.83984375,
+            "errors": [
+                "Error: qwen3-tts-server failed to start or port timed out"
+            ],
+            "gpu_mem_mb": "-fail-",
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-hip-ROCm0",
-            "tts_char_speed": 15.8616397445405,
-            "tts_duration": 18.536875,
-            "tts_rtf": 0.9318928072297044,
-            "tts_time": 17.274380481016124
+            "tts_char_speed": "-fail-",
+            "tts_duration": "-fail-",
+            "tts_rtf": "-fail-",
+            "tts_time": "-fail-"
         }
     },
     "cpu-hip-ROCm1": {
@@ -402,8 +397,8 @@
     },
     "cpu-vulkan-Vulkan0": {
         "tts": {
-            "bench_time_s": 49.28716421127319,
-            "cpu_mem_mb": 676.78125,
+            "bench_time_s": 50.47418165206909,
+            "cpu_mem_mb": 710.0390625,
             "device_details": {
                 "device_id": "Vulkan0",
                 "free_mem_mib": 16384.0,
@@ -425,19 +420,19 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 3297.81640625,
+            "gpu_mem_mb": 3345.34765625,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-vulkan-Vulkan0",
-            "tts_char_speed": 5.578984771549384,
-            "tts_duration": 19.576875,
-            "tts_rtf": 2.508719000249746,
-            "tts_time": 49.11287827801425
+            "tts_char_speed": 5.448418306815569,
+            "tts_duration": 20.616875,
+            "tts_rtf": 2.4392554359949,
+            "tts_time": 50.28982441697735
         }
     },
     "cpu-vulkan-Vulkan1": {
         "tts": {
-            "bench_time_s": 6.70933985710144,
-            "cpu_mem_mb": 673.7109375,
+            "bench_time_s": 6.910876035690308,
+            "cpu_mem_mb": 714.265625,
             "device_details": {
                 "device_id": "Vulkan1",
                 "free_mem_mib": 24560.0,
@@ -459,13 +454,13 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 3334.85546875,
+            "gpu_mem_mb": 3389.76171875,
             "special_setting": "mode: hybrid",
             "test_name": "tts_cpu-vulkan-Vulkan1",
-            "tts_char_speed": 41.82690429043426,
-            "tts_duration": 19.176875,
-            "tts_rtf": 0.34159932418523964,
-            "tts_time": 6.550807539984817
+            "tts_char_speed": 40.55137799824979,
+            "tts_duration": 20.696875,
+            "tts_rtf": 0.32646766219585666,
+            "tts_time": 6.75686039600987
         }
     },
     "hip-ROCm0": {
@@ -642,15 +637,8 @@
             "test_name": "stt_hip-ROCm0"
         },
         "tts": {
-            "bench_time_s": 20.027478456497192,
-            "cpu_mem_mb": 1185.828125,
-            "device_details": {
-                "device_id": "ROCm0",
-                "free_mem_mib": 24560.0,
-                "gfx_version": "gfx1100",
-                "name": "AMD Radeon RX 7900 XTX",
-                "total_mem_mib": 24560.0
-            },
+            "bench_time_s": "-fail-",
+            "cpu_mem_mb": "-fail-",
             "device_setting": "ROCm0",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
@@ -664,31 +652,33 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 3775.8359375,
+            "errors": [
+                "Error: qwen3-tts-server failed to start or port timed out"
+            ],
+            "gpu_mem_mb": "-fail-",
             "special_setting": "mode: gpu",
             "test_name": "tts_hip-ROCm0",
-            "tts_char_speed": 13.755383410963615,
-            "tts_duration": 21.176875,
-            "tts_rtf": 0.9406238568718197,
-            "tts_time": 19.919473838992417
+            "tts_char_speed": "-fail-",
+            "tts_duration": "-fail-",
+            "tts_rtf": "-fail-",
+            "tts_time": "-fail-"
         }
     },
     "running": {
         "chat": {
-            "bench_time_s": 21.229798555374146,
+            "bench_time_s": 21.42783498764038,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 5.186602141999174,
-            "chat_avg_gen": 115.68267308213663,
-            "chat_avg_prefill": 2145.176376504626,
-            "chat_avg_ttft": 14470.138837990817,
+            "chat_avg_decode": 5.16965740500018,
+            "chat_avg_gen": 116.06184955693,
+            "chat_avg_prefill": 2121.3703260306497,
+            "chat_avg_ttft": 14632.522958912887,
             "chat_image_gen": 0.0,
             "chat_image_ttft": 0.0,
             "chat_warmup_comp": 174.0,
-            "chat_warmup_gen": 130.08304497736904,
-            "chat_warmup_prefill": 222.87852522370528,
+            "chat_warmup_gen": 122.20104657249232,
+            "chat_warmup_prefill": 211.67989509811062,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 85.24823098559864,
+            "chat_warmup_ttft": 89.75816995371133,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -713,14 +703,14 @@
             "test_name": "chat_running"
         },
         "embedding": {
-            "bench_time_s": 8.915764093399048,
+            "bench_time_s": 9.316474437713623,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
-            "embed_lat": 97.43912730318903,
-            "embed_p50": 96.52671497315168,
-            "embed_p95": 97.67280000960454,
-            "embed_throughput": 5241.944762512989,
-            "embed_time_s": 8.67235388001427,
+            "embed_lat": 101.93332670429156,
+            "embed_p50": 102.7215369977057,
+            "embed_p95": 106.41315509565175,
+            "embed_throughput": 5010.843629313955,
+            "embed_time_s": 9.072324614971876,
             "env": {
                 "LMBD_ALIAS": "qwen3-embedding",
                 "LMBD_DEVICE": "Vulkan1",
@@ -740,10 +730,11 @@
             "test_name": "embedding_running"
         },
         "image": {
-            "bench_time_s": 89.40664434432983,
+            "bench_time_s": 89.39421129226685,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
+                "CUDA_VISIBLE_DEVICES": "",
                 "LIMG_BACKEND": "vulkan0,te=cpu",
                 "LIMG_CFG_SCALE": "1.0",
                 "LIMG_EXTRA_ARGS": "--fa",
@@ -757,12 +748,12 @@
             },
             "errors": [],
             "gpu_mem_mb": "-n.a.-",
-            "image_time": 89.23833009702503,
+            "image_time": 89.2120839440031,
             "special_setting": "unknown",
             "test_name": "image_running"
         },
         "rerank": {
-            "bench_time_s": 13.744071006774902,
+            "bench_time_s": 9.925908327102661,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -779,14 +770,14 @@
             },
             "errors": [],
             "gpu_mem_mb": "-n.a.-",
-            "rerank_throughput": 0.7336873464050859,
-            "rerank_time": 13629.78392498917,
-            "rerank_token_speed": 252.31507842870903,
+            "rerank_throughput": 1.0166548790624557,
+            "rerank_time": 9836.179618025199,
+            "rerank_token_speed": 349.6276129095785,
             "special_setting": "unknown",
             "test_name": "rerank_running"
         },
         "stt": {
-            "bench_time_s": 5.70707631111145,
+            "bench_time_s": 5.8072710037231445,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -804,13 +795,13 @@
             "errors": [],
             "gpu_mem_mb": "-n.a.-",
             "special_setting": "unknown",
-            "stt_rtf": 0.1223341478222412,
+            "stt_rtf": 0.12340817048938738,
             "stt_text": "As campaigns go, the one in 1892 was not a particularly\n exciting one.\n Both candidates had already served a term in the White\n House.\n Cleveland from 1884 to 1888, Harrison succeeding him and\n running now for re-election.\n Both men were well known to the voters.\n It was a time of industrial expansion for the nation,\n and there were no earth-shaking issues at stake,\n save that of governmental spending, which even in a\n prosperous year\n made many voters dissatisfied with the Harrison\n administration.\n Cleveland sat out the campaign at his home in Buzzards Bay,\n suffering from the gout and making an occasional speech.\n Harrison, whose wife had just died,",
-            "stt_time": 5.505036652000854,
+            "stt_time": 5.553367672022432,
             "test_name": "stt_running"
         },
         "tts": {
-            "bench_time_s": 30.673121213912964,
+            "bench_time_s": 31.275519847869873,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -829,10 +820,10 @@
             "gpu_mem_mb": "-n.a.-",
             "special_setting": "unknown",
             "test_name": "tts_running",
-            "tts_char_speed": 8.98252798018693,
-            "tts_duration": 19.016875,
-            "tts_rtf": 1.6040312768520175,
-            "tts_time": 30.503662287985208
+            "tts_char_speed": 8.794683273934833,
+            "tts_duration": 19.496875,
+            "tts_rtf": 1.5979579687512615,
+            "tts_time": 31.15518677199725
         }
     },
     "vulkan-Vulkan0": {
@@ -1009,8 +1000,8 @@
             "test_name": "stt_vulkan-Vulkan0"
         },
         "tts": {
-            "bench_time_s": 50.1907000541687,
-            "cpu_mem_mb": 672.52734375,
+            "bench_time_s": 47.874441146850586,
+            "cpu_mem_mb": 684.625,
             "device_details": {
                 "device_id": "Vulkan0",
                 "free_mem_mib": 16384.0,
@@ -1031,14 +1022,16 @@
                 "LTTS_THREADS": "8",
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
-            "errors": [],
-            "gpu_mem_mb": 3308.91015625,
+            "errors": [
+                "Warning: TTS Audio validation failed (garbled audio output)"
+            ],
+            "gpu_mem_mb": 3323.80078125,
             "special_setting": "mode: gpu",
             "test_name": "tts_vulkan-Vulkan0",
-            "tts_char_speed": 5.472582754226084,
-            "tts_duration": 19.416875,
-            "tts_rtf": 2.5785697916896204,
-            "tts_time": 50.0677673240134
+            "tts_char_speed": 5.733663935175937,
+            "tts_duration": "-fail- VALIDATION",
+            "tts_rtf": 2.4410403638455413,
+            "tts_time": "-fail- VALIDATION"
         }
     },
     "vulkan-Vulkan1": {
@@ -1215,8 +1208,8 @@
             "test_name": "stt_vulkan-Vulkan1"
         },
         "tts": {
-            "bench_time_s": 6.609833240509033,
-            "cpu_mem_mb": 659.51953125,
+            "bench_time_s": 6.608901500701904,
+            "cpu_mem_mb": 693.0546875,
             "device_details": {
                 "device_id": "Vulkan1",
                 "free_mem_mib": 24560.0,
@@ -1238,13 +1231,13 @@
                 "LTTS_VOCODER": "/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
             },
             "errors": [],
-            "gpu_mem_mb": 3302.3984375,
+            "gpu_mem_mb": 3393.2890625,
             "special_setting": "mode: gpu",
             "test_name": "tts_vulkan-Vulkan1",
-            "tts_char_speed": 42.38068653546942,
-            "tts_duration": 18.776875,
-            "tts_rtf": 0.3443176297451893,
-            "tts_time": 6.465209094021702
+            "tts_char_speed": 42.117069418516266,
+            "tts_duration": 19.896875,
+            "tts_rtf": 0.32696972851389444,
+            "tts_time": 6.505675817024894
         }
     }
 }
