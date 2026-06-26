@@ -172,6 +172,62 @@ EOF
 
 schema_version = 3
 
+# --- Onboarding State
+[onboard_state]
+completed_sections = ["storage", "memory"]
+
+
+# --- Memory & Embeddings
+[memory]
+backend = "sqlite"
+default_namespace = "default"
+search_mode = "hybrid"
+retrieval_stages = ["cache", "fts", "vector"]
+embedding_model = "qwen3-embedding"
+embedding_provider = "custom:http://localhost:50082/v1"
+hygiene_enabled = true
+response_cache_enabled = true
+rerank_enabled = false
+snapshot_enabled = false
+
+
+# --- Storage
+[secrets]
+encrypt = false
+
+[storage]
+[storage.sqlite]
+[storage.sqlite.default]
+open_timeout_secs = 300
+
+
+# --- Cron Settings
+[cron.default]
+enabled = true
+job_type = "shell"
+uses_memory = true
+
+[cron.default.schedule]
+kind = "cron"
+
+[heartbeat]
+agent = "default"
+
+
+# --- Skills
+[skills]
+allow_scripts = true
+open_skills_enabled = false
+
+[skills.skill_creation]
+enabled = true
+
+[skills.install_suggestions]
+enabled = true
+
+
+# --- Provider
+
 # --- Chat / LLM Provider
 [providers.models.openai.local]
 uri = "http://localhost:50080/v1"
@@ -179,45 +235,6 @@ model = "qwen3"
 api_key = "unused"
 max_tokens = 80128
 temperature = 1.0
-
-# --- Default Agent Settings
-[agents.default]
-model_provider = "openai.local"
-max_context_tokens = 80128
-tts_provider = "openai.local"
-transcription_provider = "local_whisper.localstt"
-risk_profile = "default"
-runtime_profile = "default"
-channels = ["signal.default"]
-
-[agents.default.memory]
-backend = "sqlite"
-
-# --- Risk & Runtime Profiles
-[risk_profiles.default]
-level = "full"
-workspace_only = false
-allowed_commands = ["*"]
-forbidden_paths = []
-require_approval_for_medium_risk = false
-block_high_risk_commands = false
-sandbox_enabled = false
-
-[runtime_profiles.default]
-agentic = false
-max_tool_iterations = 0
-max_actions_per_hour = 20
-max_cost_per_day_cents = 500
-shell_timeout_secs = 60
-
-# --- Memory & Embeddings
-[memory]
-backend = "sqlite.default"
-embedding_model = "qwen3-embedding"
-embedding_provider = "custom:http://localhost:50082/v1"
-rerank_enabled = false
-retrieval_stages = ["cache", "fts", "vector"]
-search_mode = "hybrid"
 
 # --- Speech-to-Text
 [transcription]
@@ -237,21 +254,21 @@ uri = "http://localhost:50095/v1/audio/speech"
 model = "qwen3-tts"
 api_key = "unused"
 
+
+# --- Channels
+
 # --- Signal Channel
 [channels.signal.default]
 enabled = true
-http_url = "http://localhost:50889"
+http_url = "http://localhost:50888"
 account = "+1234567890"
 approval_timeout_secs = 0
 dm_only = true
 ignore_attachments = false
 ignore_stories = true
-default_target = "+0000000000"
 
-# --- Runtime Configuration (Thinking/Reasoning)
-[runtime]
-reasoning_enabled = true
-reasoning_effort = "low"
+
+# --- Coding Agents
 
 # --- OpenCode Coding Agent Integration
 [opencode_cli]
@@ -259,6 +276,55 @@ enabled = true
 timeout_secs = 600
 max_output_bytes = 2097152
 env_passthrough = []
+
+
+# --- Risk Profiles
+[risk_profiles.default]
+level = "full"
+workspace_only = false
+allowed_commands = ["*"]
+forbidden_paths = []
+require_approval_for_medium_risk = false
+block_high_risk_commands = false
+sandbox_enabled = false
+
+# --- Runtime Profiles
+[runtime_profiles.default]
+agentic = true
+max_tool_iterations = 0
+max_actions_per_hour = 100
+max_cost_per_day_cents = 500
+shell_timeout_secs = 60
+
+[runtime_profiles.default.thinking]
+default_level = "low"
+
+
+# --- Runtime Configuration (Thinking/Reasoning)
+[runtime]
+reasoning_enabled = true
+reasoning_effort = "low"
+
+
+# --- Default Agent Settings
+[agents.default]
+model_provider = "openai.local"
+max_context_tokens = 80128
+tts_provider = "openai.local"
+transcription_provider = "local_whisper.localstt"
+risk_profile = "default"
+runtime_profile = "default"
+channels = ["signal.default"]
+
+[agents.default.memory]
+backend = "sqlite"
+
+[peer_groups]
+[peer_groups.default]
+output_modality = "text"
+agents = ["default"]
+external_peers = ["+9876543210"]
+channel = "signal.default"
 
 EOF
         echo "Created default configuration at $CONFIG_FILE"

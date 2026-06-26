@@ -176,7 +176,7 @@ sandbox_enabled = false
 [runtime_profiles.default]
 agentic = false
 max_tool_iterations = 0
-max_actions_per_hour = 20
+max_actions_per_hour = 100
 max_cost_per_day_cents = 500
 shell_timeout_secs = 60
 ```
