@@ -130,8 +130,6 @@ LSTT_OVERRIDE=(
 )
 # run TEXT-TO-SPEECH on cpu
 LTTS_OVERRIDE=(
-    'CUDA_VISIBLE_DEVICES=""'
-    'HIP_VISIBLE_DEVICES=""'
     'LTTS_MODE="cpu"'
     'LTTS_DEVICE="none"'
 )

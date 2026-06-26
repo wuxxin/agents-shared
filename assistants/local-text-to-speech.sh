@@ -101,23 +101,22 @@ get_shared_options() {
     local low_mem=0
     local transformer_force_cpu=0
     local vocoder_force_cpu=0
+
+    low_mem=0
+
     case "${LTTS_MODE:-gpu}" in
     "gpu")
         force_cpu=0
-        low_mem=0
         ;;
     "hybrid")
         force_cpu=0
-        low_mem=0
         transformer_force_cpu=1
         ;;
     "cpu")
         force_cpu=1
-        low_mem=0
         ;;
     *)
         force_cpu=0
-        low_mem=0
         ;;
     esac
 
@@ -205,24 +204,23 @@ generate_service_file() {
     local low_mem=0
     local transformer_force_cpu=0
     local vocoder_force_cpu=0
+
+    low_mem=0
+
     case "${LTTS_MODE:-gpu}" in
     "gpu")
         force_cpu=0
-        low_mem=0
         ;;
     "hybrid")
         force_cpu=0
-        low_mem=0
         transformer_force_cpu=1
         ;;
     "cpu")
         force_cpu=1
-        low_mem=0
         ;;
     *)
         echo "Warning: unknown LTTS_MODE '${LTTS_MODE}', defaulting to gpu" >&2
         force_cpu=0
-        low_mem=0
         ;;
     esac
 
