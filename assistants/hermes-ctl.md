@@ -184,7 +184,12 @@ Hermes utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on
 
 4. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/hermes` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared`, and `AGENT_PRIVATE_MOUNTS` are bind-mounted read-write, while other directories are read-only.
+   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/hermes` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared` are bind-mounted read-write, while other directories are read-only.
+   - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/hermes-gateway.env`:
+     - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
+     - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
+     - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
+
 
 5. **Container Backend Support**
    - **Warning**: If using docker or podman as a terminal backend inside the gateway, `NoNewPrivileges=yes` and `PrivateDevices=yes` must be relaxed, and access to `/dev/fuse` and namespace capabilities must be permitted.

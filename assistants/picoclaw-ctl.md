@@ -172,7 +172,11 @@ PicoClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation, consis
 
 3. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: `HOME` is redirected to `%h/.local/sandbox/picoclaw` (the persistent bind-mounted data directory). The `~/agent-shared` and `AGENT_PRIVATE_MOUNTS` directories are bind-mounted read-write, while other system directories are read-only.
+   - **Rationale**: `HOME` is redirected to `%h/.local/sandbox/picoclaw` (the persistent bind-mounted data directory). The `~/agent-shared` directory is bind-mounted read-write, while other system directories are read-only.
+   - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/picoclaw.env`:
+     - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
+     - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
+     - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
 
 4. **Launcher vs CLI**
    - **Service Execution**: The systemd background service uses `picoclaw-launcher -no-browser` as its `ExecStart` target, running the built-in web console service.

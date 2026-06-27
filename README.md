@@ -322,4 +322,8 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **Sandbox Bind-Mounting (`agent-sandbox-mounts`)**: To share specific subdirectory paths between different assistant sandboxes (for example, to make OpenCode configurations and cached files comfortable and available to other assistants), configure the `AGENT_SANDBOX_MOUNTS` environment variable inside the assistant's `.env` environment file.
   - **Syntax**: `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode"`
   - **Behavior**: The control wrapper parses this list (format: `sandbox_name/relative_subpath`), ensures that both the source path (under `~/.local/sandbox/sandbox_name/`) and target path (under `~/.local/sandbox/assistant_name/`) exist on the host, injects the dynamic `BindPaths=` options into the systemd service file, and bind-mounts them.
+- **Extra Bind-Mounts (`agent-extra-mounts`)**: To expose arbitrary directories from the host filesystem to specific target paths relative to the user's HOME inside the assistant's sandbox, configure the `AGENT_EXTRA_MOUNTS` environment variable inside the assistant's `.env` environment file.
+  - **Syntax**: `AGENT_EXTRA_MOUNTS="absolute_dir:relative_dir_to_HOME"`
+  - **Behavior**: The control wrapper parses this list (format: `absolute_dir:relative_subpath_to_HOME`), ensures the target directory exists on the host (under `$HOME/relative_subpath_to_HOME`), attempts to create the source absolute directory if possible, and bind-mounts them, eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
+
 

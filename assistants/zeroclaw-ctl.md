@@ -318,4 +318,8 @@ ZeroClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based 
 
 4. **Strict Filesystem Isolation**
    - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: The agent's persistent directories (`~/.local/sandbox/zeroclaw`, `~/agent-shared`, and specified `AGENT_PRIVATE_MOUNTS`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
+   - **Rationale**: The agent's persistent directories (`~/.local/sandbox/zeroclaw`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
+   - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/zeroclaw.env`:
+     - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
+     - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
+     - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`

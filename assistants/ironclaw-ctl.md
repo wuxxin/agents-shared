@@ -116,6 +116,11 @@ IronClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation:
 2.  **Docker Sandbox**: `RestrictNamespaces=yes` is omitted when Docker sandbox mode is active to allow container orchestration.
 3.  **Physical Devices**: `PrivateDevices=yes` is active by default to hide physical hardware devices.
 4.  **Strict Filesystem Isolation**: Enforces `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`). The persistent directories (`~/.local/sandbox/ironclaw`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden.
+    - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/ironclaw.env`:
+      - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
+      - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
+      - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
+
 
 ---
 

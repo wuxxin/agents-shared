@@ -27,7 +27,7 @@ pytest tests/test_file.py::test_function -v
 python3 scripts/run-local-benchmark.py --configs hip,vulkan,cpu --services all --mock
 # Run local benchmark with temporary paths output
 python3 scripts/run-local-benchmark.py --configs hip,vulkan,cpu --services all --report scratch/test.md --data scratch/test.json
-# Regenerate the Development Activity of the used Agents Software Sources, updates research/weekly-devel-activity.md:
+# if requested by the user: regenerate the Activity of the used Agents Software Sources from github, updates research/weekly-devel-activity.md:
 python3 scripts/update-activity.py [--write]
 ```
 

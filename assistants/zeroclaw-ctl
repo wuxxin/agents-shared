@@ -22,6 +22,7 @@ get_shared_options() {
 
     local AGENT_PRIVATE_MOUNTS=""
     local AGENT_SANDBOX_MOUNTS=""
+    local AGENT_EXTRA_MOUNTS=""
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -58,6 +59,14 @@ get_shared_options() {
         mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
         mkdir -p "$HOME/.local/sandbox/zeroclaw/${subpath}"
         echo "BindPaths=${home_spec}/.local/sandbox/${sandbox_name}/${subpath}:${home_spec}/.local/sandbox/zeroclaw/${subpath}"
+    done
+
+    for m in ${AGENT_EXTRA_MOUNTS:-}; do
+        local abs_dir="${m%%:*}"
+        local rel_dir="${m#*:}"
+        mkdir -p "$abs_dir" || true
+        mkdir -p "$HOME/$rel_dir"
+        echo "BindPaths=${abs_dir}:${home_spec}/${rel_dir}"
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
@@ -157,6 +166,9 @@ ZEROCLAW_HOST=127.0.0.1
 AGENT_SANDBOX_MOUNTS="\
 opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode \
 deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
+
+# List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
+# AGENT_EXTRA_MOUNTS="/data/download:download /data/download/zeroclaw-default:.zeroclaw/agents/default/workspace/downloads"
 
 EOF
         chmod 600 "$ENV_FILE"
