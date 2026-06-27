@@ -93,7 +93,7 @@ To make additional host directories or files readable and writable inside the sa
 SANDBOX_BIND_PATHS="/home/username/my-shared-project:/opt/special-tool"
 ```
 
-### Disabling Sockets
+### Restricting Access of Sandbox
 You can restrict sandbox access to graphical, audio, and credential resources by setting:
 - `DISABLE_XDG_RUNTIME=1`: Disables binding the host's `$XDG_RUNTIME_DIR` entirely. This deactivates Wayland, Pipewire, PulseAudio, and DBus, forcing the application to run completely headless.
 - `DISABLE_SSH_AUTH=1`: Disables forwarding the host's SSH agent socket (`SSH_AUTH_SOCK`). This prevents the sandbox from accessing or using your host's SSH keys for Git commands or SSH connections.
