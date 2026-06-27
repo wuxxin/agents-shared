@@ -143,7 +143,9 @@ cmd_install() {
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
 # (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
-# AGENT_SANDBOX_MOUNTS=""
+AGENT_SANDBOX_MOUNTS="\
+opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode \
+deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 
 
 # Local Presence Detection for Embedding Auto-Detection (embedding_provider = "auto")

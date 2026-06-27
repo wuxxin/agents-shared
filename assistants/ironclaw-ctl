@@ -607,7 +607,9 @@ ACP_ENABLED=true
 # AGENT_PRIVATE_MOUNTS=""
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
-AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode"
+AGENT_SANDBOX_MOUNTS="\
+opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode \
+deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 
 EOF
         chmod 600 "$ENV_FILE"
