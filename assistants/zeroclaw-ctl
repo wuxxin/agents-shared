@@ -154,7 +154,9 @@ ZEROCLAW_HOST=127.0.0.1
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
 # (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
-# AGENT_SANDBOX_MOUNTS=""
+AGENT_SANDBOX_MOUNTS="\
+opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode \
+deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 
 EOF
         chmod 600 "$ENV_FILE"
@@ -176,8 +178,131 @@ schema_version = 3
 [onboard_state]
 completed_sections = ["storage", "memory"]
 
+# --- Provider
 
-# --- Memory & Embeddings
+# --- Chat / LLM Provider
+[providers.models.openai.local]
+uri = "http://localhost:50080/v1"
+model = "qwen3"
+api_key = "unused"
+max_tokens = 80128
+temperature = 1.0
+
+# --- Speech-to-Text
+
+[providers.transcription.local_whisper.local]
+uri = "http://localhost:50090/v1/audio/transcriptions"
+bearer_token = "dummy"
+model = "whisper-1"
+
+# --- Text-to-Speech
+
+[providers.tts.openai.local]
+uri = "http://localhost:50095/v1/audio/speech"
+model = "qwen3-tts"
+api_key = "unused"
+
+# --- Image
+
+[providers.images.openai.local]
+uri = "http://localhost:50100/v1"
+default_model = "txt2img"
+api_key = "unused"
+
+# --- Provider Cost
+
+[cost]
+monthly_limit_usd = 500.0
+daily_limit_usd = 20.0
+
+[cost.rates]
+
+[cost.rates.providers]
+
+[cost.rates.providers.models]
+
+[cost.rates.providers.models.openai]
+
+[cost.rates.providers.models.openai.qwen3]
+input_per_mtok = 1.5
+output_per_mtok = 9.0
+cached_input_per_mtok = 0.15
+
+
+# --- Channels
+
+# --- Signal Channel
+[channels.signal.default]
+enabled = true
+http_url = "http://localhost:50888"
+approval_timeout_secs = 0
+dm_only = true
+ignore_attachments = false
+ignore_stories = true
+account = "+1234567890"
+default_target = "+0000000000"
+
+
+# --- Tools
+
+[transcription]
+enabled = true
+
+[tts]
+enabled = true
+
+[link_enricher]
+enabled = true
+
+[image_generation]
+enabled = true
+
+[image_generation.options]
+quality = "standard"
+size = "1024x1024"
+
+[opencode_cli]
+enabled = true
+timeout_secs = 600
+max_output_bytes = 2097152
+env_passthrough = []
+
+
+# --- Risk Profiles
+[risk_profiles.default]
+level = "full"
+workspace_only = false
+allowed_commands = ["*"]
+forbidden_paths = []
+require_approval_for_medium_risk = false
+block_high_risk_commands = false
+sandbox_enabled = false
+
+
+# --- Runtime Profiles
+[runtime]
+reasoning_enabled = true
+reasoning_effort = "low"
+
+[runtime_profiles.default]
+agentic = true
+max_tool_iterations = 0
+max_actions_per_hour = 100
+max_cost_per_day_cents = 500
+shell_timeout_secs = 60
+
+[runtime_profiles.default.thinking]
+default_level = "low"
+
+
+# --- Knowledge , Memory and Embeddings
+[knowledge]
+auto_capture = true
+
+[knowledge_bundles]
+
+[knowledge_bundles.default]
+
 [memory]
 backend = "sqlite"
 default_namespace = "default"
@@ -196,9 +321,23 @@ snapshot_enabled = false
 encrypt = false
 
 [storage]
+
 [storage.sqlite]
+
 [storage.sqlite.default]
 open_timeout_secs = 300
+
+
+# --- Media Pipeline
+[media_pipeline]
+enabled = true
+describe_images = true
+transcribe_audio = true
+summarize_video = false
+
+[multimodal]
+allow_remote_fetch = true
+max_image_size_mb = 20
 
 
 # --- Cron Settings
@@ -214,104 +353,14 @@ kind = "cron"
 agent = "default"
 
 
-# --- Skills
-[skills]
-allow_scripts = true
-open_skills_enabled = false
+# --- Agent Settings, Heartbeat and Peer Groups
 
-[skills.skill_creation]
-enabled = true
-
-[skills.install_suggestions]
-enabled = true
-
-
-# --- Provider
-
-# --- Chat / LLM Provider
-[providers.models.openai.local]
-uri = "http://localhost:50080/v1"
-model = "qwen3"
-api_key = "unused"
-max_tokens = 80128
-temperature = 1.0
-
-# --- Speech-to-Text
-[transcription]
-enabled = true
-
-[providers.transcription.local_whisper.localstt]
-uri = "http://localhost:50090/v1/audio/transcriptions"
-bearer_token = "dummy"
-model = "whisper-1"
-
-# --- Text-to-Speech
-[tts]
-enabled = true
-
-[providers.tts.openai.local]
-uri = "http://localhost:50095/v1/audio/speech"
-model = "qwen3-tts"
-api_key = "unused"
-
-
-# --- Channels
-
-# --- Signal Channel
-[channels.signal.default]
-enabled = true
-http_url = "http://localhost:50888"
-account = "+1234567890"
-approval_timeout_secs = 0
-dm_only = true
-ignore_attachments = false
-ignore_stories = true
-
-
-# --- Coding Agents
-
-# --- OpenCode Coding Agent Integration
-[opencode_cli]
-enabled = true
-timeout_secs = 600
-max_output_bytes = 2097152
-env_passthrough = []
-
-
-# --- Risk Profiles
-[risk_profiles.default]
-level = "full"
-workspace_only = false
-allowed_commands = ["*"]
-forbidden_paths = []
-require_approval_for_medium_risk = false
-block_high_risk_commands = false
-sandbox_enabled = false
-
-# --- Runtime Profiles
-[runtime_profiles.default]
-agentic = true
-max_tool_iterations = 0
-max_actions_per_hour = 100
-max_cost_per_day_cents = 500
-shell_timeout_secs = 60
-
-[runtime_profiles.default.thinking]
-default_level = "low"
-
-
-# --- Runtime Configuration (Thinking/Reasoning)
-[runtime]
-reasoning_enabled = true
-reasoning_effort = "low"
-
-
-# --- Default Agent Settings
 [agents.default]
-model_provider = "openai.local"
 max_context_tokens = 80128
+model_provider = "openai.local"
 tts_provider = "openai.local"
-transcription_provider = "local_whisper.localstt"
+image_provider = "openai.local"
+transcription_provider = "local_whisper.local"
 risk_profile = "default"
 runtime_profile = "default"
 channels = ["signal.default"]
@@ -320,11 +369,12 @@ channels = ["signal.default"]
 backend = "sqlite"
 
 [peer_groups]
+
 [peer_groups.default]
 output_modality = "text"
 agents = ["default"]
-external_peers = ["+9876543210"]
 channel = "signal.default"
+external_peers = ["+0000000000"]
 
 EOF
         echo "Created default configuration at $CONFIG_FILE"
