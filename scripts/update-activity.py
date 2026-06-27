@@ -19,6 +19,13 @@ from typing import Any, Dict, List, Optional
 # Define the repositories to track
 TRACKED_REPOS = [
     {
+        "name": "zeroclaw",
+        "github": "zeroclaw-labs/zeroclaw",
+        "pkg": "zeroclaw-git",
+        "branch": "master",
+        "heading": "ZeroClaw",
+    },
+    {
         "name": "ironclaw",
         "github": "nearai/ironclaw",
         "pkg": "ironclaw-git",
@@ -26,11 +33,11 @@ TRACKED_REPOS = [
         "heading": "IronClaw",
     },
     {
-        "name": "zeroclaw",
-        "github": "zeroclaw-labs/zeroclaw",
-        "pkg": "zeroclaw-git",
-        "branch": "master",
-        "heading": "ZeroClaw",
+        "name": "librefang",
+        "github": "librefang/librefang",
+        "pkg": "librefang-git",
+        "branch": "main",
+        "heading": "LibreFang",
     },
     {
         "name": "hermes-agent",
@@ -59,13 +66,6 @@ TRACKED_REPOS = [
         "pkg": "nanoclaw-git",
         "branch": "main",
         "heading": "NanoClaw",
-    },
-    {
-        "name": "librefang",
-        "github": "librefang/librefang",
-        "pkg": "librefang-git",
-        "branch": "main",
-        "heading": "LibreFang",
     },
 ]
 

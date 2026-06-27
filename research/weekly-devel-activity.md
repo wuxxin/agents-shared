@@ -10,24 +10,24 @@ This document tracks repository activity, commit counts, merge frequency, and re
 #### Repository Overview & Package Status
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: |
-| **ironclaw** | 12,482 | 1,465 | `main` | 2026-06-26 | `ironclaw-git` @ `ironclaw_skill_learning.v0.1.0.r21.g4f28feb-1` | 54 | **Highly Active** |
-| **zeroclaw** | 32,057 | 4,769 | `master` | 2026-06-27 | `zeroclaw-git` @ `0.8.2.r43.g97f8782ed-1` | 2 | **Highly Active** |
-| **hermes-agent** | 203,983 | 36,635 | `main` | 2026-06-26 | — | — | **Highly Active** |
-| **nanobot** | 44,780 | 7,894 | `main` | 2026-06-27 | — | — | **Highly Active** |
-| **picoclaw** | 29,497 | 4,251 | `main` | 2026-06-26 | `picoclaw-git` @ `0.3.0.nightly.20260622.287853ab-1` | 27 | **Active** |
-| **nanoclaw** | 30,008 | 12,899 | `main` | 2026-06-26 | `nanoclaw-git` @ `r1866.9bb69c0e5-1` | 7 | **Active** |
-| **librefang** | 315 | 64 | `main` | 2026-06-26 | — | — | **Highly Active** |
+| **zeroclaw** | 0 | 0 | `master` | 2026-06-27 | `zeroclaw-git` @ `0.8.2.r43.g97f8782ed-1` | 2 | **Highly Active** |
+| **ironclaw** | 0 | 0 | `main` | 2026-06-26 | `ironclaw-git` @ `ironclaw_skill_learning.v0.1.0.r21.g4f28feb-1` | 54 | **Highly Active** |
+| **librefang** | 0 | 0 | `main` | 2026-06-26 | — | — | **Highly Active** |
+| **hermes-agent** | 0 | 0 | `main` | 2026-06-27 | — | — | **Highly Active** |
+| **nanobot** | 0 | 0 | `main` | 2026-06-27 | — | — | **Highly Active** |
+| **picoclaw** | 0 | 0 | `main` | 2026-06-26 | `picoclaw-git` @ `0.3.0.nightly.20260622.287853ab-1` | 27 | **Active** |
+| **nanoclaw** | 0 | 0 | `main` | 2026-06-26 | `nanoclaw-git` @ `r1866.9bb69c0e5-1` | 7 | **Active** |
 
 #### Weekly Activity Metrics (Human vs Bot)
 | Assistant Repo | Commits / Week | Lines Added (Human/Bot) | Lines Deleted (Human/Bot) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **ironclaw** | **95** / 1 | 114.4k / 14 | 34.0k / 3 | 0 | 1 | 126.0 |
 | **zeroclaw** | **190** / 0 | 51.1k / 0 | 223.7k / 0 | 0 | 1 | 162.8 |
-| **hermes-agent** | **755** / 0 | 148.6k / 0 | 34.0k / 0 | 126 | 0 | 692.2 |
+| **ironclaw** | **95** / 1 | 114.4k / 14 | 34.0k / 3 | 0 | 1 | 125.8 |
+| **librefang** | **55** / 11 | 15.8k / 385 | 8.0k / 379 | 0 | 4 | 67.0 |
+| **hermes-agent** | **757** / 0 | 148.9k / 0 | 34.1k / 0 | 123 | 0 | 690.5 |
 | **nanobot** | **147** / 3 | 14.7k / 116 | 4.8k / 3 | 0 | 1 | 126.5 |
 | **picoclaw** | **15** / 5 | 275 / 140 | 79 / 123 | 21 | 0 | 38.0 |
 | **nanoclaw** | **9** / 2 | 1.1k / 2 | 82 / 2 | 12 | 0 | 32.5 |
-| **librefang** | **55** / 11 | 15.8k / 385 | 8.0k / 379 | 0 | 4 | 67.2 |
 <!-- END_TABLES -->
 
 ---
@@ -136,13 +136,13 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_RF_IRONCLAW -->
 ### Hermes Agent (`NousResearch/hermes-agent`)
 <!-- START_BD_HERMES_AGENT -->
-* **Status**: Highly Active (Total: 755 commits [755 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +148.6k/-34.0k (Human), +0/-0 (Bot).
-* **Contributors (according to last 7 days commits)** (Total: 170 Humans, 0 Bots):
+* **Status**: Highly Active (Total: 757 commits [757 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +148.9k/-34.1k (Human), +0/-0 (Bot).
+* **Contributors (according to last 7 days commits)** (Total: 172 Humans, 0 Bots):
   - **Top Humans**:
     - `Teknium <127238744+teknium1@users.noreply.github.com>` (Human): 123 commits, +22.5k/-14.9k lines
     - `Brooklyn Nicholson <brooklyn.bb.nicholson@gmail.com>` (Human): 115 commits, +52.4k/-8.7k lines
-    - `teknium1 <127238744+teknium1@users.noreply.github.com>` (Human): 77 commits, +6.4k/-791 lines
-    - `kshitijk4poor <82637225+kshitijk4poor@users.noreply.github.com>` (Human): 65 commits, +5.8k/-1.1k lines
+    - `teknium1 <127238744+teknium1@users.noreply.github.com>` (Human): 79 commits, +6.5k/-897 lines
+    - `kshitijk4poor <82637225+kshitijk4poor@users.noreply.github.com>` (Human): 64 commits, +5.8k/-1.1k lines
     - `ethernet <arilotter@gmail.com>` (Human): 27 commits, +3.4k/-2.8k lines
     - `xxxigm <tuancanhnguyen706@gmail.com>` (Human): 27 commits, +2.0k/-119 lines
     - `Ben <ben@nousresearch.com>` (Human): 17 commits, +5.3k/-164 lines
@@ -152,6 +152,10 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_BD_HERMES_AGENT -->
 <!-- START_RF_HERMES_AGENT -->
 * **Recent Focus**:
+  - `50f685521` feat(moa): make /moa one-shot only; route preset switching through the model picker
+  - `3cd469349` chore: add DiamondEyesFox to AUTHOR_MAP for PR #53351 salvage
+  - `8df231c94` fix(agent): rebaseline in-place compression flushes
+  - `1b75b3fd9` feat(memory): add Supermemory setup connection summary
   - `882730026` fix(photon): correlate tapbacks to bot message context
   - `4345b3e76` fix(photon): upgrade spectrum-ts sidecar to v8.0.0
   - `5636c2282` feat(photon): upgrade spectrum-ts sidecar to v7.0.0
@@ -163,10 +167,6 @@ This document tracks repository activity, commit counts, merge frequency, and re
   - `bcc3eb341` fix(ci): rip out some xdist legacy stuff... how did these ever work??
   - `2fa66950e` change(ci): upload-artifact from v4 -> v7
   - `4b0a2040e` change(ci): use run_tests in docker
-  - `18f7ad49a` change(ci): update all UV installs
-  - `f0cb04921` change(ci): migrate docker smoketests to real tests
-  - `2bd17221b` change(ci): pretty names
-  - `9a861cd0a` change(tests): don't pass pytest args when counting tests
 <!-- END_RF_HERMES_AGENT -->
 ### NanoBot (`HKUDS/nanobot`)
 <!-- START_BD_NANOBOT -->
