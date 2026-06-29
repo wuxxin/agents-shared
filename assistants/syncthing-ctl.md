@@ -2,7 +2,7 @@
 
 This guide describes configuration and execution options specific to the confined Syncthing user service.
 
-For shared commands, variable expansion rules, and unified sandboxing profiles, see the general [Agent Service Guide](agents.md).
+For shared commands, variable expansion rules, and unified sandboxing profiles, see the general [Agent Service Guide](agents-ctl.md).
 
 ---
 

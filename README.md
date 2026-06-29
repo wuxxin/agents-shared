@@ -120,7 +120,7 @@ The following default ports are used by various agent systems and services to av
 
 Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
 
-See [assistants/agents.md](assistants/agents.md) for general usage and common configuration options.
+See [assistants/agents.md](assistants/agents-ctl.md) for general usage and common configuration options.
 
 
 ### ZeroClaw

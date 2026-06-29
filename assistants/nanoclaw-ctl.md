@@ -2,7 +2,7 @@
 
 This guide describes configuration, onboarding, and integration features specific to the NanoClaw assistant.
 
-For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents.md).
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents-ctl.md).
 
 - **Source Code**: [GitHub - gavrielc/nanoclaw](https://github.com/gavrielc/nanoclaw)
 - **Arch/AUR Packages**: `nanoclaw-git` (AUR, git-based typescript source build). Alternatives: `nanoclaw`, `nanoclaw-bin`.
