@@ -1,21 +1,45 @@
 #!/usr/bin/env bash
-# Generalized Sandbox Launcher
-# Integrates bubblewrap sandboxing for arbitrary binaries.
+# Generalized Sandbox & systemd Transient Launcher
+# Confines arbitrary binaries using systemd user namespaces or bubblewrap.
 set -euo pipefail
 
 # Constants
 LAUNCHER_NAME="sandbox-launcher.sh"
-AGENT_SHARED_DIR="$HOME/agent-shared"
-DOWNLOAD_DIR="/data/download"
 
-# Determine Calling Mode
+# Helper: Check if systemd user manager is reachable
+is_systemd_running() {
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
+# Determine Calling Mode & App Name
 cmd_name=$(basename "$0")
 
 if [[ "$cmd_name" == "$LAUNCHER_NAME" || "$cmd_name" == "sandbox-launcher" ]]; then
     central_mode=true
+    if [[ $# -ge 2 ]]; then
+        app_name="$2"
+    else
+        app_name=""
+    fi
 else
     central_mode=false
     app_name="$cmd_name"
+fi
+
+# Load env file if app_name is known
+if [[ -n "${app_name:-}" ]]; then
+    persistent_home="$HOME/.local/sandbox/$app_name"
+    env_file="$HOME/.local/sandbox/$app_name.env"
+    if [[ -f "$env_file" ]]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+        set -u
+    fi
+    LAUNCHER_PRIVATE_BASEPATH="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
+    work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
 fi
 
 # Helper: Display launcher help information
@@ -32,7 +56,7 @@ $0 install <app_name> [opts]
         --new-config (overwrite environment file)
 
 $0 uninstall <app_name>
-    - Remove symlink from ~/.local/bin (preserves data)
+    - Remove symlink and desktop files (preserves data)
 
 $0 destroy <app_name>
     - Delete persistent sandbox home and env file
@@ -75,37 +99,524 @@ is_under() {
     [[ "$path" == "$parent" || "$path" == "$parent"/* ]]
 }
 
-# Helper: Translate host path to sandbox-internal path
-translate_path() {
-    local host_path="$1"
-    if [[ "$host_path" == "$persistent_home" ]]; then
-        echo "$HOME"
-    elif [[ "$host_path" == "$persistent_home"/* ]]; then
-        echo "$HOME/${host_path#"$persistent_home"/}"
-    else
-        echo "$host_path"
-    fi
-}
-
 # Helper: Initialize the sandbox directory structure
 initialize_sandbox() {
     echo "Initializing sandbox directories for '$app_name'..."
     mkdir -p "$persistent_home" "$work_dir"
-    mkdir -p "$persistent_home/$(realpath --relative-to="$HOME" "$work_dir")"
-    mkdir -p "$persistent_home/$(realpath --relative-to="$HOME" "$AGENT_SHARED_DIR")"
 
-    # Create symlink for ~/download to $DOWNLOAD_DIR
-    local download_symlink="$persistent_home/download"
-    if [[ ! -L "$download_symlink" ]]; then
-        if [[ -e "$download_symlink" ]]; then
-            rm -f "$download_symlink"
-        fi
-        ln -s "$DOWNLOAD_DIR" "$download_symlink"
+    # Only create a mount point in persistent home if work_dir is under $HOME
+    if [[ "$work_dir" == "$HOME"/* ]]; then
+        local rel_work
+        rel_work=$(realpath --relative-to="$HOME" "$work_dir" 2>/dev/null || echo "agent-private/$app_name")
+        mkdir -p "$persistent_home/$rel_work"
     fi
-
 }
 
-# Command: Install launcher and symlink
+# Helper: Build unified sandbox configurations
+build_sandbox_config() {
+    local target_mode="$1" # "systemd" or "bwrap"
+
+    # Extract values from environment with defaults
+    local disable_ipc_share="${DISABLE_IPC_SHARE:-true}"
+    local disable_pid_share="${DISABLE_PID_SHARE:-true}"
+    local disable_hardware="${DISABLE_HARDWARE:-false}"
+    local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
+    local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-}"
+    local launcher_sandbox_mounts="${LAUNCHER_SANDBOX_MOUNTS:-}"
+    local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$HOME/agent-shared:agent-shared /data/download:download}"
+    local disable_xdg_runtime="${DISABLE_XDG_RUNTIME:-false}"
+    local disable_ssh_auth="${DISABLE_SSH_AUTH:-false}"
+    local disable_wayland="${DISABLE_WAYLAND:-false}"
+    local disable_audio="${DISABLE_AUDIO:-false}"
+    local disable_dbus="${DISABLE_DBUS:-false}"
+
+    # Determine DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR, SSH_AUTH_SOCK
+    local display="${DISPLAY:-}"
+    local xauthority="${XAUTHORITY:-}"
+    local xdg_runtime_dir="${XDG_RUNTIME_DIR:-}"
+    local ssh_auth_sock="${SSH_AUTH_SOCK:-}"
+
+    if [[ "$target_mode" == "systemd" ]]; then
+        # Return systemd properties
+        echo "NoNewPrivileges=yes"
+        echo "CapabilityBoundingSet="
+        echo "AmbientCapabilities="
+        echo "ProtectSystem=strict"
+        echo "PrivateTmp=yes"
+
+        # Relocated HOME
+        echo "TemporaryFileSystem=%h"
+        echo "BindPaths=$persistent_home:$persistent_home"
+        echo "WorkingDirectory=$persistent_home"
+        echo "Environment=HOME=$persistent_home"
+
+        # Workspace bind
+        echo "BindPaths=$work_dir:$work_dir"
+
+        # Private devices/hardware
+        if [[ "$disable_hardware" == "true" || "$disable_hardware" == "1" ]]; then
+            echo "PrivateDevices=yes"
+        else
+            echo "PrivateDevices=no"
+        fi
+
+        # Private IPC
+        if [[ "$disable_ipc_share" == "true" || "$disable_ipc_share" == "1" ]]; then
+            echo "PrivateIPC=yes"
+        else
+            echo "PrivateIPC=no"
+        fi
+
+        # Extra hardening
+        echo "ProtectKernelTunables=yes"
+        echo "ProtectKernelModules=yes"
+        echo "ProtectKernelLogs=yes"
+        echo "ProtectControlGroups=yes"
+        echo "ProtectClock=yes"
+        echo "ProtectHostname=yes"
+        echo "LockPersonality=yes"
+        echo "RestrictSUIDSGID=yes"
+        echo "RestrictRealtime=yes"
+        echo "KeyringMode=private"
+        echo "UMask=0077"
+
+        # GUI display environment variables
+        if [[ -n "$display" ]]; then
+            echo "Environment=DISPLAY=$display"
+        fi
+        if [[ -n "$xauthority" && -f "$xauthority" ]]; then
+            echo "Environment=XAUTHORITY=$xauthority"
+            echo "BindReadOnlyPaths=$xauthority:$xauthority"
+            echo "BindReadOnlyPaths=/tmp/.X11-unix:/tmp/.X11-unix"
+        fi
+
+        # Wayland, Audio, DBus (selective runtime mounting)
+        if [[ "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
+            echo "Environment=XDG_RUNTIME_DIR=$xdg_runtime_dir"
+            echo "TemporaryFileSystem=$xdg_runtime_dir"
+
+            # Wayland
+            if [[ "$disable_wayland" != "true" && "$disable_wayland" != "1" ]]; then
+                local wl_display="${WAYLAND_DISPLAY:-wayland-0}"
+                if [[ -e "$xdg_runtime_dir/$wl_display" ]]; then
+                    echo "BindPaths=$xdg_runtime_dir/$wl_display:$xdg_runtime_dir/$wl_display"
+                fi
+                if [[ -e "$xdg_runtime_dir/${wl_display}.lock" ]]; then
+                    echo "BindPaths=$xdg_runtime_dir/${wl_display}.lock:$xdg_runtime_dir/${wl_display}.lock"
+                fi
+                # Include Xwayland/Mutter auth files
+                local old_nullglob
+                old_nullglob=$(shopt -p nullglob || true)
+                shopt -s nullglob
+                for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
+                    echo "BindPaths=$auth_file:$auth_file"
+                done
+                eval "$old_nullglob"
+            fi
+
+            # Audio (Pipewire / PulseAudio)
+            if [[ "$disable_audio" != "true" && "$disable_audio" != "1" ]]; then
+                for item in pipewire-0 pipewire-0.lock pipewire-0-manager pipewire-0-manager.lock pulse; do
+                    if [[ -e "$xdg_runtime_dir/$item" ]]; then
+                        echo "BindPaths=$xdg_runtime_dir/$item:$xdg_runtime_dir/$item"
+                    fi
+                done
+                if [[ -d "/run/user/$(id -u)/pulse" ]]; then
+                    echo "BindPaths=/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse"
+                fi
+            fi
+
+            # DBus
+            if [[ "$disable_dbus" != "true" && "$disable_dbus" != "1" ]]; then
+                if [[ -e "$xdg_runtime_dir/bus" ]]; then
+                    echo "BindPaths=$xdg_runtime_dir/bus:$xdg_runtime_dir/bus"
+                fi
+            fi
+        fi
+
+        # SSH agent forwarding
+        if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" && -n "$ssh_auth_sock" && -S "$ssh_auth_sock" ]]; then
+            echo "Environment=SSH_AUTH_SOCK=$ssh_auth_sock"
+            echo "BindPaths=$ssh_auth_sock:$ssh_auth_sock"
+        fi
+
+        # LAUNCHER_PRIVATE_MOUNTS
+        for m in $launcher_private_mounts; do
+            if [[ -n "$m" ]]; then
+                mkdir -p "$launcher_private_basepath/$m"
+                echo "BindPaths=$launcher_private_basepath/$m:$launcher_private_basepath/$m"
+            fi
+        done
+
+        # LAUNCHER_SANDBOX_MOUNTS
+        for m in $launcher_sandbox_mounts; do
+            if [[ -n "$m" ]]; then
+                local sandbox_name="${m%%/*}"
+                local subpath="${m#*/}"
+                mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+                mkdir -p "$persistent_home/${subpath}"
+                echo "BindPaths=%h/.local/sandbox/${sandbox_name}/${subpath}:%h/.local/sandbox/$app_name/${subpath}"
+            fi
+        done
+
+        # LAUNCHER_EXTRA_MOUNTS
+        for m in $launcher_extra_mounts; do
+            if [[ -n "$m" ]]; then
+                local host_path="${m%%:*}"
+                local sandbox_path="${m#*:}"
+                host_path="${host_path//%h/$HOME}"
+                host_path="${host_path//\~/$HOME}"
+                host_path="${host_path//\$HOME/$HOME}"
+
+                local target_path
+                if [[ "$sandbox_path" == /* ]]; then
+                    target_path="$sandbox_path"
+                else
+                    target_path="%h/$sandbox_path"
+                fi
+
+                mkdir -p "$host_path" || true
+
+                # For host creation of target mount point
+                local real_target_path="${target_path//%h/$HOME}"
+                if [[ "$real_target_path" == "$HOME/.local/sandbox/$app_name"/* ]]; then
+                    if [[ -L "$real_target_path" ]]; then
+                        rm -f "$real_target_path"
+                    fi
+                    mkdir -p "$real_target_path" 2>/dev/null || true
+                fi
+
+                echo "BindPaths=$host_path:$target_path"
+            fi
+        done
+
+    elif [[ "$target_mode" == "bwrap" ]]; then
+        # Return bubblewrap arguments (space-separated, line-by-line)
+        echo "--die-with-parent"
+        echo "--new-session"
+        echo "--cap-add"
+        echo "CAP_SYS_PTRACE"
+        echo "--ro-bind"
+        echo "/"
+        echo "/"
+        echo "--tmpfs"
+        echo "/tmp"
+        echo "--ro-bind"
+        echo "/sys"
+        echo "/sys"
+        echo "--proc"
+        echo "/proc"
+
+        # Relocated HOME
+        echo "--tmpfs"
+        echo "$HOME"
+        echo "--bind"
+        echo "$persistent_home"
+        echo "$persistent_home"
+        echo "--bind"
+        echo "$work_dir"
+        echo "$work_dir"
+        echo "--setenv"
+        echo "HOME"
+        echo "$persistent_home"
+
+        # Host device sharing / isolation
+        if [[ "$disable_hardware" == "true" || "$disable_hardware" == "1" ]]; then
+            echo "--dev"
+            echo "/dev"
+        else
+            echo "--dev-bind"
+            echo "/dev"
+            echo "/dev"
+        fi
+
+        # IPC/PID sharing / isolation
+        if [[ "$disable_ipc_share" == "true" || "$disable_ipc_share" == "1" ]]; then
+            if [[ "$disable_pid_share" == "true" || "$disable_pid_share" == "1" ]]; then
+                echo "--unshare-all"
+            else
+                echo "--unshare-user"
+                echo "--unshare-ipc"
+                echo "--unshare-net"
+                echo "--unshare-uts"
+                echo "--unshare-cgroup"
+            fi
+        else
+            if [[ "$disable_pid_share" == "true" || "$disable_pid_share" == "1" ]]; then
+                echo "--unshare-user"
+                echo "--unshare-pid"
+                echo "--unshare-net"
+                echo "--unshare-uts"
+                echo "--unshare-cgroup"
+            else
+                echo "--unshare-user"
+                echo "--unshare-net"
+                echo "--unshare-uts"
+                echo "--unshare-cgroup"
+            fi
+        fi
+
+        # Net is shared
+        echo "--share-net"
+
+        # GUI displays
+        if [[ -n "$display" ]]; then
+            echo "--setenv"
+            echo "DISPLAY"
+            echo "$display"
+        fi
+        if [[ -n "$xauthority" && -f "$xauthority" ]]; then
+            echo "--setenv"
+            echo "XAUTHORITY"
+            echo "$xauthority"
+            echo "--ro-bind"
+            echo "$xauthority"
+            echo "$xauthority"
+            echo "--ro-bind"
+            echo "/tmp/.X11-unix"
+            echo "/tmp/.X11-unix"
+        fi
+
+        # Wayland, Audio, DBus (selective runtime mounting)
+        if [[ "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
+            echo "--tmpfs"
+            echo "$xdg_runtime_dir"
+            echo "--setenv"
+            echo "XDG_RUNTIME_DIR"
+            echo "$xdg_runtime_dir"
+
+            # Wayland
+            if [[ "$disable_wayland" != "true" && "$disable_wayland" != "1" ]]; then
+                local wl_display="${WAYLAND_DISPLAY:-wayland-0}"
+                if [[ -e "$xdg_runtime_dir/$wl_display" ]]; then
+                    echo "--bind"
+                    echo "$xdg_runtime_dir/$wl_display"
+                    echo "$xdg_runtime_dir/$wl_display"
+                fi
+                if [[ -e "$xdg_runtime_dir/${wl_display}.lock" ]]; then
+                    echo "--bind"
+                    echo "$xdg_runtime_dir/${wl_display}.lock"
+                    echo "$xdg_runtime_dir/${wl_display}.lock"
+                fi
+                local old_nullglob
+                old_nullglob=$(shopt -p nullglob || true)
+                shopt -s nullglob
+                for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
+                    echo "--bind"
+                    echo "$auth_file"
+                    echo "$auth_file"
+                done
+                eval "$old_nullglob"
+            fi
+
+            # Audio
+            if [[ "$disable_audio" != "true" && "$disable_audio" != "1" ]]; then
+                for item in pipewire-0 pipewire-0.lock pipewire-0-manager pipewire-0-manager.lock pulse; do
+                    if [[ -e "$xdg_runtime_dir/$item" ]]; then
+                        echo "--bind"
+                        echo "$xdg_runtime_dir/$item"
+                        echo "$xdg_runtime_dir/$item"
+                    fi
+                done
+                if [[ -d "/run/user/$(id -u)/pulse" ]]; then
+                    echo "--bind"
+                    echo "/run/user/$(id -u)/pulse"
+                    echo "/run/user/$(id -u)/pulse"
+                fi
+            fi
+
+            # DBus
+            if [[ "$disable_dbus" != "true" && "$disable_dbus" != "1" ]]; then
+                if [[ -e "$xdg_runtime_dir/bus" ]]; then
+                    echo "--bind"
+                    echo "$xdg_runtime_dir/bus"
+                    echo "$xdg_runtime_dir/bus"
+                fi
+            fi
+        fi
+
+        # SSH agent forwarding
+        if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" && -n "$ssh_auth_sock" && -S "$ssh_auth_sock" ]]; then
+            echo "--setenv"
+            echo "SSH_AUTH_SOCK"
+            echo "$ssh_auth_sock"
+            echo "--bind"
+            echo "$ssh_auth_sock"
+            echo "$ssh_auth_sock"
+        fi
+
+        # LAUNCHER_PRIVATE_MOUNTS
+        for m in $launcher_private_mounts; do
+            if [[ -n "$m" ]]; then
+                mkdir -p "$launcher_private_basepath/$m"
+                echo "--bind"
+                echo "$launcher_private_basepath/$m"
+                echo "$launcher_private_basepath/$m"
+            fi
+        done
+
+        # LAUNCHER_SANDBOX_MOUNTS
+        for m in $launcher_sandbox_mounts; do
+            if [[ -n "$m" ]]; then
+                local sandbox_name="${m%%/*}"
+                local subpath="${m#*/}"
+                mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+                mkdir -p "$persistent_home/${subpath}"
+                echo "--bind"
+                echo "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+                echo "$persistent_home/${subpath}"
+            fi
+        done
+
+        # LAUNCHER_EXTRA_MOUNTS
+        for m in $launcher_extra_mounts; do
+            if [[ -n "$m" ]]; then
+                local host_path="${m%%:*}"
+                local sandbox_path="${m#*:}"
+                host_path="${host_path//%h/$HOME}"
+                host_path="${host_path//\~/$HOME}"
+                host_path="${host_path//\$HOME/$HOME}"
+
+                local target_path
+                if [[ "$sandbox_path" == /* ]]; then
+                    target_path="$sandbox_path"
+                else
+                    target_path="$persistent_home/$sandbox_path"
+                fi
+
+                mkdir -p "$host_path" || true
+
+                # Ensure the mount point exists in the persistent home
+                local real_target_path="${target_path//%h/$HOME}"
+                if [[ "$real_target_path" == "$persistent_home"/* ]]; then
+                    if [[ -L "$real_target_path" ]]; then
+                        rm -f "$real_target_path"
+                    fi
+                    mkdir -p "$real_target_path" 2>/dev/null || true
+                fi
+
+                echo "--bind"
+                echo "$host_path"
+                echo "$target_path"
+            fi
+        done
+    fi
+}
+
+# Helper: Run Sandbox (using systemd-run or bwrap)
+run_sandbox() {
+    # Initialize sandbox directories if missing
+    initialize_sandbox
+
+    # Check if current working directory is within target mounts
+    local cwd
+    cwd="$(pwd)"
+    local is_allowed=false
+
+    if is_under "$cwd" "$persistent_home" || is_under "$cwd" "$work_dir"; then
+        is_allowed=true
+    fi
+
+    # Check launcher extra mounts
+    local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$HOME/agent-shared:agent-shared /data/download:download}"
+    for m in $launcher_extra_mounts; do
+        if [[ -n "$m" ]]; then
+            local host_path="${m%%:*}"
+            host_path="${host_path//%h/$HOME}"
+            host_path="${host_path//\~/$HOME}"
+            host_path="${host_path//\$HOME/$HOME}"
+            if is_under "$cwd" "$host_path"; then
+                is_allowed=true
+                break
+            fi
+        fi
+    done
+
+    # Check custom bind paths
+    if [[ "$is_allowed" == "false" && -n "${SANDBOX_BIND_PATHS:-}" ]]; then
+        IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
+        for p in "${paths[@]}"; do
+            if [[ -n "$p" ]] && is_under "$cwd" "$p"; then
+                is_allowed=true
+                break
+            fi
+        done
+    fi
+
+    if [[ "$is_allowed" == "false" ]]; then
+        echo "Warning: Current working directory '$cwd' is outside the sandbox target mounts." >&2
+        echo "This will likely cause the sandbox execution to fail." >&2
+    fi
+
+    # Determine execution engine
+    local run_engine="bwrap"
+    if [[ "${LAUNCHER_ENGINE:-auto}" == "systemd" ]]; then
+        if ! is_systemd_running; then
+            echo "Error: systemd user manager is not reachable but LAUNCHER_ENGINE=systemd was set." >&2
+            exit 1
+        fi
+        run_engine="systemd"
+    elif [[ "${LAUNCHER_ENGINE:-auto}" == "bwrap" ]]; then
+        run_engine="bwrap"
+    else
+        if is_systemd_running; then
+            run_engine="systemd"
+        fi
+    fi
+
+    # Construct cmd_args with LAUNCHER_APP_FLAGS if defined
+    local cmd_args=()
+    if [[ $# -gt 0 ]]; then
+        local binary="$1"
+        shift
+        cmd_args+=("$binary")
+        if [[ -n "${LAUNCHER_APP_FLAGS:-}" ]]; then
+            eval "cmd_args+=(${LAUNCHER_APP_FLAGS})"
+        fi
+        cmd_args+=("$@")
+    fi
+
+    if [[ "$run_engine" == "systemd" ]]; then
+        # 1. Run via systemd-run (transient scope/service)
+        local systemd_opts=(
+            --user
+            --pty
+            --wait
+            --collect
+            --quiet
+            -p "Type=exec"
+        )
+        # Load configs from build_sandbox_config
+        while IFS= read -r prop; do
+            if [[ -n "$prop" ]]; then
+                systemd_opts+=(-p "$prop")
+            fi
+        done < <(build_sandbox_config systemd)
+
+        exec systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
+    else
+        # 2. Run via bubblewrap
+        # Ensure bubblewrap is installed on the host
+        if ! command -v bwrap >/dev/null 2>&1; then
+            echo "Error: bubblewrap (bwrap) is not installed or not in PATH." >&2
+            exit 1
+        fi
+
+        local bwrap_args=()
+        while IFS= read -r arg; do
+            if [[ -n "$arg" ]]; then
+                bwrap_args+=("$arg")
+            fi
+        done < <(build_sandbox_config bwrap)
+
+        # Add chdir to current working directory
+        bwrap_args+=(--chdir "$cwd")
+
+        exec bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
+    fi
+}
+
+# Command: Install launcher, symlink, and desktop entries
 cmd_install() {
     local no_git_config=false
     local new_config=false
@@ -134,8 +645,8 @@ cmd_install() {
         fi
     fi
 
-    # Opencode-specific default project initialization
-    if [[ "$app_name" == "opencode" ]]; then
+    # Generic or opencode default project initialization
+    if [[ "$app_name" == "opencode" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "true" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "1" ]]; then
         local default_project="$work_dir/default"
         mkdir -p "$default_project"
         if [[ ! -d "$default_project/.git" ]]; then
@@ -172,17 +683,86 @@ cmd_install() {
 # env configuration for $app_name
 # This file is loaded by the sandbox launcher.
 
-# Hardening / feature flags (set to 1 to disable):
-# DISABLE_XDG_RUNTIME=1
-# DISABLE_SSH_AUTH=1
-# DISABLE_WAYLAND=1
-# DISABLE_AUDIO=1
-# DISABLE_DBUS=1
+# --- Execution Options ---
+# Configures the execution engine (auto, systemd, bwrap).
+# Set to 'systemd' to force cgroups containment or 'bwrap' to force bubblewrap container.
+# LAUNCHER_ENGINE="auto"
 
-# Custom binds (colon-separated list of absolute paths):
-# SANDBOX_BIND_PATHS=""
+# --- Hardening / Feature Flags (set to true to disable) ---
+# DISABLE_XDG_RUNTIME="false"   # Disable XDG runtime directory (Wayland, DBus, audio)
+# DISABLE_SSH_AUTH="false"      # Disable SSH agent forwarding
+# DISABLE_WAYLAND="false"       # Disable Wayland display access
+# DISABLE_AUDIO="false"         # Disable audio playback/recording
+# DISABLE_DBUS="false"          # Disable DBus session bus communication
+
+# --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
+# DISABLE_IPC_SHARE="true"     # Isolate IPC namespace (set to false for GPU/ROCm hardware)
+# DISABLE_HARDWARE="false"     # Isolate host GPU/DRI devices (set to true to run headless)
+# DISABLE_PID_SHARE="true"     # Isolate PID namespace (set to false to share host PIDs, to enable trace or inspect of child processes)
+
+# --- Path / Directory Mounts ---
+# LAUNCHER_PRIVATE_BASEPATH="$HOME/agent-private"
+# LAUNCHER_PRIVATE_MOUNTS=""
+# LAUNCHER_SANDBOX_MOUNTS=""
+# LAUNCHER_EXTRA_MOUNTS="\$HOME/agent-shared:agent-shared /data/download:download"
+
+# --- Desktop / GUI Integration ---
+# LAUNCHER_GUI="false"            # Set to true to enable generating a desktop entry (.desktop file)
+# LAUNCHER_GUI_NAME="${app_name^}"
+# LAUNCHER_GUI_COMMENT="Sandboxed $app_name"
+# LAUNCHER_GUI_ICON="$app_name"
+# LAUNCHER_GUI_CATEGORIES="Utility;"
+# LAUNCHER_GUI_TERMINAL="false"
+
+# --- Application Startup Options ---
+# LAUNCHER_APP_FLAGS=""     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
+# LAUNCHER_DEFAULT_ARGS=""   # Default args passed if none are provided (e.g. '\$work_dir/default')
+# LAUNCHER_INIT_DEFAULT_PROJECT="false" # Set to true to run 'git init' on the default project workspace
+
 EOF
         chmod 600 "$env_file"
+
+        # Re-source environment to load freshly created settings
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+        set -u
+    fi
+
+    # GUI / Desktop Entry support
+    local app_dir="$HOME/.local/share/applications"
+    local desktop_file="$app_dir/$app_name.desktop"
+
+    if [[ "${LAUNCHER_GUI:-false}" == "true" || "${LAUNCHER_GUI:-false}" == "1" ]]; then
+        echo "Creating desktop entry for '$app_name' at $desktop_file..."
+        mkdir -p "$app_dir"
+
+        local gui_name="${LAUNCHER_GUI_NAME:-${app_name^}}"
+        local gui_comment="${LAUNCHER_GUI_COMMENT:-Sandboxed $app_name}"
+        local gui_icon="${LAUNCHER_GUI_ICON:-$app_name}"
+        local gui_categories="${LAUNCHER_GUI_CATEGORIES:-Utility;}"
+        local gui_terminal="${LAUNCHER_GUI_TERMINAL:-false}"
+
+        cat <<EOF >"$desktop_file"
+[Desktop Entry]
+Type=Application
+Name=$gui_name
+Comment=$gui_comment
+Exec=$symlink_target %F
+TryExec=$symlink_target
+Icon=$gui_icon
+Terminal=$gui_terminal
+Categories=$gui_categories
+StartupNotify=true
+EOF
+        chmod 644 "$desktop_file"
+    else
+        if [[ -f "$desktop_file" ]]; then
+            echo "Removing desktop entry (LAUNCHER_GUI is not enabled)..."
+            rm -f "$desktop_file"
+        fi
     fi
 
     echo "Installation complete!"
@@ -198,10 +778,12 @@ cmd_env() {
     ${EDITOR:-nano} "$env_file"
 }
 
-# Command: Uninstall symlink
+# Command: Uninstall symlink & desktop file
 cmd_uninstall() {
     local bin_dir="$HOME/.local/bin"
     local symlink_target="$bin_dir/$app_name"
+    local app_dir="$HOME/.local/share/applications"
+    local desktop_file="$app_dir/$app_name.desktop"
 
     echo "Uninstalling Sandbox Launcher for '$app_name'..."
 
@@ -210,6 +792,11 @@ cmd_uninstall() {
         echo "Removed symlink: $symlink_target"
     else
         echo "No symlink found at $symlink_target."
+    fi
+
+    if [[ -f "$desktop_file" ]]; then
+        rm -f "$desktop_file"
+        echo "Removed desktop entry: $desktop_file"
     fi
 
     echo "Uninstallation complete!"
@@ -226,184 +813,6 @@ cmd_destroy() {
     fi
 
     echo "Sandbox destruction for '$app_name' complete (workspace '$work_dir', and env file: $env_file was preserved)."
-}
-
-# Command: Run Bubblewrap Sandbox
-run_sandbox() {
-    # Ensure bubblewrap is installed on the host
-    if ! command -v bwrap >/dev/null 2>&1; then
-        echo "Error: bubblewrap (bwrap) is not installed or not in PATH." >&2
-        exit 1
-    fi
-
-    # Initialize sandbox directories if missing (does not delete existing data)
-    initialize_sandbox
-
-    # Load environment file if it exists
-    if [[ -f "$env_file" ]]; then
-        set +u
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-        set -u
-    fi
-
-    # Check if current working directory is within target mounts
-    local cwd
-    cwd="$(pwd)"
-    local is_allowed=false
-
-    if is_under "$cwd" "$persistent_home" || is_under "$cwd" "$work_dir" || is_under "$cwd" "$AGENT_SHARED_DIR"; then
-        is_allowed=true
-    fi
-
-    # Check custom bind paths
-    if [[ "$is_allowed" == "false" && -n "${SANDBOX_BIND_PATHS:-}" ]]; then
-        IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
-        for p in "${paths[@]}"; do
-            if [[ -n "$p" ]] && is_under "$cwd" "$p"; then
-                is_allowed=true
-                break
-            fi
-        done
-    fi
-
-    if [[ "$is_allowed" == "false" ]]; then
-        echo "Warning: Current working directory '$cwd' is outside the sandbox target mounts." >&2
-        echo "This will likely cause bubblewrap (bwrap) to fail." >&2
-    fi
-
-    # Prepare basic bubblewrap arguments
-    local display="${DISPLAY:-}"
-    local xauthority="${XAUTHORITY:-}"
-    local xdg_runtime_dir="${XDG_RUNTIME_DIR:-}"
-    local ssh_auth_sock="${SSH_AUTH_SOCK:-}"
-
-    local bwrap_args=(
-        --unshare-all
-        --share-net
-        --die-with-parent
-        --new-session
-        --cap-add CAP_SYS_PTRACE
-        --ro-bind / /
-        --tmpfs /tmp
-        --dev-bind /dev /dev
-        --ro-bind /sys /sys
-        --proc /proc
-        --bind "$persistent_home" "$HOME"
-        --bind "$work_dir" "$work_dir"
-        --bind "$AGENT_SHARED_DIR" "$AGENT_SHARED_DIR"
-        --ro-bind /tmp/.X11-unix /tmp/.X11-unix
-        --setenv DISPLAY "$display"
-        --setenv XAUTHORITY "$xauthority"
-    )
-
-    # Wayland & Audio (Pipewire/PulseAudio) Support
-    local enable_xdg_runtime=true
-    if [[ "${DISABLE_XDG_RUNTIME:-}" == "1" || "${DISABLE_XDG_RUNTIME:-}" == "true" ]]; then
-        enable_xdg_runtime=false
-    fi
-
-    if [[ "$enable_xdg_runtime" == "true" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
-        bwrap_args+=(
-            --tmpfs "$xdg_runtime_dir"
-            --setenv XDG_RUNTIME_DIR "$xdg_runtime_dir"
-        )
-
-        local whitelist=()
-
-        # Feature: Wayland
-        local enable_wayland=true
-        if [[ "${DISABLE_WAYLAND:-}" == "1" || "${DISABLE_WAYLAND:-}" == "true" ]]; then
-            enable_wayland=false
-        fi
-        if [[ "$enable_wayland" == "true" ]]; then
-            if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-                whitelist+=("$WAYLAND_DISPLAY" "$WAYLAND_DISPLAY.lock")
-            else
-                whitelist+=("wayland-0" "wayland-0.lock")
-            fi
-
-            # Include Xwayland/Mutter authentication files if present on the host
-            local old_nullglob
-            old_nullglob=$(shopt -p nullglob || true)
-            shopt -s nullglob
-            for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
-                whitelist+=("$(basename "$auth_file")")
-            done
-            eval "$old_nullglob"
-        fi
-
-        # Feature: Audio (Pipewire & PulseAudio)
-        local enable_audio=true
-        if [[ "${DISABLE_AUDIO:-}" == "1" || "${DISABLE_AUDIO:-}" == "true" ]]; then
-            enable_audio=false
-        fi
-        if [[ "$enable_audio" == "true" ]]; then
-            whitelist+=("pipewire-0" "pipewire-0.lock" "pipewire-0-manager" "pipewire-0-manager.lock" "pulse")
-        fi
-
-        # Feature: DBus session bus
-        local enable_dbus=true
-        if [[ "${DISABLE_DBUS:-}" == "1" || "${DISABLE_DBUS:-}" == "true" ]]; then
-            enable_dbus=false
-        fi
-        if [[ "$enable_dbus" == "true" ]]; then
-            whitelist+=("bus")
-        fi
-
-        # Bind whitelisted items that exist on the host
-        for item in "${whitelist[@]}"; do
-            local host_path="$xdg_runtime_dir/$item"
-            if [[ -e "$host_path" ]]; then
-                bwrap_args+=(--bind "$host_path" "$host_path")
-            fi
-        done
-    fi
-
-    # Audio socket fallback or PulseAudio support outside XDG_RUNTIME_DIR
-    if [[ "$enable_xdg_runtime" == "true" && "${enable_audio:-true}" == "true" && -d "/run/user/$(id -u)/pulse" ]]; then
-        bwrap_args+=(--bind "/run/user/$(id -u)/pulse" "/run/user/$(id -u)/pulse")
-    fi
-
-    # SSH Agent Support
-    local enable_ssh_auth=true
-    if [[ "${DISABLE_SSH_AUTH:-}" == "1" || "${DISABLE_SSH_AUTH:-}" == "true" ]]; then
-        enable_ssh_auth=false
-    fi
-
-    if [[ "$enable_ssh_auth" == "true" && -n "$ssh_auth_sock" && -S "$ssh_auth_sock" ]]; then
-        bwrap_args+=(
-            --bind "$ssh_auth_sock" "$ssh_auth_sock"
-            --setenv SSH_AUTH_SOCK "$ssh_auth_sock"
-        )
-    fi
-
-    # Download folder write support (if writable on host)
-    if [[ -d "$DOWNLOAD_DIR" && -w "$DOWNLOAD_DIR" ]]; then
-        bwrap_args+=(--bind "$DOWNLOAD_DIR" "$DOWNLOAD_DIR")
-    fi
-
-    # Custom bindings via SANDBOX_BIND_PATHS
-    if [[ -n "${SANDBOX_BIND_PATHS:-}" ]]; then
-        IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
-        for p in "${paths[@]}"; do
-            if [[ -d "$p" ]]; then
-                bwrap_args+=(--bind "$p" "$p")
-            elif [[ -f "$p" ]]; then
-                bwrap_args+=(--bind "$p" "$p")
-            fi
-        done
-    fi
-
-    # Translate and apply current working directory
-    local sandbox_cwd
-    sandbox_cwd=$(translate_path "$cwd")
-    bwrap_args+=(--chdir "$sandbox_cwd")
-
-    # Execute inside Bubblewrap
-    exec bwrap "${bwrap_args[@]}" "$@"
 }
 
 # --- Parsing Command and Routing ---
@@ -432,9 +841,10 @@ if [[ "$central_mode" == "true" ]]; then
     app_name="$1"
     shift
 
-    # Setup paths for app_name
+    # Re-evaluate paths for app_name
     persistent_home="$HOME/.local/sandbox/$app_name"
-    work_dir="$HOME/agent-private/$app_name"
+    LAUNCHER_PRIVATE_BASEPATH="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
+    work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
     env_file="$HOME/.local/sandbox/$app_name.env"
 
     case "$cmd" in
@@ -452,11 +862,16 @@ if [[ "$central_mode" == "true" ]]; then
         ;;
     exec)
         real_bin=$(find_real_binary "$app_name")
+        target_bin=""
         if [[ -n "$real_bin" ]]; then
-            run_sandbox "$real_bin" "$@"
+            target_bin="$real_bin"
         else
-            run_sandbox "$app_name" "$@"
+            target_bin="$app_name"
         fi
+        if [[ $# -eq 0 && -n "${LAUNCHER_DEFAULT_ARGS:-}" ]]; then
+            eval "set -- ${LAUNCHER_DEFAULT_ARGS}"
+        fi
+        run_sandbox "$target_bin" "$@"
         ;;
     run)
         if [[ $# -lt 1 ]]; then
@@ -477,14 +892,17 @@ if [[ "$central_mode" == "true" ]]; then
 
 else
     # App Symlink Mode: <app_name> [args...]
-    persistent_home="$HOME/.local/sandbox/$app_name"
-    work_dir="$HOME/agent-private/$app_name"
-    env_file="$HOME/.local/sandbox/$app_name.env"
-
     real_bin=$(find_real_binary "$app_name")
+    target_bin=""
     if [[ -n "$real_bin" ]]; then
-        run_sandbox "$real_bin" "$@"
+        target_bin="$real_bin"
     else
-        run_sandbox "$app_name" "$@"
+        target_bin="$app_name"
     fi
+
+    if [[ $# -eq 0 && -n "${LAUNCHER_DEFAULT_ARGS:-}" ]]; then
+        eval "set -- ${LAUNCHER_DEFAULT_ARGS}"
+    fi
+
+    run_sandbox "$target_bin" "$@"
 fi
