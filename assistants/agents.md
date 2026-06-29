@@ -57,6 +57,27 @@ Configurations are defined in `~/.config/systemd/user/<agent>.env`. The followin
 *   **`AGENT_TMPFILES_CLEANUP`** (Default: `false`)
     Toggles systemd-tmpfiles directory cleanup rules.
 
+### Generating a Secure Token
+
+To generate a secure, random 32-character alphanumeric token (`0-9A-Za-z`):
+
+*   **Using `/dev/urandom` and `tr` (Standard, no dependencies):**
+    ```bash
+    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; echo
+    ```
+*   **Using `openssl` (Base64 filtering):**
+    ```bash
+    openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; echo
+    ```
+*   **Using `python3` (Cryptographically secure secrets module):**
+    ```bash
+    python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32)))"
+    ```
+*   **Using `pwgen` (If installed on the host):**
+    ```bash
+    pwgen -s 32 1
+    ```
+
 ---
 
 ## Variable Path Expansion Rules
@@ -124,8 +145,21 @@ When enabled, the cleanup policy runs immediately on service startup/restart, an
 
 To guarantee parity across all execution modes, the wrapper centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same security profile:
 
-1.  **Physical Devices**: `PrivateDevices=yes` is active by default to hide physical hardware devices (except where overrides are specified for container-based assistants like NanoClaw).
-2.  **Strict Filesystem Isolation**: Enforces `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`). The persistent directories (`~/.local/sandbox/<agent>`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden.
+1.  **Physical Devices**: `PrivateDevices=yes` is active by default to hide physical hardware devices 
+2.  **Strict Filesystem Isolation**: Enforces `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`). The persistent directories (`~/.local/sandbox/<agent>`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden and `PrivateTmp=yes` is set to have a unique private temp for the process
 3.  **Kernel and IPC constraints**: Enforces kernel module, clock, and tunable protections, lock personality restrictions, and IPC namespaces.
+4. 
 4.  **NoNewPrivileges**: Enforces `NoNewPrivileges=yes` to prevent escalations.
 5.  **Direct Execution Fallback**: If systemd is not running in the current environment (e.g., inside a Bubblewrap container or systemd-free shell), the wrapper automatically falls back to direct execution of the binary under host environment variable overrides, setting `$HOME` to the sandboxed path.
+
+### Strict Confinement Profile
+- `ProtectProc=invisible` and `ProcSubset=pid`: Hides other system processes.
+- `RestrictNamespaces=yes`: Prevents the creation of new namespaces.
+- `MemoryDenyWriteExecute=yes`: Prevents W^X memory mappings (unless specifically required by an interpreter).
+
+### Relaxed Namespaces Profile
+Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`), Rootless Podman, or Docker for internal sandboxing.
+- `RestrictNamespaces=yes` is **omitted** to allow `bwrap` or Podman to create `CLONE_NEWUSER` and `CLONE_NEWNS` unprivileged namespaces.
+- `ProtectProc=invisible` and `ProcSubset=pid` are **omitted** so `bwrap` can securely bind its own `/proc` filesystem.
+- `NoNewPrivileges=yes` is maintained for modern `bwrap` compatibility.
+

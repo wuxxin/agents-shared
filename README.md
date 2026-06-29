@@ -10,15 +10,10 @@ See [Current Weekly Development Status](research/weekly-devel-activity.md) for G
 | Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend + Web GUI| Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
+| **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
 | **[IronClaw](#ironclaw)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native (RRF) | PostgreSQL + pgvector / Hybrid (FTS + Vector) | Native | Local |
 | **[Hermes](#hermes)** | Python (Source) <br> frozen Python Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
 | **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
-
-also covered, but currently not point of interest:
-
-| Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
 | **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
 | **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
 
@@ -82,6 +77,12 @@ The following assistants have native Signal channel integration available in the
 
 To configure them, refer to their specific configuration sections in their respective control guides.
 
+### Syncthing Integration
+- **Description**: Manages a persistent, confined Syncthing file synchronization daemon.
+- **Sandboxing**: Standard systemd strict filesystem confinement with a transient tmpfs home, mapping only configured directories. Exposes the host configuration and state directories.
+- **Features**: Decentralized and secure background file synchronization for agent workspaces and shared data.
+- **Documentation**: [syncthing-ctl.md](assistants/syncthing-ctl.md)
+
 
 ## Helper Utilities
 
@@ -89,26 +90,6 @@ The repository contains several scripts under `scripts/` to assist with sandboxi
 
 For details, see the [scripts/README.md](scripts/README.md).
 
-### Generating a Secure Token
-
-To generate a secure, random 32-character alphanumeric token (`0-9A-Za-z`):
-
-*   **Using `/dev/urandom` and `tr` (Standard, no dependencies):**
-    ```bash
-    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; echo
-    ```
-*   **Using `openssl` (Base64 filtering):**
-    ```bash
-    openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; echo
-    ```
-*   **Using `python3` (Cryptographically secure secrets module):**
-    ```bash
-    python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32)))"
-    ```
-*   **Using `pwgen` (If installed on the host):**
-    ```bash
-    pwgen -s 32 1
-    ```
 
 ## Default Ports
 
@@ -130,31 +111,17 @@ The following default ports are used by various agent systems and services to av
 | **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
 | **PicoClaw** | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
 | **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
-
-
-## Sandboxing Architecture
-
-Agent runtimes in this repository operate under strict, layered sandboxing configurations via systemd user services to protect the host system while allowing agents to execute their tools securely. 
-
-Two primary isolation profiles are used across all assistants:
-
-### Strict Confinement Profile
-Used by agents that execute tools directly or do not require creating new user namespaces for their internal sandboxing.
-- `ProtectProc=invisible` and `ProcSubset=pid`: Hides other system processes.
-- `RestrictNamespaces=yes`: Prevents the creation of new namespaces.
-- `MemoryDenyWriteExecute=yes`: Prevents W^X memory mappings (unless specifically required by an interpreter).
-- `PrivateTmp=yes`, `ProtectSystem=strict`, `PrivateDevices=yes`: Standard filesystem hardening.
-
-### Relaxed Namespaces Profile
-Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`), Rootless Podman, or Docker for internal sandboxing.
-- `RestrictNamespaces=yes` is **omitted** to allow `bwrap` or Podman to create `CLONE_NEWUSER` and `CLONE_NEWNS` unprivileged namespaces.
-- `ProtectProc=invisible` and `ProcSubset=pid` are **omitted** so `bwrap` can securely bind its own `/proc` filesystem.
-- `NoNewPrivileges=yes` is maintained for modern `bwrap` compatibility.
-- `PrivateDevices` may be disabled (`no`) if access to the container daemon or GPU devices is required.
+| **Syncthing** | [8384](http://localhost:8384), 22000 | Syncthing Web UI (HTTP) & Sync Protocol (TCP/UDP) |
 
 ---
 
 ## Assistants
+
+
+Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
+
+See [assistants/agents.md](assistants/agents.md) for general usage and common configuration options.
+
 
 ### ZeroClaw
 - **Major Features**: Rust-based security-focused agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
@@ -288,42 +255,4 @@ Used by agents that orchestrate sub-agents or use tools like Bubblewrap (`bwrap`
 - **Agent Client Protocol**: No native ACP support.
 - **Agent to Agent Protocol**: Yes — supported via target-agent routing on `messages_out`. An agent-runner can set `channel_type: 'agent'`, `platform_id` to the target agent group ID, and `thread_id` to a target session ID. The host reads this, validates permissions, and writes a `messages_in` row to the target session's DB.
 - **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](assistants/nanoclaw-ctl.md)
-
----
-
-## Standard Control Wrappers (assistant-ctl)
-
-Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
-
-### Common Commands
-
-| Command | Action | Description |
-|---|---|---|
-| `install` | Install | Set up local directory structures under `~/.local/sandbox/<assistant>`, generate environment file `.env` if missing, and create/register the systemd user unit. |
-| `install --no-start` | Install | Same as install, but do not start (or stop it if already running) the service after installation for further configuration (e.g. editing `.env`). |
-| `install --new-config` | Install | Same as install, but force overwrite any existing environment and configuration files with their default templates (useful for resetting to defaults). |
-| `uninstall` | Uninstall | Stop and disable the systemd service, and clean up the systemd service files. (Data is preserved). |
-| `start` / `stop` / `restart` | Lifecycle | Standard controls to start, stop, or restart the systemd user service. |
-| `status` | Status | Show the current runtime status of the systemd service. |
-| `logs [args...]` | Logs | View the daemon stdout/stderr output. Pass `-f` to tail/follow (e.g. `<assistant>-ctl logs -f`). Supports passing any additional `journalctl` options. |
-| `edit` | Edit Config | Open the assistant's `.env` environment file (and `config.toml` configuration files for supported assistants) in your `$EDITOR` and automatically restart the service upon exit to apply changes. |
-| `exec <args...>` | Sandbox Execute | Run the assistant's CLI binary or command line inside a transient systemd user service inheriting the same sandboxing and environment. |
-| `shell` | Sandbox Shell | Spawn an interactive shell inside the assistant's systemd user sandbox for debugging. |
-
-### Common Paths & Redirections
-
-- **Service File**: `~/.config/systemd/user/<assistant>.service` (or `hermes-gateway.service`)
-- **Environment File**: `~/.config/systemd/user/<assistant>.env` (or `hermes-gateway.env`)
-- **Data Home**: `~/.local/sandbox/<assistant>` (the service forces an isolated `HOME` environment variable to this location to keep configurations and cached libraries contained).
-- **Shared Space (`agent-shared`)**: `~/agent-shared` is bind-mounted in read-write mode to the sandbox of all assistants by default. This enables cross-assistant sharing of outputs, databases, and logs.
-- **Private Submounts (`agent-private`)**: To easily share specific directories from your host's private workspace (`~/agent-private/*`) to an assistant's sandbox without exposing the entire home directory, configure the `AGENT_PRIVATE_MOUNTS` environment variable inside the assistant's `.env` environment file.
-  - **Syntax**: `AGENT_PRIVATE_MOUNTS="health diary"`
-  - **Behavior**: The control wrapper will dynamically parse this list, ensure that the target directories (e.g. `~/agent-private/health` and `~/agent-private/diary`) exist on the host, inject the corresponding `BindPaths=` rules into the systemd service file, reload the user daemon, and dynamically mount them in all `start`, `restart`, `exec`, and `shell` wrapper commands.
-- **Sandbox Bind-Mounting (`agent-sandbox-mounts`)**: To share specific subdirectory paths between different assistant sandboxes (for example, to make OpenCode configurations and cached files comfortable and available to other assistants), configure the `AGENT_SANDBOX_MOUNTS` environment variable inside the assistant's `.env` environment file.
-  - **Syntax**: `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode"`
-  - **Behavior**: The control wrapper parses this list (format: `sandbox_name/relative_subpath`), ensures that both the source path (under `~/.local/sandbox/sandbox_name/`) and target path (under `~/.local/sandbox/assistant_name/`) exist on the host, injects the dynamic `BindPaths=` options into the systemd service file, and bind-mounts them.
-- **Extra Bind-Mounts (`agent-extra-mounts`)**: To expose arbitrary directories from the host filesystem to specific target paths relative to the user's HOME inside the assistant's sandbox, configure the `AGENT_EXTRA_MOUNTS` environment variable inside the assistant's `.env` environment file.
-  - **Syntax**: `AGENT_EXTRA_MOUNTS="absolute_dir:relative_dir_to_HOME"`
-  - **Behavior**: The control wrapper parses this list (format: `absolute_dir:relative_subpath_to_HOME`), ensures the target directory exists on the host (under `$HOME/relative_subpath_to_HOME`), attempts to create the source absolute directory if possible, and bind-mounts them, eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
-
 
