@@ -1,6 +1,8 @@
-# IronClaw Agent Management Guide
+# IronClaw Agent Control Guide
 
-`ironclaw-ctl` manages the IronClaw Agent OS runtime, providing a hardened execution environment with WASM-sandboxed tool execution, credential protection, and prompt injection defense.
+This guide describes configuration, onboarding, and integration features specific to the IronClaw Agent runtime environment.
+
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents.md).
 
 - **Source Code**: [GitHub - nearai/ironclaw](https://github.com/nearai/ironclaw)
 - **Arch/AUR Packages**:
@@ -9,51 +11,30 @@
 
 ---
 
-## Common Configuration & Management
+## Agent-Specific Defaults
 
-This section covers configurations, management commands, and security profiles that are shared or common to both Legacy (V1) and Reborn (V2) installations.
+- **Home Directory:** `~/.local/sandbox/ironclaw`
+- **Default Workspace Path:** `%h/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace`
+- **Legacy Configuration File:** `~/.local/sandbox/ironclaw/.ironclaw/config.toml`
+- **Reborn Configuration File:** `~/.local/sandbox/ironclaw/.ironclaw/reborn/config.toml`
+- **Default Port V1 Gateway:** [8080](http://localhost:8080/) (set via `HTTP_PORT` in `ironclaw.env`)
+- **Default Port V2 Web UI:** [3000](http://localhost:3000/) (started via `serve` subcommand)
 
-### Commands
+---
 
-`ironclaw-ctl` supports all standard management operations:
-*   `install [--no-start] [--new-config]` — Sets up the home directory, user service, and config files.
-*   `uninstall` — Removes the systemd user service.
-*   `start` / `stop` / `restart` / `status` — Standard systemd service lifecycles.
-*   `enable` / `disable` — Toggles startup on system boot.
-*   `logs` — Tails daemon logs using journalctl.
-*   `edit` — Opens configuration and environment overrides in a text editor.
-*   `exec <subcommand>` — Runs subcommands inside the systemd runtime.
-*   `run <command>` — Runs arbitrary terminal commands inside the environment.
-*   `shell` — Spawns an interactive bash shell within the service sandbox.
+## Common Environment Variables
 
-For detailed wrapper commands, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+Configure these inside `~/.config/systemd/user/ironclaw.env`:
+*   **`IRONCLAW_REBORN`** (Default: `true`): If `true`, runs the newer Reborn (V2) engine; if `false`, runs the Legacy (V1) engine.
+*   **`ENGINE_V2`** (Default: `true`): If running V1, selects the V2 backend parser.
+*   **`HTTP_HOST`** (Default: `127.0.0.1`): Host bind address.
+*   **`HTTP_PORT`** (Default: `8080`): Listen port for gateway interfaces.
 
-### Installation & Directory Setup
+---
 
-Install the runtime using:
-```bash
-./assistants/ironclaw-ctl install --no-start [--new-config]
-```
-This initializes the IronClaw home directory at `~/.local/sandbox/ironclaw` and registers the systemd user service.
+## Onboarding & Wizards
 
-The `--new-config` flag generates (or overwrites):
-*   `~/.config/systemd/user/ironclaw.env` — systemd bootstrap environment variables.
-*   `~/.local/sandbox/ironclaw/.ironclaw/.env` — Application secrets and local overrides.
-
-### Common Environment Variables
-
-Define these variables in `~/.config/systemd/user/ironclaw.env` (recommended) or `~/.local/sandbox/ironclaw/.ironclaw/.env` to customize engine types, host and port bindings:
-
-
-* **`IRONCLAW_REBORN`** (Default: true): select the newer IronClaw Reborn engine 'true, or for Legacy engine 'false'.
-* **`ENGINE_V2`** (Default: true): select V2 Engine for IronClaw Legacy 'true', or the V1 Engine 'false'
-* **`HTTP_HOST`** (Default: `127.0.0.1`): Bind address for the HTTP interfaces
-* **`HTTP_PORT`** (Default: `8080`): Listen port (legacy web gateway or reborn HTTP api)
-
-### Diagnostics & Onboarding
-
-*   **Setup Wizard**: Run `./assistants/ironclaw-ctl exec onboard` to configure database connections, select LLM providers, and configure default accounts.
-*   **Health Verification**: Run `./assistants/ironclaw-ctl exec status` to run credentials checks and check service health.
+*   **Setup Wizard**: Run `./assistants/ironclaw-ctl exec onboard` to configure database connections, select LLM providers, and setup default accounts.
 *   **Interactive Chat**: Run `./assistants/ironclaw-ctl exec chat` to open a terminal chat session.
 
 ### Default User Setup & Messaging Pairing
@@ -101,26 +82,12 @@ To protect credentials, external direct messages (such as Signal contact request
 
 ### Implementation & Security Considerations
 
-#### Systemd-Free Fallback (Direct Execution)
-If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox or container), `ironclaw-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
-- Environment variables are loaded directly from the environment override files.
-- The isolated home directory (`~/.local/sandbox/ironclaw`) is exported as `$HOME` and set as the working directory.
-- Commands that require systemd (`start`, `stop`, etc.) exit gracefully, notifying that systemd is unavailable.
-
-#### Centralized Sandbox Options
-To guarantee parity across all execution modes, `ironclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service, transient command runner (`exec`), and interactive shell (`shell`) all inherit the exact same security restrictions.
 
 #### Sandboxing Profile
 IronClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation:
 1.  **WASM Sandbox Execution**: Configures `MemoryDenyWriteExecute=no` to allow the wasmtime JIT compiler to allocate writable/executable pages.
 2.  **Docker Sandbox**: `RestrictNamespaces=yes` is omitted when Docker sandbox mode is active to allow container orchestration.
 3.  **Physical Devices**: `PrivateDevices=yes` is active by default to hide physical hardware devices.
-4.  **Strict Filesystem Isolation**: Enforces `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`). The persistent directories (`~/.local/sandbox/ironclaw`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden.
-    - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/ironclaw.env`:
-      - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
-      - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
-      - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
-
 
 ---
 
@@ -432,18 +399,18 @@ signal_group_policy = "allowlist"   # Policies: allowlist | open | disabled
 
 ---
 
-## Architectural differences between the Legacy (V1) daemon and the Reborn (V2) engine.
+## Architectural differences: Legacy (V1) vs Reborn (V2)
 
 | Feature Area | Legacy (V1) | Reborn (V2) |
 |---|---|---|
-| **Runtime Binary** | `/usr/bin/ironclaw` (compiled from Rust backend) | `/usr/bin/ironclaw-reborn` (compiled from `crates/ironclaw_reborn_cli`) |
-| **Execution Loop** | Standard Rust-native agent loop compiling flat tool calls | Python CodeAct loop running inside an embedded Monty VM (allows multi-tool compounding) |
+| **Runtime Binary** | `/usr/bin/ironclaw` (compiled from Rust backend) | `/usr/bin/ironclaw-reborn` (compiled from reborn engine) |
+| **Execution Loop** | Standard Rust-native agent loop compiling flat tool calls | Python CodeAct loop running inside an embedded Monty VM |
 | **Default Web Port** | `8080` (Web Gateway & Webhooks) | `3000` (started via `serve` subcommand, serving React SPA UI) |
-| **Primary Database** | PostgreSQL 15+ with the `pgvector` extension (required) | SQLite/libSQL (`reborn-local-dev.db` in reborn home) by default for local dev; PostgreSQL is optional for production |
+| **Primary Database** | PostgreSQL 15+ with the `pgvector` extension (required) | SQLite/libSQL (`reborn-local-dev.db` in reborn home) by default; PostgreSQL is optional |
 | **Configuration Files** | `~/.local/sandbox/ironclaw/.ironclaw/config.toml` | `~/.local/sandbox/ironclaw/.ironclaw/reborn/config.toml` |
-| **Client Authentication** | Bearer token configured via `gateway_auth_token` in `config.toml` | Bearer token via `IRONCLAW_REBORN_WEBUI_TOKEN` env var, and Google/GitHub OAuth browser SSO |
+| **Client Authentication** | Bearer token configured via `gateway_auth_token` in `config.toml` | Bearer token via `IRONCLAW_REBORN_WEBUI_TOKEN` env var, and Google/GitHub OAuth |
 | **LLM Provider Config** | Flat fields in `config.toml` (e.g. `llm_backend`, `selected_model`) | Structured catalog in `reborn/providers.json` & slot selector in `reborn/config.toml` |
-| **Embeddings & STT** | Direct `[embeddings]` and `[transcription]` blocks in `config.toml` | Managed dynamically through skills and extension plugins |
+| **Embeddings & STT** | Direct `[embeddings]` and `[transcription]` blocks in TOML | Managed dynamically through skills and extension plugins |
 | **Coding Integration** | Agent Client Protocol (ACP) configured via `acp-agents.json` | Native host-mediated WASM/MCP security policies |
 | **Traces & Diagnostics** | Direct CLI commands and file logging | Bounded Operator Logs, SSE live thinking streams, and `TraceClientHost` facades |
 | **Scheduled Jobs** | Cron-pinned jobs configured in `config.toml` | `TriggerSchedule::Once` and recurring trigger loops managed in reborn composition |

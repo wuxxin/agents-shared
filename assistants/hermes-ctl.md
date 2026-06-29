@@ -1,38 +1,23 @@
-# Hermes Agent Management Guide
+# Hermes Control Guide
 
-`hermes-ctl` is a management wrapper for the `hermes-agent` messaging gateway. It provides a standardized interface for installation, configuration, and service lifecycle management using `systemd` user units.
+This guide describes configuration, onboarding, and integration features specific to the Hermes Agent Gateway.
+
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents.md).
 
 - **Source Code**: [GitHub - NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
 - **Arch/AUR Packages**: `hermes-agent` (AUR, standard source), `hermes-agent-git` (AUR, latest git source), `hermes-agent-desktop-bin` (AUR, desktop prebuilt binary).
+- ## Agent-Specific Defaults
 
-## Commands
+- **Home Directory:** `~/.local/sandbox/hermes`
+- **Default Workspace Path:** `%h/.local/sandbox/hermes/.hermes/agents/default/workspace`
+- **Configuration File:** `~/.config/systemd/user/hermes-gateway.env` (environment-based variables configuration)
+- **Gateway API Port:** [8642](http://localhost:8642/)
+- **Dashboard Web UI Port:** [9119](http://localhost:9119/)
 
-`hermes-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
-
-## Installation
-
-```bash
-./assistants/hermes-ctl install --no-start
-```
-
-to set up the home directory (`~/.local/sandbox/hermes`) and register the systemd user service without starting it.
-
-### Set Environment
-
-Run `./assistants/hermes-ctl edit` (or edit `~/.config/systemd/user/hermes-gateway.env`) to configure necessary provider environment variables (e.g. `OPENROUTER_API_KEY`).
-
-#### Switch to Local Inference & Qwen3
-
-Set `OPENAI_API_BASE=http://localhost:50080/v1` and `OPENAI_API_KEY=unused`. Then, configure the default model to `qwen3` in the Setup Wizard or Web UI (note that the local model runs with an 80,000 token context window).
 
 ### Setup Wizard
 
 Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
-
-### Start & Verify
-
-Start the service with `./assistants/hermes-ctl start`. Monitor its logs via `./assistants/hermes-ctl logs -f` and access the Web UI at `http://localhost:9119`.
-
 
 ### OpenClaw Migration
 
@@ -41,14 +26,6 @@ Hermes supports importing configuration from an existing OpenClaw setup. To migr
 ./assistants/hermes-ctl exec claw migrate
 ```
 This utility will parse your legacy config formats and migrate them to the Hermes gateway structure.
-
-
-## Configuration & Ports
-
-- **Default Ports**:
-  - **Gateway API (OpenAI-compatible)**: `8642`
-  - **Dashboard Web UI**: `9119`
-- **Configuration File**: Environment variables and key secrets are managed in `~/.config/systemd/user/hermes-gateway.env`.
 
 ## Signal Channel Configuration
 
@@ -102,52 +79,22 @@ HERMES_EMBEDDING_MODEL="qwen3-embedding"
 # Route to local-embedding (port 50082) for system-wide local embeddings
 EMBEDDING_API_BASE="http://localhost:50082/v1"
 EMBEDDING_API_KEY="unused"
-```
+HERMES_EMBEDDING_PROVIDER="local"
+HERMES_EMBEDDING_MODEL="qwen3-embedding"
 
-### Reranking Configuration
-
-Hermes supports reranking via auxiliary model slots and the QMD hybrid retrieval engine. Configure the reranker endpoint to point to the local-inference server:
-
-```bash
-# Reranking Provider Configuration
-# Options: "local", "cohere", "jina", "disabled"
-HERMES_RERANK_PROVIDER="local"
-
-# Local reranker endpoint (served by local-rerank on port 50086)
+# Reranker endpoint (llama-server on port 50086)
 HERMES_RERANK_URL="http://localhost:50086/v1/rerank"
+HERMES_RERANK_PROVIDER="local"
 HERMES_RERANK_MODEL="qwen3-reranker"
-
-# Number of top candidates to rerank after initial retrieval
 HERMES_RERANK_TOP_K=30
-```
 
-## Speech-to-Text Integration
-
-Hermes automatically transcribes incoming voice messages (from Signal, Telegram, Discord, etc.) using its transcription tools. You can route these requests to the local `local-speech-to-text` service.
-
-### Configuration
-
-Add the following environment variables to `~/.config/systemd/user/hermes-gateway.env` (via `./assistants/hermes-ctl edit`):
-
-```bash
-# Set provider to openai and point base URL to local-speech-to-text service
+# Speech-to-Text endpoint (whisper-server on port 50090)
 STT_OPENAI_BASE_URL="http://localhost:50090/v1"
 STT_OPENAI_MODEL="whisper-1"
-VOICE_TOOLS_OPENAI_KEY="dummy"  # Required placeholder to activate the provider
+VOICE_TOOLS_OPENAI_KEY="dummy"
 ```
 
-Alternatively, you can configure the provider directly in your `config.yaml`:
-
-```yaml
-stt:
-  enabled: true
-  provider: "openai"
-  openai:
-    api_key: "dummy"
-    base_url: "http://localhost:50090/v1"
-    model: "whisper-1"
-```
-
+---
 
 ## Text-to-Speech Integration
 
@@ -155,10 +102,10 @@ Hermes does not have a built-in TTS provider in the core service config, but it 
 
 ```bash
 # Example curl command for local TTS synthesis (sends text to port 50095 and saves/plays the audio)
-curl -X POST http://localhost:50095/v1/audio/speech \
+curl -X POST "http://localhost:50095/v1/audio/speech" \
   -H "Content-Type: application/json" \
-  -d '{"model": "qwen3-tts", "input": "Hello from Hermes", "voice": "serena"}' \
-  --output speech.wav
+  -d '{"model": "qwen3-tts", "input": "Hello from Hermes", "voice": "default"}' \
+  -o "output.wav"
 ```
 
 
@@ -182,14 +129,6 @@ Hermes utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on
    - **Properties Set**: `KillMode=mixed`, `KillSignal=SIGTERM`, `ExecReload=/bin/kill -USR1 \$MAINPID`, and `TimeoutStopSec=210`.
    - **Rationale**: Allows the gateway to perform a graceful drain of active messaging sessions and correctly handle child processes. Exiting with status `75` (force exit code) triggers systemd restart via `RestartForceExitStatus=75`.
 
-4. **Strict Filesystem Isolation**
-   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/hermes` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared` are bind-mounted read-write, while other directories are read-only.
-   - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/hermes-gateway.env`:
-     - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
-     - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
-     - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`
 
-
-5. **Container Backend Support**
+4. **Container Backend Support**
    - **Warning**: If using docker or podman as a terminal backend inside the gateway, `NoNewPrivileges=yes` and `PrivateDevices=yes` must be relaxed, and access to `/dev/fuse` and namespace capabilities must be permitted.

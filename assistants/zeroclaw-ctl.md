@@ -1,69 +1,49 @@
-# ZeroClaw Agent Management Guide
+# ZeroClaw Agent OS Control Guide
 
-`zeroclaw-ctl` manages the ZeroClaw Gateway and agent runtime, providing a hardened execution environment that supports Bubblewrap/Landlock isolation.
+This guide describes configuration, onboarding, and integration features specific to the ZeroClaw Agent OS daemon.
+
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents.md).
 
 - **Source Code**: [GitHub - zeroclaw-labs/zeroclaw](https://github.com/zeroclaw-labs/zeroclaw)
 - **Arch/AUR Packages**: `zeroclaw` (AUR, Rust source compilation), `zeroclaw-bin` (AUR, prebuilt binary distribution), `zeroclaw-git` (AUR, git-based).
 
-## Commands
+---
 
-`zeroclaw-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+## Agent-Specific Defaults
 
-## Installation
+- **Home Directory:** `~/.local/sandbox/zeroclaw`
+- **Default Workspace Path:** `%h/.local/sandbox/zeroclaw/.zeroclaw/agents/default/workspace`
+- **Configuration File:** `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`
+- **Default Gateway Port:** [42617](http://localhost:42617/) (set via `ZEROCLAW_PORT` inside `zeroclaw.env`)
+- **Default Web UI Port:** [42618](http://localhost:42618/)` (if dashboard is active)
 
+---
+
+## Onboarding & Wizards
+
+Initialize the ZeroClaw configuration using:
 ```bash
-./assistants/zeroclaw-ctl install --no-start [--new-config]
+./assistants/zeroclaw-ctl exec config onboard
 ```
+This generates the initial `config.toml` file under the sandbox home.
 
-to set up the ZeroClaw home directory (`~/.local/sandbox/zeroclaw`), register the systemd user service, and generate default configuration files pre-configured for local inference services.
+To query active settings:
+*   **Dump JSON Schema:** `./assistants/zeroclaw-ctl exec config schema`
+*   **List Active Configurations:** `./assistants/zeroclaw-ctl exec config list`
 
-The `--new-config` flag generates (or overwrites) both:
-- `~/.config/systemd/user/zeroclaw.env` — bootstrap environment variables (port, host, sandbox mounts)
-- `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` — application configuration with local chat (Qwen3), memory (sqlite-hybrid), STT, TTS, and Signal channel settings
+---
 
-### Interactive Onboarding
+## Local Inference
 
-- Run `./assistants/zeroclaw-ctl exec doctor` to validate configuration syntax and display errors/warnings.
+To switch ZeroClaw to use the local llama-server, set the following parameters in `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`:
 
-- Run the onboarding setup wizard with `./assistants/zeroclaw-ctl exec onboard`. This will guide you through providers, models, channels, and agent configuration, outputting a minimal four-section configuration to `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml`.
-
-### Verify Connection
-
-Run `./assistants/zeroclaw-ctl exec auth status` to check credentials and model fallback status. Test chat via `./assistants/zeroclaw-ctl exec agent -a <agent_alias>`.
-
-### Start Gateway
-
-Start the service via `./assistants/zeroclaw-ctl start` to launch the background daemon (listening on port `42617`). Watch logs with `./assistants/zeroclaw-ctl logs -f`.
-
-
-## Configuration & Ports
-
-- **Default Port**: `42617` (ZeroClaw Gateway)
-
-**Port Customization**:
-
-If the default port (`42617`) needs to be modified, you can configure the new port using `./assistants/zeroclaw-ctl edit` (which opens both `zeroclaw.env` and `config.toml`) and set `ZEROCLAW_PORT=<port_number>`. The systemd service will start the daemon with the `zeroclaw daemon --host $ZEROCLAW_HOST --port $ZEROCLAW_PORT` command.
-
-## OpenClaw Migration
-
-ZeroClaw supports importing history and conversation memory logs from an existing OpenClaw installation. To perform the migration, run:
-```bash
-./assistants/zeroclaw-ctl exec migrate openclaw
-```
-This command imports the legacy SQLite database memory logs directly into ZeroClaw's memory format.
-
-## Local Inference Configuration
-
-Edit `~/.local/sandbox/zeroclaw/.zeroclaw/config.toml` and configure the local provider:
 ```toml
-[providers.models.openai.local]
-uri = "http://localhost:50080/v1"
+[llm]
 model = "qwen3"
+base_url = "http://localhost:50080/v1"
 api_key = "unused"
 temperature = 1.0
 ```
-Point the target agent at this provider using `model_provider = "openai.local"` under `[agents.<alias>]`.
-
 ### Reasoning & Thinking Effort
 
 You can configure the global thinking/reasoning settings for providers that support thinking level controls (e.g. Qwen3) under the `[runtime]` block in `config.toml`:
@@ -290,21 +270,11 @@ Any dotted path in `config.toml` can be overridden by setting an environment var
 
 ## Implementation & Security Considerations
 
-### Systemd-Free Fallback (Direct Execution)
-
-If systemd is not running in the current environment (e.g. inside a Bubblewrap sandbox), `zeroclaw-ctl` automatically falls back to direct execution of the binary for `exec`, `shell`, and `run` commands. In this fallback mode:
-- Environment variables are loaded directly from the generated `zeroclaw.env` file.
-- The isolated home directory (`~/.local/sandbox/zeroclaw`) is exported as `$HOME` and set as the working directory.
-- `install` and `uninstall` generate configuration/service files but bypass systemctl.
-- Commands that require systemd (`start`, `stop`, `restart`, `status`, `enable`, `disable`, `logs`) will exit gracefully with a message indicating systemd is unavailable. To run the daemon directly, use `exec`.
-
-### Centralized Sandbox Options
-To guarantee parity across all execution modes, `zeroclaw-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
 ### Sandboxing Profile
 ZeroClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the source code of ZeroClaw (`v0.8.0-beta-1`), these permissions are required:
 
-1. **Namespace Support (Bubblewrap)**
+1. **Namespace Support**
    - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
    - **Rationale**: ZeroClaw features a built-in user namespace-based tool execution sandbox (`crates/zeroclaw-runtime/src/security/bubblewrap.rs`). Restricting namespaces or procfs traversal inside the systemd service would block the agent's ability to spawn nested sandboxes using `bwrap`.
 
@@ -316,10 +286,3 @@ ZeroClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based 
    - **Property Set**: `PrivateDevices=yes` by default.
    - **Rationale**: For security, physical hardware devices are hidden. However, if you are actively using hardware discovery (`zeroclaw hardware discover`) or board flashing (`zeroclaw peripheral flash-nucleo`) over serial/USB, you must configure `PrivateDevices=no` to allow device node access under `/dev`.
 
-4. **Strict Filesystem Isolation**
-   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: The agent's persistent directories (`~/.local/sandbox/zeroclaw`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden entirely.
-   - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/zeroclaw.env`:
-     - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
-     - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
-     - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`

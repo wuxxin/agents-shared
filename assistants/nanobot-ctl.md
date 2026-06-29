@@ -1,31 +1,43 @@
-# Nanobot Setup and Usage Guide
+# NanoBot Control Guide
 
-`nanobot-ctl` is a lightweight, virtual environment based installation and management script designed to deploy the `nanobot` python service. It utilizes `uv` to manage an isolated virtual environment and integrates seamlessly with `systemd` user services.
+This guide describes configuration, onboarding, and integration features specific to the NanoBot assistant service.
+
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents.md).
 
 - **Source Code**: [GitHub - HKUDS/nanobot](https://github.com/HKUDS/nanobot)
 - **Arch/AUR Packages**: No system-wide AUR packages are available for NanoBot. It is a lightweight Python framework designed to be installed inside a virtual environment using `uv` (pip package: `nanobot-ai`).
 
-## Commands
+---
 
-`nanobot-ctl` supports all standard management operations. For detailed command reference and sandboxing path defaults, see [Standard Control Wrappers](../README.md#standard-control-wrappers-assistant-ctl).
+## Agent-Specific Defaults
 
-## Installation
+- **Home Directory:** `~/.local/sandbox/nanobot`
+- **Default Workspace Path:** `%h/.local/sandbox/nanobot/.nanobot/workspace`
+- **Configuration File:** `~/.local/sandbox/nanobot/config.json`
+- **Gateway API Port:** [8790](http://localhost:8790/) (set via `NANOBOT_PORT` inside `nanobot.env`)
 
-Ensure you have `uv` installed, then simply run the script's `install` command:
+---
 
-```bash
-./assistants/nanobot-ctl install --no-start
-```
-to initialize `~/.local/sandbox/nanobot`, set up the python virtualenv, install the `nanobot-ai` package, and register the systemd unit without starting it.
+## Onboarding & Wizards
 
-During installation, `nanobot-ctl` will set up the isolated environment and generate standard service files.
+*   **Configuration Wizard**: Run `./assistants/nanobot-ctl exec onboard --wizard` to generate the onboarding default configurations.
+*   **Verification**: Run `./assistants/nanobot-ctl exec agent -m "Hello"` to verify connection.
 
-### Configuration Wizard
+---
 
-Run the interactive onboarding wizard via `./assistants/nanobot-ctl exec onboard --wizard` to generate the default configuration.
+## Sandboxing & Security Profile Differences
 
-### Switch to Local Inference & Qwen3
-Edit `~/.local/sandbox/nanobot/config.json` (via `./assistants/nanobot-ctl config`) to configure the local OpenAI-compatible endpoint and default models (under `agents.defaults`):
+Because NanoBot executes skills and external tools using bubblewrap (`bwrap`) to build nested runtime sandboxes, the systemd configurations are adjusted:
+
+- **Properties Omitted:** `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+- **Rationale:** Omitted because restricting namespaces inside systemd would prevent `bwrap` from using `CLONE_NEWUSER` and `CLONE_NEWNS` to create user/mount spaces.
+
+---
+
+## Switch to Local Inference & Qwen3
+
+To route NanoBot to local inference servers, configure `~/.local/sandbox/nanobot/config.json`:
+
 ```json
 {
   "providers": {
@@ -51,19 +63,58 @@ In the config, ensure the WebSocket channel is enabled:
    ```json
    { "channels": { "websocket": { "enabled": true } } }
    ```
-### Start & Verify
-Run `./assistants/nanobot-ctl start`. Verify status with `./assistants/nanobot-ctl status` and access the WebUI console at `http://localhost:8790`.
 
+---
 
+## MCP, RAG & Speech Configuration
 
-## Configuration & Ports
-- **Configuration File**: Stored at `~/.local/sandbox/nanobot/config.json`.
-- **Default Port**: The gateway service runs on port `8790` (set via `--port 8790` in the systemd service unit) to prevent conflicts with other services.
+Add these blocks to `~/.local/sandbox/nanobot/config.json` to configure hybrid Dream memory stores, local embeddings, fetch-rerank MCP, and speech/image synthesizers:
 
-## OpenClaw Migration
-
-OpenClaw migration is not natively supported by NanoBot. Configuration must be set up manually using the configuration wizard (`onboard --wizard`) or by editing the JSON configuration.
-
+```json
+{
+  "memory": {
+    "dream": {
+      "enabled": true,
+      "long_term_store": "vector"
+    }
+  },
+  "embeddings": {
+    "provider": "openai_compatible/local",
+    "model": "text-embedding-3-small",
+    "base_url": "http://localhost:50082/v1"
+  },
+  "tools": {
+    "mcp_servers": {
+      "local-reranker": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-fetch"],
+        "env": {
+          "RERANK_URL": "http://localhost:50086/v1/rerank",
+          "RERANK_MODEL": "qwen3-reranker"
+        }
+      }
+    },
+    "image_generation": {
+      "enabled": true,
+      "provider": "openai",
+      "model": "stability-ai/sdxl"
+    }
+  },
+  "providers": {
+    "openai": {
+      "api_key": "unused",
+      "api_base": "http://localhost:50100/v1"
+    }
+  },
+  "transcription": {
+    "provider": "openai",
+    "openai": {
+      "api_key": "dummy",
+      "base_url": "http://localhost:50090/v1"
+    }
+  }
+}
+```
 
 ## Signal Channel Configuration
 
@@ -97,127 +148,7 @@ Add the following to your `~/.local/sandbox/nanobot/config.json` configuration f
 
 Ensure the local `signal-cli` daemon is running. NanoBot will connect, handle inbound messages via Server-Sent Events, convert markdown formatting to native Signal styles, and handle reconnects automatically.
 
-## Search, Retrieval & Embedding Configuration
-
-NanoBot implements a structured two-stage memory system ("Dream") that separates active conversation buffers from long-term memory. Long-term memory is queried using vector similarity search (RAG). It also includes a Document Store to index, chunk, and search local files (PDFs, TXT, markdown) and can execute dynamic external search via MCP (Model Context Protocol).
-
-### Configuration
-
-Add the following configuration blocks to `~/.local/sandbox/nanobot/config.json` (via `./assistants/nanobot-ctl config`):
-
-```json
-{
-  "memory": {
-    "dream": {
-      "enabled": true,
-      "buffer_size_limit": 4096,
-      "long_term_store": "vector"
-    }
-  },
-  "document_store": {
-    "enabled": true,
-    "chunk_size": 500,
-    "chunk_overlap": 50,
-    "allowed_extensions": [".pdf", ".txt", ".md"]
-  },
-  "embeddings": {
-    "provider": "openai_compatible/local",
-    "model": "text-embedding-3-small",
-    "api_key": "unused",
-    "base_url": "http://localhost:50082/v1"
-  },
-  "tools": {
-    "mcp_servers": {
-      "brave-search": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-        "env": {
-          "BRAVE_API_KEY": "your_api_key_here"
-        }
-      }
-    }
-  }
-}
-```
-
-### Reranking Configuration
-
-NanoBot does not include native reranking support. To add reranking capabilities, configure a custom MCP tool that wraps the local-rerank reranker endpoint. Add the following MCP server definition to `config.json`:
-
-```json
-{
-  "tools": {
-    "mcp_servers": {
-      "local-reranker": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-fetch"],
-        "env": {
-          "RERANK_URL": "http://localhost:50086/v1/rerank",
-          "RERANK_MODEL": "qwen3-reranker"
-        }
-      }
-    }
-  }
-}
-```
-
-The agent can then call the reranker via the MCP tool to reorder retrieval results before injecting them into context. The reranker endpoint accepts `POST /v1/rerank` with `{"model": "qwen3-reranker", "query": "...", "documents": ["..."]}`.
-
-## Speech-to-Text Integration
-
-NanoBot supports local transcription using an external OpenAI-compatible Whisper server. You can configure it to point to the `local-speech-to-text` service.
-
-### Configuration
-
-Add the following environment variables to `~/.config/systemd/user/nanobot.env` (via `./assistants/nanobot-ctl edit`):
-
-```bash
-# Point transcription endpoint to local-speech-to-text service
-OPENAI_TRANSCRIPTION_BASE_URL="http://localhost:50090/v1"
-OPENAI_API_KEY="dummy"  # Required placeholder to activate the provider
-```
-
-Alternatively, you can configure it inside `~/.local/sandbox/nanobot/config.json`:
-
-```json
-{
-  "transcription": {
-    "provider": "openai",
-    "openai": {
-      "api_key": "dummy",
-      "base_url": "http://localhost:50090/v1"
-    }
-  }
-}
-```
-
-## Image Generation Integration
-
-NanoBot supports local image generation via the `local-image` service (port `50100`). You can configure the `openai` provider client under `providers` and register the `generate_image` tool under `tools.image_generation` in `~/.local/sandbox/nanobot/config.json`:
-
-```json
-{
-  "providers": {
-    "openai": {
-      "api_key": "unused",
-      "api_base": "http://localhost:50100/v1"
-    }
-  },
-  "tools": {
-    "image_generation": {
-      "enabled": true,
-      "provider": "openai",
-      "model": "stability-ai/sdxl"
-    }
-  }
-}
-```
-
-
 ## Implementation & Security Considerations
-
-### Centralized Sandbox Options
-To guarantee parity across all execution modes, `nanobot-ctl` centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same filesystem, network, and security restrictions.
 
 ### Sandboxing Profile
 Nanobot utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
@@ -230,10 +161,3 @@ Nanobot utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based o
    - **Property Set**: `MemoryDenyWriteExecute=no`.
    - **Rationale**: Nanobot is written in Python and compiles dynamic objects or loads third-party native extensions that require W^X allocation permissions.
 
-3. **Strict Filesystem Isolation**
-   - **Property Set**: `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`).
-   - **Rationale**: Redirection of `HOME` to `~/.local/sandbox/nanobot` ensures that subprocesses do not write to the host user's real home. The persistent home, `~/agent-shared` are bind-mounted read-write, while other directories are read-only.
-   - **Custom Mounts**: Additional directories can be bind-mounted into the sandbox by configuring environment variables in `~/.config/systemd/user/nanobot.env`:
-     - `AGENT_PRIVATE_MOUNTS`: Space-separated list of directories inside `~/agent-private/` to expose (e.g. `AGENT_PRIVATE_MOUNTS="health diary"`).
-     - `AGENT_SANDBOX_MOUNTS`: Space-separated list of sandbox paths from other agents/profiles to expose (e.g. `AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode"`).
-     - `AGENT_EXTRA_MOUNTS`: Space-separated list of arbitrary host paths mapped to relative paths under the user's HOME inside the sandbox (syntax: `absolute-dir:relative-dir-to-HOME`), eg. `AGENT_EXTRA_MOUNTS="/data/download:download"`

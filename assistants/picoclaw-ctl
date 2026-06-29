@@ -3,12 +3,21 @@ set -euo pipefail
 
 # picoclaw-ctl - installation and management wrapper for picoclaw
 
-SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/picoclaw.service"
-ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/picoclaw.env"
+SERVICE_NAME="picoclaw"
+SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.env"
 PICOCLAW_HOME="$HOME/.local/sandbox/picoclaw"
 
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
+sanitize_var_name() {
+    local val="$1"
+    val="${val//-/_}"
+    val="${val//./_}"
+    val="${val^^}"
+    echo "$val"
 }
 
 get_shared_options() {
@@ -23,6 +32,9 @@ get_shared_options() {
     local AGENT_PRIVATE_MOUNTS=""
     local AGENT_SANDBOX_MOUNTS=""
     local AGENT_EXTRA_MOUNTS=""
+    local AGENT_WORKSPACE=""
+    # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/picoclaw/.picoclaw/workspace}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -35,6 +47,7 @@ get_shared_options() {
     echo "Environment=PICOCLAW_CONFIG=${home_spec}/.local/sandbox/picoclaw/config.json"
     echo "Environment=PICOCLAW_BINARY=/usr/bin/picoclaw"
     echo "Environment=HOME=${home_spec}/.local/sandbox/picoclaw"
+    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${home_spec}/.local/sandbox/picoclaw/.picoclaw/workspace}"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/picoclaw.env"
     echo "WorkingDirectory=${home_spec}/.local/sandbox/picoclaw"
 
@@ -48,8 +61,6 @@ get_shared_options() {
     echo "TemporaryFileSystem=${home_spec}"
     # Retain changes by bind mounting the explicit picoclaw home directory
     echo "BindPaths=${home_spec}/.local/sandbox/picoclaw:${home_spec}/.local/sandbox/picoclaw"
-    # Allow access to agent-shared as requested
-    echo "BindPaths=${home_spec}/agent-shared:${home_spec}/agent-shared"
 
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
         mkdir -p "$HOME/agent-private/$m"
@@ -95,16 +106,134 @@ get_shared_options() {
 }
 
 write_service_file() {
+    # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/picoclaw/.picoclaw/workspace}"
+    if [ -f "$ENV_FILE" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set -u
+    fi
+
+    # Ensure host workspace directory exists
+    local workspace_dir="${AGENT_WORKSPACE:-$HOME/.local/sandbox/picoclaw/.picoclaw/workspace}"
+    workspace_dir="${workspace_dir//%h/$HOME}"
+    mkdir -p "$workspace_dir"
+
+    # Manage systemd-tmpfiles configuration file based on AGENT_TMPFILES_CLEANUP
+    local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/${SERVICE_NAME}.conf"
+    local tmpfiles_dir
+    tmpfiles_dir=$(dirname "$tmpfiles_config")
+    mkdir -p "$tmpfiles_dir"
+
+    local tmpfiles_cleanup_enabled="${AGENT_TMPFILES_CLEANUP:-false}"
+
+    if [ "$tmpfiles_cleanup_enabled" = "true" ]; then
+        if [ -f "${tmpfiles_config}.disabled" ]; then
+            mv "${tmpfiles_config}.disabled" "$tmpfiles_config"
+            echo "Enabled systemd-tmpfiles configuration at $tmpfiles_config"
+        elif [ ! -f "$tmpfiles_config" ]; then
+            cat >"$tmpfiles_config" <<EOF
+# ~/.config/user-tmpfiles.d/${SERVICE_NAME}.conf
+# systemd-tmpfiles configuration for PicoClaw
+
+# Example: Delete all files in workspace/voice-notes/read/ if older than 24 hours
+# Type  Path                                                                                Mode UID  GID  Age  Argument
+e       %h/.local/sandbox/picoclaw/.picoclaw/workspace/voice-notes/read                      -    -    -    24h  -
+EOF
+            echo "Created and enabled default systemd-tmpfiles configuration at $tmpfiles_config"
+        fi
+
+        # Run cleanup now
+        if is_systemd_running; then
+            echo "Running systemd-tmpfiles cleanup..."
+            systemd-tmpfiles --user --create --clean || true
+        fi
+    else
+        if [ -f "$tmpfiles_config" ]; then
+            mv "$tmpfiles_config" "${tmpfiles_config}.disabled"
+            echo "Disabled systemd-tmpfiles configuration (renamed to ${tmpfiles_config}.disabled)"
+        fi
+    fi
+
+    # Parse sidecars
+    local sidecars_val="${AGENT_SIDECARS:-}"
+    sidecars_val="${sidecars_val//;/ }"
+    sidecars_val="${sidecars_val//$'\n'/ }"
+
+    local sidecars_exec=""
+    local sidecar_check=""
+    local idx=0
+    for sidecar in ${sidecars_val}; do
+        local var_name
+        var_name=$(sanitize_var_name "$sidecar")
+        local cmd_var="AGENT_SIDECAR_${var_name}_CMD"
+        local cmd_val="${!cmd_var:-}"
+        if [ -z "$cmd_val" ]; then
+            cmd_val="$sidecar"
+        fi
+
+        # Warn if command doesn't exist on host
+        local host_cmd_val="$cmd_val"
+        host_cmd_val="${host_cmd_val//\$AGENT_WORKSPACE/$workspace_dir}"
+        host_cmd_val="${host_cmd_val//\$HOME/$HOME}"
+        host_cmd_val="${host_cmd_val//%h/$HOME}"
+        if [[ "$host_cmd_val" =~ ^(/|\.|\~) ]] || [ -f "$host_cmd_val" ]; then
+            if [[ "$host_cmd_val" =~ ^~ ]]; then
+                host_cmd_val="${host_cmd_val/#\~/$HOME}"
+            fi
+            if [ ! -x "$host_cmd_val" ]; then
+                echo "Warning: Sidecar '$sidecar' executable '$cmd_val' (resolved: '$host_cmd_val') does not exist or is not executable." >&2
+            fi
+        else
+            if ! command -v "$host_cmd_val" >/dev/null 2>&1; then
+                echo "Warning: Sidecar '$sidecar' executable '$cmd_val' is not found in PATH." >&2
+            fi
+        fi
+
+        local args_var="AGENT_SIDECAR_${var_name}_ARGS"
+        local args_val="${!args_var:-}"
+
+        # Process env removes and overrides
+        local env_remove_var="AGENT_SIDECAR_${var_name}_ENV_REMOVE"
+        local env_remove_val="${!env_remove_var:-}"
+        local env_flags=""
+        for r in ${env_remove_val}; do
+            env_flags="$env_flags -u $r"
+        done
+
+        local env_override_var="AGENT_SIDECAR_${var_name}_ENV_OVERRIDE"
+        local env_override_val="${!env_override_var:-}"
+        for o in ${env_override_val}; do
+            env_flags="$env_flags $o"
+        done
+
+        # Check executable inside sandbox at startup and print clear error if missing
+        sidecars_exec="$sidecars_exec if ! command -v $cmd_val >/dev/null 2>&1 && [ ! -x \"$cmd_val\" ]; then echo \"Error: Cannot spawn sidecar $sidecar because its executable '$cmd_val' is missing or not executable.\" >&2 ; exit 1 ; fi ; env$env_flags $cmd_val $args_val & SIDECAR_PID_$idx=\$! ; "
+        sidecar_check="$sidecar_check if ! kill -0 \$SIDECAR_PID_$idx 2>/dev/null; then echo \"Sidecar $sidecar (PID \$SIDECAR_PID_$idx) terminated.\" ; fi ; "
+        idx=$((idx + 1))
+    done
+
+    local exec_start_cmd
+    if [ -n "$sidecars_exec" ]; then
+        # Spawn daemon first, sleep 2, check if daemon failed to start, spawn sidecars, then wait on daemon
+        exec_start_cmd="/bin/bash -c '/usr/bin/picoclaw-launcher -no-browser & MAIN_PID=\$! ; sleep 2 ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) failed to start.\" >&2 ; exit 1 ; fi ; $sidecars_exec wait -n ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) terminated.\" ; fi ; $sidecar_check exit 1'"
+    else
+        exec_start_cmd="/usr/bin/picoclaw-launcher -no-browser"
+    fi
+
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=PicoClaw Launcher web console service
 Documentation=https://github.com/sipeed/picoclaw
 After=network.target
+StartLimitIntervalSec=40
+StartLimitBurst=4
 
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=/usr/bin/picoclaw-launcher -no-browser
+ExecStart=$exec_start_cmd
 Restart=on-failure
 RestartSec=5s
 
@@ -216,7 +345,18 @@ EOF
 # AGENT_SANDBOX_MOUNTS=""
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
-# AGENT_EXTRA_MOUNTS="/data/download:download"
+AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
+
+# Agent sandbox workspace path
+AGENT_WORKSPACE="%h/.local/sandbox/picoclaw/.picoclaw/workspace"
+
+# Agent sidecar list
+# AGENT_SIDECARS="audionotes"
+# AGENT_SIDECAR_AUDIONOTES_CMD="$AGENT_WORKSPACE/scripts/audionotes.sh"
+# AGENT_SIDECAR_AUDIONOTES_ARGS="$AGENT_WORKSPACE/audionotes"
+
+# systemd-tmpfiles cleanup policy status
+AGENT_TMPFILES_CLEANUP=false
 EOF
         chmod 600 "$ENV_FILE"
     fi
@@ -225,14 +365,14 @@ EOF
 
     if is_systemd_running; then
         echo "Reloading systemd and enabling service..."
-        systemctl --user enable picoclaw.service
+        systemctl --user enable "${SERVICE_NAME}.service"
 
         if [ "$no_start" = "true" ]; then
             echo "Stopping service if running (--no-start specified)..."
-            systemctl --user stop picoclaw.service || true
+            systemctl --user stop "${SERVICE_NAME}.service" || true
         else
             echo "Starting service automatically..."
-            systemctl --user start picoclaw.service
+            systemctl --user start "${SERVICE_NAME}.service"
         fi
     else
         echo "Systemd is not running/available in this environment. Skipping systemd service activation."
@@ -244,8 +384,8 @@ EOF
 cmd_uninstall() {
     echo "Uninstalling picoclaw systemd service..."
     if is_systemd_running; then
-        systemctl --user stop picoclaw.service || true
-        systemctl --user disable picoclaw.service || true
+        systemctl --user stop "${SERVICE_NAME}.service" || true
+        systemctl --user disable "${SERVICE_NAME}.service" || true
     fi
 
     if [ -f "$SERVICE_FILE" ]; then
@@ -264,7 +404,7 @@ cmd_start() {
         exit 1
     fi
     write_service_file
-    systemctl --user start picoclaw.service
+    systemctl --user start "${SERVICE_NAME}.service"
 }
 
 cmd_stop() {
@@ -272,7 +412,7 @@ cmd_stop() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    systemctl --user stop picoclaw.service
+    systemctl --user stop "${SERVICE_NAME}.service"
 }
 
 cmd_restart() {
@@ -281,7 +421,7 @@ cmd_restart() {
         exit 1
     fi
     write_service_file
-    systemctl --user restart picoclaw.service
+    systemctl --user restart "${SERVICE_NAME}.service"
 }
 
 cmd_status() {
@@ -289,7 +429,7 @@ cmd_status() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    systemctl --user status picoclaw.service
+    systemctl --user status "${SERVICE_NAME}.service"
 }
 
 cmd_enable() {
@@ -298,7 +438,7 @@ cmd_enable() {
         exit 1
     fi
     write_service_file
-    systemctl --user enable picoclaw.service
+    systemctl --user enable "${SERVICE_NAME}.service"
 }
 
 cmd_disable() {
@@ -306,7 +446,7 @@ cmd_disable() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    systemctl --user disable picoclaw.service
+    systemctl --user disable "${SERVICE_NAME}.service"
 }
 
 cmd_logs() {
@@ -314,13 +454,22 @@ cmd_logs() {
         echo "Error: Systemd is not running." >&2
         exit 1
     fi
-    journalctl --user -u picoclaw.service "$@"
+    journalctl --user -u "${SERVICE_NAME}.service" "$@"
 }
 
 cmd_edit() {
     mkdir -p "$(dirname "$ENV_FILE")"
     touch "$ENV_FILE"
-    ${EDITOR:-nano} "$ENV_FILE"
+
+    local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/${SERVICE_NAME}.conf"
+    local edit_files=("$ENV_FILE")
+    if [ -f "$tmpfiles_config" ]; then
+        edit_files+=("$tmpfiles_config")
+    elif [ -f "${tmpfiles_config}.disabled" ]; then
+        edit_files+=("${tmpfiles_config}.disabled")
+    fi
+
+    ${EDITOR:-nano} "${edit_files[@]}"
     if is_systemd_running; then
         echo "Restarting service to apply updated environment..."
         cmd_restart
@@ -329,23 +478,127 @@ cmd_edit() {
     fi
 }
 
+setup_fallback_environment() {
+    # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$PICOCLAW_HOME/.picoclaw/workspace}"
+    if [ -f "$ENV_FILE" ]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set +a
+        set -u
+    fi
+    export PICOCLAW_HOME="$PICOCLAW_HOME"
+    export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
+    export PICOCLAW_BINARY=/usr/bin/picoclaw
+    export HOME="$PICOCLAW_HOME"
+
+    local ws="${AGENT_WORKSPACE}"
+    ws="${ws//%h/$HOME}"
+    if [[ "$ws" =~ ^~ ]]; then
+        ws="${ws/#\~/$HOME}"
+    fi
+    export AGENT_WORKSPACE="$ws"
+    mkdir -p "$PICOCLAW_HOME" "$AGENT_WORKSPACE"
+    cd "$PICOCLAW_HOME" || exit 1
+}
+
+FALLBACK_SIDECAR_PIDS=()
+FALLBACK_SIDECAR_NAMES=()
+
+spawn_fallback_sidecars() {
+    local sidecars_val="${AGENT_SIDECARS:-}"
+    sidecars_val="${sidecars_val//;/ }"
+    sidecars_val="${sidecars_val//$'\n'/ }"
+
+    for sidecar in ${sidecars_val}; do
+        local var_name
+        var_name=$(sanitize_var_name "$sidecar")
+        local cmd_var="AGENT_SIDECAR_${var_name}_CMD"
+        local cmd_val="${!cmd_var:-}"
+        if [ -z "$cmd_val" ]; then
+            cmd_val="$sidecar"
+        fi
+
+        local args_var="AGENT_SIDECAR_${var_name}_ARGS"
+        local args_val="${!args_var:-}"
+
+        # Resolve paths
+        local check_cmd="$cmd_val"
+        check_cmd="${check_cmd//\$AGENT_WORKSPACE/$AGENT_WORKSPACE}"
+        check_cmd="${check_cmd//\$HOME/$HOME}"
+        check_cmd="${check_cmd//%h/$HOME}"
+        if [[ "$check_cmd" =~ ^~ ]]; then
+            check_cmd="${check_cmd/#\~/$HOME}"
+        fi
+        if ! command -v "$check_cmd" >/dev/null 2>&1 && [ ! -x "$check_cmd" ]; then
+            echo "Error: Cannot spawn sidecar $sidecar because its executable '$cmd_val' (resolved: '$check_cmd') is missing or not executable." >&2
+            exit 1
+        fi
+
+        # Process env removes and overrides
+        local env_remove_var="AGENT_SIDECAR_${var_name}_ENV_REMOVE"
+        local env_remove_val="${!env_remove_var:-}"
+
+        local env_override_var="AGENT_SIDECAR_${var_name}_ENV_OVERRIDE"
+        local env_override_val="${!env_override_var:-}"
+
+        (
+            # Apply removes
+            for r in ${env_remove_val}; do
+                unset "$r"
+            done
+            # Apply overrides
+            for o in ${env_override_val}; do
+                # shellcheck disable=SC2163
+                export "$o"
+            done
+            # Execute
+            eval "exec $cmd_val $args_val"
+        ) &
+        FALLBACK_SIDECAR_PIDS+=($!)
+        FALLBACK_SIDECAR_NAMES+=("$sidecar")
+    done
+}
+
 cmd_exec() {
     if ! is_systemd_running; then
         echo "Systemd is not running. Running picoclaw directly..."
-        if [ -f "$ENV_FILE" ]; then
-            set +u
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-            set -u
+        setup_fallback_environment
+
+        if [ "${1:-}" = "-no-browser" ]; then
+            # Run cleanup if enabled
+            if [ "${AGENT_TMPFILES_CLEANUP:-false}" = "true" ]; then
+                echo "Running systemd-tmpfiles cleanup..."
+                systemd-tmpfiles --user --create --clean || true
+            fi
+            # Run daemon in the background
+            /usr/bin/picoclaw-launcher "$@" &
+            local main_pid=$!
+            sleep 2
+            if ! kill -0 "$main_pid" 2>/dev/null; then
+                echo "Main daemon process (PID $main_pid) failed to start." >&2
+                exit 1
+            fi
+            spawn_fallback_sidecars
+            wait -n
+
+            # Identify which process died
+            if ! kill -0 "$main_pid" 2>/dev/null; then
+                echo "Main daemon process (PID $main_pid) terminated."
+            fi
+            for i in "${!FALLBACK_SIDECAR_PIDS[@]}"; do
+                local pid="${FALLBACK_SIDECAR_PIDS[$i]}"
+                local name="${FALLBACK_SIDECAR_NAMES[$i]}"
+                if ! kill -0 "$pid" 2>/dev/null; then
+                    echo "Sidecar $name (PID $pid) terminated."
+                fi
+            done
+            exit 1
+        else
+            exec /usr/bin/picoclaw "$@"
         fi
-        export HOME="$PICOCLAW_HOME"
-        export PICOCLAW_HOME="$PICOCLAW_HOME"
-        export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
-        export PICOCLAW_BINARY=/usr/bin/picoclaw
-        cd "$PICOCLAW_HOME"
-        exec /usr/bin/picoclaw "$@"
     fi
     echo "Starting picoclaw as a transient systemd service with args: $*"
 
@@ -370,19 +623,7 @@ cmd_exec() {
 cmd_shell() {
     if ! is_systemd_running; then
         echo "Systemd is not running. Starting direct interactive shell..."
-        if [ -f "$ENV_FILE" ]; then
-            set +u
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-            set -u
-        fi
-        export HOME="$PICOCLAW_HOME"
-        export PICOCLAW_HOME="$PICOCLAW_HOME"
-        export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
-        export PICOCLAW_BINARY=/usr/bin/picoclaw
-        cd "$PICOCLAW_HOME"
+        setup_fallback_environment
         exec "${SHELL:-/bin/bash}" "$@"
     fi
     echo "Starting interactive shell as a transient systemd service..."
@@ -412,19 +653,7 @@ cmd_run() {
     fi
     if ! is_systemd_running; then
         echo "Systemd is not running. Running command directly..."
-        if [ -f "$ENV_FILE" ]; then
-            set +u
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-            set -u
-        fi
-        export HOME="$PICOCLAW_HOME"
-        export PICOCLAW_HOME="$PICOCLAW_HOME"
-        export PICOCLAW_CONFIG="$PICOCLAW_HOME/config.json"
-        export PICOCLAW_BINARY=/usr/bin/picoclaw
-        cd "$PICOCLAW_HOME"
+        setup_fallback_environment
         exec "$@"
     fi
     echo "Running command inside the picoclaw environment: $*"
