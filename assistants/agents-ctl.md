@@ -33,7 +33,17 @@ All `*-ctl` scripts support a standard set of lifecycle, configuration, and exec
 
 ## Common Configuration Variables
 
-Configurations are defined in `~/.config/systemd/user/<agent>.env`. The following parameters are unified across all control wrappers:
+Configurations are primarily defined in `~/.config/systemd/user/<agent>.env`.
+
+### Environment File Overlays (IronClaw & LibreFang)
+
+For assistants that support application-level configurations (specifically IronClaw and LibreFang), configuration environment variables are loaded in a two-stage resolution order:
+1. **Systemd Service Environment File:** `~/.config/systemd/user/<agent>.env`
+2. **Application Environment Override File:** `~/.local/sandbox/<agent>/.<agent>/.env` (e.g. `.ironclaw/.env` or `.librefang/.env`)
+
+The application environment override file is loaded **after** the systemd service environment file. Therefore, any conflicting keys declared in both files will prioritize the values set in the application environment override file.
+
+The following parameters are unified across all control wrappers:
 
 *   **`AGENT_WORKSPACE`**
     Configures the default folder where the agent reads and writes active workspace data (contexts, notes, files). The default path is agent-specific (e.g., `%h/.local/sandbox/<agent>/.../workspace`).
