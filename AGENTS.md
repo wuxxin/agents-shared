@@ -78,3 +78,9 @@ shfmt -i 4 -w scripts/*.sh
   - LibreFang: check librefang.toml.example, .env.example, and crates/librefang-types/src/config/types.rs
   - NanoClaw: check .env.example, src/config.ts, and src/env.ts
   - PicoClaw: check .env.example, config/config.example.json, and pkg/config/config.go
+- **Debugging Control Scripts in Sandboxed (bwrapped) Environment**:
+  If the agent environment is bwrapped (systemd socket does not exist), you cannot use systemd commands to start/stop/status/restart services. However, you can still test installation, uninstallation, and transient execution. To debug:
+  1. Test configuration generation with: `./assistants/<name>-ctl install --no-start --new-config`
+  2. Inspect the generated systemd environment file (e.g. `~/.config/systemd/user/<name>-gateway.env`) and verify path specifiers (%h, ~) expand or persist correctly.
+  3. Clean up the sandbox with: `./assistants/<name>-ctl uninstall`
+  4. Test command line routing and fallback transient execution using: `./assistants/<name>-ctl exec --help`
