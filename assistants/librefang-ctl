@@ -24,8 +24,9 @@ get_shared_options() {
     local AGENT_SANDBOX_MOUNTS=""
     local AGENT_EXTRA_MOUNTS=""
     local AGENT_WORKSPACE=""
+
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/librefang/.librefang/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/librefang/.librefang/workspaces/agents/assistant}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -33,10 +34,19 @@ get_shared_options() {
         set -u
     fi
 
+    local app_env_file="$LIBREFANG_HOME/.librefang/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$app_env_file"
+        set -u
+    fi
+
     # Environment & Working Directory
     echo "Environment=HOME=${home_spec}/.local/sandbox/librefang"
-    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${home_spec}/.local/sandbox/librefang/.librefang/agents/default/workspace}"
+    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE}"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/librefang.env"
+    echo "EnvironmentFile=-${home_spec}/.local/sandbox/librefang/.librefang/.env"
     echo "WorkingDirectory=${home_spec}/.local/sandbox/librefang"
 
     # Security measures
@@ -103,11 +113,19 @@ sanitize_var_name() {
 
 write_service_file() {
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/librefang/.librefang/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/librefang/.librefang/workspaces/agents/assistant}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
         source "$ENV_FILE"
+        set -u
+    fi
+
+    local app_env_file="$LIBREFANG_HOME/.librefang/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$app_env_file"
         set -u
     fi
 
@@ -240,6 +258,59 @@ EOF
     fi
 }
 
+write_default_provider_toml() {
+    local type="$1"
+    local dest="$2"
+    mkdir -p "$(dirname "$dest")"
+    case "$type" in
+    chat)
+        cat >"$dest" <<'EOF'
+[[models]]
+id = "qwen3"
+display_name = "Qwen3"
+tier = "local"
+context_window = 80128
+max_output_tokens = 8192
+input_cost_per_m = 1.5
+output_cost_per_m = 9.0
+supports_tools = true
+supports_vision = true
+supports_streaming = true
+supports_thinking = true
+aliases = ["local-chat/qwen3"]
+
+[provider]
+id = "local-chat"
+display_name = "Local Chat"
+api_key_env = "LOCAL_CHAT_API_KEY"
+base_url = "http://localhost:50080/v1"
+key_required = false
+EOF
+        ;;
+    embedding)
+        cat >"$dest" <<'EOF'
+[[models]]
+id = "qwen3-embedding"
+display_name = "Qwen3 Embedding"
+tier = "local"
+context_window = 4096
+max_output_tokens = 4096
+input_cost_per_m = 0.02
+output_cost_per_m = 0.0
+aliases = ["local-embedding/qwen3-embedding"]
+
+[provider]
+id = "local-embedding"
+display_name = "Local Embedding"
+api_key_env = "LOCAL_EMBEDDING_API_KEY"
+base_url = "http://localhost:50082/v1"
+key_required = false
+EOF
+        ;;
+    esac
+    chmod 600 "$dest"
+}
+
 cmd_install() {
     local no_start=false
     local new_config=false
@@ -273,7 +344,7 @@ opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencod
 deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
-AGENT_EXTRA_MOUNTS="$HOME/agent-shared:agent-shared"
+AGENT_EXTRA_MOUNTS="$HOME/agent-shared:agent-shared /data/download:download /data/download/librefang-assistant:.local/sandbox/librefang/.librefang/workspaces/agents/assistant/downloads"
 
 # --- Sidecars Configuration (Optional)
 # Space or semicolon separated list of sidecar names.
@@ -289,17 +360,13 @@ AGENT_EXTRA_MOUNTS="$HOME/agent-shared:agent-shared"
 # Enable to automatically clean up temporary/workspace folders:
 # AGENT_TMPFILES_CLEANUP=true
 
-# Local Presence Detection for Embedding Auto-Detection (embedding_provider = "auto")
-# If these variables are set and non-empty, the daemon will auto-select the provider.
-# (Actual base URLs must be configured in ~/.librefang/config.toml under [provider_urls])
-# OLLAMA_HOST="http://127.0.0.1:11434"
-# VLLM_BASE_URL=""
-# LMSTUDIO_BASE_URL=""
+# --- Librefang Dashboard Username and Pass
+LIBREFANG_DASHBOARD_USER="user"
+LIBREFANG_DASHBOARD_PASS="my_password"
 
-# Standard Cloud API Keys (loaded by model providers at runtime)
-# ensure OPENAI_API_KEY is set, so tts and stt openai provider work
-# OPENAI_API_KEY="sk-undefined"
-# OPENAI_API_KEY=""
+# --- Standard Cloud API Keys (loaded by model providers at runtime)
+# ensure OPENAI_API_KEY is set, so tts, stt and image provider mimicking openai work
+OPENAI_API_KEY="unused"
 # ANTHROPIC_API_KEY=""
 # GEMINI_API_KEY=""
 # GROQ_API_KEY=""
@@ -321,28 +388,26 @@ EOF
 
 # --- Chat Provider
 [default_model]
-provider = "openai"
+provider = "local-chat"
 model = "qwen3"
-api_key_env = "unused"
-base_url = "http://localhost:50080/v1"
-context_window = 80128
-temperature = 1.0
-reasoning_effort = "low"
-
-[provider_urls]
-openai = "http://localhost:50082/v1"
+api_key_env = "LOCAL_CHAT_API_KEY"
 
 # --- Memory & Embeddings
 [memory]
-embedding_provider = "openai"
+embedding_provider = "local-embedding"
 embedding_model = "qwen3-embedding"
 
-# --- Speech-to-Text
+# --- Speech-to-Text and Image
 [media]
 audio_transcription = true
 audio_provider = "openai"
 audio_model = "whisper-1"
 audio_base_url = "http://localhost:50090/v1"
+image_description = true
+image_provider = "openai"
+image_base_url = "http://localhost:50100/v1"
+image_model = ""
+video_description = false
 
 # --- Text-to-Speech
 [tts]
@@ -367,10 +432,48 @@ channel_type = "signal"
 SIGNAL_API_URL = "http://localhost:50889/"
 SIGNAL_NUMBER = "+1234567890"
 SIGNAL_ALLOW_LOCAL = "1"
-SIGNAL_ALLOWED_USERS = "+0000000000"
+
+[tool_timeouts]
+# Set specific timeout for image generation tool in seconds
+image_generate = 120
+# Set specific timeout for shell_exec command executions (Default: 30)
+shell_exec = 120
+
+[[users]]
+name = "user"
+# Roles: owner, admin, user, viewer
+role = "owner"
+# Ties phone number to user
+channel_bindings = { signal = "+9876543210" }
+
+# Route messages from the Signal channel to the assistant agent
+[[bindings]]
+agent = "assistant"
+match_rule = { channel = "signal", peer_id = "+9876543210" }
 
 EOF
         echo "Created default configuration at $CONFIG_FILE"
+    fi
+
+    # Deploy default provider files
+    local providers_dir="$CONFIG_DIR/providers"
+    mkdir -p "$providers_dir"
+    for name in chat embedding; do
+        local file="$providers_dir/local-$name.toml"
+        if [ ! -f "$file" ] || [ "$new_config" = "true" ]; then
+            write_default_provider_toml "$name" "$file"
+            echo "Created default local-$name configuration at $file"
+        fi
+    done
+
+    local app_env_file="$CONFIG_DIR/.env"
+    if [ ! -f "$app_env_file" ] || [ "$new_config" = "true" ]; then
+        mkdir -p "$CONFIG_DIR"
+        : >"$app_env_file"
+        chmod 600 "$app_env_file"
+        echo "Created default empty application environment file at $app_env_file"
+    elif [ -f "$app_env_file" ]; then
+        chmod 600 "$app_env_file"
     fi
 
     write_service_file
@@ -474,12 +577,22 @@ FALLBACK_SIDECAR_NAMES=()
 
 setup_fallback_environment() {
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$LIBREFANG_HOME/.librefang/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/librefang/.librefang/workspaces/agents/assistant}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         set -a
         # shellcheck disable=SC1090
         source "$ENV_FILE"
+        set +a
+        set -u
+    fi
+
+    local app_env_file="$LIBREFANG_HOME/.librefang/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$app_env_file"
         set +a
         set -u
     fi
@@ -548,13 +661,26 @@ spawn_fallback_sidecars() {
 
 cmd_edit() {
     local config_file="$LIBREFANG_HOME/.librefang/config.toml"
+    local app_env_file="$LIBREFANG_HOME/.librefang/.env"
     local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/librefang.conf"
     if [ ! -f "$tmpfiles_config" ] && [ -f "${tmpfiles_config}.disabled" ]; then
         tmpfiles_config="${tmpfiles_config}.disabled"
     fi
-    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$config_file")" "$(dirname "$tmpfiles_config")"
-    touch "$ENV_FILE" "$config_file" "$tmpfiles_config"
-    ${EDITOR:-nano} "$ENV_FILE" "$config_file" "$tmpfiles_config"
+    local providers_dir="$LIBREFANG_HOME/.librefang/providers"
+    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")" "$(dirname "$config_file")" "$(dirname "$tmpfiles_config")" "$providers_dir"
+    touch "$ENV_FILE" "$app_env_file" "$config_file" "$tmpfiles_config"
+
+    # Ensure local provider files exist and load them
+    local local_providers=()
+    for name in chat embedding; do
+        local file="$providers_dir/local-$name.toml"
+        if [ ! -s "$file" ]; then
+            write_default_provider_toml "$name" "$file"
+        fi
+        local_providers+=("$file")
+    done
+
+    ${EDITOR:-nano} "$ENV_FILE" "$app_env_file" "$config_file" "$tmpfiles_config" "${local_providers[@]}"
     if is_systemd_running; then
         echo "Restarting service to apply updated environment..."
         cmd_restart

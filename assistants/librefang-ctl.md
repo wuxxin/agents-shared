@@ -12,7 +12,7 @@ For shared commands, variable expansion rules, sidecars supervision, temporary f
 ## Agent-Specific Defaults
 
 - **Home Directory:** `~/.local/sandbox/librefang`
-- **Default Workspace Path:** `%h/.local/sandbox/librefang/.librefang/agents/default/workspace`
+- **Default Workspace Path:** `%h/.local/sandbox/librefang/.librefang/workspaces/agents/assistant`
 - **Configuration File:** `~/.local/sandbox/librefang/.librefang/config.toml`
 - **Default Gateway Port:** [4545](http://localhost:4545/) (set via `LIBREFANG_PORT` inside `librefang.env`)
 
@@ -30,30 +30,62 @@ This sets up default provider JSON templates and the `config.toml` parameters.
 
 ## Local Inference
 
-To switch LibreFang to local llama-server chat and embeddings, configure `config.toml`:
+To run LibreFang with a fully local inference pipeline (chat, embeddings, STT, TTS, and image generation), we use a hybrid configuration. 
+- **Chat and Embeddings** use custom providers (`local-chat` and `local-embedding`) defined in `providers/local-chat.toml` and `providers/local-embedding.toml`.
+- **STT, TTS, and Image generation** use the built-in `"openai"` provider name to satisfy the backend's hardcoded provider checks, with their base URLs overridden to point to the respective local services.
 
-```toml
-[llm]
-model = "qwen3"
-base_url = "http://localhost:50080/v1"
-api_key = "unused"
-
-[embeddings]
-enabled = true
-provider = "openai"
-model = "qwen3-embedding"
-openai_embedding_base_url = "http://localhost:50082/v1"
+To edit the configuration files and the custom provider files together in your `$EDITOR`, run:
+```bash
+./assistants/librefang-ctl edit
 ```
 
-### Voice Transcription Integration
-Configure LibreFang to use the local Whisper STT service (port `50090`) by editing `config.toml`:
-
+### 1. Chat (LLM) Configuration
+Chat is routed through the custom `local-chat` provider (configured in `providers/local-chat.toml` pointing to `llama-server` on port `50080`):
 ```toml
-[transcription]
+[default_model]
+provider = "local-chat"
+model = "qwen3"
+api_key_env = "LOCAL_CHAT_API_KEY"
+```
+
+### 2. Vector Memory & Embeddings Configuration
+Semantic memory embeddings are routed through the custom `local-embedding` provider (configured in `providers/local-embedding.toml` pointing to the embedding server on port `50082`):
+```toml
+[memory]
+embedding_provider = "local-embedding"
+embedding_model = "qwen3-embedding"
+```
+
+### 3. Speech-to-Text (STT) Configuration
+Voice transcription is configured to use the built-in `"openai"` provider, but redirected to the local `whisper-server` (port `50090`) via `audio_base_url`:
+```toml
+[media]
+audio_transcription = true
+audio_provider = "openai"
+audio_model = "whisper-1"
+audio_base_url = "http://localhost:50090/v1"
+```
+
+### 4. Text-to-Speech (TTS) Configuration
+Speech synthesis is configured to use the built-in `"openai"` provider, but redirected to the local `qwen3-tts-server` (port `50095`) via `[tts.openai]` `base_url`:
+```toml
+[tts]
 enabled = true
 provider = "openai"
-model = "whisper-1"
-openai_transcription_base_url = "http://localhost:50090/v1"
+timeout_secs = 60
+
+[tts.openai]
+base_url = "http://localhost:50095/v1"
+model = "qwen3-tts"
+voice = "serena"
+format = "wav"
+```
+
+### 5. Local Image Generation Configuration
+Image generation is configured to use the built-in `"openai"` provider, but redirected to the local `sd-server` (port `50100`) via `[provider_urls]` base URL override:
+```toml
+[provider_urls]
+openai = "http://localhost:50100/v1"
 ```
 
 ## Signal Channel Configuration
@@ -71,12 +103,114 @@ channel_type = "signal"
 
 [sidecar_channels.env]
 SIGNAL_API_URL = "http://localhost:50889/"
-SIGNAL_NUMBER = "+1234567890"
+SIGNAL_NUMBER = "+10987654321"       # The bot's Signal phone number
 SIGNAL_ALLOW_LOCAL = "1"
+SIGNAL_ALLOWED_USERS = "+1234567890"  # Your Signal phone number (allowed user)
 ```
 
 Ensure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. LibreFang will connect to the REST wrapper to retrieve message updates and send replies.
 
+
+## User Management and Authentication
+
+LibreFang provides Role-Based Access Control (RBAC) to manage users, restrict tool usage, and route channel messages to specific workspaces.
+
+### 1. Configuring Dashboard Authentication
+By default, when binding to loopback (`127.0.0.1:4545`), no password is required. To configure password protection for the web dashboard interface:
+
+#### Option A: Set via Environment Variables (Recommended)
+Run `./assistants/librefang-ctl edit` and add these keys to the `.librefang/.env` file:
+```bash
+LIBREFANG_DASHBOARD_USER="my_user"
+LIBREFANG_DASHBOARD_PASS="my_password"
+```
+
+#### Option B: Set in `config.toml`
+Add these keys directly at the root of `config.toml`:
+```toml
+dashboard_user = "my_user"
+dashboard_pass = "my_password"  # Or "vault:dashboard_password"
+```
+*(Note: If using `vault:`, run `./assistants/librefang-ctl exec vault set dashboard_password` to securely store the value).*
+
+### 2. Tying a User to the Signal Channel
+To link your physical Signal identity (phone number) to your LibreFang dashboard user, define a `[[users]]` block and route it via `[[bindings]]` in `config.toml`:
+
+```toml
+# Define the user and map their Signal identity
+[[users]]
+name = "my_user"
+role = "owner"                          # Roles: owner, admin, user, viewer
+channel_bindings = { signal = "+1234567890" }  # Ties phone number to user
+
+# Route messages from the Signal channel to the assistant agent
+[[bindings]]
+agent = "assistant"
+match_rule = { channel = "signal", peer_id = "+1234567890" }
+```
+
+
+## Tool Execution Timeouts
+
+When agents execute tools (e.g., calling image generation, running shell commands, or executing python scripts), they are bound by execution timeout limits. If a tool call (such as a slow image generation model) exceeds these limits, the process is terminated.
+
+You can configure and increase these timeouts in `config.toml`:
+
+### 1. Global Tool Timeout Override
+You can configure a global default timeout for all tool executions using the root-level setting:
+```toml
+# Timeout for individual tool executions in seconds (Default: 30)
+tool_timeout_secs = 120
+```
+
+### 2. Per-Tool Timeout Overrides
+You can pin custom timeouts for specific tools under the `[tool_timeouts]` block. Exact keys take priority over glob patterns:
+```toml
+[tool_timeouts]
+# Set specific timeout for image generation tool in seconds
+image_generate = 120
+# Set specific timeout for shell_exec command executions (Default: 30)
+shell_exec = 120
+# Example of setting a longer timeout for browser tools
+"mcp_browser_*" = 300
+```
+
+### 3. Local (Host) Execution Limits
+If tools are run on the host (default `local` backend), the security boundaries are configured in `[exec_policy]`:
+```toml
+[exec_policy]
+# Max execution timeout in seconds (Default: 30)
+timeout_secs = 120
+
+# No-output idle timeout in seconds (Default: 30)
+# Terminate if the process produces no stdout/stderr for this duration.
+no_output_timeout_secs = 60
+```
+
+### 2. Docker Sandbox Tool Execution Timeout
+If you run tools inside a Docker sandbox container (`tool_exec.backend = "docker"`), the timeout limits are configured under the `[docker]` block:
+```toml
+[docker]
+# Max execution time inside the container in seconds (Default: 60)
+timeout_secs = 120
+```
+
+### 3. TTS Request Timeout
+You can also adjust the timeout per Text-to-Speech (TTS) generation request under the `[tts]` block:
+```toml
+[tts]
+# Timeout per TTS request in seconds (Default: 30)
+timeout_secs = 60
+```
+
+
+## Environment Configuration Override
+
+LibreFang supports a two-stage environment resolution order:
+1. **Systemd Service Environment:** `~/.config/systemd/user/librefang.env`
+2. **Application Environment Override:** `~/.local/sandbox/librefang/.librefang/.env`
+
+The application environment override file (`.librefang/.env`) is loaded after `librefang.env`. Any variables defined in `.librefang/.env` will override conflicting keys defined in `librefang.env`.
 
 ---
 
