@@ -1,34 +1,40 @@
-# IronClaw Agent Control Guide
+# IronClaw Reborn Agent Control Guide
 
-This guide describes configuration, onboarding, and integration features specific to the IronClaw Agent runtime environment.
+This guide describes configuration, onboarding, and integration features specific to the IronClaw Reborn Agent runtime environment.
 
 For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents-ctl.md).
 
 - **Source Code**: [GitHub - nearai/ironclaw](https://github.com/nearai/ironclaw)
 - **Arch/AUR Packages**:
-  - `ironclaw-git` (Legacy V1 daemon)
-  - `ironclaw-reborn-git` (Reborn V2 engine and WebUI)
+  - `ironclaw-reborn-git` (Reborn engine and WebUI)
 
 ---
 
 ## Agent-Specific Defaults
 
 - **Home Directory:** `~/.local/sandbox/ironclaw`
-- **Default Workspace Path:** `%h/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace`
-- **Legacy Configuration File:** `~/.local/sandbox/ironclaw/.ironclaw/config.toml`
+- **Default Workspace Path:** `%h/.local/sandbox/ironclaw/.ironclaw/default/workspace`
 - **Reborn Configuration File:** `~/.local/sandbox/ironclaw/.ironclaw/reborn/config.toml`
-- **Default Port V1 Gateway:** [8080](http://localhost:8080/) (set via `HTTP_PORT` in `ironclaw.env`)
-- **Default Port V2 Web UI:** [3000](http://localhost:3000/) (started via `serve` subcommand)
+- **Default Port Web UI:** [3000](http://localhost:3000/) (started via `serve` subcommand, set via `HTTP_PORT` in `ironclaw.env`)
 
 ---
 
 ## Common Environment Variables
 
 Configure these inside `~/.config/systemd/user/ironclaw.env`:
-*   **`IRONCLAW_REBORN`** (Default: `true`): If `true`, runs the newer Reborn (V2) engine; if `false`, runs the Legacy (V1) engine.
-*   **`ENGINE_V2`** (Default: `true`): If running V1, selects the V2 backend parser.
 *   **`HTTP_HOST`** (Default: `127.0.0.1`): Host bind address.
-*   **`HTTP_PORT`** (Default: `8080`): Listen port for gateway interfaces.
+*   **`HTTP_PORT`** (Default: `3000`): Listen port for Web UI / API gateway.
+*   **`IRONCLAW_REBORN_PROFILE`** (Default: `local-dev-yolo`): Boot profile selector. Supported values: `local-dev`, `local-dev-yolo`, `production`, `migration-dry-run`.
+*   **`IRONCLAW_REBORN_WEBUI_TOKEN`** (Default: `local_reborn_token`): Access token for Web UI authentication.
+*   **`IRONCLAW_REBORN_WEBUI_USER_ID`** (Default: `default-owner`): User scope this runtime acts under.
+
+### Environment Configuration Override
+
+IronClaw supports a two-stage environment resolution order:
+1. **Systemd Service Environment:** `~/.config/systemd/user/ironclaw.env`
+2. **Application Environment Override:** `~/.local/sandbox/ironclaw/.ironclaw/.env`
+
+The application environment override file (`.ironclaw/.env`) is loaded after `ironclaw.env`. Any variables defined in `.ironclaw/.env` will override conflicting keys defined in `ironclaw.env`.
 
 ---
 
@@ -40,12 +46,11 @@ Configure these inside `~/.config/systemd/user/ironclaw.env`:
 ### Default User Setup & Messaging Pairing
 
 #### Default User Setup
-Both Legacy and Reborn execute tasks, save history/threads, and access workspace mounts under a designated owner:
-*   **Legacy (V1)**: Set `owner_id = "default-owner"` in `~/.local/sandbox/ironclaw/.ironclaw/config.toml`.
-*   **Reborn (V2)**: Set `default_owner = "default-owner"` in `~/.local/sandbox/ironclaw/.ironclaw/reborn/config.toml` (and ensure this matches the environment override variable `IRONCLAW_REBORN_WEBUI_USER_ID=default-owner`).
+IronClaw Reborn executes tasks, saves history/threads, and accesses workspace mounts under a designated owner:
+*   Set `default_owner = "default-owner"` in `~/.local/sandbox/ironclaw/.ironclaw/reborn/config.toml` (and ensure this matches the environment override variable `IRONCLAW_REBORN_WEBUI_USER_ID=default-owner`).
 
 #### Signal Channel Configuration & Integration
-The Signal channel connects the IronClaw agent to a running [signal-cli](https://github.com/AsamK/signal-cli) HTTP JSON-RPC daemon. Both Legacy (V1) and Reborn (V2) use the same environment bootstrap variables and share the database-level pairing store.
+The Signal channel connects the IronClaw agent to a running [signal-cli](https://github.com/AsamK/signal-cli) HTTP JSON-RPC daemon.
 
 ##### Environment Configuration
 Configure the Signal channel by adding these variables to `~/.config/systemd/user/ironclaw.env` or the application `.env` file:
@@ -67,21 +72,14 @@ signal-cli -a "+1234567890" daemon --http 127.0.0.1:50889
 To protect credentials, external direct messages (such as Signal contact requests) do not gain automatic access to the default user's workspace. They must go through a secure pairing process:
 1.  **Incoming Code**: When a new, unauthorized sender messages the bot via Signal, the bot replies with a pairing challenge code:
     `Enter this code in IronClaw to pair your signal account: <CODE>. CLI fallback: ironclaw pairing approve signal <CODE>`
-2.  **Approve Pairing**: An administrator must approve the request using the pairing code:
-    *   **Legacy (V1 CLI)**: Run the command:
-        ```bash
-        ./assistants/ironclaw-ctl exec pairing approve signal <PAIRING_CODE>
-        ```
-        (or other channels like `telegram`, `whatsapp`, etc. as the channel parameter).
-    *   **Reborn (V2 Chat/WebUI)**: Log into an authorized chat session (e.g. `./assistants/ironclaw-ctl exec chat` or Web UI) and run the command:
-        ```text
-        approve signal <PAIRING_CODE>
-        ```
+2.  **Approve Pairing**: An administrator must approve the request using the pairing code inside an authorized chat session (e.g. `./assistants/ironclaw-ctl exec chat` or Web UI) using the command:
+    ```text
+    approve signal <PAIRING_CODE>
+    ```
 3.  **Completion**: Once approved, all future messages from that Signal contact are linked to the configured default owner's memory space and workspace.
 
 
 ### Implementation & Security Considerations
-
 
 #### Sandboxing Profile
 IronClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation:
@@ -91,15 +89,15 @@ IronClaw utilizes a **Relaxed Namespaces Profile** for systemd isolation:
 
 ---
 
-## Reborn (V2) Configuration & Architecture
+## Configuration & Architecture
 
-This section documents features and configurations specific only to the next-generation **Reborn (V2)** engine.
+This section documents features and configurations specific to the **Reborn** engine.
 
-### Engine V2 Architecture
+### Engine Architecture
 
 *   **Binary**: Managed via the `/usr/bin/ironclaw-reborn` binary.
 *   **Monty VM Python Execution**: Instead of executing flat tool calls in Rust, Reborn compiles tool invocations into Python code blocks executed dynamically inside an embedded Monty VM (Python interpreter).
-*   **Core Primitives**: V2 unifies legacy abstractions into 5 core primitives:
+*   **Core Primitives**: Unifies abstractions into 5 core primitives:
     *   `Thread` — History timeline sequence.
     *   `Step` — Single turn execution step.
     *   `Capability` — Leasable resources (tools, endpoints).
@@ -107,7 +105,7 @@ This section documents features and configurations specific only to the next-gen
     *   `Project` — Boundary for threads and files.
 *   **Learning Loops**: Runs autonomous learning loops (Missions) for conversation insight extraction and tool-use self-repair.
 
-### Reborn Web GUI
+### Web GUI
 
 The Reborn Web UI is a React Single Page Application (SPA) providing stream tracking, project file workspaces, and interactive chat.
 *   **Default Port**: Runs on port **`3000`** by default (started via `serve` subcommand, e.g. `./assistants/ironclaw-ctl exec serve`).
@@ -168,57 +166,99 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
 [
   {
     "id": "local-chat",
+    "aliases": [],
     "protocol": "open_ai_completions",
     "api_key_env": "LLM_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50080/v1",
     "default_model": "qwen3",
-    "description": "Local llama-server Chat/Vision (port 50080)"
+    "description": "Local llama-server Chat/Vision (port 50080)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_chat_api_key",
+      "display_name": "Local Chat"
+    }
   },
   {
     "id": "local-embedding",
+    "aliases": [],
     "protocol": "open_ai_completions",
     "api_key_env": "EMBEDDING_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50082/v1",
     "default_model": "qwen3-embedding",
-    "description": "Local llama-server Embeddings (port 50082)"
+    "description": "Local llama-server Embeddings (port 50082)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_embedding_api_key",
+      "display_name": "Local Embedding"
+    }
   },
   {
     "id": "local-rerank",
+    "aliases": [],
     "protocol": "open_ai_completions",
     "api_key_env": "RERANK_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50086/v1",
     "default_model": "qwen3-reranker",
-    "description": "Local llama-server Reranker (port 50086)"
+    "description": "Local llama-server Reranker (port 50086)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_rerank_api_key",
+      "display_name": "Local Reranker"
+    }
   },
   {
     "id": "local-speech-to-text",
+    "aliases": [],
     "protocol": "open_ai_completions",
     "api_key_env": "TRANSCRIPTION_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50090/v1",
     "default_model": "whisper-1",
-    "description": "Local Whisper STT (port 50090)"
+    "description": "Local Whisper STT (port 50090)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_stt_api_key",
+      "display_name": "Local STT"
+    }
   },
   {
     "id": "local-text-to-speech",
+    "aliases": [],
     "protocol": "open_ai_completions",
     "api_key_env": "TTS_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50095/v1",
     "default_model": "qwen3-tts",
-    "description": "Local Qwen3 TTS (port 50095)"
+    "description": "Local Qwen3 TTS (port 50095)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_tts_api_key",
+      "display_name": "Local TTS"
+    }
   },
   {
     "id": "local-image",
+    "aliases": [],
     "protocol": "open_ai_completions",
     "api_key_env": "IMAGE_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50100/v1",
     "default_model": "sd-image",
-    "description": "Local sd-server Image Generation (port 50100)"
+    "description": "Local sd-server Image Generation (port 50100)",
+    "setup": {
+      "kind": "api_key",
+      "secret_name": "llm_local_image_api_key",
+      "display_name": "Local Image"
+    }
   }
 ]
 ```
@@ -233,13 +273,12 @@ api_key_env = "LLM_API_KEY"
 
 ### Embeddings, STT, TTS & Image Services in Reborn
 
-In the Reborn V2 engine, specialized services (embeddings, reranking, STT, TTS, and image generation) are not managed via direct, static blocks in `config.toml`. Instead, they are loaded dynamically via skills and extension plugins which leverage the catalog definitions in `providers.json` or query the environment overrides:
+In the Reborn engine, specialized services (embeddings, reranking, STT, TTS, and image generation) are not managed via direct, static blocks in `config.toml`. Instead, they are loaded dynamically via skills and extension plugins which leverage the catalog definitions in `providers.json` or query the environment overrides:
 
 *   **Embeddings & Reranking**: Used by search and memory capabilities. The embedding requests target the `local-embedding` provider (port `50082`). Reranking is performed natively via the Reciprocal Rank Fusion (RRF) algorithm (port `50086` for `local-rerank` is available for plugins if custom reranking is needed).
 *   **Speech-to-Text (STT)**: Transcribes incoming audio files (e.g. from Signal voice messages). The transcription requests target the `local-speech-to-text` provider (port `50090`).
 *   **Text-to-Speech (TTS)**: Synthesizes spoken replies from text. TTS requests target the `local-text-to-speech` provider (port `50095`).
 *   **Image Generation**: Generates images on demand (e.g. via drawing tools). Image requests target the `local-image` provider (port `50100`).
-
 
 ### Signal Senders Pairing
 
@@ -253,7 +292,7 @@ To safely tie an external Signal sender to a configured default user (without ex
 
 ### OpenCode Coding Agent (MCP)
 
-Reborn (V2) replaces the legacy Agent Client Protocol (ACP) wrapper with native Model Context Protocol (MCP) integration. OpenCode is configured as a stdio-transport MCP server.
+Reborn replaces the legacy Agent Client Protocol (ACP) wrapper with native Model Context Protocol (MCP) integration. OpenCode is configured as a stdio-transport MCP server.
 
 1.  **Configuration File**: Declare the server configuration in `~/.local/sandbox/ironclaw/.ironclaw/mcp-servers.json`:
     ```json
@@ -280,138 +319,3 @@ Reborn (V2) replaces the legacy Agent Client Protocol (ACP) wrapper with native 
     *   On the first boot, Reborn reads `mcp-servers.json` and automatically migrates the servers into the database.
     *   Reborn launches `opencode --stdio` inside the host-mediated sandbox runtime, communicating over standard input/output (stdio).
     *   Ensure `opencode` is installed on your host or within the sandbox search path.
-
----
-
-## 3. Legacy (V1) Configuration
-
-This section documents features and configurations specific only to the **Legacy (V1)** daemon.
-
-### Configuration File
-
-*   **Binary**: Managed via the `/usr/bin/ironclaw` binary.
-*   **File Path**: `~/.local/sandbox/ironclaw/.ironclaw/config.toml`.
-*   **Auth Token**: Set a static bearer token under `[channels]` in `config.toml`:
-    ```toml
-    [channels]
-    gateway_enabled = true
-    gateway_auth_token = "local_admin_token"
-    ```
-*   **Default User**: Define a default owner in `config.toml`:
-    ```toml
-    owner_id = "default-owner"
-    ```
-
-### PostgreSQL + pgvector Setup
-
-Legacy IronClaw requires a running PostgreSQL 15+ database with the `pgvector` extension installed.
-
-#### Database Creation
-```bash
-# Create database user and database, and activate vector extension for database
-createuser ironclaw -P 'PASSWORD'
-createdb ironclaw -O ironclaw
-psql -d ironclaw -c "CREATE EXTENSION IF NOT EXISTS vector;"
-```
-
-#### Environment Configuration
-Supply database URL and pool details in the environment files:
-*   **`DATABASE_URL`**: Connection string format: `postgres://[user]:[password]@[host]:[port]/[database]`.
-*   **`DATABASE_POOL_SIZE`** (Default: `30`): Maximum size of the database connection pool.
-*   **`DATABASE_SSLMODE`**: SSL connection mode. Supported values: `disable`, `prefer`, `require`.
-
-#### Supplying PostgreSQL Password
-Since the Rust Postgres driver parses the URL literally without falling back to `PGPASSWORD` by default, use bash interpolation in `ironclaw.env`:
-```env
-PGPASSWORD="your_secret_password"
-DATABASE_URL="postgres://ironclaw:${PGPASSWORD}@localhost/ironclaw"
-```
-
-### Local Inference Config
-
-Configure local provider endpoints and models directly in `~/.local/sandbox/ironclaw/.ironclaw/config.toml`:
-```toml
-llm_backend = "openai_compatible"
-openai_compatible_base_url = "http://localhost:50080/v1"
-selected_model = "qwen3"
-```
-
-### Embeddings & Transcription Services
-
-Legacy V1 uses dedicated static TOML configuration blocks in `config.toml`:
-
-```toml
-[embeddings]
-enabled = true
-provider = "openai"
-model = "qwen3-embedding"
-openai_embedding_base_url = "http://localhost:50082/v1"
-
-[transcription]
-enabled = true
-provider = "openai"
-model = "whisper-1"
-openai_transcription_base_url = "http://localhost:50090/v1"
-```
-
-### OpenCode Coding Agent (ACP)
-
-Legacy integrates with external coding agents like **OpenCode** using the Agent Client Protocol (ACP).
-1.  Configure ACP protocol options in `~/.local/sandbox/ironclaw/.ironclaw/config.toml`:
-    ```toml
-    [sandbox]
-    acp_enabled = true
-    ```
-2.  Declare the command mapping in `~/.local/sandbox/ironclaw/.ironclaw/acp-agents.json`:
-    ```json
-    {
-      "agents": [
-        {
-          "name": "opencode",
-          "command": "opencode",
-          "args": ["--stdio"],
-          "env": {},
-          "enabled": true,
-          "description": "OpenCode coding agent running via Agent Client Protocol (ACP)"
-        }
-      ],
-      "schema_version": 1
-    }
-    ```
-3.  Configure memory limits and timeout bounds in the service environment:
-    *   **`ACP_MEMORY_LIMIT_MB`** (Default: `4096`): Memory allocation limit.
-    *   **`ACP_TIMEOUT_SECS`** (Default: `1800`): Maximum allowed execution time.
-4.  **CLI Management**:
-    *   `./assistants/ironclaw-ctl exec acp list` — Lists registered agents.
-    *   `./assistants/ironclaw-ctl exec acp toggle <name>` — Enables/disables an agent.
-    *   `./assistants/ironclaw-ctl exec acp test <name>` — Runs connection diagnostics.
-
-### Signal Channel Configuration
-
-Configure the Signal channel in `~/.local/sandbox/ironclaw/.ironclaw/config.toml`:
-```toml
-[channels]
-signal_enabled = true
-signal_http_url = "http://127.0.0.1:50889"
-signal_dm_policy = "pairing"        # Policies: open | allowlist | pairing
-signal_group_policy = "allowlist"   # Policies: allowlist | open | disabled
-```
-
----
-
-## Architectural differences: Legacy (V1) vs Reborn (V2)
-
-| Feature Area | Legacy (V1) | Reborn (V2) |
-|---|---|---|
-| **Runtime Binary** | `/usr/bin/ironclaw` (compiled from Rust backend) | `/usr/bin/ironclaw-reborn` (compiled from reborn engine) |
-| **Execution Loop** | Standard Rust-native agent loop compiling flat tool calls | Python CodeAct loop running inside an embedded Monty VM |
-| **Default Web Port** | `8080` (Web Gateway & Webhooks) | `3000` (started via `serve` subcommand, serving React SPA UI) |
-| **Primary Database** | PostgreSQL 15+ with the `pgvector` extension (required) | SQLite/libSQL (`reborn-local-dev.db` in reborn home) by default; PostgreSQL is optional |
-| **Configuration Files** | `~/.local/sandbox/ironclaw/.ironclaw/config.toml` | `~/.local/sandbox/ironclaw/.ironclaw/reborn/config.toml` |
-| **Client Authentication** | Bearer token configured via `gateway_auth_token` in `config.toml` | Bearer token via `IRONCLAW_REBORN_WEBUI_TOKEN` env var, and Google/GitHub OAuth |
-| **LLM Provider Config** | Flat fields in `config.toml` (e.g. `llm_backend`, `selected_model`) | Structured catalog in `reborn/providers.json` & slot selector in `reborn/config.toml` |
-| **Embeddings & STT** | Direct `[embeddings]` and `[transcription]` blocks in TOML | Managed dynamically through skills and extension plugins |
-| **Coding Integration** | Agent Client Protocol (ACP) configured via `acp-agents.json` | Native host-mediated WASM/MCP security policies |
-| **Traces & Diagnostics** | Direct CLI commands and file logging | Bounded Operator Logs, SSE live thinking streams, and `TraceClientHost` facades |
-| **Scheduled Jobs** | Cron-pinned jobs configured in `config.toml` | `TriggerSchedule::Once` and recurring trigger loops managed in reborn composition |
-

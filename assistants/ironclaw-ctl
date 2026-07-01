@@ -1,45 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ironclaw-ctl - installation and management wrapper for ironclaw
-#
-# Toggle between versions by setting IRONCLAW_REBORN=true/false or ENGINE_V2=true/false
-# in ~/.config/systemd/user/ironclaw.env or ~/.local/sandbox/ironclaw/.ironclaw/.env.
+# ironclaw-ctl - installation and management wrapper for ironclaw reborn
 
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ironclaw.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/ironclaw.env"
 IRONCLAW_HOME="$HOME/.local/sandbox/ironclaw"
 
+# Centralized default configuration values
+DEFAULT_HTTP_HOST="127.0.0.1"
+DEFAULT_HTTP_PORT="3000"
+DEFAULT_IRONCLAW_REBORN_PROFILE="local-dev-yolo"
+DEFAULT_IRONCLAW_REBORN_WEBUI_TOKEN="local_reborn_token"
+DEFAULT_IRONCLAW_REBORN_WEBUI_USER_ID="default-owner"
+DEFAULT_AGENT_WORKSPACE="$IRONCLAW_HOME/.ironclaw/default/workspace"
+
+IRONCLAW_REBORN_HOME="$IRONCLAW_HOME/.ironclaw/reborn"
+EXEC_PATH="/usr/bin/ironclaw-reborn"
+
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
 }
 
-is_reborn() {
-    local val_reborn="${IRONCLAW_REBORN:-}"
-    local val_v2="${ENGINE_V2:-}"
-
-    # If env vars are not set in shell environment, read from config files
-    if [ -z "$val_reborn" ] && [ -z "$val_v2" ]; then
-        if [ -f "$ENV_FILE" ]; then
-            val_reborn=$(grep -E '^\s*IRONCLAW_REBORN=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'\'' ')
-            val_v2=$(grep -E '^\s*ENGINE_V2=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'\'' ')
-        fi
-        local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
-        if [ -z "$val_reborn" ] && [ -z "$val_v2" ] && [ -f "$app_env_file" ]; then
-            val_reborn=$(grep -E '^\s*IRONCLAW_REBORN=' "$app_env_file" | cut -d= -f2- | tr -d '"'\'' ')
-            val_v2=$(grep -E '^\s*ENGINE_V2=' "$app_env_file" | cut -d= -f2- | tr -d '"'\'' ')
-        fi
-    fi
-
-    if [ "$val_reborn" = "true" ] || [ "$val_v2" = "true" ]; then
-        return 0
-    fi
-    return 1
-}
-
 setup_fallback_environment() {
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$IRONCLAW_HOME/.ironclaw/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}"
 
     if [ -f "$ENV_FILE" ]; then
         set +u
@@ -59,15 +44,13 @@ setup_fallback_environment() {
         set -u
     fi
     export HOME="$IRONCLAW_HOME"
-    export HTTP_PORT="${HTTP_PORT:-8080}"
-    export HTTP_HOST="${HTTP_HOST:-127.0.0.1}"
-    export DATABASE_URL="${DATABASE_URL:-postgres://localhost/ironclaw}"
-    if is_reborn; then
-        export IRONCLAW_REBORN_HOME="$IRONCLAW_HOME/.ironclaw/reborn"
-        export IRONCLAW_REBORN_PROFILE="${IRONCLAW_REBORN_PROFILE:-local-dev-yolo}"
-        export IRONCLAW_REBORN_WEBUI_TOKEN="${IRONCLAW_REBORN_WEBUI_TOKEN:-local_reborn_token}"
-        export IRONCLAW_REBORN_WEBUI_USER_ID="${IRONCLAW_REBORN_WEBUI_USER_ID:-default-owner}"
-    fi
+    export HTTP_PORT="${HTTP_PORT:-$DEFAULT_HTTP_PORT}"
+    export HTTP_HOST="${HTTP_HOST:-$DEFAULT_HTTP_HOST}"
+    export IRONCLAW_REBORN_HOME="$IRONCLAW_REBORN_HOME"
+    export IRONCLAW_REBORN_PROFILE="${IRONCLAW_REBORN_PROFILE:-$DEFAULT_IRONCLAW_REBORN_PROFILE}"
+    export IRONCLAW_REBORN_WEBUI_TOKEN="${IRONCLAW_REBORN_WEBUI_TOKEN:-$DEFAULT_IRONCLAW_REBORN_WEBUI_TOKEN}"
+    export IRONCLAW_REBORN_WEBUI_USER_ID="${IRONCLAW_REBORN_WEBUI_USER_ID:-$DEFAULT_IRONCLAW_REBORN_WEBUI_USER_ID}"
+
     local ws="${AGENT_WORKSPACE}"
     ws="${ws//%h/$HOME}"
     if [[ "$ws" =~ ^~ ]]; then
@@ -75,55 +58,22 @@ setup_fallback_environment() {
     fi
     export AGENT_WORKSPACE="$ws"
     mkdir -p "$IRONCLAW_HOME" "$AGENT_WORKSPACE"
-    cd "$IRONCLAW_HOME" || exit 1
+    cd "$AGENT_WORKSPACE" || exit 1
 }
 
 get_exec_cmd_and_args() {
     # Sets variables EXEC_PATH and EXTRA_ARGS
-    if is_reborn; then
-        EXEC_PATH="/usr/bin/ironclaw-reborn"
-        if [ ! -x "$EXEC_PATH" ]; then
-            echo "Error: Reborn is selected, but $EXEC_PATH is not executable." >&2
-            echo "Please install the ironclaw-reborn-git package." >&2
-            exit 1
+    if [ ! -x "$EXEC_PATH" ]; then
+        echo "Error: $EXEC_PATH is not executable." >&2
+        echo "Please install the ironclaw-reborn-git package." >&2
+        exit 1
+    fi
+    EXTRA_ARGS=()
+    if [ $# -gt 0 ]; then
+        local cmd="$1"
+        if [ "$cmd" = "serve" ] || [ "$cmd" = "repl" ] || [ "$cmd" = "run" ]; then
+            EXTRA_ARGS+=("--confirm-host-access")
         fi
-        EXTRA_ARGS=()
-        if [ $# -gt 0 ]; then
-            local cmd="$1"
-            if [ "$cmd" = "serve" ] || [ "$cmd" = "repl" ] || [ "$cmd" = "run" ]; then
-                # Check profile
-                local profile="${IRONCLAW_REBORN_PROFILE:-}"
-                if [ -z "$profile" ]; then
-                    if [ -f "$ENV_FILE" ]; then
-                        profile=$(grep -E '^\s*IRONCLAW_REBORN_PROFILE=' "$ENV_FILE" | cut -d= -f2- | tr -d '"'\'' ')
-                    fi
-                    local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
-                    if [ -z "$profile" ] && [ -f "$app_env_file" ]; then
-                        profile=$(grep -E '^\s*IRONCLAW_REBORN_PROFILE=' "$app_env_file" | cut -d= -f2- | tr -d '"'\'' ')
-                    fi
-                fi
-                if [ "$profile" = "local-dev-yolo" ]; then
-                    # Only append if not already present in the arguments
-                    local found_confirm=false
-                    for arg in "$@"; do
-                        if [ "$arg" = "--confirm-host-access" ]; then
-                            found_confirm=true
-                        fi
-                    done
-                    if [ "$found_confirm" = "false" ]; then
-                        EXTRA_ARGS+=("--confirm-host-access")
-                    fi
-                fi
-            fi
-        fi
-    else
-        EXEC_PATH="/usr/bin/ironclaw"
-        if [ ! -x "$EXEC_PATH" ]; then
-            echo "Error: Legacy IronClaw is selected, but $EXEC_PATH is not executable." >&2
-            echo "Please install the ironclaw-git package." >&2
-            exit 1
-        fi
-        EXTRA_ARGS=()
     fi
 }
 
@@ -140,8 +90,16 @@ get_shared_options() {
     local AGENT_SANDBOX_MOUNTS=""
     local AGENT_EXTRA_MOUNTS=""
     local AGENT_WORKSPACE=""
+
+    local raw_default_workspace
+    if [ "$mode" = "service" ]; then
+        raw_default_workspace="${home_spec}/.local/sandbox/ironclaw/.ironclaw/default/workspace"
+    else
+        raw_default_workspace="$DEFAULT_AGENT_WORKSPACE"
+    fi
+
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$raw_default_workspace}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -158,21 +116,25 @@ get_shared_options() {
 
     # Environment & Working Directory
     echo "Environment=HOME=${home_spec}/.local/sandbox/ironclaw"
-    echo "Environment=HTTP_HOST=${HTTP_HOST:-127.0.0.1}"
-    echo "Environment=HTTP_PORT=${HTTP_PORT:-8080}"
-    echo "Environment=DATABASE_URL=${DATABASE_URL:-postgres://localhost/ironclaw}"
-    if is_reborn; then
-        echo "Environment=IRONCLAW_REBORN_HOME=${home_spec}/.local/sandbox/ironclaw/.ironclaw/reborn"
-        echo "Environment=IRONCLAW_REBORN_PROFILE=${IRONCLAW_REBORN_PROFILE:-local-dev-yolo}"
-        echo "Environment=IRONCLAW_REBORN_POSTGRES_URL=${IRONCLAW_REBORN_POSTGRES_URL:-}"
-        echo "Environment=IRONCLAW_REBORN_SECRET_MASTER_KEY=${IRONCLAW_REBORN_SECRET_MASTER_KEY:-}"
-        echo "Environment=IRONCLAW_REBORN_WEBUI_TOKEN=${IRONCLAW_REBORN_WEBUI_TOKEN:-local_reborn_token}"
-        echo "Environment=IRONCLAW_REBORN_WEBUI_USER_ID=${IRONCLAW_REBORN_WEBUI_USER_ID:-default-owner}"
+    echo "Environment=HTTP_HOST=${HTTP_HOST:-$DEFAULT_HTTP_HOST}"
+    echo "Environment=HTTP_PORT=${HTTP_PORT:-$DEFAULT_HTTP_PORT}"
+    echo "Environment=IRONCLAW_REBORN_HOME=${home_spec}/.local/sandbox/ironclaw/.ironclaw/reborn"
+    echo "Environment=IRONCLAW_REBORN_PROFILE=${IRONCLAW_REBORN_PROFILE:-$DEFAULT_IRONCLAW_REBORN_PROFILE}"
+    echo "Environment=IRONCLAW_REBORN_POSTGRES_URL=${IRONCLAW_REBORN_POSTGRES_URL:-}"
+    echo "Environment=IRONCLAW_REBORN_SECRET_MASTER_KEY=${IRONCLAW_REBORN_SECRET_MASTER_KEY:-}"
+    echo "Environment=IRONCLAW_REBORN_WEBUI_TOKEN=${IRONCLAW_REBORN_WEBUI_TOKEN:-$DEFAULT_IRONCLAW_REBORN_WEBUI_TOKEN}"
+    echo "Environment=IRONCLAW_REBORN_WEBUI_USER_ID=${IRONCLAW_REBORN_WEBUI_USER_ID:-$DEFAULT_IRONCLAW_REBORN_WEBUI_USER_ID}"
+
+    local ws="${AGENT_WORKSPACE}"
+    ws="${ws//%h/$home_spec}"
+    ws="${ws//\$HOME/$home_spec}"
+    if [[ "$ws" =~ ^~ ]]; then
+        ws="${ws/#\~/$home_spec}"
     fi
-    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${home_spec}/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace}"
+    echo "Environment=AGENT_WORKSPACE=$ws"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/ironclaw.env"
     echo "EnvironmentFile=-${home_spec}/.local/sandbox/ironclaw/.ironclaw/.env"
-    echo "WorkingDirectory=${home_spec}/.local/sandbox/ironclaw"
+    echo "WorkingDirectory=$ws"
 
     # Security measures
     echo "NoNewPrivileges=yes"
@@ -236,28 +198,13 @@ sanitize_var_name() {
 }
 
 write_service_file() {
-    local exec_path
-    local exec_args
-    if is_reborn; then
-        exec_path="/usr/bin/ironclaw-reborn"
-        if [ ! -x "$exec_path" ]; then
-            echo "Warning: $exec_path is not executable. Make sure ironclaw-reborn-git is installed." >&2
-        fi
-        local extra_args=""
-        if [ "${IRONCLAW_REBORN_PROFILE:-}" = "local-dev-yolo" ]; then
-            extra_args=" --confirm-host-access"
-        fi
-        exec_args="serve --host \${HTTP_HOST:-127.0.0.1} --port \${HTTP_PORT:-8080}${extra_args}"
-    else
-        exec_path="/usr/bin/ironclaw"
-        if [ ! -x "$exec_path" ]; then
-            echo "Warning: $exec_path is not executable. Make sure ironclaw-git is installed." >&2
-        fi
-        exec_args="run"
+    if [ ! -x "$EXEC_PATH" ]; then
+        echo "Warning: $EXEC_PATH is not executable. Make sure ironclaw-reborn-git is installed." >&2
     fi
+    local exec_args="serve --host \${HTTP_HOST} --port \${HTTP_PORT} --confirm-host-access"
 
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -273,7 +220,7 @@ write_service_file() {
     fi
 
     # Ensure host workspace directory exists
-    local workspace_dir="${AGENT_WORKSPACE:-$HOME/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace}"
+    local workspace_dir="${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}"
     workspace_dir="${workspace_dir//%h/$HOME}"
     mkdir -p "$workspace_dir"
 
@@ -292,11 +239,11 @@ write_service_file() {
         elif [ ! -f "$tmpfiles_config" ]; then
             cat >"$tmpfiles_config" <<'EOF'
 # ~/.config/user-tmpfiles.d/ironclaw.conf
-# systemd-tmpfiles configuration for IronClaw
+# systemd-tmpfiles configuration for IronClaw Reborn
 
 # Example: Delete all files in workspace/voice-notes/read/ if older than 24 hours
 # Type  Path                                                                                Mode UID  GID  Age  Argument
-e       %h/.local/sandbox/ironclaw/.ironclaw/agents/default/workspace/voice-notes/read       -    -    -    24h  -
+e       %h/.local/sandbox/ironclaw/.ironclaw/default/workspace/voice-notes/read       -    -    -    24h  -
 EOF
             echo "Created default systemd-tmpfiles configuration at $tmpfiles_config"
         fi
@@ -362,14 +309,14 @@ EOF
     local exec_start_cmd
     if [ -n "$sidecars_exec" ]; then
         # Spawn daemon first, sleep 2, check if daemon failed to start, spawn sidecars, then wait on daemon
-        exec_start_cmd="/bin/bash -c '${exec_path} ${exec_args} & MAIN_PID=\$! ; sleep 2 ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) failed to start.\" >&2 ; exit 1 ; fi ; $sidecars_exec wait -n ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) terminated.\" ; fi ; $sidecar_check exit 1'"
+        exec_start_cmd="/bin/bash -c '${EXEC_PATH} ${exec_args} & MAIN_PID=\$! ; sleep 2 ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) failed to start.\" >&2 ; exit 1 ; fi ; $sidecars_exec wait -n ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) terminated.\" ; fi ; $sidecar_check exit 1'"
     else
-        exec_start_cmd="${exec_path} ${exec_args}"
+        exec_start_cmd="${EXEC_PATH} ${exec_args}"
     fi
 
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
-Description=IronClaw Agent OS Daemon
+Description=IronClaw Reborn Agent OS Daemon
 Documentation=https://github.com/nearai/ironclaw
 After=network-online.target postgresql.service
 Wants=network-online.target
@@ -402,79 +349,10 @@ EOF
 
 write_toml_configs() {
     local new_config="$1"
-    local legacy_config_file="$IRONCLAW_HOME/.ironclaw/config.toml"
     local reborn_dir="$IRONCLAW_HOME/.ironclaw/reborn"
     local reborn_config_file="$reborn_dir/config.toml"
     local reborn_providers_file="$reborn_dir/providers.json"
     local reborn_mcp_servers_file="$IRONCLAW_HOME/.ironclaw/mcp-servers.json"
-
-    if [ ! -f "$legacy_config_file" ] || [ "$new_config" = "true" ]; then
-        mkdir -p "$(dirname "$legacy_config_file")"
-        cat >"$legacy_config_file" <<'EOF'
-# config.toml — Legacy IronClaw settings configuration
-# Generated by ironclaw-ctl install --new-config
-# Priority: DB settings > Env variables > This file > Defaults
-
-owner_id = "default-owner"
-
-# --- Inference Selection ---
-llm_backend = "openai_compatible"
-openai_compatible_base_url = "http://localhost:50080/v1"
-selected_model = "qwen3"
-temperature = 1.0
-
-# --- Embeddings (local-embedding on port 50082) ---
-[embeddings]
-enabled = true
-provider = "openai"
-model = "qwen3-embedding"
-openai_embedding_base_url = "http://localhost:50082/v1"
-
-# --- Speech-to-Text ---
-[transcription]
-enabled = true
-provider = "openai"
-model = "whisper-1"
-openai_transcription_base_url = "http://localhost:50090/v1"
-
-# --- Channels ---
-[channels]
-gateway_enabled = true
-gateway_auth_token = "local_admin_token"
-signal_enabled = true
-signal_ignore_attachments = false
-signal_ignore_stories = true
-
-# --- Agent Settings ---
-[agent]
-name = "ironclaw"
-max_parallel_jobs = 5
-use_planning = true
-max_tool_iterations = 50
-
-# --- Sandbox (WASM & Docker tool isolation) ---
-[sandbox]
-enabled = false
-policy = "readonly"
-timeout_secs = 120
-memory_limit_mb = 2048
-image = "ironclaw-worker:latest"
-acp_enabled = true # Enable Agent Client Protocol (ACP) for coding agents like OpenCode
-
-# --- Safety ---
-[safety]
-injection_check_enabled = true
-max_output_length = 100000
-
-# --- Memory Hygiene ---
-[hygiene]
-enabled = true
-version_keep_count = 50
-cadence_hours = 12
-
-EOF
-        echo "Created default Legacy TOML configuration at $legacy_config_file"
-    fi
 
     if [ ! -f "$reborn_config_file" ] || [ "$new_config" = "true" ]; then
         mkdir -p "$reborn_dir"
@@ -545,6 +423,7 @@ EOF
     "protocol": "open_ai_completions",
     "api_key_env": "LLM_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50080/v1",
     "default_model": "qwen3",
     "description": "Local llama-server Chat/Vision (port 50080)",
@@ -560,6 +439,7 @@ EOF
     "protocol": "open_ai_completions",
     "api_key_env": "EMBEDDING_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50082/v1",
     "default_model": "qwen3-embedding",
     "description": "Local llama-server Embeddings (port 50082)",
@@ -575,6 +455,7 @@ EOF
     "protocol": "open_ai_completions",
     "api_key_env": "RERANK_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50086/v1",
     "default_model": "qwen3-reranker",
     "description": "Local llama-server Reranker (port 50086)",
@@ -590,6 +471,7 @@ EOF
     "protocol": "open_ai_completions",
     "api_key_env": "TRANSCRIPTION_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50090/v1",
     "default_model": "whisper-1",
     "description": "Local Whisper STT (port 50090)",
@@ -605,6 +487,7 @@ EOF
     "protocol": "open_ai_completions",
     "api_key_env": "TTS_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50095/v1",
     "default_model": "qwen3-tts",
     "description": "Local Qwen3 TTS (port 50095)",
@@ -620,6 +503,7 @@ EOF
     "protocol": "open_ai_completions",
     "api_key_env": "IMAGE_API_KEY",
     "api_key_required": false,
+    "model_env": "LOCAL_MODEL",
     "default_base_url": "http://localhost:50100/v1",
     "default_model": "sd-image",
     "description": "Local sd-server Image Generation (port 50100)",
@@ -679,22 +563,15 @@ cmd_install() {
     mkdir -p "$(dirname "$SERVICE_FILE")"
 
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
-        cat >"$ENV_FILE" <<'EOF'
-# ironclaw.env — systemd bootstrap environment
+        cat >"$ENV_FILE" <<EOF
+# ironclaw.env — systemd bootstrap environment for IronClaw Reborn
 
-# --- COMMON VARIABLES
+# HTTP_HOST: Web gateway bind address
+HTTP_HOST=$DEFAULT_HTTP_HOST
+# HTTP_PORT: Web UI / API listen port
+HTTP_PORT=$DEFAULT_HTTP_PORT
 
-# IRONCLAW_REBORN (default: true) to select the newer IronClaw Reborn engine or 'false' for Legacy engine.
-# IRONCLAW_REBORN=false
-# V2 Engine for IronClaw Legacy: (default: true, only selectable under legacy)
-# ENGINE_V2=false
-
-# HTTP_HOST: Web gateway bind address (default 127.0.0.1)
-HTTP_HOST=127.0.0.1
-# HTTP_PORT: Web gateway listen port (default 8080 for legacy, default 3000 for reborn serve)
-HTTP_PORT=8080
-
-# provider keys
+# Provider keys
 LLM_API_KEY=unused
 EMBEDDING_API_KEY=unused
 RERANK_API_KEY=unused
@@ -704,18 +581,18 @@ IMAGE_API_KEY=unused
 
 OPENAI_API_KEY=unused
 
-# signal account settings
-# SIGNAL_HTTP_URL (Default: `http://127.0.0.1:50889`): The endpoint of the running `signal-cli` daemon
+# Signal account settings
+# SIGNAL_HTTP_URL (Default: \`http://127.0.0.1:50889\`): The endpoint of the running \`signal-cli\` daemon
 # SIGNAL_ACCOUNT: The phone number associated with the registered Signal bot account
-# SIGNAL_ALLOW_FROM: A comma-separated list of phone numbers or UUIDs allowed to message the bot (e.g. `+1987654321,uuid:xxxx-xxxx-xxxx`)
-#     Set to `*` to allow all senders. Leaving it empty forces new senders to go through the pairing flow.
-# SIGNAL_DM_POLICY: (Default: `pairing`): The policy for direct messages. Can be `open`, `allowlist`, or `pairing`
-# SIGNAL_GROUP_POLICY`** (Default: `allowlist`): The policy for group chats. Can be `allowlist`, `open`, or `disabled`
+# SIGNAL_ALLOW_FROM: A comma-separated list of phone numbers or UUIDs allowed to message the bot (e.g. \`+1987654321,uuid:xxxx-xxxx-xxxx\`)
+#     Set to \`*\` to allow all senders. Leaving it empty forces new senders to go through the pairing flow.
+# SIGNAL_DM_POLICY: (Default: \`pairing\`): The policy for direct messages. Can be \`open\`, \`allowlist\`, or \`pairing\`
+# SIGNAL_GROUP_POLICY (Default: \`allowlist\`): The policy for group chats. Can be \`allowlist\`, \`open\`, or \`disabled\`
 SIGNAL_HTTP_URL=http://127.0.0.1:50889
 
 # --- REBORN VARIABLES
 # IRONCLAW_REBORN_PROFILE: Boot profile selector. Supported values: local-dev, local-dev-yolo, production, migration-dry-run.
-IRONCLAW_REBORN_PROFILE=local-dev-yolo
+IRONCLAW_REBORN_PROFILE=$DEFAULT_IRONCLAW_REBORN_PROFILE
 
 # Production PostgreSQL storage URL and secret master key when profile = production
 # IRONCLAW_REBORN_POSTGRES_URL=postgres://localhost/ironclaw_reborn
@@ -723,26 +600,11 @@ IRONCLAW_REBORN_PROFILE=local-dev-yolo
 # IRONCLAW_REBORN_POSTGRES_POOL_MAX_SIZE=2
 
 # Reborn Web GUI Auth (local authentication)
-IRONCLAW_REBORN_WEBUI_TOKEN=local_reborn_token
-IRONCLAW_REBORN_WEBUI_USER_ID=default-owner
+IRONCLAW_REBORN_WEBUI_TOKEN=$DEFAULT_IRONCLAW_REBORN_WEBUI_TOKEN
+IRONCLAW_REBORN_WEBUI_USER_ID=$DEFAULT_IRONCLAW_REBORN_WEBUI_USER_ID
 
 # Reborn Tracing filter
 # IRONCLAW_REBORN_LOG=debug,ironclaw_reborn=info
-
-
-# --- LEGACY VARIABLES
-# DATABASE_URL: PostgreSQL connection string (requires pgvector extension)
-DATABASE_URL=postgres://localhost/ironclaw
-
-# Tracing filter
-# RUST_LOG=ironclaw=info,tower_http=info
-
-# ACP / OpenCode Coding Agent Integration
-# Enable Agent Client Protocol (ACP) for coding agents like OpenCode
-ACP_ENABLED=true
-# ACP_MEMORY_LIMIT_MB=4096
-# ACP_TIMEOUT_SECS=1800
-
 
 # --- SERVICE CONFIGURATION
 
@@ -751,22 +613,22 @@ ACP_ENABLED=true
 # AGENT_PRIVATE_MOUNTS=""
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
-AGENT_SANDBOX_MOUNTS="\
-opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode \
+AGENT_SANDBOX_MOUNTS="\\
+opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode \\
 deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
-AGENT_EXTRA_MOUNTS="$HOME/agent-shared:agent-shared"
+AGENT_EXTRA_MOUNTS="\$HOME/agent-shared:agent-shared"
 
 # --- Sidecars Configuration (Optional)
 # Space or semicolon separated list of sidecar names.
 # AGENT_SIDECARS="audionotes"
 #
 # For each sidecar, configure its command, optional args and environment modifications:
-# AGENT_SIDECAR_AUDIONOTES_CMD="$AGENT_WORKSPACE/scripts/audionotes.sh"
-# AGENT_SIDECAR_AUDIONOTES_ARGS="$AGENT_WORKSPACE/audionotes"
+# AGENT_SIDECAR_AUDIONOTES_CMD="\$AGENT_WORKSPACE/scripts/audionotes.sh"
+# AGENT_SIDECAR_AUDIONOTES_ARGS="\$AGENT_WORKSPACE/audionotes"
 # AGENT_SIDECAR_AUDIONOTES_ENV_REMOVE="ZEROCLAW_PORT"
-# AGENT_SIDECAR_AUDIONOTES_ENV_OVERRIDE="TARGET_DIR=$AGENT_WORKSPACE/audionotes"
+# AGENT_SIDECAR_AUDIONOTES_ENV_OVERRIDE="TARGET_DIR=\$AGENT_WORKSPACE/audionotes"
 
 # --- systemd-tmpfiles Confinement Cleanup
 # Enable to automatically clean up temporary/workspace folders:
@@ -798,30 +660,6 @@ SIGNAL_GROUP_POLICY="allowlist"
 EOF
         chmod 600 "$APP_ENV_FILE"
         echo "Created default environment overrides at $APP_ENV_FILE"
-    fi
-
-    local ACP_FILE="$APP_DIR/acp-agents.json"
-    if [ ! -f "$ACP_FILE" ] || [ "$new_config" = "true" ]; then
-        mkdir -p "$APP_DIR"
-        cat >"$ACP_FILE" <<'EOF'
-{
-  "agents": [
-    {
-      "name": "opencode",
-      "command": "opencode",
-      "args": [
-        "--stdio"
-      ],
-      "env": {},
-      "enabled": true,
-      "description": "OpenCode coding agent running via Agent Client Protocol (ACP)"
-    }
-  ],
-  "schema_version": 1
-}
-EOF
-        chmod 600 "$ACP_FILE"
-        echo "Created default ACP agents configuration at $ACP_FILE"
     fi
 
     write_service_file
@@ -977,7 +815,6 @@ spawn_fallback_sidecars() {
 
 cmd_edit() {
     local app_env_file="$IRONCLAW_HOME/.ironclaw/.env"
-    local config_file="$IRONCLAW_HOME/.ironclaw/config.toml"
     local reborn_config_file="$IRONCLAW_HOME/.ironclaw/reborn/config.toml"
     local reborn_providers_file="$IRONCLAW_HOME/.ironclaw/reborn/providers.json"
     local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/ironclaw.conf"
@@ -985,8 +822,8 @@ cmd_edit() {
         tmpfiles_config="${tmpfiles_config}.disabled"
     fi
     mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")" "$IRONCLAW_HOME/.ironclaw/reborn" "$(dirname "$tmpfiles_config")"
-    touch "$ENV_FILE" "$app_env_file" "$config_file" "$reborn_config_file" "$reborn_providers_file" "$tmpfiles_config"
-    ${EDITOR:-nano} "$ENV_FILE" "$app_env_file" "$config_file" "$reborn_config_file" "$reborn_providers_file" "$tmpfiles_config"
+    touch "$ENV_FILE" "$app_env_file" "$reborn_config_file" "$reborn_providers_file" "$tmpfiles_config"
+    ${EDITOR:-nano} "$ENV_FILE" "$app_env_file" "$reborn_config_file" "$reborn_providers_file" "$tmpfiles_config"
     if is_systemd_running; then
         echo "Restarting service to apply updated environment..."
         cmd_restart
@@ -1128,9 +965,9 @@ usage() {
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env and application config files"
-    echo "  exec      - Run ironclaw as a transient systemd user service with args"
-    echo "  run       - Run a command inside the ironclaw systemd environment"
-    echo "  shell     - Spawn an interactive shell in the ironclaw systemd environment"
+    echo "  exec      - Run ironclaw reborn as a transient systemd user service with args"
+    echo "  run       - Run a command inside the ironclaw reborn systemd environment"
+    echo "  shell     - Spawn an interactive shell in the ironclaw reborn systemd environment"
 }
 
 if [ $# -lt 1 ]; then
