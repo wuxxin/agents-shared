@@ -28,7 +28,7 @@ TRACKED_REPOS = [
     {
         "name": "ironclaw",
         "github": "nearai/ironclaw",
-        "pkg": "ironclaw-git",
+        "pkg": "ironclaw-reborn-git",
         "branch": "main",
         "heading": "IronClaw",
     },
@@ -42,7 +42,7 @@ TRACKED_REPOS = [
     {
         "name": "hermes-agent",
         "github": "NousResearch/hermes-agent",
-        "pkg": "",
+        "pkg": "hermes-agent-git",
         "branch": "main",
         "heading": "Hermes Agent",
     },
