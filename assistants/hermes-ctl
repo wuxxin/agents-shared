@@ -3,10 +3,60 @@ set -euo pipefail
 
 # hermes-ctl - installation and management wrapper for hermes-agent
 
-SERVICE_NAME="hermes-gateway"
+# Centralized default configuration values
+DEFAULT_SERVICE_NAME="hermes-gateway"
+DEFAULT_HERMES_SANDBOX_HOME="$HOME/.local/sandbox/hermes"
+DEFAULT_HERMES_HOME="$DEFAULT_HERMES_SANDBOX_HOME/.hermes"
+DEFAULT_DOCKER_BINARY="/usr/bin/podman"
+DEFAULT_AGENT_WORKSPACE="%h/.local/sandbox/hermes/.hermes/workspace"
+DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
+DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
+DEFAULT_AGENT_TMPFILES_CLEANUP="false"
+
+# Local Inference Ports/URLs
+DEFAULT_OPENAI_API_BASE="http://localhost:50080/v1"
+DEFAULT_OPENAI_API_KEY="unused"
+
+DEFAULT_EMBEDDING_API_BASE="http://localhost:50082/v1"
+DEFAULT_EMBEDDING_API_KEY="unused"
+DEFAULT_HERMES_EMBEDDING_PROVIDER="local"
+DEFAULT_HERMES_EMBEDDING_MODEL="qwen3-embedding"
+
+DEFAULT_HERMES_RERANK_URL="http://localhost:50086/v1/rerank"
+DEFAULT_HERMES_RERANK_PROVIDER="local"
+DEFAULT_HERMES_RERANK_MODEL="qwen3-reranker"
+DEFAULT_HERMES_RERANK_TOP_K=30
+
+DEFAULT_STT_OPENAI_BASE_URL="http://localhost:50090/v1"
+DEFAULT_STT_OPENAI_MODEL="whisper-1"
+DEFAULT_VOICE_TOOLS_OPENAI_KEY="dummy"
+
+# Local TTS Port/URL (for Custom OpenAI-compatible TTS)
+DEFAULT_TTS_OPENAI_BASE_URL="http://localhost:50095/v1"
+DEFAULT_TTS_OPENAI_MODEL="qwen3-tts"
+
+# Local Image Port/URL
+DEFAULT_IMAGE_OPENAI_BASE_URL="http://localhost:50100/v1"
+DEFAULT_IMAGE_OPENAI_MODEL="txt2img"
+
+# Signal Channel Configuration
+DEFAULT_SIGNAL_ACCOUNT="+1234567890"
+DEFAULT_SIGNAL_HTTP_URL="http://localhost:50889"
+DEFAULT_SIGNAL_ALLOWED_USERS="+9876543210"
+
+# YOLO Mode
+DEFAULT_HERMES_YOLO_MODE="true"
+
+# Agent sidecars
+DEFAULT_AGENT_SIDECARS="dashboard"
+DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
+DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard"
+
+SERVICE_NAME="$DEFAULT_SERVICE_NAME"
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.env"
-HERMES_HOME="$HOME/.local/sandbox/hermes"
+HERMES_SANDBOX_HOME="$DEFAULT_HERMES_SANDBOX_HOME"
+HERMES_HOME="$DEFAULT_HERMES_HOME"
 
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
@@ -17,6 +67,13 @@ sanitize_var_name() {
     val="${val//-/_}"
     val="${val//./_}"
     val="${val^^}"
+    echo "$val"
+}
+
+expand_specifiers() {
+    local val="$1"
+    val="${val//%h/"$HOME"}"
+    val="${val/#\~/"$HOME"}"
     echo "$val"
 }
 
@@ -34,20 +91,32 @@ get_shared_options() {
     local AGENT_EXTRA_MOUNTS=""
     local AGENT_WORKSPACE=""
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/hermes/.hermes/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+
+        # Expand specifiers for transient runs on the host
+        if [ "$mode" = "transient" ]; then
+            HERMES_SANDBOX_HOME=$(expand_specifiers "${HERMES_SANDBOX_HOME:-$DEFAULT_HERMES_SANDBOX_HOME}")
+            HERMES_HOME=$(expand_specifiers "${HERMES_HOME:-$DEFAULT_HERMES_HOME}")
+            local temp_mounts=""
+            for m in ${AGENT_EXTRA_MOUNTS:-}; do
+                temp_mounts+="$(expand_specifiers "$m") "
+            done
+            AGENT_EXTRA_MOUNTS="$temp_mounts"
+        fi
     fi
 
     # Environment & Working Directory
     echo "Environment=HOME=${home_spec}/.local/sandbox/hermes"
-    echo "Environment=HERMES_HOME=${home_spec}/.local/sandbox/hermes"
-    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${home_spec}/.local/sandbox/hermes/.hermes/agents/default/workspace}"
+    echo "Environment=HERMES_SANDBOX_HOME=${home_spec}/.local/sandbox/hermes"
+    echo "Environment=HERMES_HOME=${home_spec}/.local/sandbox/hermes/.hermes"
+    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$home_spec}}"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/hermes-gateway.env"
-    echo "WorkingDirectory=${home_spec}/.local/sandbox/hermes"
+    echo "WorkingDirectory=${home_spec}/.local/sandbox/hermes/.hermes"
 
     # Security measures
     echo "NoNewPrivileges=yes"
@@ -76,9 +145,16 @@ get_shared_options() {
     for m in ${AGENT_EXTRA_MOUNTS:-}; do
         local abs_dir="${m%%:*}"
         local rel_dir="${m#*:}"
-        mkdir -p "$abs_dir" || true
+        # Expand %h or ~ using home_spec so it matches the mode (service vs transient)
+        local systemd_abs_dir="${abs_dir//%h/"$home_spec"}"
+        systemd_abs_dir="${systemd_abs_dir/#\~/"$home_spec"}"
+
+        # But we must run mkdir on the real host path
+        local host_abs_dir="${abs_dir//%h/"$HOME"}"
+        host_abs_dir="${host_abs_dir/#\~/"$HOME"}"
+        mkdir -p "$host_abs_dir" || true
         mkdir -p "$HOME/$rel_dir"
-        echo "BindPaths=${abs_dir}:${home_spec}/${rel_dir}"
+        echo "BindPaths=${systemd_abs_dir}:${home_spec}/${rel_dir}"
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
@@ -105,7 +181,7 @@ get_shared_options() {
 
 write_service_file() {
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/hermes/.hermes/agents/default/workspace}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -114,7 +190,7 @@ write_service_file() {
     fi
 
     # Ensure host workspace directory exists
-    local workspace_dir="${AGENT_WORKSPACE:-$HOME/.local/sandbox/hermes/.hermes/agents/default/workspace}"
+    local workspace_dir="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
     workspace_dir="${workspace_dir//%h/$HOME}"
     mkdir -p "$workspace_dir"
 
@@ -124,7 +200,7 @@ write_service_file() {
     tmpfiles_dir=$(dirname "$tmpfiles_config")
     mkdir -p "$tmpfiles_dir"
 
-    local tmpfiles_cleanup_enabled="${AGENT_TMPFILES_CLEANUP:-false}"
+    local tmpfiles_cleanup_enabled="${AGENT_TMPFILES_CLEANUP:-$DEFAULT_AGENT_TMPFILES_CLEANUP}"
 
     if [ "$tmpfiles_cleanup_enabled" = "true" ]; then
         if [ -f "${tmpfiles_config}.disabled" ]; then
@@ -269,23 +345,22 @@ cmd_install() {
         shift
     done
 
-    echo "Setting up Hermes home directory at $HERMES_HOME..."
-    mkdir -p "$HERMES_HOME"
+    echo "Setting up Hermes sandbox directory at $HERMES_SANDBOX_HOME and home at $HERMES_HOME..."
+    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME"
 
     echo "Generating systemd user service..."
     mkdir -p "$(dirname "$SERVICE_FILE")"
 
     # Write default env file if it doesn't exist or --new-config is specified
     if [ ! -f "$ENV_FILE" ] || [ "$new_config" = "true" ]; then
-        cat >"$ENV_FILE" <<'EOF'
+        cat >"$ENV_FILE" <<EOF
 # Hermes Agent Environment Configuration
 
 # Set your API keys and other configuration here.
 
-
-# Path to the hermes home directory
-HERMES_HOME=%h/.local/sandbox/hermes
-
+# Path to the sandbox home and hermes home directories
+HERMES_SANDBOX_HOME="${DEFAULT_HERMES_SANDBOX_HOME}"
+HERMES_HOME="${DEFAULT_HERMES_HOME}"
 # Example API keys (uncomment and fill)
 # OPENROUTER_API_KEY=sk-or-v1-...
 # TELEGRAM_BOT_TOKEN=...
@@ -298,7 +373,7 @@ HERMES_HOME=%h/.local/sandbox/hermes
 # TERMINAL_ENV=local
 
 # If using Podman instead of Docker
-HERMES_DOCKER_BINARY=/usr/bin/podman
+HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
@@ -306,46 +381,120 @@ HERMES_DOCKER_BINARY=/usr/bin/podman
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
 # (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
-# AGENT_SANDBOX_MOUNTS=""
+AGENT_SANDBOX_MOUNTS="${DEFAULT_AGENT_SANDBOX_MOUNTS}"
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
-AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
+AGENT_EXTRA_MOUNTS="${DEFAULT_AGENT_EXTRA_MOUNTS//%h/$HOME}"
 
 # Agent sandbox workspace path
-AGENT_WORKSPACE="%h/.local/sandbox/hermes/.hermes/agents/default/workspace"
+AGENT_WORKSPACE="${DEFAULT_AGENT_WORKSPACE//%h/$HOME}"
 
 # Agent sidecar list
-# AGENT_SIDECARS="audionotes"
-# AGENT_SIDECAR_AUDIONOTES_CMD="$AGENT_WORKSPACE/scripts/audionotes.sh"
-# AGENT_SIDECAR_AUDIONOTES_ARGS="$AGENT_WORKSPACE/audionotes"
+AGENT_SIDECARS="${DEFAULT_AGENT_SIDECARS}"
+AGENT_SIDECAR_DASHBOARD_CMD="${DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD}"
+AGENT_SIDECAR_DASHBOARD_ARGS="${DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS}"
 
 # systemd-tmpfiles cleanup policy status
-AGENT_TMPFILES_CLEANUP=false
+AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
 
 # Local Inference Split Services Overrides
 # Default OpenAI-compatible LLM provider
-OPENAI_API_BASE="http://localhost:50080/v1"
-OPENAI_API_KEY="unused"
+OPENAI_API_BASE="${DEFAULT_OPENAI_API_BASE}"
+OPENAI_API_KEY="${DEFAULT_OPENAI_API_KEY}"
 
 # Embeddings endpoint (llama-server on port 50082)
-EMBEDDING_API_BASE="http://localhost:50082/v1"
-EMBEDDING_API_KEY="unused"
-HERMES_EMBEDDING_PROVIDER="local"
-HERMES_EMBEDDING_MODEL="text-embedding-3-small"
+EMBEDDING_API_BASE="${DEFAULT_EMBEDDING_API_BASE}"
+EMBEDDING_API_KEY="${DEFAULT_EMBEDDING_API_KEY}"
+HERMES_EMBEDDING_PROVIDER="${DEFAULT_HERMES_EMBEDDING_PROVIDER}"
+HERMES_EMBEDDING_MODEL="${DEFAULT_HERMES_EMBEDDING_MODEL}"
 
 # Reranker endpoint (llama-server on port 50086)
-HERMES_RERANK_URL="http://localhost:50086/v1/rerank"
-HERMES_RERANK_PROVIDER="local"
-HERMES_RERANK_MODEL="qwen3-reranker"
-HERMES_RERANK_TOP_K=30
+HERMES_RERANK_URL="${DEFAULT_HERMES_RERANK_URL}"
+HERMES_RERANK_PROVIDER="${DEFAULT_HERMES_RERANK_PROVIDER}"
+HERMES_RERANK_MODEL="${DEFAULT_HERMES_RERANK_MODEL}"
+HERMES_RERANK_TOP_K=${DEFAULT_HERMES_RERANK_TOP_K}
 
 # Speech-to-Text endpoint (whisper-server on port 50090)
-STT_OPENAI_BASE_URL="http://localhost:50090/v1"
-STT_OPENAI_MODEL="whisper-1"
-VOICE_TOOLS_OPENAI_KEY="dummy"
+STT_OPENAI_BASE_URL="${DEFAULT_STT_OPENAI_BASE_URL}"
+STT_OPENAI_MODEL="${DEFAULT_STT_OPENAI_MODEL}"
+VOICE_TOOLS_OPENAI_KEY="${DEFAULT_VOICE_TOOLS_OPENAI_KEY}"
+
+# Local TTS endpoint (OpenAI compatible on port 50095)
+TTS_OPENAI_BASE_URL="${DEFAULT_TTS_OPENAI_BASE_URL}"
+TTS_OPENAI_MODEL="${DEFAULT_TTS_OPENAI_MODEL}"
+
+# Local Image endpoint (OpenAI compatible on port 50100)
+IMAGE_OPENAI_BASE_URL="${DEFAULT_IMAGE_OPENAI_BASE_URL}"
+IMAGE_OPENAI_MODEL="${DEFAULT_IMAGE_OPENAI_MODEL}"
+
+# Signal Channel Configuration
+SIGNAL_ACCOUNT="${DEFAULT_SIGNAL_ACCOUNT}"
+SIGNAL_HTTP_URL="${DEFAULT_SIGNAL_HTTP_URL}"
+SIGNAL_ALLOWED_USERS="${DEFAULT_SIGNAL_ALLOWED_USERS}"
+
+# YOLO Mode
+HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
+
 EOF
         chmod 600 "$ENV_FILE"
         echo "Created default environment file at $ENV_FILE"
+    fi
+
+    local config_yaml="$HERMES_HOME/config.yaml"
+    if [ ! -f "$config_yaml" ] || [ "$new_config" = "true" ]; then
+        cat >"$config_yaml" <<'EOF'
+_config_version: 32
+agent:
+  max_turns: 150
+web:
+  backend: ddgs
+  use_gateway: false
+browser:
+  cloud_provider: local
+  use_gateway: false
+display:
+  tool_progress: all
+session_reset:
+  mode: none
+platform_toolsets:
+  cli:
+    - browser
+    - clarify
+    - code_execution
+    - computer_use
+    - context_engine
+    - cronjob
+    - delegation
+    - file
+    - homeassistant
+    - image_gen
+    - memory
+    - session_search
+    - skills
+    - terminal
+    - todo
+    - tts
+    - video
+    - vision
+    - web
+
+# ── Security ──────────────────────────────────────────────────────────
+# Secret redaction is ON by default — strings that look like API keys,
+# tokens, and passwords are masked in tool output, logs, and chat
+# responses before the model or user ever sees them. Set redact_secrets
+# to false to disable (e.g. when developing the redactor itself).
+# tirith pre-exec scanning is enabled by default when the tirith binary
+# is available. Configure via security.tirith_* keys or env vars
+# (TIRITH_ENABLED, TIRITH_BIN, TIRITH_TIMEOUT, TIRITH_FAIL_OPEN).
+#
+# security:
+#   redact_secrets: true
+#   tirith_enabled: true
+#   tirith_path: "tirith"
+#   tirith_timeout: 5
+#   tirith_fail_open: true
+EOF
+        echo "Created default config.yaml at $config_yaml"
     fi
 
     write_service_file
@@ -385,7 +534,7 @@ cmd_uninstall() {
         fi
         echo "Removed service file."
     fi
-    echo "Uninstalled successfully. Data in $HERMES_HOME and configuration in $ENV_FILE are preserved."
+    echo "Uninstalled successfully. Data in $HERMES_SANDBOX_HOME and configuration in $ENV_FILE are preserved."
 }
 
 cmd_start() {
@@ -451,8 +600,12 @@ cmd_edit() {
     mkdir -p "$(dirname "$ENV_FILE")"
     touch "$ENV_FILE"
 
+    local config_yaml="$HERMES_HOME/config.yaml"
+    mkdir -p "$(dirname "$config_yaml")"
+    touch "$config_yaml"
+
     local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/${SERVICE_NAME}.conf"
-    local edit_files=("$ENV_FILE")
+    local edit_files=("$ENV_FILE" "$config_yaml")
     if [ -f "$tmpfiles_config" ]; then
         edit_files+=("$tmpfiles_config")
     elif [ -f "${tmpfiles_config}.disabled" ]; then
@@ -461,16 +614,26 @@ cmd_edit() {
 
     ${EDITOR:-nano} "${edit_files[@]}"
     if is_systemd_running; then
-        echo "Restarting service to apply updated environment..."
-        cmd_restart
+        if systemctl --user is-active "${SERVICE_NAME}.service" &>/dev/null; then
+            echo "Restarting service to apply updated environment..."
+            cmd_restart
+        else
+            echo "Service is not active. Service restart skipped."
+        fi
     else
         echo "Systemd is not running. Service restart skipped."
     fi
 }
 
 setup_fallback_environment() {
-    # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HERMES_HOME/.hermes/agents/default/workspace}"
+    # Keep track of the original user home directory
+    local real_home="$HOME"
+
+    # Set defaults before sourcing so self-referencing variables expand correctly
+    export HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME:-$DEFAULT_HERMES_SANDBOX_HOME}"
+    export HERMES_HOME="${HERMES_HOME:-$DEFAULT_HERMES_HOME}"
+    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HERMES_SANDBOX_HOME}}"
+
     if [ -f "$ENV_FILE" ]; then
         set +u
         set -a
@@ -479,7 +642,15 @@ setup_fallback_environment() {
         set +a
         set -u
     fi
-    export HOME="$HERMES_HOME"
+
+    # Expand specifiers using the real home directory on the host
+    HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME//%h/"$real_home"}"
+    HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME/#\~/"$real_home"}"
+    HERMES_HOME="${HERMES_HOME//%h/"$real_home"}"
+    HERMES_HOME="${HERMES_HOME/#\~/"$real_home"}"
+
+    export HOME="$HERMES_SANDBOX_HOME"
+    export HERMES_SANDBOX_HOME="$HERMES_SANDBOX_HOME"
     export HERMES_HOME="$HERMES_HOME"
 
     local ws="${AGENT_WORKSPACE}"
@@ -488,7 +659,8 @@ setup_fallback_environment() {
         ws="${ws/#\~/$HOME}"
     fi
     export AGENT_WORKSPACE="$ws"
-    mkdir -p "$HERMES_HOME" "$AGENT_WORKSPACE"
+
+    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$AGENT_WORKSPACE"
     cd "$HERMES_HOME" || exit 1
 }
 
