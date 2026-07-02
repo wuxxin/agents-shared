@@ -2353,6 +2353,8 @@ def main() -> None:
                     will_execute.add((f"cpu-vulkan-{dev_id}", "tts"))
                 if not hip_devices_resolved and not vulkan_devices_resolved:
                     will_execute.add(("cpu-hip-ROCm0", "tts"))
+            elif run_cfg.endswith("-combi"):
+                pass  # Combined configs only support chat and embedding
             else:
                 will_execute.add((cache_key, "tts"))
 
@@ -2363,11 +2365,9 @@ def main() -> None:
                 continue
             if sname == "embedding" and run_cfg == "special":
                 continue
-            if sname == "rerank" and run_cfg == "special":
-                continue
-            if sname == "stt" and run_cfg == "special":
-                continue
-            if sname == "image" and run_cfg == "special":
+            if sname in ("rerank", "stt", "image") and (
+                run_cfg == "special" or run_cfg.endswith("-combi")
+            ):
                 continue
             will_execute.add((cache_key, sname))
 
@@ -2388,6 +2388,8 @@ def main() -> None:
         if cfg == "pkg_versions":
             continue
         for sname in old_data[cfg]:
+            if "-combi" in cfg and sname not in ("chat", "embedding"):
+                continue
             if (cfg, sname) not in will_execute:
                 if cfg not in benchmark_data:
                     benchmark_data[cfg] = {}
@@ -3369,6 +3371,8 @@ def main() -> None:
             srv = SERVICES["rerank"]
             if run_cfg == "special":
                 print("Skipping Reranker for Special configuration.")
+            elif run_cfg.endswith("-combi"):
+                print("Skipping separate Reranker for Combined config.")
             else:
                 if run_cfg != "running":
                     print(f"Preparing environment file: {srv['env_file']}")
@@ -3676,6 +3680,8 @@ def main() -> None:
             srv = SERVICES["stt"]
             if run_cfg == "special":
                 print("Skipping STT for Special configuration.")
+            elif run_cfg.endswith("-combi"):
+                print("Skipping STT for Combined config.")
             else:
                 if run_cfg != "running":
                     print(f"Preparing environment file: {srv['env_file']}")
@@ -3989,7 +3995,10 @@ def main() -> None:
             srv = SERVICES["tts"]
 
             # Determine which TTS modes to test for this configuration
-            if run_cfg == "special":
+            if run_cfg.endswith("-combi"):
+                print("Skipping TTS for Combined config.")
+                tts_modes_to_test: List[Tuple[str, str, str]] = []
+            elif run_cfg == "special":
                 # combination of all enabled GPU devices with CPU
                 tts_modes_to_test = []
                 for dev_id in hip_devices_resolved:
@@ -4342,6 +4351,8 @@ def main() -> None:
             srv = SERVICES["image"]
             if run_cfg == "special":
                 print("Skipping Image for Special configuration.")
+            elif run_cfg.endswith("-combi"):
+                print("Skipping Image for Combined config.")
             else:
                 if run_cfg != "running":
                     print(f"Preparing environment file: {srv['env_file']}")
