@@ -586,6 +586,7 @@ usage() {
     echo "  run       - Run a command inside the llama-server environment"
     echo "  shell     - Spawn an interactive shell in the llama-server environment"
     echo "  test [--benchmark] [--repeat XX] - Run validation tests or embedding benchmark"
+    echo "Note: Text embeddings can also be served combined inside the local-chat service."
 }
 
 # Main

@@ -3,10 +3,7 @@
 #
 # Usage: local-chat.sh <command> [args...]
 #
-# Manages a systemd user service (local-chat.service) that runs llama-server
-# serving the Chat/Vision LLM.
-#
-#
+# Manages a systemd user service (local-chat.service) that runs llama-server serving the Chat/Vision LLM and optional Embedding.
 
 set -euo pipefail
 
@@ -16,33 +13,89 @@ SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-chat"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
+PRESET_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
 
 # Load environment
 
 load_env() {
-    # Default parameters
+    # Capture environment overrides passed by caller
+    local env_lchat_port="${LCHAT_PORT:-}"
+    local env_lchat_host="${LCHAT_HOST:-}"
+    local env_lchat_device="${LCHAT_DEVICE:-}"
+    local env_lchat_threads="${LCHAT_THREADS:-}"
+    local env_lchat_n_gpu_layers="${LCHAT_N_GPU_LAYERS:-}"
+    local env_lchat_embedding_enabled="${LCHAT_EMBEDDING_ENABLED:-}"
+    local env_lmbd_enabled="${LMBD_ENABLED:-}"
+
+    # Default parameters for server/chat section
     LCHAT_PORT=50080
     LCHAT_HOST=127.0.0.1
+    LCHAT_DEVICE=""
+    LCHAT_THREADS=4
+    LCHAT_N_GPU_LAYERS=999
+    LCHAT_EXTRA_ARGS=""
+
     LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
     LCHAT_ALIAS=qwen3
-    LCHAT_N_CTX=240384
+    LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=3
-    LCHAT_N_GPU_LAYERS=999
-    LCHAT_THREADS=4
-    LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
-    LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-    LCHAT_SPECULATIVE_ARGS="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
+    LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+    LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
-    LCHAT_EXTRA_ARGS=""
-    LCHAT_DEVICE=""
 
-    # Source the env file to get model paths and settings if it exists
+    # Default parameters for embedding section
+    LMBD_ENABLED=true
+    LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    LMBD_ALIAS=qwen3-embedding
+    LMBD_CTX_SIZE=8192
+    LMBD_PARALLEL=2
+    LMBD_N_GPU_LAYERS=""
+    LMBD_THREADS=""
+    LMBD_UBATCH_SIZE=512
+    LMBD_CACHE_TYPE_K=q8_0
+    LMBD_CACHE_TYPE_V=q8_0
+    # shellcheck disable=SC2034
+    LMBD_EXTRA_ARGS="--flash-attn on"
+
+    # Embedding port mirror
+    LMBD_MIRROR_PORT=50082
+
+    # Sidecar configuration
+    LOCAL_SIDECARS="portmirror"
+
+    # Source the env file if it exists
     if [[ -f "$ENV_FILE" ]]; then
         set +u
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+    fi
+
+    # Resolve overrides
+    LCHAT_PORT="${env_lchat_port:-${LCHAT_PORT}}"
+    LCHAT_HOST="${env_lchat_host:-${LCHAT_HOST}}"
+    LCHAT_DEVICE="${env_lchat_device:-${LCHAT_DEVICE}}"
+    LCHAT_THREADS="${env_lchat_threads:-${LCHAT_THREADS}}"
+    LCHAT_N_GPU_LAYERS="${env_lchat_n_gpu_layers:-${LCHAT_N_GPU_LAYERS}}"
+
+    # Resolve embedding activation override
+    if [[ -n "$env_lchat_embedding_enabled" ]]; then
+        LMBD_ENABLED="$env_lchat_embedding_enabled"
+    elif [[ -n "$env_lmbd_enabled" ]]; then
+        LMBD_ENABLED="$env_lmbd_enabled"
+    fi
+
+    if [[ "${LMBD_ENABLED}" =~ ^(false|0|no|FALSE|NO)$ ]]; then
+        LMBD_ENABLED=false
+    else
+        LMBD_ENABLED=true
+    fi
+
+    # Compute default portmirror sidecar CMD if not explicitly set by user
+    if [[ -z "${LOCAL_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
+        LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -56,6 +109,46 @@ load_env() {
     local var
     for var in $(compgen -v | grep ^GGML_); do
         export "${var?}"
+    done
+}
+
+# Sanitize a sidecar name to a valid shell variable suffix (uppercase, special chars → _)
+sanitize_var_name() {
+    local result
+    result=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -c '[:alnum:]' '_')
+    echo "$result"
+}
+
+# Sidecar infrastructure
+
+FALLBACK_SIDECAR_PIDS=()
+FALLBACK_SIDECAR_NAMES=()
+
+spawn_fallback_sidecars() {
+    local sidecars_val="${LOCAL_SIDECARS:-}"
+    sidecars_val="${sidecars_val//;/ }"
+    sidecars_val="${sidecars_val//$'\n'/ }"
+
+    for sidecar in ${sidecars_val}; do
+        local var_name
+        var_name=$(sanitize_var_name "$sidecar")
+        local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+        local cmd_val="${!cmd_var:-}"
+        if [ -z "$cmd_val" ]; then
+            echo "Warning: Sidecar '$sidecar' has no LOCAL_SIDECAR_${var_name}_CMD defined. Skipping." >&2
+            continue
+        fi
+
+        local args_var="LOCAL_SIDECAR_${var_name}_ARGS"
+        local args_val="${!args_var:-}"
+
+        echo "Starting sidecar: $sidecar"
+        (
+            # Execute with current environment (LMBD_ENABLED etc. are exported)
+            eval "exec $cmd_val $args_val"
+        ) &
+        FALLBACK_SIDECAR_PIDS+=($!)
+        FALLBACK_SIDECAR_NAMES+=("$sidecar")
     done
 }
 
@@ -159,41 +252,19 @@ get_shared_options() {
 get_llama_args() {
     local -n out_args=$1
     out_args=(
-        --model "${LCHAT_MODEL}"
-        --alias "${LCHAT_ALIAS}"
-        --ctx-size "${LCHAT_N_CTX}"
-        --parallel "${LCHAT_PARALLEL}"
-        --threads "${LCHAT_THREADS}"
-        --n-gpu-layers "${LCHAT_N_GPU_LAYERS}"
-        --cache-type-k "${LCHAT_CACHE_TYPE_K}"
-        --cache-type-v "${LCHAT_CACHE_TYPE_V}"
-        --flash-attn on
-        --batch-size 2048
-        --ubatch-size 1024
         --host "${LCHAT_HOST}"
         --port "${LCHAT_PORT}"
+        --models-preset "${PRESET_FILE}"
     )
-
-    if [[ -n "${LCHAT_MMPROJ_ARGS:-}" ]]; then
-        local mmproj_arr=()
-        eval "mmproj_arr=(${LCHAT_MMPROJ_ARGS})"
-        out_args+=("${mmproj_arr[@]}")
-    fi
-
-    if [[ -n "${LCHAT_CHAT_TEMPLATE_ARGS:-}" ]]; then
-        local chat_template_arr=()
-        eval "chat_template_arr=(${LCHAT_CHAT_TEMPLATE_ARGS})"
-        out_args+=("${chat_template_arr[@]}")
-    fi
-
-    if [[ -n "${LCHAT_SPECULATIVE_ARGS:-}" ]]; then
-        local speculative_arr=()
-        eval "speculative_arr=(${LCHAT_SPECULATIVE_ARGS})"
-        out_args+=("${speculative_arr[@]}")
-    fi
 
     if [[ -n "${LCHAT_DEVICE:-}" ]]; then
         out_args+=(--device "${LCHAT_DEVICE}")
+    fi
+
+    if [[ -n "${LCHAT_SPECULATIVE:-}" ]]; then
+        local speculative_arr=()
+        eval "speculative_arr=(${LCHAT_SPECULATIVE})"
+        out_args+=("${speculative_arr[@]}")
     fi
 
     if [[ -n "${LCHAT_EXTRA_ARGS:-}" ]]; then
@@ -203,28 +274,158 @@ get_llama_args() {
     fi
 }
 
-# Helper to format array of arguments for systemd ExecStart
-format_exec_start() {
-    local binary="$1"
-    shift
-    local cmd="$binary"
-    for arg in "$@"; do
-        local escaped="${arg//\\/\\\\}"
-        escaped="${escaped//\"/\\\"}"
-        if [[ "$escaped" =~ [[:space:]] ]]; then
-            escaped="\"${escaped}\""
+generate_preset_file() {
+    local alias="${LCHAT_ALIAS:-qwen3}"
+    local m_ngl="${LCHAT_N_GPU_LAYERS:-999}"
+    local m_threads="${LCHAT_THREADS:-4}"
+
+    mkdir -p "$(dirname "${PRESET_FILE}")"
+
+    cat <<EOF
+[*]
+ngl = ${m_ngl}
+threads = ${m_threads}
+flash-attn = on
+
+[${alias}]
+model = ${LCHAT_MODEL}
+ctx-size = ${LCHAT_CTX_SIZE}
+parallel = ${LCHAT_PARALLEL}
+EOF
+
+    if [[ -n "${LCHAT_CACHE_TYPE_K:-}" ]]; then
+        echo "cache-type-k = ${LCHAT_CACHE_TYPE_K}"
+    fi
+    if [[ -n "${LCHAT_CACHE_TYPE_V:-}" ]]; then
+        echo "cache-type-v = ${LCHAT_CACHE_TYPE_V}"
+    fi
+    if [[ -n "${LCHAT_MMPROJ:-}" ]]; then
+        echo "mmproj = ${LCHAT_MMPROJ}"
+    fi
+    if [[ -n "${LCHAT_CHAT_TEMPLATE_FILE:-}" ]]; then
+        echo "chat-template-file = ${LCHAT_CHAT_TEMPLATE_FILE}"
+    fi
+
+    if [ "${LMBD_ENABLED}" = "true" ]; then
+        local e_alias="${LMBD_ALIAS:-qwen3-embedding}"
+        local e_ngl="${LMBD_N_GPU_LAYERS:-${m_ngl}}"
+        local e_threads="${LMBD_THREADS:-${m_threads}}"
+        cat <<EOF
+
+[${e_alias}]
+model = ${LMBD_MODEL}
+embedding = true
+pooling = mean
+ctx-size = ${LMBD_CTX_SIZE}
+parallel = ${LMBD_PARALLEL}
+ngl = ${e_ngl}
+threads = ${e_threads}
+ubatch-size = ${LMBD_UBATCH_SIZE}
+EOF
+        if [[ -n "${LMBD_CACHE_TYPE_K:-}" ]]; then
+            echo "cache-type-k = ${LMBD_CACHE_TYPE_K}"
         fi
-        cmd="${cmd} \\\\\n    ${escaped}"
+        if [[ -n "${LMBD_CACHE_TYPE_V:-}" ]]; then
+            echo "cache-type-v = ${LMBD_CACHE_TYPE_V}"
+        fi
+    fi
+}
+
+generate_launcher_script() {
+    local args
+    get_llama_args args
+
+    local sidecars_val="${LOCAL_SIDECARS:-}"
+    sidecars_val="${sidecars_val//;/ }"
+    sidecars_val="${sidecars_val//$'\n'/ }"
+
+    local has_sidecars=false
+    for sidecar in ${sidecars_val}; do
+        local var_name
+        var_name=$(sanitize_var_name "$sidecar")
+        local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+        if [ -n "${!cmd_var:-}" ]; then
+            has_sidecars=true
+            break
+        fi
     done
-    echo -e "$cmd"
+
+    cat <<'HEADER'
+#!/usr/bin/env bash
+set -euo pipefail
+HEADER
+
+    if [ "$has_sidecars" = "true" ]; then
+        # Generate launcher that starts main process, then sidecars, then wait -n
+        echo ""
+        echo "# Start llama-server in background"
+        printf '%s' "${LLAMA_SERVER_BIN:-llama-server}"
+        for arg in "${args[@]}"; do
+            printf ' %q' "$arg"
+        done
+        echo ' &'
+        echo 'MAIN_PID=$!'
+        echo 'sleep 2'
+        echo 'if ! kill -0 "$MAIN_PID" 2>/dev/null; then'
+        echo '    echo "Main llama-server process (PID $MAIN_PID) failed to start." >&2'
+        echo '    exit 1'
+        echo 'fi'
+        echo ""
+        echo "# Start sidecars"
+        local idx=0
+        for sidecar in ${sidecars_val}; do
+            local var_name
+            var_name=$(sanitize_var_name "$sidecar")
+            local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+            local cmd_val="${!cmd_var:-}"
+            if [ -z "$cmd_val" ]; then
+                continue
+            fi
+
+            local args_var="LOCAL_SIDECAR_${var_name}_ARGS"
+            local args_val="${!args_var:-}"
+
+            echo "echo \"Starting sidecar: $sidecar\""
+            echo "$cmd_val $args_val &"
+            echo "SIDECAR_PID_${idx}=\$!"
+            idx=$((idx + 1))
+        done
+        echo ""
+        echo "# Wait for any process to exit"
+        echo 'wait -n'
+        echo ""
+        echo "# Report which process died"
+        echo 'if ! kill -0 "$MAIN_PID" 2>/dev/null; then'
+        echo '    echo "Main llama-server process (PID $MAIN_PID) terminated."'
+        echo 'fi'
+        idx=0
+        for sidecar in ${sidecars_val}; do
+            local var_name
+            var_name=$(sanitize_var_name "$sidecar")
+            local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+            if [ -z "${!cmd_var:-}" ]; then
+                continue
+            fi
+            echo "if ! kill -0 \"\$SIDECAR_PID_${idx}\" 2>/dev/null; then"
+            echo "    echo \"Sidecar $sidecar (PID \$SIDECAR_PID_${idx}) terminated.\""
+            echo "fi"
+            idx=$((idx + 1))
+        done
+        echo 'exit 1'
+    else
+        # No sidecars, just exec llama-server directly
+        printf 'exec %s' "${LLAMA_SERVER_BIN:-llama-server}"
+        for arg in "${args[@]}"; do
+            printf ' %q' "$arg"
+        done
+        echo ""
+    fi
 }
 
 generate_service_file() {
     load_env
-    local args
-    get_llama_args args
-    local exec_cmd
-    exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
+    local PRESET_FILE="%h/.config/systemd/user/local-chat-preset.ini"
+    local launcher_path="%h/.config/systemd/user/local-chat-launcher.sh"
 
     cat <<EOF
 [Unit]
@@ -235,7 +436,7 @@ After=network.target
 [Service]
 Type=simple
 $(get_shared_options service)
-ExecStart=${exec_cmd}
+ExecStart=/bin/bash ${launcher_path}
 
 Restart=on-failure
 RestartSec=10s
@@ -254,49 +455,20 @@ EOF
 generate_env_file() {
     cat <<'EOF'
 # local-chat.env
-
-# Configuration for the local-chat.service llama-server instance.
+# Configuration file for local-chat.service.
 #
-# Edit this file to switch models or tune runtime parameters.
+# Combined Chat and Embedding settings. Sourced by local-chat.sh.
 # Reload with:  local-chat.sh restart
 
+# ==============================================================================
+# SERVER SETTINGS
+# ==============================================================================
 
 # Port to bind the server to (default: 50080)
 LCHAT_PORT=50080
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LCHAT_HOST=127.0.0.1
-
-
-# CHAT/VISION MODEL SETTINGS
-
-# Path to the chat model file
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
-
-# Model alias used by client integrations (default: qwen3)
-LCHAT_ALIAS=qwen3
-
-# Context size (default: 240384)
-LCHAT_N_CTX=240384
-
-# Parallel request slots (default: 3)
-LCHAT_PARALLEL=3
-
-# Multimodal projector arguments (optional)
-LCHAT_MMPROJ_ARGS="--mmproj /data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"
-
-# Chat template file (optional)
-LCHAT_CHAT_TEMPLATE_ARGS="--chat-template-file /data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"
-
-# Speculative Decoding config (default: "--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4")
-LCHAT_SPECULATIVE_ARGS="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
-
-# RUNTIME SETTINGS
-
-# Number of layers to offload to GPU (all=999)
-LCHAT_N_GPU_LAYERS=999
-# To run inference on CPU instead of GPU (none=0)
-# LCHAT_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
@@ -305,13 +477,101 @@ LCHAT_N_GPU_LAYERS=999
 # LCHAT_DEVICE="Vulkan0"
 # LCHAT_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
 # LCHAT_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
+LCHAT_DEVICE=""
 
-# Number of threads to use (default: 4)
-# Warning: on a 8 core 16 threads system more than 4 slowed inference down by 40%
+# Number of CPU threads to use (default: 4)
 LCHAT_THREADS=4
+
+# Number of layers to offload to GPU (all=999, none=0)
+LCHAT_N_GPU_LAYERS=999
 
 # Extra arguments to pass to llama-server (default: "")
 LCHAT_EXTRA_ARGS=""
+
+# ==============================================================================
+# CHAT / VISION MODEL SETTINGS
+# ==============================================================================
+
+# Path to the chat model file
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+
+# Model alias used by client integrations (default: qwen3)
+LCHAT_ALIAS=qwen3
+
+# Context size (default: 240384)
+LCHAT_CTX_SIZE=240384
+
+# Parallel request slots (default: 3)
+LCHAT_PARALLEL=3
+
+# Multimodal projector arguments (optional)
+LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
+
+# Chat template file (optional)
+LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+
+# Speculative Decoding config (default: "--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4")
+LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+
+# KV cache type (default: q4_0)
+LCHAT_CACHE_TYPE_K=q4_0
+LCHAT_CACHE_TYPE_V=q4_0
+
+# ==============================================================================
+# TEXT EMBEDDING MODEL SETTINGS
+# ==============================================================================
+
+# Whether to enable the text embedding model in this server instance (default: true)
+LMBD_ENABLED=true
+
+# Path to the text embedding model file
+LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+
+# Model alias used by client integrations (default: qwen3-embedding)
+LMBD_ALIAS=qwen3-embedding
+
+# Context size (default: 8192)
+LMBD_CTX_SIZE=8192
+
+# Parallel request slots (default: 2)
+LMBD_PARALLEL=2
+
+# micro-batch size (default: 512)
+LMBD_UBATCH_SIZE=512
+
+# KV cache type (default: q8_0)
+LMBD_CACHE_TYPE_K=q8_0
+LMBD_CACHE_TYPE_V=q8_0
+
+# Extra arguments for embedding (optional)
+LMBD_EXTRA_ARGS="--flash-attn on"
+
+# ==============================================================================
+# EMBEDDING PORT MIRROR
+# ==============================================================================
+
+# Port to mirror embedding API on (default: 50082, matching standalone local-embedding)
+# When LMBD_ENABLED=true, the portmirror sidecar forwards this port → LCHAT_PORT
+# When LMBD_ENABLED=false, the portmirror sidecar sleeps (port unused)
+LMBD_MIRROR_PORT=50082
+
+# ==============================================================================
+# SIDECARS CONFIGURATION
+# ==============================================================================
+
+# Space or semicolon separated list of sidecar names (default: "portmirror")
+# Each sidecar runs as a background process alongside llama-server.
+LOCAL_SIDECARS="portmirror"
+
+# --- Port Mirror Sidecar (default built-in)
+# Checks LMBD_ENABLED at runtime: socat port mirror when true, sleep when false.
+# To disable the portmirror, remove "portmirror" from LOCAL_SIDECARS.
+LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
+
+# Custom sidecar example:
+# LOCAL_SIDECARS="portmirror mycustom"
+# LOCAL_SIDECAR_MYCUSTOM_CMD="/path/to/command"
+# LOCAL_SIDECAR_MYCUSTOM_ARGS="--flag value"
 
 EOF
 }
@@ -319,6 +579,15 @@ EOF
 # Write service file
 
 write_service_file() {
+    load_env
+    # Generate the actual model preset file on disk
+    generate_preset_file >"${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+    chmod 600 "${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+
+    # Generate the launcher script (handles sidecars)
+    generate_launcher_script >"${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
+    chmod 755 "${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
+
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
     run_systemctl daemon-reload
@@ -342,19 +611,19 @@ cmd_install() {
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
 
-    # Write env file only if it doesn't exist (preserve user edits)
+    # Write env config file only if it doesn't exist (preserve user edits)
     if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
         echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
         echo "Remove it manually or use --new-config if you want to regenerate the defaults."
     else
-        echo "Writing default env file: ${ENV_FILE}"
+        echo "Writing default env config file: ${ENV_FILE}"
         generate_env_file >"${ENV_FILE}"
         chmod 600 "${ENV_FILE}"
         echo "Env file written."
     fi
 
-    # Write service file
-    echo "Writing service file: ${SERVICE_FILE}"
+    # Write service file and preset
+    echo "Writing service file and preset: ${SERVICE_FILE}"
     write_service_file
     echo "Service file written."
 
@@ -372,8 +641,10 @@ cmd_install() {
 
     echo "Installation complete."
     echo ""
-    echo "  Service: ${SERVICE_FILE}"
-    echo "  Env:     ${ENV_FILE}"
+    echo "  Service:  ${SERVICE_FILE}"
+    echo "  Env:      ${ENV_FILE}"
+    echo "  Preset:   ${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+    echo "  Launcher: ${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
     echo ""
     echo "  Edit the env file to select model/mmproj/template, then:"
     echo "    $0 restart"
@@ -389,8 +660,10 @@ cmd_uninstall() {
 
     if [[ -f "${SERVICE_FILE}" ]]; then
         rm -f "${SERVICE_FILE}"
+        rm -f "${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+        rm -f "${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
         run_systemctl daemon-reload
-        echo "Removed service file."
+        echo "Removed service file, preset, and launcher."
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
@@ -428,7 +701,7 @@ cmd_edit() {
     mkdir -p "$(dirname "${ENV_FILE}")"
     touch "${ENV_FILE}"
     ${EDITOR:-nano} "${ENV_FILE}"
-    echo "Restarting service to apply updated environment..."
+    echo "Restarting service to apply updated configuration..."
     cmd_restart
 }
 
@@ -436,16 +709,43 @@ cmd_exec() {
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
 
+    # Generate the actual model preset file on disk before executing
+    generate_preset_file >"${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+    chmod 600 "${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+
     local args
     get_llama_args args
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
+        # Export env vars so sidecars see them
+        export LMBD_ENABLED LMBD_MIRROR_PORT LCHAT_HOST LCHAT_PORT
         if [ $# -gt 0 ]; then
-            exec "${LLAMA_SERVER_BIN:-llama-server}" "$@"
+            "${LLAMA_SERVER_BIN:-llama-server}" "$@" &
         else
-            exec "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
+            "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}" &
         fi
+        local main_pid=$!
+        sleep 2
+        if ! kill -0 "$main_pid" 2>/dev/null; then
+            echo "Main llama-server process (PID $main_pid) failed to start." >&2
+            exit 1
+        fi
+        spawn_fallback_sidecars
+        wait -n
+
+        # Identify which process died
+        if ! kill -0 "$main_pid" 2>/dev/null; then
+            echo "Main llama-server process (PID $main_pid) terminated."
+        fi
+        for i in "${!FALLBACK_SIDECAR_PIDS[@]}"; do
+            local pid="${FALLBACK_SIDECAR_PIDS[$i]}"
+            local name="${FALLBACK_SIDECAR_NAMES[$i]}"
+            if ! kill -0 "$pid" 2>/dev/null; then
+                echo "Sidecar $name (PID $pid) terminated."
+            fi
+        done
+        exit 1
     fi
 
     echo "Starting llama-server as a transient systemd service with args: $*"
@@ -539,8 +839,9 @@ cmd_test() {
     local benchmark=false
     local skip_prefill=false
     local skip_distractor=false
-    local skip_chat=false
+    local skip_all_chat=false
     local skip_image=false
+    local skip_embedding=false
     local repeat=""
     local extra_args=()
     while [ $# -gt 0 ]; do
@@ -548,8 +849,9 @@ cmd_test() {
         --benchmark) benchmark=true ;;
         --skip-prefill) skip_prefill=true ;;
         --skip-distractor) skip_distractor=true ;;
-        --skip-chat) skip_chat=true ;;
+        --skip-chat | --skip-all-chat) skip_all_chat=true ;;
         --skip-image) skip_image=true ;;
+        --skip-embedding) skip_embedding=true ;;
         --repeat)
             shift
             repeat="$1"
@@ -580,70 +882,103 @@ cmd_test() {
             repeat_arg=(--repeat "$repeat")
         fi
 
-        # Run chat benchmark
-        local skip_prefill_arg=()
-        if [ "$skip_prefill" = "true" ]; then
-            skip_prefill_arg=(--skip-prefill)
-        fi
-        local skip_distractor_arg=()
-        if [ "$skip_distractor" = "true" ]; then
-            skip_distractor_arg=(--skip-distractor)
-        fi
-        local skip_chat_arg=()
-        if [ "$skip_chat" = "true" ]; then
-            skip_chat_arg=(--skip-chat)
-        fi
-        local skip_image_arg=()
-        if [ "$skip_image" = "true" ]; then
-            skip_image_arg=(--skip-image)
-        fi
-        local image_file_arg=()
-        local image_file_path
-        image_file_path="$(dirname "$LCHAT_MODEL")/test_image.jpg"
-        if [ -f "$image_file_path" ]; then
-            image_file_arg=(--image-file "$image_file_path")
+        # 1. Run chat benchmark if not skipped
+        if [ "$skip_all_chat" = "false" ]; then
+            local skip_prefill_arg=()
+            if [ "$skip_prefill" = "true" ]; then
+                skip_prefill_arg=(--skip-prefill)
+            fi
+            local skip_distractor_arg=()
+            if [ "$skip_distractor" = "true" ]; then
+                skip_distractor_arg=(--skip-distractor)
+            fi
+            local skip_image_arg=()
+            if [ "$skip_image" = "true" ]; then
+                skip_image_arg=(--skip-image)
+            fi
+            local image_file_arg=()
+            local image_file_path
+            image_file_path="$(dirname "$LCHAT_MODEL")/test_image.jpg"
+            if [ -f "$image_file_path" ]; then
+                image_file_arg=(--image-file "$image_file_path")
+            fi
+
+            echo "=== Running Chat Benchmark ==="
+            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+                --mode chat \
+                --url "${base_url}" \
+                --model "${alias}" \
+                --context "${context_file}" \
+                "${repeat_arg[@]}" \
+                "${skip_prefill_arg[@]}" \
+                "${skip_distractor_arg[@]}" \
+                "${skip_image_arg[@]}" \
+                "${image_file_arg[@]}" \
+                "${extra_args[@]}"
         fi
 
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-            --mode chat \
-            --url "${base_url}" \
-            --model "${alias}" \
-            --context "${context_file}" \
-            "${repeat_arg[@]}" \
-            "${skip_prefill_arg[@]}" \
-            "${skip_distractor_arg[@]}" \
-            "${skip_chat_arg[@]}" \
-            "${skip_image_arg[@]}" \
-            "${image_file_arg[@]}" \
-            "${extra_args[@]}"
+        # 2. Run embedding benchmark if enabled and not skipped
+        if [ "${LMBD_ENABLED}" = "true" ] && [ "$skip_embedding" = "false" ]; then
+            local e_alias="${LMBD_ALIAS:-qwen3-embedding}"
+            echo "=== Running Embedding Benchmark ==="
+            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+                --mode embedding \
+                --url "${base_url}" \
+                --model "${e_alias}" \
+                --context "${context_file}" \
+                "${repeat_arg[@]}" \
+                "${extra_args[@]}"
+        fi
         return 0
     fi
 
-    echo "=== Testing Chat Completion ==="
-    local chat_resp
-    chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
-        -H "Content-Type: application/json" \
-        -d "{
-          \"model\": \"${alias}\",
-          \"messages\": [
-            {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
-          ]
-        }")
+    # Sequential validation test
+    if [ "$skip_all_chat" = "false" ]; then
+        echo "=== Testing Chat Completion ==="
+        local chat_resp
+        chat_resp=$(curl -s -f -X POST "${base_url}/v1/chat/completions" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"${alias}\",
+              \"messages\": [
+                {\"role\": \"user\", \"content\": \"Hello, respond with exactly: Hello World!\"}
+              ]
+            }")
 
-    echo "${chat_resp}"
-    if ! echo "${chat_resp}" | grep -q "choices"; then
-        echo "Error: Chat completion test failed." >&2
-        return 1
+        echo "${chat_resp}"
+        if ! echo "${chat_resp}" | grep -q "choices"; then
+            echo "Error: Chat completion test failed." >&2
+            return 1
+        fi
+        echo "Chat completion: Success."
     fi
-    echo "Chat completion: Success."
+
+    if [ "${LMBD_ENABLED}" = "true" ] && [ "$skip_embedding" = "false" ]; then
+        local e_alias="${LMBD_ALIAS:-qwen3-embedding}"
+        echo "=== Testing Text Embeddings ==="
+        local embed_resp
+        embed_resp=$(curl -s -f -X POST "${base_url}/v1/embeddings" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"${e_alias}\",
+              \"input\": \"Hello World\"
+            }")
+
+        echo "${embed_resp}"
+        if ! echo "${embed_resp}" | grep -q "embedding"; then
+            echo "Error: Text embedding test failed." >&2
+            return 1
+        fi
+        echo "Text embedding: Success."
+    fi
 }
 
 usage() {
     cat <<EOF
 Usage: $0 <command> [args...]
 Commands:
-  install [--no-start] [--new-config] - Setup service and default environment (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)
-  uninstall - Stop and remove systemd service
+  install [--no-start] [--new-config] - Setup service and default configuration (do not start service if --no-start is specified, overwrite configs with defaults if --new-config is specified)
+  uninstall - Stop and remove systemd service and preset
   start     - Start the systemd service
   stop      - Stop the systemd service
   restart   - Restart the systemd service
@@ -651,12 +986,12 @@ Commands:
   enable    - Enable systemd service on boot
   disable   - Disable systemd service on boot
   logs      - Tail the systemd service logs
-  edit      - Edit the .env file and restart the service upon exit
+  edit      - Edit the .env config file and restart the service upon exit
   exec      - Run llama-server as a transient systemd user service
   run       - Run a command inside the llama-server environment
   shell     - Spawn an interactive shell in the llama-server environment
-  test [--benchmark [--skip-prefill] [--skip-chat] [--skip-distractor] [--skip-image] [--repeat XX] ]
-    - Run validation tests or chat benchmark
+  test [--benchmark [--skip-prefill] [--skip-all-chat] [--skip-distractor] [--skip-image] [--skip-embedding] [--repeat XX] ]
+    - Run validation tests or benchmarks
 EOF
 }
 

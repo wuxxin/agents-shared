@@ -2,6 +2,8 @@
 
 `local-embedding.sh` manages the local `llama-server` systemd user service (`local-embedding.service`), serving the Text Embedding model (`Qwen3-Embedding-0.6B-Q8_0.gguf`). It operates with pooling mode set to `mean` to generate text embeddings for search, retrieval-augmented generation (RAG), and agentic document indexing.
 
+Note: Text embeddings can also be served combined inside the [local-chat.md](local-chat.md) service on port 50080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 50082 should be disabled.
+
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
 

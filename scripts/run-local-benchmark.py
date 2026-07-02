@@ -200,6 +200,7 @@ def read_env_file(env_file_path: str) -> Dict[str, Any]:
     env_vars: Dict[str, Any] = {}
     if not os.path.exists(env_file_path):
         return env_vars
+
     with open(env_file_path, "r", encoding="utf-8") as f:
         for line in f:
             stripped = line.strip()
@@ -346,6 +347,8 @@ def get_process_rss_mem_mb(pattern: str) -> float:
 
 def get_mock_gpu_mem(mode: str, config: str) -> float:
     """Get realistic mock GPU memory values for validation runs."""
+    if config.endswith("-combi"):
+        config = config[:-6]
     if config.startswith("cpu"):
         return 0.0
 
@@ -375,6 +378,8 @@ def get_mock_gpu_mem(mode: str, config: str) -> float:
 
 def get_mock_cpu_mem(mode: str, config: str) -> float:
     """Get realistic mock CPU memory values for validation runs."""
+    if config.endswith("-combi"):
+        config = config[:-6]
     lookup_cfg = config
     if config.startswith("cpu-hip") or config.startswith("cpu-vulkan"):
         lookup_cfg = "special-hybrid"
@@ -1170,13 +1175,21 @@ def parse_chat_output(output: str) -> Dict[str, float]:
 
 
 def extract_json_block(output: str) -> Optional[Dict[str, Any]]:
-    """Find and load the first JSON block (surrounded by curly braces) in output."""
-    match = re.search(r"(\{.*\})", output, re.DOTALL)
-    if match:
+    """Find and load the valid JSON block ending at the last curly brace in output."""
+    last_brace = output.rfind("}")
+    if last_brace == -1:
+        return None
+
+    idx = output.find("{")
+    while idx != -1:
+        if idx >= last_brace:
+            break
+        sub = output[idx : last_brace + 1]
         try:
-            return json.loads(match.group(1))
+            return json.loads(sub)
         except Exception:
             pass
+        idx = output.find("{", idx + 1)
     return None
 
 
@@ -1324,6 +1337,8 @@ def check_text_match(actual: str, expected: str, min_words_match: int = 20) -> b
 
 def get_mock_output(mode: str, config: str) -> str:
     """Generate typical stdout data for validation testing in sandbox environments."""
+    if config.endswith("-combi"):
+        config = config[:-6]
     factors = {
         "hip": 1.0,
         "vulkan": 1.15,
@@ -1574,21 +1589,25 @@ def generate_report(
 
     def sort_config_keys(cfg: str) -> Tuple[int, str]:
         cfg_lower = cfg.lower()
-        if cfg_lower.startswith("hip"):
-            return (0, cfg_lower)
-        elif cfg_lower.startswith("vulkan"):
-            return (1, cfg_lower)
-        elif cfg_lower == "cpu":
-            return (2, "cpu-0-none")
-        elif cfg_lower == "cpu-blas":
-            return (2, "cpu-1-blas")
-        elif cfg_lower.startswith("cpu-hip"):
-            return (3, cfg_lower)
-        elif cfg_lower.startswith("cpu-vulkan"):
-            return (4, cfg_lower)
-        elif cfg_lower.startswith("special"):
-            return (5, cfg_lower)
-        return (6, cfg_lower)
+        is_combi = cfg_lower.endswith("-combi")
+        base_cfg = cfg_lower[:-6] if is_combi else cfg_lower
+        suffix = "-combi" if is_combi else ""
+
+        if base_cfg.startswith("hip"):
+            return (0, base_cfg + suffix)
+        elif base_cfg.startswith("vulkan"):
+            return (1, base_cfg + suffix)
+        elif base_cfg == "cpu":
+            return (2, "cpu-0-none" + suffix)
+        elif base_cfg == "cpu-blas":
+            return (2, "cpu-1-blas" + suffix)
+        elif base_cfg.startswith("cpu-hip"):
+            return (3, base_cfg + suffix)
+        elif base_cfg.startswith("cpu-vulkan"):
+            return (4, base_cfg + suffix)
+        elif base_cfg.startswith("special"):
+            return (5, base_cfg + suffix)
+        return (6, base_cfg + suffix)
 
     import datetime
 
@@ -2170,7 +2189,10 @@ def main() -> None:
     # Construct run configurations: List of (cfg_name, device_id)
     run_configs: List[Tuple[str, Any]] = []
     for cfg in target_configs:
-        if cfg == "hip":
+        is_combi = cfg.endswith("-combi")
+        base_cfg = cfg[:-6] if is_combi else cfg
+
+        if base_cfg == "hip":
             for dev in hip_devices_resolved:
                 gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
                 if gpu and gpu.is_igpu:
@@ -2179,11 +2201,30 @@ def main() -> None:
                     )
                     continue
                 run_configs.append((cfg, dev))
-        elif cfg == "vulkan":
+                if (
+                    not is_combi
+                    and "chat" in target_services
+                    and "embedding" in target_services
+                ):
+                    run_configs.append((f"{cfg}-combi", dev))
+        elif base_cfg == "vulkan":
             for dev in vulkan_devices_resolved:
                 run_configs.append((cfg, dev))
+                if (
+                    not is_combi
+                    and "chat" in target_services
+                    and "embedding" in target_services
+                ):
+                    run_configs.append((f"{cfg}-combi", dev))
         else:
             run_configs.append((cfg, None))
+            if (
+                not is_combi
+                and "chat" in target_services
+                and "embedding" in target_services
+            ):
+                if cfg != "running":
+                    run_configs.append((f"{cfg}-combi", None))
 
     print("==================================================")
     print("🚀 Local Inference Service Benchmark Suite")
@@ -2298,17 +2339,18 @@ def main() -> None:
                     fraction = 1.0
                     llm_n_ctx = 240384
                 else:
+                    lookup_cfg = run_cfg[:-6] if run_cfg.endswith("-combi") else run_cfg
                     device_map = {
                         "hip": dev if dev else "ROCm0",
                         "vulkan": dev if dev else "Vulkan0",
                         "cpu": "none",
                         "cpu-blas": "BLAS",
                     }
-                    llm_device = device_map.get(run_cfg, run_cfg)
+                    llm_device = device_map.get(lookup_cfg, lookup_cfg)
 
                     # Determine context scaling fraction and context size
                     fraction = 1.0
-                    if run_cfg.startswith("cpu"):
+                    if lookup_cfg.startswith("cpu"):
                         fraction = 0.05
                     elif dev:
                         gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
@@ -2349,17 +2391,36 @@ def main() -> None:
                         master_fd = None
                     else:
                         baseline_vram = get_gpu_memory_mb(llm_device)
+                        lookup_cfg = (
+                            run_cfg[:-6] if run_cfg.endswith("-combi") else run_cfg
+                        )
 
                         updates = {
                             "LCHAT_DEVICE": llm_device,
                             "LCHAT_N_GPU_LAYERS": 0
-                            if run_cfg.startswith("cpu")
+                            if lookup_cfg.startswith("cpu")
                             else 999,
                             "LCHAT_N_CTX": llm_n_ctx,
-                            "LCHAT_SERVE_EMBEDDINGS": "false",
                         }
+                        if run_cfg.endswith("-combi"):
+                            updates["LMBD_ENABLED"] = "true"
+                            updates["LCHAT_EMBEDDING_ENABLED"] = "true"
+                            updates["LCHAT_SERVE_EMBEDDINGS"] = "true"
+                            updates["LMBD_DEVICE"] = llm_device
+                            updates["LMBD_N_GPU_LAYERS"] = (
+                                0 if lookup_cfg.startswith("cpu") else 999
+                            )
+                            if dev and "1" in dev:
+                                updates["LMBD_N_CTX"] = 4096
+                            else:
+                                updates["LMBD_N_CTX"] = 8192
+                        else:
+                            updates["LMBD_ENABLED"] = "false"
+                            updates["LCHAT_EMBEDDING_ENABLED"] = "false"
+                            updates["LCHAT_SERVE_EMBEDDINGS"] = "false"
+
                         hip_vis, cuda_vis = get_visible_devices_env(
-                            run_cfg, llm_device, hip_devices_resolved
+                            lookup_cfg, llm_device, hip_devices_resolved
                         )
                         updates["HIP_VISIBLE_DEVICES"] = hip_vis
                         updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
@@ -2433,6 +2494,7 @@ def main() -> None:
                         str(fraction),
                         "--format",
                         "json",
+                        "--skip-embedding",
                     ]
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
@@ -2520,6 +2582,145 @@ def main() -> None:
                             benchmark_data[cache_key]["chat"]["device_details"] = (
                                 available_devices[llm_device]
                             )
+
+                        # In combined mode, run embedding benchmark inside the same running service!
+                        if (
+                            run_cfg.endswith("-combi")
+                            and "embedding" in target_services
+                        ):
+                            print("Running LLM Embedding benchmark in combined mode...")
+                            embed_alias = os.environ.get(
+                                "LMBD_ALIAS", "qwen3-embedding"
+                            )
+                            embed_port = srv["port"]
+
+                            print(
+                                "Warming up embedding model (qwen3-embedding) on port {}...".format(
+                                    embed_port
+                                )
+                            )
+                            data_ping = json.dumps(
+                                {"model": embed_alias, "input": "ping"}
+                            ).encode("utf-8")
+                            req = urllib.request.Request(
+                                f"http://127.0.0.1:{embed_port}/v1/embeddings",
+                                data=data_ping,
+                                headers={"Content-Type": "application/json"},
+                                method="POST",
+                            )
+                            try:
+                                with urllib.request.urlopen(
+                                    req, timeout=5.0
+                                ) as response:
+                                    response.read()
+                                    cached = True
+                            except Exception:
+                                cached = False
+
+                            if not cached:
+                                warmup_model(
+                                    f"http://127.0.0.1:{embed_port}/v1/embeddings",
+                                    {
+                                        "model": embed_alias,
+                                        "input": "ping",
+                                    },
+                                    timeout=600,
+                                )
+
+                            test_args_embed = [
+                                "--benchmark",
+                                "--repeat",
+                                "1",
+                                "--format",
+                                "json",
+                                "--skip-all-chat",
+                            ]
+                            if run_cfg.startswith("cpu"):
+                                test_args_embed.extend(["--fraction-chunks", "0.1"])
+
+                            start_time_embed = time.time()
+                            stdout_embed, success_embed_run, error_lines_embed = (
+                                run_benchmark(
+                                    srv["script"], test_args_embed, server_proc=proc
+                                )
+                            )
+                            if not success_embed_run:
+                                print(
+                                    f"⚠️ Warning: Combined embedding benchmark on config '{cache_key}' failed."
+                                )
+                                set_service_fail_metrics(
+                                    benchmark_data,
+                                    cache_key,
+                                    "embedding",
+                                    "running on host"
+                                    if run_cfg == "running"
+                                    else (llm_device if llm_device else "Default"),
+                                    "unknown"
+                                    if run_cfg == "running"
+                                    else f"Layers: {0 if run_cfg.startswith('cpu') else 999}",
+                                    srv["env_file"],
+                                    error_lines_embed,
+                                    updates,
+                                )
+                            else:
+                                elapsed_time_embed = time.time() - start_time_embed
+                                benchmark_data[cache_key]["embedding"] = (
+                                    parse_embed_output(stdout_embed)
+                                )
+                                benchmark_data[cache_key]["embedding"][
+                                    "bench_time_s"
+                                ] = elapsed_time_embed
+                                benchmark_data[cache_key]["embedding"]["errors"] = (
+                                    error_lines_embed
+                                )
+
+                                # Measure VRAM and RAM specifically after embedding benchmark runs (now that embedding model is loaded)
+                                gpu_mem_mb_embed: Any = "-n.a.-"
+                                cpu_mem_mb_embed: Any = "-n.a.-"
+                                if run_cfg != "running":
+                                    post_run_vram_embed = get_gpu_memory_mb(llm_device)
+                                    gpu_mem_mb_embed = max(
+                                        0.0, post_run_vram_embed - baseline_vram
+                                    )
+                                    cpu_mem_mb_embed = get_process_rss_mem_mb(
+                                        srv["proc_pattern"]
+                                    )
+
+                                benchmark_data[cache_key]["embedding"]["gpu_mem_mb"] = (
+                                    gpu_mem_mb_embed
+                                )
+                                benchmark_data[cache_key]["embedding"]["cpu_mem_mb"] = (
+                                    cpu_mem_mb_embed
+                                )
+                                benchmark_data[cache_key]["embedding"]["test_name"] = (
+                                    f"embedding_{cache_key}"
+                                )
+                                benchmark_data[cache_key]["embedding"][
+                                    "device_setting"
+                                ] = (
+                                    "running on host"
+                                    if run_cfg == "running"
+                                    else (llm_device if llm_device else "Default")
+                                )
+                                benchmark_data[cache_key]["embedding"][
+                                    "special_setting"
+                                ] = (
+                                    "unknown"
+                                    if run_cfg == "running"
+                                    else f"Layers: {999 if run_cfg != 'cpu' else 0}"
+                                )
+                                env_dict_embed = read_env_file(srv["env_file"])
+                                env_dict_embed.update(updates)
+                                benchmark_data[cache_key]["embedding"]["env"] = (
+                                    env_dict_embed
+                                )
+                                if (
+                                    run_cfg != "running"
+                                    and llm_device in available_devices
+                                ):
+                                    benchmark_data[cache_key]["embedding"][
+                                        "device_details"
+                                    ] = available_devices[llm_device]
                 else:
                     stdout = get_mock_output("chat", run_cfg)
                     benchmark_data[cache_key]["chat"] = parse_chat_output(stdout)
@@ -2578,28 +2779,38 @@ def main() -> None:
                     if run_cfg == "running":
                         mock_updates = {}
                     else:
+                        lookup_cfg = (
+                            run_cfg[:-6] if run_cfg.endswith("-combi") else run_cfg
+                        )
                         mock_updates = {
                             "LCHAT_DEVICE": dev
                             if dev
                             else (
                                 "ROCm0"
-                                if run_cfg == "hip"
+                                if lookup_cfg == "hip"
                                 else (
                                     "Vulkan0"
-                                    if run_cfg == "vulkan"
+                                    if lookup_cfg == "vulkan"
                                     else (
                                         "BLAS"
-                                        if run_cfg == "cpu-blas"
-                                        else ("none" if run_cfg == "cpu" else "")
+                                        if lookup_cfg == "cpu-blas"
+                                        else ("none" if lookup_cfg == "cpu" else "")
                                     )
                                 )
                             ),
                             "LCHAT_N_GPU_LAYERS": "999"
-                            if not run_cfg.startswith("cpu")
+                            if not lookup_cfg.startswith("cpu")
                             else "0",
                             "LCHAT_N_CTX": str(llm_n_ctx),
-                            "LCHAT_SERVE_EMBEDDINGS": "false",
                         }
+                        if run_cfg.endswith("-combi"):
+                            mock_updates["LMBD_ENABLED"] = "true"
+                            mock_updates["LCHAT_EMBEDDING_ENABLED"] = "true"
+                            mock_updates["LCHAT_SERVE_EMBEDDINGS"] = "true"
+                        else:
+                            mock_updates["LMBD_ENABLED"] = "false"
+                            mock_updates["LCHAT_EMBEDDING_ENABLED"] = "false"
+                            mock_updates["LCHAT_SERVE_EMBEDDINGS"] = "false"
                     try:
                         env_dict = read_env_file(srv["env_file"])
                     except Exception:
@@ -2635,6 +2846,43 @@ def main() -> None:
                             dev_details
                         )
 
+                        if (
+                            run_cfg.endswith("-combi")
+                            and "embedding" in target_services
+                        ):
+                            mock_out_embed = get_mock_output("embedding", run_cfg)
+                            benchmark_data[cache_key]["embedding"] = parse_embed_output(
+                                mock_out_embed
+                            )
+                            benchmark_data[cache_key]["embedding"]["bench_time_s"] = 1.0
+                            benchmark_data[cache_key]["embedding"]["errors"] = []
+                            benchmark_data[cache_key]["embedding"]["gpu_mem_mb"] = (
+                                get_mock_gpu_mem("embedding", run_cfg)
+                            )
+                            benchmark_data[cache_key]["embedding"]["cpu_mem_mb"] = (
+                                get_mock_cpu_mem("embedding", run_cfg)
+                            )
+                            benchmark_data[cache_key]["embedding"]["test_name"] = (
+                                f"embedding_{cache_key}"
+                            )
+                            benchmark_data[cache_key]["embedding"]["device_setting"] = (
+                                dev_details.get("device_id", "Default")
+                            )
+                            benchmark_data[cache_key]["embedding"][
+                                "special_setting"
+                            ] = f"Layers: {999 if not run_cfg.startswith('cpu') else 0}"
+                            try:
+                                env_dict_embed = read_env_file(srv["env_file"])
+                            except Exception:
+                                env_dict_embed = {}
+                            env_dict_embed.update(mock_updates)
+                            benchmark_data[cache_key]["embedding"]["env"] = (
+                                env_dict_embed
+                            )
+                            benchmark_data[cache_key]["embedding"]["device_details"] = (
+                                dev_details
+                            )
+
                 # Stop service
                 if not args.mock and run_cfg != "running":
                     stop_service(
@@ -2651,6 +2899,8 @@ def main() -> None:
             srv = SERVICES["embedding"]
             if run_cfg == "special":
                 print("Skipping Embedding for Special configuration.")
+            elif run_cfg.endswith("-combi"):
+                print("Skipping separate Embedding service for Combined config.")
             else:
                 if run_cfg != "running":
                     print(f"Preparing environment file: {srv['env_file']}")

@@ -1,8 +1,10 @@
 # Local Chat Service Guide
 
-`local-chat.sh` manages the local `llama-server` systemd user service (`local-chat.service`), serving the Chat/Vision LLM.
+`local-chat.sh` manages the local `llama-server` systemd user service (`local-chat.service`), serving the Chat/Vision LLM and optionally the text embedding model in a combined multi-model setup.
 
-Note: Text embeddings are served separately by the standalone [local-embedding.md](local-embedding.md) service.
+Note: Text embeddings can be served combined directly within this service instance on port 50080 (enabled by default), or separately via the standalone [local-embedding.md](local-embedding.md) service.
+
+When combined embedding mode is enabled, a **port mirror sidecar** automatically mirrors port `50082` → `50080` via `socat`, ensuring clients configured for the standalone embedding port work transparently.
 
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
@@ -83,9 +85,48 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
   - In **ZeroClaw**, configuring `reasoning_enabled = true` / `reasoning_effort = "low"` maps to these parameters.
   - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
 
+### Default Embedding Model
+
+When combined mode is enabled (default via `LMBD_ENABLED=true`), the service also hosts the text embedding model **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF format on the same server instance.
+
+#### Architecture (Qwen3-Embedding-0.6B)
+
+| Attribute                  | Value |
+|----------------------------|-------|
+| **Parameters**             | 0.6B |
+| **Transformer Layers**     | 28 |
+| **Hidden Size**            | 1024 |
+| **Attention Heads**        | 16 (GQA KV-heads: 8) |
+| **Head Dimension**         | 64 |
+| **Native Max Context**     | 32,768 tokens |
+| **Embedding Dimension**    | 1024 (MRL: 32–1024 user-selectable) |
+| **Pooling (native)**       | Last-token pooling |
+| **Pooling (service)**      | `mean` (configured via `--pooling mean`) |
+| **Multilingual**           | 100+ languages, 100+ programming languages |
+| **Base Model**             | `Qwen/Qwen3-0.6B-Base` |
+| **License**                | Apache-2.0 |
+| **Paper**                  | [arXiv:2506.05176](https://arxiv.org/abs/2506.05176) |
+
+> **MRL** (Matryoshka Representation Learning) allows truncating the output embedding to any dimension from 32 to 1024, enabling smaller index sizes at a small accuracy cost. The full 1024-dimensional output is used by default.
+
+#### GGUF File (Q8_0)
+
+- **File:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
+- **File Size:** ~568 MiB on disk
+- **Quantization:** Q8_0 — 8-bit integer weights, minimal quality loss vs. F16
+
+#### Service Configuration Defaults (Embedding Section)
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `LMBD_N_CTX` | `4096` | Max context length per parallel slot |
+| `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
+| `LMBD_UBATCH_SIZE` | `512` | Max hardware batch size |
+
 ## Service Configuration & Ports
 
-- **Default Port**: `50080` (HTTP)
+- **Default Port**: `50080` (HTTP) — primary chat and embedding API
+- **Default Mirror Port**: `50082` (HTTP) — embedding-only port mirror (via socat sidecar)
 - **Default Host**: `127.0.0.1`
 
 ### Service Endpoints (Port `50080`)
@@ -93,10 +134,21 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
 - **`POST /v1/chat/completions`**: OpenAI-compatible chat completion endpoint (routed to the chat LLM).
 - **`POST /v1/completions`**: OpenAI-compatible text completion endpoint.
 - **`POST /completion`**: Native `llama.cpp` endpoint for custom prompt completion.
+- **`POST /v1/embeddings`**: OpenAI-compatible embeddings endpoint (routed to the embedding LLM).
+- **`POST /embedding`**: Native `llama.cpp` endpoint for embeddings.
 - **`POST /tokenize`**: Converts input text into model-specific integer token IDs.
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /v1/models`**: Lists all active model aliases.
 - **`GET /health`**: Returns JSON details regarding slots, queue metrics, and service health.
+
+### Embedding Port Mirror (Port `50082`)
+
+When `LMBD_ENABLED=true`, the **portmirror** sidecar runs `socat` to forward port `50082` → `50080`. This ensures that clients configured for the standalone `local-embedding` service (which defaults to port 50082) work transparently when using the combined server.
+
+All embedding endpoints available on port `50080` are accessible on port `50082`:
+- **`POST /v1/embeddings`** and **`POST /embedding`** work identically on both ports.
+
+The mirror port is configurable via `LMBD_MIRROR_PORT` in the env file. When `LMBD_ENABLED=false`, the sidecar runs `sleep infinity` and the port is not used.
 
 ---
 
@@ -105,7 +157,39 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
 The service stores its configuration in the systemd user configuration directory:
 
 - **Service Unit**: `~/.config/systemd/user/local-chat.service`
-- **Environment File**: `~/.config/systemd/user/local-chat.env`
+- **Environment Configuration**: `~/.config/systemd/user/local-chat.env`
+- **Model Preset File**: `~/.config/systemd/user/local-chat-preset.ini` (Automatically generated upon install/start/exec)
+- **Launcher Script**: `~/.config/systemd/user/local-chat-launcher.sh` (Automatically generated; orchestrates llama-server and sidecars)
+
+### Sidecars Configuration
+
+The service supports running **sidecar processes** alongside `llama-server`. Sidecars are background processes managed by the service lifecycle — they start after llama-server and the service exits if any process (main or sidecar) terminates.
+
+Sidecars are configured in the env file via:
+
+```bash
+# Space or semicolon separated list of sidecar names
+LOCAL_SIDECARS="portmirror"
+
+# For each sidecar, define CMD and optional ARGS:
+# LOCAL_SIDECAR_<NAME>_CMD="command"
+# LOCAL_SIDECAR_<NAME>_ARGS="arguments"
+```
+
+The built-in **portmirror** sidecar is pre-configured as a bash one-liner that checks `LMBD_ENABLED` at runtime:
+- `true` → runs `socat TCP-LISTEN:${LMBD_MIRROR_PORT},fork,reuseaddr TCP:${LCHAT_HOST}:${LCHAT_PORT}`
+- `false` → runs `sleep infinity`
+
+To disable the port mirror, remove `portmirror` from `LOCAL_SIDECARS`. To add custom sidecars:
+
+```bash
+LOCAL_SIDECARS="portmirror mycustom"
+LOCAL_SIDECAR_MYCUSTOM_CMD="/path/to/command"
+LOCAL_SIDECAR_MYCUSTOM_ARGS="--flag value"
+```
+
+> [!NOTE]
+> The portmirror sidecar requires `socat` to be installed (`pacman -S socat`). If `socat` is not available and embedding is enabled, the sidecar will fail and the service will restart.
 
 ### GPU and CPU Inference
 
@@ -113,17 +197,15 @@ By default, the service offloads execution to the GPU using ROCm/HIP.
 To run the service on the CPU, run `./local-chat.sh edit` (or edit `~/.config/systemd/user/local-chat.env` directly) and edit this parameter:
 
 ```bash
-# Number of layers to offload to GPU (all=999)
+# Number of layers to offload to GPU (all=999, none=0)
 LCHAT_N_GPU_LAYERS=999
-# To run inference on CPU instead of GPU (none=0)
-# LCHAT_N_GPU_LAYERS=0
 ```
 
 ### Backend Device Selection (Dynamic Backend Loading)
 
 When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime.
 
-You can configure the target device using the `LCHAT_DEVICE` environment variable. Run `./local-chat.sh edit` (or edit `~/.config/systemd/user/local-chat.env` directly) and configure the device:
+You can configure the target device in `~/.config/systemd/user/local-chat.env`:
 
 ```bash
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
@@ -133,6 +215,7 @@ You can configure the target device using the `LCHAT_DEVICE` environment variabl
 # LCHAT_DEVICE="Vulkan0"
 # LCHAT_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
 # LCHAT_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
+LCHAT_DEVICE=""
 ```
 
 To list all available devices on your system, run:
@@ -216,8 +299,14 @@ You can test that the service is running and behaving correctly by running the v
 To benchmark prefill and decoding latency and throughput using `benchmark-context.md`, run:
 
 ```bash
-# Run the Chat benchmark
+# Run both Chat and Embedding benchmarks (sequentially, if embedding is enabled)
 ./local-chat.sh test --benchmark
+
+# Skip the Chat benchmark, running only the Embedding benchmark
+./local-chat.sh test --benchmark --skip-all-chat
+
+# Skip the Embedding benchmark, running only the Chat benchmark
+./local-chat.sh test --benchmark --skip-embedding
 
 # Skip Phase 1 (Sequential Prefill) of the Chat benchmark
 ./local-chat.sh test --benchmark --skip-prefill
