@@ -60,6 +60,17 @@ LIMG_ENABLED=1
 - **`stop`** stops all enabled services, and stops/disables all services set to `0`.
 - **`restart`** stops/disables all services set to `0`, and enables/restarts all services set to `1`.
 
+#### Combined Embeddings Mode
+By default, the embedding service runs as a standalone server on port 50082 (`LMBD_ENABLED=1`).
+To run in **Combined Mode** (serving both Chat and Embeddings in a single `llama-server` instance on port 50080):
+1. Set `LMBD_ENABLED=0` in `local-inference.env` to disable the separate service.
+2. Add `'LCHAT_EMBEDDING_ENABLED=true'` inside the `LCHAT_OVERRIDE` array in `local-inference.env`:
+   ```env
+   LCHAT_OVERRIDE=(
+       'LCHAT_EMBEDDING_ENABLED=true'
+   )
+   ```
+
 ### Propagating Service Overrides
 
 You can define overrides inside `local-inference.env` using Bash array syntax:

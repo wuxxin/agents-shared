@@ -95,10 +95,14 @@ generate_env_file() {
 #
 # Toggle service activation (1=enabled, 0=disabled) and define overrides
 # for individual service environment files.
-
+#
+# Note on Combined Embeddings Mode:
+# To serve both Chat and Embedding models on the same llama-server instance (on port 50080):
+# 1. Set LMBD_ENABLED=0 to disable the separate local-embedding service.
+# 2. Add 'LCHAT_EMBEDDING_ENABLED=true' inside LCHAT_OVERRIDE.
 
 LCHAT_ENABLED=1
-LMBD_ENABLED=1
+LMBD_ENABLED=0
 LRR_ENABLED=1
 LSTT_ENABLED=1
 LTTS_ENABLED=1
@@ -113,6 +117,8 @@ LIMG_ENABLED=1
 LCHAT_OVERRIDE=(
     'LCHAT_DEVICE="Vulkan1"'
     'GGML_VK_DISABLE_MMVQ=1'
+    'LCHAT_EMBEDDING_ENABLED=true'
+    # Enable combined embedding on port 50080
 )
 # run EMBEDDING on vulkan/dgpu
 LMBD_OVERRIDE=(
