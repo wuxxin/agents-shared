@@ -113,6 +113,95 @@ SERVICES: Dict[str, Dict[str, Any]] = {
 # Utilities for Environment Manipulation
 
 
+def gather_pkg_versions() -> Dict[str, str]:
+    """Retrieve versions of CLI packages using binary commands with graceful fallbacks."""
+    # 1. llama
+    llama_ver = "unknown"
+    try:
+        res = subprocess.run(
+            ["llama-cli", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = res.stdout.strip() or res.stderr.strip()
+        match = re.search(r"version:\s*([^\n]+)", output)
+        if match:
+            llama_ver = match.group(1).strip()
+        elif output:
+            llama_ver = output.splitlines()[0].strip()
+    except Exception:
+        pass
+
+    # 2. stabledifussion
+    sd_ver = "unknown"
+    try:
+        res = subprocess.run(
+            ["sd-cli", "--version"], capture_output=True, text=True, check=False
+        )
+        output = res.stdout.strip() or res.stderr.strip()
+        match = re.search(r"stable-diffusion\.cpp version\s*([^\n]+)", output)
+        if match:
+            sd_ver = match.group(1).strip()
+        elif output:
+            sd_ver = output.splitlines()[0].strip()
+    except Exception:
+        pass
+
+    # 3. whisper
+    whisper_ver = "unknown"
+    try:
+        res = subprocess.run(
+            ["whisper-cli", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = res.stdout.strip() or res.stderr.strip()
+        for line in output.splitlines():
+            match = re.search(r"whisper\.cpp version:\s*([^\n]+)", line)
+            if match:
+                whisper_ver = match.group(1).strip()
+                break
+        if whisper_ver == "unknown" and output:
+            for line in reversed(output.splitlines()):
+                if "version" in line.lower():
+                    whisper_ver = line.strip()
+                    break
+    except Exception:
+        pass
+
+    # 4. qwen3-tts
+    qwen_ver = "unknown"
+    try:
+        res = subprocess.run(
+            ["qwen3-tts-cli", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode == 0:
+            output = res.stdout.strip() or res.stderr.strip()
+            match = re.search(
+                r"(?:version|qwen3-tts\.cpp version):\s*([^\n]+)",
+                output,
+                re.IGNORECASE,
+            )
+            if match:
+                qwen_ver = match.group(1).strip()
+            elif output:
+                qwen_ver = output.splitlines()[0].strip()
+    except Exception:
+        pass
+
+    return {
+        "llama": llama_ver,
+        "stabledifussion": sd_ver,
+        "whisper": whisper_ver,
+        "qwen3-tts": qwen_ver,
+    }
+
+
 def update_env_file(env_file_path: str, updates: Dict[str, Any]) -> None:
     """Read the env file, filter out duplicate definitions, and append updates."""
     if not os.path.exists(env_file_path):
@@ -1892,6 +1981,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 """
 
     for cfg in sorted(data.keys(), key=sort_config_keys):
+        if cfg == "pkg_versions":
+            continue
         if not data[cfg]:
             continue
         cfg_upper = cfg.upper()
@@ -1925,6 +2016,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
 {format_env(cfg, "chat")}
 {format_errors(cfg, "chat")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("llama", "unknown")}`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       {val(cfg, "chat", "chat_warmup_ttft", ".2f", " ms")}
   - Prefill Speed:        {val(cfg, "chat", "chat_warmup_prefill", ".2f", " tokens/sec")}
@@ -1955,6 +2047,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
 {format_env(cfg, "embedding")}
 {format_errors(cfg, "embedding")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("llama", "unknown")}`
 - **Metrics:**
   - Avg Time/Run:         {val(cfg, "embedding", "embed_time_s", ".2f", " s")}
   - Avg Throughput:       {val(cfg, "embedding", "embed_throughput", ".2f", " tokens/sec")}
@@ -1978,6 +2071,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
 {format_env(cfg, "rerank")}
 {format_errors(cfg, "rerank")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("llama", "unknown")}`
 - **Metrics:**
   - Avg Reranking Time:   {val(cfg, "rerank", "rerank_time", ".2f", " ms")}
   - Avg Docs Throughput:  {val(cfg, "rerank", "rerank_throughput", ".2f", " docs/sec")}
@@ -1999,6 +2093,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
 {format_env(cfg, "stt")}
 {format_errors(cfg, "stt")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("whisper", "unknown")}`
 - **Metrics:**
   - Avg Transcribe Time:  {val(cfg, "stt", "stt_time", ".2f", " seconds")}
   - Avg Real-Time Factor (RTF): {val(cfg, "stt", "stt_rtf", ".4f")} ({speedup(cfg, "stt", "stt_rtf")} faster than real-time)
@@ -2019,6 +2114,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
 {format_env(cfg, "tts")}
 {format_errors(cfg, "tts")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("qwen3-tts", "unknown")}`
 - **Metrics:**
   - Generated Audio Duration: {val(cfg, "tts", "tts_duration", ".2f", " seconds")}
   - Avg Synthesis Time:   {val(cfg, "tts", "tts_time", ".2f", " seconds")}
@@ -2041,6 +2137,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
 {format_env(cfg, "image")}
 {format_errors(cfg, "image")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("stabledifussion", "unknown")}`
 - **Metrics:**
   - Avg Generation Time:  {val(cfg, "image", "image_time", ".2f", " seconds")}
 
@@ -2088,6 +2185,11 @@ def main() -> None:
         "--mock",
         action="store_true",
         help="Simulate execution and parsing (dry-run/mocking mode for systemd-less environments)",
+    )
+    parser.add_argument(
+        "--rank",
+        action="store_true",
+        help="Record and update historical runs per test name in local-benmark-testname-rank.json when overwriting existing values",
     )
     parser.add_argument(
         "--no-cache",
@@ -2283,11 +2385,16 @@ def main() -> None:
     # Use old data only if not executed test on this test run
     benchmark_data: Dict[str, Dict[str, Dict[str, Any]]] = {}
     for cfg in old_data:
+        if cfg == "pkg_versions":
+            continue
         for sname in old_data[cfg]:
             if (cfg, sname) not in will_execute:
                 if cfg not in benchmark_data:
                     benchmark_data[cfg] = {}
                 benchmark_data[cfg][sname] = old_data[cfg][sname]
+
+    # Gather package versions
+    benchmark_data["pkg_versions"] = gather_pkg_versions()  # type: ignore
 
     # Pre-test Warmup Loop for 'running' configuration
     if "running" in target_configs and not args.mock:
@@ -4495,6 +4602,97 @@ def main() -> None:
                         proc,
                         master_fd,
                     )
+
+    # Write historical rank files if requested and not checking clean cache
+    if not args.no_cache and args.rank:
+        print("\n📈 Recording benchmark rank histories...")
+        old_mtime = (
+            int(os.path.getmtime(cache_file))
+            if os.path.exists(cache_file)
+            else int(time.time() - 60)
+        )
+        old_pkg_versions = old_data.get("pkg_versions", {})
+        new_pkg_versions = benchmark_data.get("pkg_versions", {})
+
+        for cfg, sname in sorted(will_execute):
+            if cfg in old_data and sname in old_data[cfg]:
+                # We have an overwrite!
+                test_name = None
+                if (
+                    cfg in benchmark_data
+                    and sname in benchmark_data[cfg]
+                    and "test_name" in benchmark_data[cfg][sname]
+                ):
+                    test_name = benchmark_data[cfg][sname]["test_name"]
+                elif (
+                    cfg in old_data
+                    and sname in old_data[cfg]
+                    and "test_name" in old_data[cfg][sname]
+                ):
+                    test_name = old_data[cfg][sname]["test_name"]
+
+                if not test_name:
+                    fallback_names = {
+                        "chat": "chat",
+                        "embedding": "embedding",
+                        "rerank": "rerank",
+                        "stt": "stt",
+                        "tts": "tts",
+                        "image": "image",
+                    }
+                    base = fallback_names.get(sname, sname)
+                    test_name = f"{base}_{cfg}"
+
+                rank_filename = f"local-benmark-{test_name}-rank.json"
+                rank_path = os.path.join(os.path.dirname(cache_file), rank_filename)
+
+                runs = []
+                if os.path.exists(rank_path):
+                    try:
+                        with open(rank_path, "r", encoding="utf-8") as rf:
+                            runs = json.load(rf)
+                    except Exception as e:
+                        print(f"Warning: Failed to load rank file {rank_filename}: {e}")
+
+                def is_duplicate(e1, e2):
+                    r1 = {
+                        k: v
+                        for k, v in e1.get("results", {}).items()
+                        if k != "bench_time_s"
+                    }
+                    r2 = {
+                        k: v
+                        for k, v in e2.get("results", {}).items()
+                        if k != "bench_time_s"
+                    }
+                    return r1 == r2 and e1.get("pkg_versions") == e2.get("pkg_versions")
+
+                if not runs:
+                    old_run = {
+                        "timestamp": old_mtime,
+                        "pkg_versions": old_pkg_versions,
+                        "results": old_data[cfg][sname],
+                    }
+                    runs.append(old_run)
+
+                new_run = {
+                    "timestamp": int(time.time()),
+                    "pkg_versions": new_pkg_versions,
+                    "results": benchmark_data[cfg][sname],
+                }
+
+                if not runs or not is_duplicate(runs[-1], new_run):
+                    runs.append(new_run)
+
+                runs.sort(key=lambda x: x.get("timestamp", 0))
+
+                try:
+                    os.makedirs(os.path.dirname(rank_path), exist_ok=True)
+                    with open(rank_path, "w", encoding="utf-8") as wf:
+                        json.dump(runs, wf, indent=4, sort_keys=True)
+                    print(f"Recorded history run for '{test_name}' in: {rank_filename}")
+                except Exception as e:
+                    print(f"Error saving rank history for {test_name}: {e}")
 
     # Save the cache JSON file next to the markdown report
     try:
