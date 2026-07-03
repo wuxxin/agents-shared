@@ -35,11 +35,11 @@ All `*-ctl` scripts support a standard set of lifecycle, configuration, and exec
 
 Configurations are primarily defined in `~/.config/systemd/user/<agent>.env`.
 
-### Environment File Overlays (IronClaw & LibreFang)
+### Environment File Overlays (Hermes, IronClaw & LibreFang)
 
-For assistants that support application-level configurations (specifically IronClaw and LibreFang), configuration environment variables are loaded in a two-stage resolution order:
+For assistants that support application-level configurations (specifically Hermes, IronClaw, and LibreFang), configuration environment variables are loaded in a two-stage resolution order:
 1. **Systemd Service Environment File:** `~/.config/systemd/user/<agent>.env`
-2. **Application Environment Override File:** `~/.local/sandbox/<agent>/.<agent>/.env` (e.g. `.ironclaw/.env` or `.librefang/.env`)
+2. **Application Environment Override File:** `~/.local/sandbox/<agent>/.<agent>/.env` (e.g. `.hermes/.env`, `.ironclaw/.env` or `.librefang/.env`)
 
 The application environment override file is loaded **after** the systemd service environment file. Therefore, any conflicting keys declared in both files will prioritize the values set in the application environment override file.
 
@@ -96,7 +96,7 @@ To make configurations flexible and compatible with both systemd and direct exec
 
 1.  **`AGENT_WORKSPACE`**:
     - **Usage**: You can use `$HOME`, `%h`, or `~` to specify the workspace path (e.g., `AGENT_WORKSPACE="$HOME/.local/workspace"`).
-    - **Resolution**: Systemd replaces `%h` with the user's home directory. In fallback mode, the wrapper script resolves and expands `$HOME`, `%h`, and `~` to ensure correct directories are created.
+    - **Resolution**: Since systemd's `EnvironmentFile` loader does not perform specifier expansion, the control wrapper automatically expands `%h` to the actual home directory path on the host at service installation/update time. For any fallback environment configurations, the wrapper also resolves `$HOME` and `~` to guarantee absolute paths are present at runtime.
 2.  **`AGENT_EXTRA_MOUNTS`**:
     - **Usage**: Syntax is `host-path:sandbox-path`. You can use `$HOME`, `%h`, or `~` for the host path (e.g., `AGENT_EXTRA_MOUNTS="$HOME/shared:shared"`).
     - **Resolution**: `$HOME` is expanded when bash sources the environment file. `%h` and `~` are resolved by the wrapper during service file generation and fallback directory checking.

@@ -106,6 +106,10 @@ write_service_file() {
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
     export AGENT_WORKSPACE="${AGENT_WORKSPACE:-$HOME/.local/sandbox/nanoclaw/groups}"
     if [ -f "$ENV_FILE" ]; then
+        if grep -q "%h" "$ENV_FILE"; then
+            sed -i "s|%h|$HOME|g" "$ENV_FILE"
+            echo "Expanded %h to $HOME in $ENV_FILE"
+        fi
         set +u
         # shellcheck disable=SC1090
         source "$ENV_FILE"

@@ -50,7 +50,7 @@ DEFAULT_HERMES_YOLO_MODE="true"
 # Agent sidecars
 DEFAULT_AGENT_SIDECARS="dashboard"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
-DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard"
+DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard --no-open"
 
 SERVICE_NAME="$DEFAULT_SERVICE_NAME"
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"
@@ -110,12 +110,21 @@ get_shared_options() {
         fi
     fi
 
+    local app_env_file="$HERMES_HOME/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$app_env_file"
+        set -u
+    fi
+
     # Environment & Working Directory
     echo "Environment=HOME=${home_spec}/.local/sandbox/hermes"
     echo "Environment=HERMES_SANDBOX_HOME=${home_spec}/.local/sandbox/hermes"
     echo "Environment=HERMES_HOME=${home_spec}/.local/sandbox/hermes/.hermes"
     echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$home_spec}}"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/hermes-gateway.env"
+    echo "EnvironmentFile=-${home_spec}/.local/sandbox/hermes/.hermes/.env"
     echo "WorkingDirectory=${home_spec}/.local/sandbox/hermes/.hermes"
 
     # Security measures
@@ -183,9 +192,25 @@ write_service_file() {
     # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
     export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
     if [ -f "$ENV_FILE" ]; then
+        if grep -q "%h" "$ENV_FILE"; then
+            sed -i "s|%h|$HOME|g" "$ENV_FILE"
+            echo "Expanded %h to $HOME in $ENV_FILE"
+        fi
         set +u
         # shellcheck disable=SC1090
         source "$ENV_FILE"
+        set -u
+    fi
+
+    local app_env_file="$HERMES_HOME/.env"
+    if [ -f "$app_env_file" ]; then
+        if grep -q "%h" "$app_env_file"; then
+            sed -i "s|%h|$HOME|g" "$app_env_file"
+            echo "Expanded %h to $HOME in $app_env_file"
+        fi
+        set +u
+        # shellcheck disable=SC1090
+        source "$app_env_file"
         set -u
     fi
 
@@ -384,10 +409,10 @@ HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
 AGENT_SANDBOX_MOUNTS="${DEFAULT_AGENT_SANDBOX_MOUNTS}"
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
-AGENT_EXTRA_MOUNTS="${DEFAULT_AGENT_EXTRA_MOUNTS//%h/$HOME}"
+AGENT_EXTRA_MOUNTS="${DEFAULT_AGENT_EXTRA_MOUNTS}"
 
 # Agent sandbox workspace path
-AGENT_WORKSPACE="${DEFAULT_AGENT_WORKSPACE//%h/$HOME}"
+AGENT_WORKSPACE="${DEFAULT_AGENT_WORKSPACE}"
 
 # Agent sidecar list
 AGENT_SIDECARS="${DEFAULT_AGENT_SIDECARS}"
@@ -428,8 +453,8 @@ IMAGE_OPENAI_BASE_URL="${DEFAULT_IMAGE_OPENAI_BASE_URL}"
 IMAGE_OPENAI_MODEL="${DEFAULT_IMAGE_OPENAI_MODEL}"
 
 # Signal Channel Configuration
-SIGNAL_ACCOUNT="${DEFAULT_SIGNAL_ACCOUNT}"
 SIGNAL_HTTP_URL="${DEFAULT_SIGNAL_HTTP_URL}"
+SIGNAL_ACCOUNT="${DEFAULT_SIGNAL_ACCOUNT}"
 SIGNAL_ALLOWED_USERS="${DEFAULT_SIGNAL_ALLOWED_USERS}"
 
 # YOLO Mode
@@ -446,16 +471,34 @@ EOF
 _config_version: 32
 agent:
   max_turns: 150
-web:
-  backend: ddgs
-  use_gateway: false
 browser:
   cloud_provider: local
   use_gateway: false
 display:
   tool_progress: all
+dashboard:
+  theme: default-large
+  font: work-sans
+image_gen:
+  provider: openai
+  use_gateway: false
+  model: gpt-image-2-medium
+model:
+  default: qwen3
+  provider: openai-api
+  base_url: http://localhost:50080/v1
+  context_length: 80128
+web:
+  backend: ddgs
+  use_gateway: false
 session_reset:
   mode: none
+tts:
+  provider: openai
+  use_gateway: false
+platforms:
+  signal:
+    enabled: true
 platform_toolsets:
   cli:
     - browser
@@ -466,7 +509,6 @@ platform_toolsets:
     - cronjob
     - delegation
     - file
-    - homeassistant
     - image_gen
     - memory
     - session_search
@@ -493,6 +535,7 @@ platform_toolsets:
 #   tirith_path: "tirith"
 #   tirith_timeout: 5
 #   tirith_fail_open: true
+
 EOF
         echo "Created default config.yaml at $config_yaml"
     fi
@@ -597,15 +640,16 @@ cmd_logs() {
 }
 
 cmd_edit() {
-    mkdir -p "$(dirname "$ENV_FILE")"
-    touch "$ENV_FILE"
+    local app_env_file="$HERMES_HOME/.env"
+    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")"
+    touch "$ENV_FILE" "$app_env_file"
 
     local config_yaml="$HERMES_HOME/config.yaml"
     mkdir -p "$(dirname "$config_yaml")"
     touch "$config_yaml"
 
     local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/${SERVICE_NAME}.conf"
-    local edit_files=("$ENV_FILE" "$config_yaml")
+    local edit_files=("$ENV_FILE" "$app_env_file" "$config_yaml")
     if [ -f "$tmpfiles_config" ]; then
         edit_files+=("$tmpfiles_config")
     elif [ -f "${tmpfiles_config}.disabled" ]; then
@@ -648,6 +692,16 @@ setup_fallback_environment() {
     HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME/#\~/"$real_home"}"
     HERMES_HOME="${HERMES_HOME//%h/"$real_home"}"
     HERMES_HOME="${HERMES_HOME/#\~/"$real_home"}"
+
+    local app_env_file="$HERMES_HOME/.env"
+    if [ -f "$app_env_file" ]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$app_env_file"
+        set +a
+        set -u
+    fi
 
     export HOME="$HERMES_SANDBOX_HOME"
     export HERMES_SANDBOX_HOME="$HERMES_SANDBOX_HOME"
@@ -768,7 +822,6 @@ cmd_exec() {
         --pty
         --wait
         --collect
-        --quiet
         -p "Type=exec"
     )
 
@@ -795,7 +848,6 @@ cmd_shell() {
         --pty
         --wait
         --collect
-        --quiet
         -p "Type=exec"
     )
 
@@ -827,7 +879,6 @@ cmd_run() {
         --pty
         --wait
         --collect
-        --quiet
         -p "Type=exec"
     )
 

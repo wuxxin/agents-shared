@@ -14,10 +14,23 @@ For shared commands, variable expansion rules, sidecars supervision, temporary f
 - **Sandbox Directory:** `~/.local/sandbox/hermes`
 - **Home Directory (`HERMES_HOME`):** `~/.local/sandbox/hermes/.hermes`
 - **Default Workspace Path:** `~/.local/sandbox/hermes/.hermes/workspace`
-- **Environment Configuration:** `~/.config/systemd/user/hermes-gateway.env` (sources environment variables for systemd/TUI)
+- **Bootstrap Environment Config:** `~/.config/systemd/user/hermes-gateway.env` (systemd service environment)
+- **Local Application Secrets Override:** `~/.local/sandbox/hermes/.hermes/.env` (stores local secrets and environment overrides)
 - **Main Settings Configuration:** `~/.local/sandbox/hermes/.hermes/config.yaml` (sources main settings for models, toolsets, memory providers)
 - **Gateway API Port:** [8642](http://localhost:8642/)
 - **Dashboard Web UI Port:** [9119](http://localhost:9119/)
+
+---
+
+## Environment Overrides & Secret Configuration
+
+Hermes supports a two-stage environment variable resolution order to allow clean separation of bootstrap variables and local keys/secrets:
+1. **Systemd Service Environment:** `~/.config/systemd/user/hermes-gateway.env`
+2. **Application Environment Override:** `~/.local/sandbox/hermes/.hermes/.env`
+
+The application override file is loaded **after** the systemd service configuration. Any duplicate variables declared in both files will prioritize the values set in the application `.env` file (e.g. `OPENAI_API_KEY`, custom ports, or paths).
+
+Both files are opened automatically when executing the `./assistants/hermes-ctl edit` command.
 
 ---
 
