@@ -42,16 +42,16 @@ To prevent configuration drift, all defaults are centralized as internal script 
 ---
 
 ## Local Split Services Endpoints
-Hermes defaults to connecting to local hardware-accelerated services rather than remote cloud providers. The default endpoints written to the environment are:
+Hermes defaults to connecting to local hardware-accelerated services rather than remote cloud providers. The default endpoints are:
 
-| Service | Port | Endpoint / URL | Default Model | Environment Variables |
-| :--- | :--- | :--- | :--- | :--- |
-| **Local Chat** | `50080` | `http://localhost:50080/v1` | `qwen3-chat` | `OPENAI_API_BASE`, `OPENAI_API_KEY` |
-| **Local Embeddings** | `50082` | `http://localhost:50082/v1` | `qwen3-embedding` | `EMBEDDING_API_BASE`, `EMBEDDING_API_KEY`, `HERMES_EMBEDDING_PROVIDER`, `HERMES_EMBEDDING_MODEL` |
-| **Local Reranker** | `50086` | `http://localhost:50086/v1/rerank` | `qwen3-reranker` | `HERMES_RERANK_URL`, `HERMES_RERANK_PROVIDER`, `HERMES_RERANK_MODEL`, `HERMES_RERANK_TOP_K` |
-| **Local Speech-to-Text (STT)** | `50090` | `http://localhost:50090/v1` | `whisper-1` | `STT_OPENAI_BASE_URL`, `STT_OPENAI_MODEL`, `VOICE_TOOLS_OPENAI_KEY` |
-| **Local Text-to-Speech (TTS)** | `50095` | `http://localhost:50095/v1` | `qwen3-tts` | `TTS_OPENAI_BASE_URL`, `TTS_OPENAI_MODEL` |
-| **Local Image Gen** | `50100` | `http://localhost:50100/v1` | `txt2img` | `IMAGE_OPENAI_BASE_URL`, `IMAGE_OPENAI_MODEL` |
+| Service | Port | Endpoint / URL | Default Model | 
+| :--- | :--- | :--- | :--- |
+| **Local Chat** | `50080` | `http://localhost:50080/v1` | `qwen3-chat` | 
+| **Local Embeddings** | `50082` | `http://localhost:50082/v1` | `qwen3-embedding` | 
+| **Local Reranker** | `50086` | `http://localhost:50086/v1/rerank` | `qwen3-reranker` | 
+| **Local Speech-to-Text (STT)** | `50090` | `http://localhost:50090/v1` | `whisper-1` |
+| **Local Text-to-Speech (TTS)** | `50095` | `http://localhost:50095/v1` | `qwen3-tts` |
+| **Local Image Gen** | `50100` | `http://localhost:50100/v1` |
 
 ### Provider Cost Structure
 For tracking token usage and cost guardrails, local model costs (matching the `openai/qwen3` rates in `zeroclaw-ctl`) are:
