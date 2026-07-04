@@ -104,7 +104,7 @@ generate_env_file() {
 # 2. Add 'LCHAT_EMBEDDING_ENABLED=true' inside LCHAT_OVERRIDE.
 
 LCHAT_ENABLED=1
-LMBD_ENABLED=0
+LMBD_ENABLED=1
 LRR_ENABLED=1
 LSTT_ENABLED=1
 LTTS_ENABLED=1
@@ -120,8 +120,8 @@ LROUT_ENABLED=1
 LCHAT_OVERRIDE=(
     'LCHAT_DEVICE="Vulkan1"'
     'GGML_VK_DISABLE_MMVQ=1'
-    'LCHAT_EMBEDDING_ENABLED=true'
-    # Enable combined embedding on port 50080
+    'LCHAT_EMBEDDING_ENABLED=false'
+    # Disable combined embedding on port 50080
 )
 # run EMBEDDING on vulkan/dgpu
 LMBD_OVERRIDE=(
