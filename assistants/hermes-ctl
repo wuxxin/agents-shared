@@ -132,6 +132,7 @@ get_shared_options() {
     echo "Environment=HOME=${home_spec}/.local/sandbox/hermes"
     echo "Environment=HERMES_SANDBOX_HOME=${home_spec}/.local/sandbox/hermes"
     echo "Environment=HERMES_HOME=${home_spec}/.local/sandbox/hermes/.hermes"
+    echo "Environment=PATH=${home_spec}/.local/sandbox/hermes/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$home_spec}}"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/hermes-gateway.env"
     echo "EnvironmentFile=-${home_spec}/.local/sandbox/hermes/.hermes/.env"
@@ -381,7 +382,7 @@ cmd_install() {
     done
 
     echo "Setting up Hermes sandbox directory at $HERMES_SANDBOX_HOME and home at $HERMES_HOME..."
-    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME"
+    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$HERMES_SANDBOX_HOME/.local/bin"
 
     echo "Generating systemd user service..."
     mkdir -p "$(dirname "$SERVICE_FILE")"
@@ -723,6 +724,7 @@ setup_fallback_environment() {
     export HOME="$HERMES_SANDBOX_HOME"
     export HERMES_SANDBOX_HOME="$HERMES_SANDBOX_HOME"
     export HERMES_HOME="$HERMES_HOME"
+    export PATH="$HERMES_SANDBOX_HOME/.local/bin:$PATH"
 
     local ws="${AGENT_WORKSPACE}"
     ws="${ws//%h/$HOME}"
@@ -731,7 +733,7 @@ setup_fallback_environment() {
     fi
     export AGENT_WORKSPACE="$ws"
 
-    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$AGENT_WORKSPACE"
+    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$AGENT_WORKSPACE" "$HERMES_SANDBOX_HOME/.local/bin"
     cd "$HERMES_HOME" || exit 1
 }
 
