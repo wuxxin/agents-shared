@@ -14,30 +14,34 @@ DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
 
 # Local Inference Ports/URLs
-DEFAULT_OPENAI_API_BASE="http://localhost:50080/v1"
-DEFAULT_OPENAI_API_KEY="unused"
+DEFAULT_CHAT_BASE_URL="http://localhost:50080/v1"
+DEFAULT_CHAT_KEY="unused"
+DEFAULT_CHAT_MODEL="qwen3"
 
-DEFAULT_EMBEDDING_API_BASE="http://localhost:50082/v1"
-DEFAULT_EMBEDDING_API_KEY="unused"
-DEFAULT_HERMES_EMBEDDING_PROVIDER="local"
-DEFAULT_HERMES_EMBEDDING_MODEL="qwen3-embedding"
+DEFAULT_EMBEDDING_PROVIDER="local"
+DEFAULT_EMBEDDING_BASE_URL="http://localhost:50082/v1"
+DEFAULT_EMBEDDING_KEY="unused"
+DEFAULT_EMBEDDING_MODEL="qwen3-embedding"
 
-DEFAULT_HERMES_RERANK_URL="http://localhost:50086/v1/rerank"
-DEFAULT_HERMES_RERANK_PROVIDER="local"
-DEFAULT_HERMES_RERANK_MODEL="qwen3-reranker"
-DEFAULT_HERMES_RERANK_TOP_K=30
+DEFAULT_RERANK_PROVIDER="local"
+DEFAULT_RERANK_BASE_URL="http://localhost:50086/v1/rerank"
+DEFAULT_RERANK_KEY="unused"
+DEFAULT_RERANK_MODEL="qwen3-reranker"
+DEFAULT_RERANK_TOP_K=30
 
-DEFAULT_STT_OPENAI_BASE_URL="http://localhost:50090/v1"
-DEFAULT_STT_OPENAI_MODEL="whisper-1"
-DEFAULT_VOICE_TOOLS_OPENAI_KEY="dummy"
+DEFAULT_STT_BASE_URL="http://localhost:50090/v1"
+DEFAULT_STT_KEY="unused"
+DEFAULT_STT_MODEL="whisper-1"
 
 # Local TTS Port/URL (for Custom OpenAI-compatible TTS)
-DEFAULT_TTS_OPENAI_BASE_URL="http://localhost:50095/v1"
-DEFAULT_TTS_OPENAI_MODEL="qwen3-tts"
+DEFAULT_TTS_BASE_URL="http://localhost:50095/v1"
+DEFAULT_TTS_KEY="unused"
+DEFAULT_TTS_MODEL="qwen3-tts"
 
 # Local Image Port/URL
-DEFAULT_IMAGE_OPENAI_BASE_URL="http://localhost:50100/v1"
-DEFAULT_IMAGE_OPENAI_MODEL="txt2img"
+DEFAULT_IMAGE_BASE_URL="http://localhost:50100/v1"
+DEFAULT_IMAGE_KEY="unused"
+DEFAULT_IMAGE_MODEL="txt2img"
 
 # Signal Channel Configuration
 DEFAULT_SIGNAL_ACCOUNT="+1234567890"
@@ -381,21 +385,9 @@ cmd_install() {
         cat >"$ENV_FILE" <<EOF
 # Hermes Agent Environment Configuration
 
-# Set your API keys and other configuration here.
-
 # Path to the sandbox home and hermes home directories
 HERMES_SANDBOX_HOME="${DEFAULT_HERMES_SANDBOX_HOME}"
 HERMES_HOME="${DEFAULT_HERMES_HOME}"
-# Example API keys (uncomment and fill)
-# OPENROUTER_API_KEY=sk-or-v1-...
-# TELEGRAM_BOT_TOKEN=...
-# TELEGRAM_ALLOWED_USERS=your_user_id
-
-# Messaging gateway settings
-# GATEWAY_ALLOW_ALL_USERS=false
-
-# Terminal backend (local, docker, podman, ssh, modal)
-# TERMINAL_ENV=local
 
 # If using Podman instead of Docker
 HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
@@ -422,43 +414,38 @@ AGENT_SIDECAR_DASHBOARD_ARGS="${DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS}"
 # systemd-tmpfiles cleanup policy status
 AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
 
-# Local Inference Split Services Overrides
-# Default OpenAI-compatible LLM provider
-OPENAI_API_BASE="${DEFAULT_OPENAI_API_BASE}"
-OPENAI_API_KEY="${DEFAULT_OPENAI_API_KEY}"
+# --- for .hermes/.env
+# Set your API keys and other configuration here.
 
-# Embeddings endpoint (llama-server on port 50082)
-EMBEDDING_API_BASE="${DEFAULT_EMBEDDING_API_BASE}"
-EMBEDDING_API_KEY="${DEFAULT_EMBEDDING_API_KEY}"
-HERMES_EMBEDDING_PROVIDER="${DEFAULT_HERMES_EMBEDDING_PROVIDER}"
-HERMES_EMBEDDING_MODEL="${DEFAULT_HERMES_EMBEDDING_MODEL}"
-
-# Reranker endpoint (llama-server on port 50086)
-HERMES_RERANK_URL="${DEFAULT_HERMES_RERANK_URL}"
-HERMES_RERANK_PROVIDER="${DEFAULT_HERMES_RERANK_PROVIDER}"
-HERMES_RERANK_MODEL="${DEFAULT_HERMES_RERANK_MODEL}"
-HERMES_RERANK_TOP_K=${DEFAULT_HERMES_RERANK_TOP_K}
-
-# Speech-to-Text endpoint (whisper-server on port 50090)
-STT_OPENAI_BASE_URL="${DEFAULT_STT_OPENAI_BASE_URL}"
-STT_OPENAI_MODEL="${DEFAULT_STT_OPENAI_MODEL}"
-VOICE_TOOLS_OPENAI_KEY="${DEFAULT_VOICE_TOOLS_OPENAI_KEY}"
-
-# Local TTS endpoint (OpenAI compatible on port 50095)
-TTS_OPENAI_BASE_URL="${DEFAULT_TTS_OPENAI_BASE_URL}"
-TTS_OPENAI_MODEL="${DEFAULT_TTS_OPENAI_MODEL}"
-
+# Default openai/openai compatible backend URL,
+# change url to Image Gen for openai:image_gen, all other services have overrides available
 # Local Image endpoint (OpenAI compatible on port 50100)
-IMAGE_OPENAI_BASE_URL="${DEFAULT_IMAGE_OPENAI_BASE_URL}"
-IMAGE_OPENAI_MODEL="${DEFAULT_IMAGE_OPENAI_MODEL}"
+OPENAI_API_BASE_URL="${DEFAULT_IMAGE_BASE_URL}"
+OPENAI_API_KEY="${DEFAULT_IMAGE_KEY}"
+
+# disabled: Embeddings endpoint (llama-server on port 50082)
+# disabled: Reranker endpoint (llama-server on port 50086)
+
+# Speech-to-Text endpoint (whisper-server on port 50090) configured in config.yaml
+# Local TTS endpoint (OpenAI compatible on port 50095) configured in config.yaml
+# VOICE_TOOLS_OPENAI_KEY = custom key for both STT and TTS
+VOICE_TOOLS_OPENAI_KEY="$DEFAULT_TTS_KEY"
+
+# YOLO Mode
+HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
 
 # Signal Channel Configuration
 SIGNAL_HTTP_URL="${DEFAULT_SIGNAL_HTTP_URL}"
 SIGNAL_ACCOUNT="${DEFAULT_SIGNAL_ACCOUNT}"
 SIGNAL_ALLOWED_USERS="${DEFAULT_SIGNAL_ALLOWED_USERS}"
 
-# YOLO Mode
-HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
+# Messaging gateway settings
+# GATEWAY_ALLOW_ALL_USERS=false
+
+# Example API keys (uncomment and fill)
+# OPENROUTER_API_KEY=sk-or-v1-...
+# TELEGRAM_BOT_TOKEN=...
+# TELEGRAM_ALLOWED_USERS=your_user_id
 
 EOF
         chmod 600 "$ENV_FILE"
@@ -467,35 +454,52 @@ EOF
 
     local config_yaml="$HERMES_HOME/config.yaml"
     if [ ! -f "$config_yaml" ] || [ "$new_config" = "true" ]; then
-        cat >"$config_yaml" <<'EOF'
+        cat >"$config_yaml" <<EOF
 _config_version: 32
 agent:
   max_turns: 150
+web:
+  backend: ddgs
+  use_gateway: false
 browser:
   cloud_provider: local
   use_gateway: false
 display:
   tool_progress: all
+  tui_compact: false
+  details_mode: expanded
+  sections:
+    thinking: expanded
+    tools: expanded
+    subagents: expanded
+    activity: expanded
 dashboard:
   theme: default-large
   font: work-sans
-image_gen:
-  provider: openai
-  use_gateway: false
-  model: gpt-image-2-medium
-model:
-  default: qwen3
-  provider: openai-api
-  base_url: http://localhost:50080/v1
-  context_length: 80128
-web:
-  backend: ddgs
-  use_gateway: false
 session_reset:
   mode: none
-tts:
+model:
+  provider: openai-api
+  base_url: $DEFAULT_CHAT_BASE_URL
+  default: $DEFAULT_CHAT_MODEL
+  context_length: 80128
+image_gen:
   provider: openai
+  model: $DEFAULT_IMAGE_MODEL
   use_gateway: false
+tts:
+  provider: openai-api
+  base_url: $DEFAULT_TTS_BASE_URL
+  model: $DEFAULT_TTS_MODEL
+  use_gateway: false
+stt:
+  provider: openai-api
+  base_url: $DEFAULT_STT_BASE_URL
+  model: $DEFAULT_STT_MODEL
+plugins:
+  enabled:
+    - image_gen/openai
+  disabled: []
 platforms:
   signal:
     enabled: true
