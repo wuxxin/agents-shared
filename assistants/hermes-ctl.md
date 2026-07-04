@@ -32,14 +32,16 @@ The application override file is loaded **after** the systemd service configurat
 
 Both files are opened automatically when executing the `./assistants/hermes-ctl edit` command.
 
----
+## Setup Wizard
 
-## Centralized Defaults (`DEFAULT_*` Prefix)
-To prevent configuration drift, all defaults are centralized as internal script constants (`DEFAULT_*` prefix) in [hermes-ctl](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/hermes-ctl).
-*   **Why are they prefixed with `DEFAULT_*`?**
-    The wrapper script prefix indicates these are script-level fallback values. When you run `./assistants/hermes-ctl install`, these constants are written as standard environment variables (without the `DEFAULT_` prefix) into `~/.config/systemd/user/hermes-gateway.env`. If the env file does not override a variable, the script falls back to the corresponding `DEFAULT_*` constant.
+Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
 
----
+### OpenClaw Migration
+
+Hermes supports importing configuration from an existing OpenClaw setup. To migrate your setup, run:
+```bash
+./assistants/hermes-ctl exec claw migrate
+```
 
 ## Local Split Services Endpoints
 Hermes defaults to connecting to local hardware-accelerated services rather than remote cloud providers. The default endpoints are:
@@ -64,7 +66,7 @@ For tracking token usage and cost guardrails, local model costs (matching the `o
 
 ## Signal Channel Configuration & User Binding
 
-Hermes includes native support for the Signal messaging channel, interfacing with a locally running `signal-cli` daemon.
+Hermes includes native support for the Signal messaging channel, interfacing with a locally running `signal-cli` daemon in JSON-RPC over http.
 
 ### User and Agent Binding
 1. **Signal Account**: Set `SIGNAL_ACCOUNT="+1234567890"` to specify the registered Signal number used by the bot itself.
@@ -75,7 +77,7 @@ Add the following to `~/.config/systemd/user/hermes-gateway.env` (via `./assista
 ```bash
 # Enable Signal by supplying the account phone number and daemon endpoint
 SIGNAL_ACCOUNT="+1234567890"               # The bot's Signal phone number
-SIGNAL_HTTP_URL="http://localhost:50889"   # Local signal-cli REST API wrapper port
+SIGNAL_HTTP_URL="http://localhost:50888"   # Local signal-cli JSON-RPC over HTTP
 SIGNAL_ALLOWED_USERS="+0000000000"         # Comma-separated allowed users (owner binding)
 ```
 
@@ -178,18 +180,6 @@ Hermes implements memory as profile-scoped plugins. Select your preferred plugin
   SUPERMEMORY_API_KEY="your-api-key"
   ```
 
----
-
-## Setup Wizard
-
-Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
-
-### OpenClaw Migration
-
-Hermes supports importing configuration from an existing OpenClaw setup. To migrate your setup, run:
-```bash
-./assistants/hermes-ctl exec claw migrate
-```
 
 ---
 
@@ -213,5 +203,13 @@ Hermes utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on
    - **Properties Set**: `KillMode=mixed`, `KillSignal=SIGTERM`, `ExecReload=/bin/kill -USR1 \$MAINPID`, and `TimeoutStopSec=210`.
    - **Rationale**: Allows the gateway to perform a graceful drain of active messaging sessions and correctly handle child processes. Exiting with status `75` (force exit code) triggers systemd restart via `RestartForceExitStatus=75`.
 
-4. **Container Backend Support**
-   - **Warning**: If using docker or podman as a terminal backend inside the gateway, `NoNewPrivileges=yes` and `PrivateDevices=yes` must be relaxed, and access to `/dev/fuse` and namespace capabilities must be permitted.
+4. **Pseudo-Terminal (PTY) Support & Device Access**
+   - **Property Set**: `PrivateDevices=no`.
+   - **Rationale**: The WebUI chat tab (`/api/pty`) spawns shell processes using pseudo-terminals (POSIX PTYs). Systemd's `PrivateDevices=yes` removes access to the pseudo-terminal multiplexer (`/dev/ptmx` and `/dev/pts`), causing PTY allocation to fail ("out of pty"). Thus, `PrivateDevices=no` is set to ensure the embedded chat can allocate terminal lines and connect successfully.
+
+5. **Container Backend Support**
+   - **Warning**: If using docker or podman as a terminal backend inside the gateway, `NoNewPrivileges=yes` must be relaxed, and access to `/dev/fuse` and namespace capabilities must be permitted.
+
+6. **Systemd/Systemctl Masking**
+   - **Property Set**: `InaccessiblePaths=/usr/bin/systemctl /bin/systemctl`.
+   - **Rationale**: When running inside the sandboxed user service, the gateway daemon's built-in startup code attempts to reload the unit file via `systemctl`. Because `/run/user/<UID>` is isolated, this call hangs on D-Bus communication. Masking `systemctl` makes it fail fast immediately (causing `shutil.which` to return `None`), ensuring the gateway starts up instantly without any blocking behavior.

@@ -49,10 +49,14 @@ DEFAULT_IMAGE_BASE_URL="http://localhost:50100/v1"
 DEFAULT_IMAGE_KEY="unused"
 DEFAULT_IMAGE_MODEL="txt2img"
 
+# Dummy reference to satisfy shellcheck SC2034 (unused variables to be used in the future)
+: "${DEFAULT_CHAT_BASE_URL}" "${DEFAULT_CHAT_MODEL}" "${DEFAULT_CHAT_KEY}" "${DEFAULT_EMBEDDING_PROVIDER}" "${DEFAULT_EMBEDDING_BASE_URL}" "${DEFAULT_EMBEDDING_KEY}" "${DEFAULT_EMBEDDING_MODEL}" "${DEFAULT_RERANK_PROVIDER}" "${DEFAULT_RERANK_BASE_URL}" "${DEFAULT_RERANK_KEY}" "${DEFAULT_RERANK_MODEL}" "${DEFAULT_RERANK_TOP_K}" "${DEFAULT_STT_BASE_URL}" "${DEFAULT_STT_MODEL}" "${DEFAULT_STT_KEY}"
+
 # Signal Channel Configuration
 DEFAULT_SIGNAL_ACCOUNT="+1234567890"
-DEFAULT_SIGNAL_HTTP_URL="http://localhost:50889"
-DEFAULT_SIGNAL_ALLOWED_USERS="+9876543210"
+DEFAULT_SIGNAL_HTTP_URL="http://localhost:50888"
+DEFAULT_SIGNAL_HOME_CHANNEL="+9876543210"
+DEFAULT_SIGNAL_ALLOWED_USERS="$DEFAULT_SIGNAL_HOME_CHANNEL"
 
 # SCRIPT DEFAULTS
 SERVICE_NAME="$DEFAULT_SERVICE_NAME"
@@ -178,8 +182,9 @@ get_shared_options() {
     done
 
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
+    echo "InaccessiblePaths=/usr/bin/systemctl /bin/systemctl"
     echo "PrivateTmp=yes"
-    echo "PrivateDevices=yes"
+    echo "PrivateDevices=no"
     echo "PrivateMounts=yes"
 
     # Kernel and IPC constraints
@@ -326,10 +331,13 @@ EOF
 
     local exec_start_cmd
     if [ -n "$sidecars_exec" ]; then
-        # Spawn daemon first, sleep 2, check if daemon failed to start, spawn sidecars, then wait on daemon
-        exec_start_cmd="/bin/bash -c '/usr/bin/hermes gateway run --replace & MAIN_PID=\$\$! ; sleep 2 ; if ! kill -0 \$\$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$\$MAIN_PID) failed to start.\" >&2 ; exit 1 ; fi ; $sidecars_exec wait -n ; if ! kill -0 \$\$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$\$MAIN_PID) terminated.\" ; fi ; $sidecar_check exit 1'"
+        local kill_pids="\$\$MAIN_PID"
+        for ((i = 0; i < idx; i++)); do
+            kill_pids="$kill_pids \$\$SIDECAR_PID_$i"
+        done
+        exec_start_cmd="/bin/bash -c 'trap \"kill $kill_pids 2>/dev/null || true\" EXIT ; /usr/bin/hermes gateway run --force --no-supervise & MAIN_PID=\$\$! ; $sidecars_exec wait -n'"
     else
-        exec_start_cmd="/usr/bin/hermes gateway run --replace"
+        exec_start_cmd="/usr/bin/hermes gateway run --force --no-supervise"
     fi
 
     cat >"$SERVICE_FILE" <<EOF
@@ -452,6 +460,8 @@ HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
 SIGNAL_HTTP_URL="${DEFAULT_SIGNAL_HTTP_URL}"
 SIGNAL_ACCOUNT="${DEFAULT_SIGNAL_ACCOUNT}"
 SIGNAL_ALLOWED_USERS="${DEFAULT_SIGNAL_ALLOWED_USERS}"
+SIGNAL_HOME_CHANNEL="${DEFAULT_SIGNAL_HOME_CHANNEL}"
+SIGNAL_HOME_CHANNEL_THREAD_ID=""
 
 # Messaging gateway settings
 # GATEWAY_ALLOW_ALL_USERS=false
@@ -510,6 +520,8 @@ stt:
   provider: openai-api
   base_url: $DEFAULT_STT_BASE_URL
   model: $DEFAULT_STT_MODEL
+voice:
+  auto_tts: true
 plugins:
   enabled:
     - image_gen/openai
@@ -809,25 +821,11 @@ cmd_exec() {
             # Run daemon in the background
             /usr/bin/hermes "$@" &
             local main_pid=$!
-            sleep 2
-            if ! kill -0 "$main_pid" 2>/dev/null; then
-                echo "Main daemon process (PID $main_pid) failed to start." >&2
-                exit 1
-            fi
             spawn_fallback_sidecars
             wait -n
 
-            # Identify which process died
-            if ! kill -0 "$main_pid" 2>/dev/null; then
-                echo "Main daemon process (PID $main_pid) terminated."
-            fi
-            for i in "${!FALLBACK_SIDECAR_PIDS[@]}"; do
-                local pid="${FALLBACK_SIDECAR_PIDS[$i]}"
-                local name="${FALLBACK_SIDECAR_NAMES[$i]}"
-                if ! kill -0 "$pid" 2>/dev/null; then
-                    echo "Sidecar $name (PID $pid) terminated."
-                fi
-            done
+            # Kill all other processes on termination
+            kill "$main_pid" "${FALLBACK_SIDECAR_PIDS[@]}" 2>/dev/null || true
             exit 1
         else
             exec /usr/bin/hermes "$@"

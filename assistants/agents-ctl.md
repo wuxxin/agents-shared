@@ -112,10 +112,9 @@ To make configurations flexible and compatible with both systemd and direct exec
 
 Sidecar processes run within the **exact same systemd-confinement/namespaces** (or direct sandbox) as the main gateway daemon. They share the same isolated home directory, bind mounts, network/IPC namespace, and systemd cgroup limits.
 
-### Supervision & Exit Behavior
+#### Supervision & Exit Behavior
 Sidecar processes are managed via the main service wrapper using an event-driven `wait -n` supervisor.
-- If the main daemon fails to start (fails a 2-second initial validation check), the wrapper exits immediately.
-- If any sidecar process exits or crashes, the parent shell exits immediately (with code `1`), signaling systemd to tear down the entire control group (cgroup) and automatically restart the service.
+- If any sidecar process or the main daemon exits or crashes, the parent shell exits immediately (via an `EXIT` trap that terminates all remaining sibling processes in `hermes-ctl`, or via sequential `kill` blocks in other scripts), signaling systemd to tear down the entire control group (cgroup) and automatically restart the service.
 - To prevent run-away crash loops, the systemd unit enforces a restart rate limit: if the service undergoes more than **4 continuous restarts within a 40-second interval**, systemd will mark the service as permanently failed and stop attempting to restart it (`StartLimitIntervalSec=40` and `StartLimitBurst=4`).
 
 ---
@@ -155,12 +154,12 @@ When enabled, the cleanup policy runs immediately on service startup/restart, an
 
 To guarantee parity across all execution modes, the wrapper centralizes its systemd sandboxing properties in a single helper function (`get_shared_options`). The background service (installed via `install`), the transient command runner (`exec`), and the interactive shell (`shell`) all inherit the exact same security profile:
 
-1.  **Physical Devices**: `PrivateDevices=yes` is active by default to hide physical hardware devices 
-2.  **Strict Filesystem Isolation**: Enforces `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`). The persistent directories (`~/.local/sandbox/<agent>`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden and `PrivateTmp=yes` is set to have a unique private temp for the process
+1.  **Physical Devices**: `PrivateDevices=yes` is active by default to hide physical hardware devices (relaxed to `no` for agents like Hermes that require POSIX pseudo-terminal / PTY allocation for embedded WebUI chats).
+2.  **Strict Filesystem Isolation**: Enforces `ProtectSystem=strict` and a tmpfs-mounted `$HOME` directory (`TemporaryFileSystem=%h`). The persistent directories (`~/.local/sandbox/<agent>`, `~/agent-shared`) are bind-mounted read-write, while the rest of the host filesystem is mounted read-only or hidden and `PrivateTmp=yes` is set to have a unique private temp for the process.
 3.  **Kernel and IPC constraints**: Enforces kernel module, clock, and tunable protections, lock personality restrictions, and IPC namespaces.
-4. 
 4.  **NoNewPrivileges**: Enforces `NoNewPrivileges=yes` to prevent escalations.
-5.  **Direct Execution Fallback**: If systemd is not running in the current environment (e.g., inside a Bubblewrap container or systemd-free shell), the wrapper automatically falls back to direct execution of the binary under host environment variable overrides, setting `$HOME` to the sandboxed path.
+5.  **Systemctl Masking**: Enforces `InaccessiblePaths=/usr/bin/systemctl /bin/systemctl` (currently implemented in `hermes-ctl` to prevent the sandboxed processes from trying to execute blocking daemon-reloads or systemd queries inside the isolated service cgroup, ensuring instant startup).
+6.  **Direct Execution Fallback**: If systemd is not running in the current environment (e.g., inside a Bubblewrap container or systemd-free shell), the wrapper automatically falls back to direct execution of the binary under host environment variable overrides, setting `$HOME` to the sandboxed path.
 
 ### Strict Confinement Profile
 - `ProtectProc=invisible` and `ProcSubset=pid`: Hides other system processes.
