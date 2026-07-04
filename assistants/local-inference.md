@@ -1,13 +1,19 @@
 # Local Inference Coordinator Guide
 
-`local-inference.sh` is a wrapper and coordinator script designed to manage multiple local inference services collectively. It is not a systemd service itself, but it simplifies lifecycle management (install, uninstall, start, stop, restart, logs, status) for all 6 underlying local services:
+`local-inference.sh` is a wrapper and coordinator script designed to manage multiple local inference services collectively.  it simplifies lifecycle management (install, uninstall, start, stop, restart, logs, status) for all 7 underlying local services.
 
-1. **`local-chat`** (llama-server for chat & vision)
-2. **`local-embedding`** (llama-server for embeddings)
-3. **`local-rerank`** (llama-server for document rerank)
-4. **`local-speech-to-text`** (whisper-server for speech transcription)
-5. **`local-text-to-speech`** (qwen3-tts-server for voice synthesis)
-6. **`local-image`** (sd-server for image generation)
+Input:
+
+| Service | Default Port(s) | Description / Protocol |
+|---------------|-----------------|------------------------|
+| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM (and optional embeddings) |
+| **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving Text Embeddings |
+| **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
+| **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
+| **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
+| **Local-Image** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
+| **Local-Router** | [51080](http://localhost:51080) | combined service router / OpenAI proxy (HTTP) |
+
 
 ## Usage
 
@@ -54,6 +60,7 @@ LRR_ENABLED=1
 LSTT_ENABLED=1
 LTTS_ENABLED=1
 LIMG_ENABLED=1
+LROUT_ENABLED=1
 ```
 
 - **`start`** enables and starts all services set to `1`.
