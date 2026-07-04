@@ -3,15 +3,21 @@ set -euo pipefail
 
 # hermes-ctl - installation and management wrapper for hermes-agent
 
-# Centralized default configuration values
+# default configuration values
 DEFAULT_SERVICE_NAME="hermes-gateway"
 DEFAULT_HERMES_SANDBOX_HOME="$HOME/.local/sandbox/hermes"
 DEFAULT_HERMES_HOME="$DEFAULT_HERMES_SANDBOX_HOME/.hermes"
-DEFAULT_DOCKER_BINARY="/usr/bin/podman"
+
+# Agent service
 DEFAULT_AGENT_WORKSPACE="%h/.local/sandbox/hermes/.hermes/workspace"
 DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
+
+# Agent sidecars
+DEFAULT_AGENT_SIDECARS="dashboard"
+DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
+DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard --no-open"
 
 # Local Inference Ports/URLs
 DEFAULT_CHAT_BASE_URL="http://localhost:50080/v1"
@@ -48,19 +54,19 @@ DEFAULT_SIGNAL_ACCOUNT="+1234567890"
 DEFAULT_SIGNAL_HTTP_URL="http://localhost:50889"
 DEFAULT_SIGNAL_ALLOWED_USERS="+9876543210"
 
-# YOLO Mode
-DEFAULT_HERMES_YOLO_MODE="true"
-
-# Agent sidecars
-DEFAULT_AGENT_SIDECARS="dashboard"
-DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
-DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard --no-open"
-
+# SCRIPT DEFAULTS
 SERVICE_NAME="$DEFAULT_SERVICE_NAME"
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.env"
+
+# Hermes Defaults
 HERMES_SANDBOX_HOME="$DEFAULT_HERMES_SANDBOX_HOME"
 HERMES_HOME="$DEFAULT_HERMES_HOME"
+
+# Hermes Execution Mode
+DEFAULT_TERMINAL_ENV="local"
+DEFAULT_HERMES_YOLO_MODE="true"
+DEFAULT_DOCKER_BINARY="/usr/bin/podman"
 
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
@@ -312,15 +318,15 @@ EOF
         done
 
         # Check executable inside sandbox at startup and print clear error if missing
-        sidecars_exec="$sidecars_exec if ! command -v $cmd_val >/dev/null 2>&1 && [ ! -x \"$cmd_val\" ]; then echo \"Error: Cannot spawn sidecar $sidecar because its executable '$cmd_val' is missing or not executable.\" >&2 ; exit 1 ; fi ; env$env_flags $cmd_val $args_val & SIDECAR_PID_$idx=\$! ; "
-        sidecar_check="$sidecar_check if ! kill -0 \$SIDECAR_PID_$idx 2>/dev/null; then echo \"Sidecar $sidecar (PID \$SIDECAR_PID_$idx) terminated.\" ; fi ; "
+        sidecars_exec="$sidecars_exec if ! command -v $cmd_val >/dev/null 2>&1 && [ ! -x \"$cmd_val\" ]; then echo \"Error: Cannot spawn sidecar $sidecar because its executable '$cmd_val' is missing or not executable.\" >&2 ; exit 1 ; fi ; env$env_flags $cmd_val $args_val & SIDECAR_PID_$idx=\$\$! ; "
+        sidecar_check="$sidecar_check if ! kill -0 \$\$SIDECAR_PID_$idx 2>/dev/null; then echo \"Sidecar $sidecar (PID \$\$SIDECAR_PID_$idx) terminated.\" ; fi ; "
         idx=$((idx + 1))
     done
 
     local exec_start_cmd
     if [ -n "$sidecars_exec" ]; then
         # Spawn daemon first, sleep 2, check if daemon failed to start, spawn sidecars, then wait on daemon
-        exec_start_cmd="/bin/bash -c '/usr/bin/hermes gateway run --replace & MAIN_PID=\$! ; sleep 2 ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) failed to start.\" >&2 ; exit 1 ; fi ; $sidecars_exec wait -n ; if ! kill -0 \$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$MAIN_PID) terminated.\" ; fi ; $sidecar_check exit 1'"
+        exec_start_cmd="/bin/bash -c '/usr/bin/hermes gateway run --replace & MAIN_PID=\$\$! ; sleep 2 ; if ! kill -0 \$\$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$\$MAIN_PID) failed to start.\" >&2 ; exit 1 ; fi ; $sidecars_exec wait -n ; if ! kill -0 \$\$MAIN_PID 2>/dev/null; then echo \"Main daemon process (PID \$\$MAIN_PID) terminated.\" ; fi ; $sidecar_check exit 1'"
     else
         exec_start_cmd="/usr/bin/hermes gateway run --replace"
     fi
@@ -389,9 +395,6 @@ cmd_install() {
 HERMES_SANDBOX_HOME="${DEFAULT_HERMES_SANDBOX_HOME}"
 HERMES_HOME="${DEFAULT_HERMES_HOME}"
 
-# If using Podman instead of Docker
-HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
-
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
 # AGENT_PRIVATE_MOUNTS=""
@@ -414,7 +417,15 @@ AGENT_SIDECAR_DASHBOARD_ARGS="${DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS}"
 # systemd-tmpfiles cleanup policy status
 AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
 
-# --- for .hermes/.env
+EOF
+        chmod 600 "$ENV_FILE"
+        echo "Created default service environment file at $ENV_FILE"
+    fi
+
+    local app_env_file="$HERMES_HOME/.env"
+    if [ ! -f "$app_env_file" ] || [ "$new_config" = "true" ]; then
+        cat >"$app_env_file" <<EOF
+# .hermes/.env
 # Set your API keys and other configuration here.
 
 # Default openai/openai compatible backend URL,
@@ -429,9 +440,11 @@ OPENAI_API_KEY="${DEFAULT_IMAGE_KEY}"
 # Speech-to-Text endpoint (whisper-server on port 50090) configured in config.yaml
 # Local TTS endpoint (OpenAI compatible on port 50095) configured in config.yaml
 # VOICE_TOOLS_OPENAI_KEY = custom key for both STT and TTS
-VOICE_TOOLS_OPENAI_KEY="$DEFAULT_TTS_KEY"
+VOICE_TOOLS_OPENAI_KEY="${DEFAULT_TTS_KEY}"
 
-# YOLO Mode
+# Hermes Execution Mode
+TERMINAL_ENV="${DEFAULT_TERMINAL_ENV}"
+HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
 HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
 
 # Signal Channel Configuration
@@ -448,8 +461,8 @@ SIGNAL_ALLOWED_USERS="${DEFAULT_SIGNAL_ALLOWED_USERS}"
 # TELEGRAM_ALLOWED_USERS=your_user_id
 
 EOF
-        chmod 600 "$ENV_FILE"
-        echo "Created default environment file at $ENV_FILE"
+        chmod 600 "$app_env_file"
+        echo "Created default agent environment file at $app_env_file"
     fi
 
     local config_yaml="$HERMES_HOME/config.yaml"
