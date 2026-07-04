@@ -1091,19 +1091,19 @@
     },
     "running": {
         "chat": {
-            "bench_time_s": 24.02974271774292,
+            "bench_time_s": 24.228243350982666,
             "chat_avg_comp": 600.0,
-            "chat_avg_decode": 5.1637659430271015,
-            "chat_avg_gen": 116.19426724989556,
-            "chat_avg_prefill": 1762.1014248421625,
-            "chat_avg_ttft": 17615.898586984258,
+            "chat_avg_decode": 5.259688485006336,
+            "chat_avg_gen": 114.07519698370068,
+            "chat_avg_prefill": 1762.2662520033407,
+            "chat_avg_ttft": 17614.25094801234,
             "chat_image_gen": 0.0,
             "chat_image_ttft": 0.0,
-            "chat_warmup_comp": 139.0,
-            "chat_warmup_gen": 131.68226284965098,
-            "chat_warmup_prefill": 208.70145568807322,
+            "chat_warmup_comp": 148.0,
+            "chat_warmup_gen": 129.7125894011181,
+            "chat_warmup_prefill": 160.09463035828497,
             "chat_warmup_prompt": 19.0,
-            "chat_warmup_ttft": 91.03913500439376,
+            "chat_warmup_ttft": 118.67980804527178,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -1114,7 +1114,7 @@
                 "LCHAT_CHAT_TEMPLATE_FILE": "/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_CTX_SIZE": "240384",
                 "LCHAT_DEVICE": "Vulkan1",
-                "LCHAT_EMBEDDING_ENABLED": "true",
+                "LCHAT_EMBEDDING_ENABLED": "false",
                 "LCHAT_EXTRA_ARGS": "",
                 "LCHAT_HOST": "127.0.0.1",
                 "LCHAT_MMPROJ": "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf",
@@ -1134,7 +1134,7 @@
                 "LMBD_MODEL": "/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf",
                 "LMBD_PARALLEL": "2",
                 "LMBD_UBATCH_SIZE": "512",
-                "LOCAL_SIDECARS": "portmirror",
+                "LOCAL_SIDECARS": "",
                 "LOCAL_SIDECAR_PORTMIRROR_CMD": "bash -c 'if [ \\\"\\${LMBD_ENABLED}\\\" = \\\"true\\\" ]; then exec socat TCP-LISTEN:\\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\\${LCHAT_HOST:-127.0.0.1}:\\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
             },
             "errors": [],
@@ -1143,14 +1143,14 @@
             "test_name": "chat_running"
         },
         "embedding": {
-            "bench_time_s": 9.513636350631714,
+            "bench_time_s": 9.512521028518677,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
-            "embed_lat": 103.73218955074468,
-            "embed_p50": 104.05214299680665,
-            "embed_p95": 105.9230109967757,
-            "embed_throughput": 4923.933259874416,
-            "embed_time_s": 9.232456575002288,
+            "embed_lat": 104.71375029353592,
+            "embed_p50": 103.49407698959112,
+            "embed_p95": 104.4293410377577,
+            "embed_throughput": 4877.783746704274,
+            "embed_time_s": 9.319806363026146,
             "env": {
                 "LMBD_ALIAS": "qwen3-embedding",
                 "LMBD_DEVICE": "Vulkan1",
@@ -1170,7 +1170,7 @@
             "test_name": "embedding_running"
         },
         "image": {
-            "bench_time_s": 89.3978943824768,
+            "bench_time_s": 89.52640748023987,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -1187,12 +1187,12 @@
             },
             "errors": [],
             "gpu_mem_mb": "-n.a.-",
-            "image_time": 89.25641792497481,
+            "image_time": 89.3458263729699,
             "special_setting": "unknown",
             "test_name": "image_running"
         },
         "rerank": {
-            "bench_time_s": 10.231332540512085,
+            "bench_time_s": 14.840896129608154,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -1209,14 +1209,14 @@
             },
             "errors": [],
             "gpu_mem_mb": "-n.a.-",
-            "rerank_throughput": 0.9929136667092016,
-            "rerank_time": 10071.369077981217,
-            "rerank_token_speed": 341.4630099812944,
+            "rerank_throughput": 0.6825058349267301,
+            "rerank_time": 14651.889387983829,
+            "rerank_token_speed": 234.7137566313025,
             "special_setting": "unknown",
             "test_name": "rerank_running"
         },
         "stt": {
-            "bench_time_s": 5.806995391845703,
+            "bench_time_s": 5.908343076705933,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -1233,13 +1233,13 @@
             "errors": [],
             "gpu_mem_mb": "-n.a.-",
             "special_setting": "unknown",
-            "stt_rtf": 0.12403786928884478,
+            "stt_rtf": 0.12431123337656673,
             "stt_text": "As campaigns go, the one in 1892 was not a particularly\n exciting one.\n Both candidates had already served a term in the White\n House.\n Cleveland from 1884 to 1888, Harrison succeeding him and\n running now for re-election.\n Both men were well known to the voters.\n It was a time of industrial expansion for the nation,\n and there were no earth-shaking issues at stake,\n save that of governmental spending, which even in a\n prosperous year\n made many voters dissatisfied with the Harrison\n administration.\n Cleveland sat out the campaign at his home in Buzzards Bay,\n suffering from the gout and making an occasional speech.\n Harrison, whose wife had just died,",
-            "stt_time": 5.581704117998015,
+            "stt_time": 5.594005501945503,
             "test_name": "stt_running"
         },
         "tts": {
-            "bench_time_s": 30.066397428512573,
+            "bench_time_s": 34.76665139198303,
             "cpu_mem_mb": "-n.a.-",
             "device_setting": "running on host",
             "env": {
@@ -1256,10 +1256,10 @@
             "gpu_mem_mb": "-n.a.-",
             "special_setting": "unknown",
             "test_name": "tts_running",
-            "tts_char_speed": 9.162152013002707,
-            "tts_duration": 19.176875,
-            "tts_rtf": 1.5594635646839075,
-            "tts_time": 29.905637846997706
+            "tts_char_speed": 7.912535832694655,
+            "tts_duration": 18.056875,
+            "tts_rtf": 1.9177512806077188,
+            "tts_time": 34.628595155023504
         }
     },
     "special-combi": {

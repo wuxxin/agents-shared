@@ -561,7 +561,8 @@ LMBD_MIRROR_PORT=50082
 
 # Space or semicolon separated list of sidecar names (default: "portmirror")
 # Each sidecar runs as a background process alongside llama-server.
-LOCAL_SIDECARS="portmirror"
+# LOCAL_SIDECARS="portmirror"
+LOCAL_SIDECARS=""
 
 # --- Port Mirror Sidecar (default built-in)
 # Checks LMBD_ENABLED at runtime: socat port mirror when true, sleep when false.
