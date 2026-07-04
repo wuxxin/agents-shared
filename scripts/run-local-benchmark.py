@@ -2208,12 +2208,21 @@ def main() -> None:
         default=os.path.join(REPO_ROOT, "assistants", "local-benchmark.json"),
         help="Path to the JSON database/cache file (default: assistants/local-benchmark.json)",
     )
+    parser.add_argument(
+        "--use-router",
+        action="store_true",
+        help="Use the router service URL (http://127.0.0.1:51080) for all services instead of individual ports (useful for --configs running)",
+    )
 
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(0)
 
     args = parser.parse_args()
+
+    router_host = os.environ.get("LROUT_HOST", "127.0.0.1")
+    router_port = int(os.environ.get("LROUT_PORT", "51080"))
+    router_url = f"http://{router_host}:{router_port}"
 
     if args.mock:
         # Redirect outputs to scratch directory so we don't overwrite production files during testing
@@ -2469,6 +2478,12 @@ def main() -> None:
                         os.environ.get("LCHAT_N_CTX", int(240384 * fraction))
                     )
 
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
                 if not args.mock:
                     if run_cfg == "running":
                         baseline_vram = 0.0
@@ -2476,15 +2491,18 @@ def main() -> None:
                         is_up = False
                         try:
                             with socket.create_connection(
-                                ("127.0.0.1", srv["port"]), timeout=1.0
+                                ("127.0.0.1", target_port), timeout=1.0
                             ):
                                 is_up = True
                         except Exception:
                             pass
                         if not is_up:
-                            print(
-                                f"Error: llama-server is not running on port {srv['port']}."
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"llama-server on port {target_port}"
                             )
+                            print(f"Error: {port_msg} is not running.")
                             set_service_fail_metrics(
                                 benchmark_data,
                                 cache_key,
@@ -2492,12 +2510,15 @@ def main() -> None:
                                 "running on host",
                                 "unknown",
                                 srv["env_file"],
-                                ["Error: service is not running on port"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
                                 {},
                             )
                             continue
                         proc = None
                         master_fd = None
+
                     else:
                         baseline_vram = get_gpu_memory_mb(llm_device)
                         lookup_cfg = (
@@ -2582,7 +2603,7 @@ def main() -> None:
                     if run_cfg != "running":
                         print("Warming up chat model (qwen3)...")
                         if not warmup_model(
-                            f"http://127.0.0.1:{srv['port']}/v1/chat/completions",
+                            f"http://127.0.0.1:{target_port}/v1/chat/completions",
                             {
                                 "model": "qwen3",
                                 "messages": [{"role": "user", "content": "ping"}],
@@ -2605,6 +2626,8 @@ def main() -> None:
                         "json",
                         "--skip-embedding",
                     ]
+                    if args.use_router and run_cfg == "running":
+                        test_args.extend(["--url", router_url])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
@@ -2612,6 +2635,7 @@ def main() -> None:
                     stdout, success, error_lines = run_benchmark(
                         srv["script"], test_args, server_proc=proc
                     )
+
                     if not success:
                         print(
                             f"⚠️ Warning: Benchmark command for chat on config '{cache_key}' failed."
@@ -2701,7 +2725,7 @@ def main() -> None:
                             embed_alias = os.environ.get(
                                 "LMBD_ALIAS", "qwen3-embedding"
                             )
-                            embed_port = srv["port"]
+                            embed_port = target_port
 
                             print(
                                 "Warming up embedding model (qwen3-embedding) on port {}...".format(
@@ -2746,6 +2770,8 @@ def main() -> None:
                             ]
                             if run_cfg.startswith("cpu"):
                                 test_args_embed.extend(["--fraction-chunks", "0.1"])
+                            if args.use_router and run_cfg == "running":
+                                test_args_embed.extend(["--url", router_url])
 
                             start_time_embed = time.time()
                             stdout_embed, success_embed_run, error_lines_embed = (
@@ -3029,6 +3055,12 @@ def main() -> None:
                     }
                     embed_device = device_map.get(run_cfg, run_cfg)
 
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
                 if not args.mock:
                     if run_cfg == "running":
                         baseline_vram = 0.0
@@ -3036,15 +3068,18 @@ def main() -> None:
                         is_up = False
                         try:
                             with socket.create_connection(
-                                ("127.0.0.1", srv["port"]), timeout=1.0
+                                ("127.0.0.1", target_port), timeout=1.0
                             ):
                                 is_up = True
                         except Exception:
                             pass
                         if not is_up:
-                            print(
-                                f"Error: llama-server is not running on port {srv['port']}."
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"llama-server on port {target_port}"
                             )
+                            print(f"Error: {port_msg} is not running.")
                             set_service_fail_metrics(
                                 benchmark_data,
                                 cache_key,
@@ -3052,12 +3087,15 @@ def main() -> None:
                                 "running on host",
                                 "unknown",
                                 srv["env_file"],
-                                ["Error: service is not running on port"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
                                 {},
                             )
                             continue
                         proc = None
                         master_fd = None
+
                     else:
                         baseline_vram = get_gpu_memory_mb(embed_device)
 
@@ -3126,7 +3164,7 @@ def main() -> None:
                             {"model": "qwen3-embedding", "input": "ping"}
                         ).encode("utf-8")
                         req = urllib.request.Request(
-                            f"http://127.0.0.1:{srv['port']}/v1/embeddings",
+                            f"http://127.0.0.1:{target_port}/v1/embeddings",
                             data=data,
                             headers={"Content-Type": "application/json"},
                             method="POST",
@@ -3145,7 +3183,7 @@ def main() -> None:
                             )
                             # Wait for up to 10 minutes (600 seconds) for shader compilation to finish
                             success = warmup_model(
-                                f"http://127.0.0.1:{srv['port']}/v1/embeddings",
+                                f"http://127.0.0.1:{target_port}/v1/embeddings",
                                 {
                                     "model": "qwen3-embedding",
                                     "input": "ping",
@@ -3168,6 +3206,8 @@ def main() -> None:
                     ]
                     if run_cfg.startswith("cpu"):
                         test_args.extend(["--fraction-chunks", "0.1"])
+                    if args.use_router and run_cfg == "running":
+                        test_args.extend(["--url", router_url])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
@@ -3175,6 +3215,7 @@ def main() -> None:
                     stdout, success, error_lines = run_benchmark(
                         srv["script"], test_args, server_proc=proc
                     )
+
                     if not success:
                         print(
                             f"⚠️ Warning: Benchmark command for embedding on config '{cache_key}' failed."
@@ -3392,6 +3433,12 @@ def main() -> None:
                     }
                     lrr_device = device_map.get(run_cfg, run_cfg)
 
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
                 if not args.mock:
                     if run_cfg == "running":
                         baseline_vram = 0.0
@@ -3399,15 +3446,18 @@ def main() -> None:
                         is_up = False
                         try:
                             with socket.create_connection(
-                                ("127.0.0.1", srv["port"]), timeout=1.0
+                                ("127.0.0.1", target_port), timeout=1.0
                             ):
                                 is_up = True
                         except Exception:
                             pass
                         if not is_up:
-                            print(
-                                f"Error: reranker is not running on port {srv['port']}."
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"reranker on port {target_port}"
                             )
+                            print(f"Error: {port_msg} is not running.")
                             set_service_fail_metrics(
                                 benchmark_data,
                                 cache_key,
@@ -3415,12 +3465,15 @@ def main() -> None:
                                 "running on host",
                                 "unknown",
                                 srv["env_file"],
-                                ["Error: service is not running on port"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
                                 {},
                             )
                             continue
                         proc = None
                         master_fd = None
+
                     else:
                         baseline_vram = get_gpu_memory_mb(lrr_device)
                         updates = {
@@ -3471,7 +3524,7 @@ def main() -> None:
                     if run_cfg != "running":
                         print("Warming up reranker model (qwen3-reranker)...")
                         if not warmup_model(
-                            f"http://127.0.0.1:{srv['port']}/v1/rerank",
+                            f"http://127.0.0.1:{target_port}/v1/rerank",
                             {
                                 "model": "qwen3-reranker",
                                 "query": "ping",
@@ -3481,15 +3534,25 @@ def main() -> None:
                             print(
                                 "⚠️ Warning: Model warmup timed out. Benchmark might fail."
                             )
+                    rerank_test_args = [
+                        "--benchmark",
+                        "--repeat",
+                        "1",
+                        "--format",
+                        "json",
+                    ]
+                    if args.use_router and run_cfg == "running":
+                        rerank_test_args.extend(["--url", router_url])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1", "--format", "json"],
+                        rerank_test_args,
                         server_proc=proc,
                     )
+
                     if not success:
                         print(
                             f"⚠️ Warning: Benchmark command for reranker on config '{cache_key}' failed."
@@ -3703,6 +3766,12 @@ def main() -> None:
                         )
                     )
 
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
                 if not args.mock:
                     if run_cfg == "running":
                         baseline_vram = 0.0
@@ -3710,15 +3779,18 @@ def main() -> None:
                         is_up = False
                         try:
                             with socket.create_connection(
-                                ("127.0.0.1", srv["port"]), timeout=1.0
+                                ("127.0.0.1", target_port), timeout=1.0
                             ):
                                 is_up = True
                         except Exception:
                             pass
                         if not is_up:
-                            print(
-                                f"Error: whisper-server is not running on port {srv['port']}."
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"whisper-server on port {target_port}"
                             )
+                            print(f"Error: {port_msg} is not running.")
                             set_service_fail_metrics(
                                 benchmark_data,
                                 cache_key,
@@ -3726,12 +3798,15 @@ def main() -> None:
                                 "running on host",
                                 "unknown",
                                 srv["env_file"],
-                                ["Error: service is not running on port"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
                                 {},
                             )
                             continue
                         proc = None
                         master_fd = None
+
                     else:
                         baseline_vram = get_gpu_memory_mb(stt_device)
 
@@ -3797,15 +3872,19 @@ def main() -> None:
 
                 print("Running STT benchmark...")
                 if not args.mock:
+                    stt_test_args = ["--benchmark", "--repeat", "1", "--format", "json"]
+                    if args.use_router and run_cfg == "running":
+                        stt_test_args.extend(["--url", router_url])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1", "--format", "json"],
+                        stt_test_args,
                         server_proc=proc,
                     )
+
                     if not success:
                         print(
                             f"⚠️ Warning: Benchmark command for STT on config '{cache_key}' failed."
@@ -4036,6 +4115,12 @@ def main() -> None:
                     benchmark_data[data_key] = {}
 
                 actual_device = ltts_device
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
                 if not args.mock:
                     if run_cfg == "running":
                         baseline_vram = 0.0
@@ -4043,15 +4128,18 @@ def main() -> None:
                         is_up = False
                         try:
                             with socket.create_connection(
-                                ("127.0.0.1", srv["port"]), timeout=1.0
+                                ("127.0.0.1", target_port), timeout=1.0
                             ):
                                 is_up = True
                         except Exception:
                             pass
                         if not is_up:
-                            print(
-                                f"Error: qwen3-tts-server is not running on port {srv['port']}."
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"qwen3-tts-server on port {target_port}"
                             )
+                            print(f"Error: {port_msg} is not running.")
                             set_service_fail_metrics(
                                 benchmark_data,
                                 data_key,
@@ -4059,12 +4147,15 @@ def main() -> None:
                                 "running on host",
                                 "unknown",
                                 srv["env_file"],
-                                ["Error: service is not running on port"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
                                 {},
                             )
                             continue
                         proc = None
                         master_fd = None
+
                     else:
                         baseline_vram = get_gpu_memory_mb(ltts_device)
 
@@ -4134,15 +4225,19 @@ def main() -> None:
 
                 print("Running TTS benchmark...")
                 if not args.mock:
+                    tts_test_args = ["--benchmark", "--repeat", "1", "--format", "json"]
+                    if args.use_router and run_cfg == "running":
+                        tts_test_args.extend(["--url", router_url])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1", "--format", "json"],
+                        tts_test_args,
                         server_proc=proc,
                     )
+
                     if not success:
                         print(
                             f"⚠️ Warning: Benchmark command for TTS on config '{data_key}' failed."
@@ -4388,6 +4483,12 @@ def main() -> None:
                                     ",te=cpu"  # offload text encoder for iGPU
                                 )
 
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
                 if not args.mock:
                     if run_cfg == "running":
                         baseline_vram = 0.0
@@ -4395,15 +4496,18 @@ def main() -> None:
                         is_up = False
                         try:
                             with socket.create_connection(
-                                ("127.0.0.1", srv["port"]), timeout=1.0
+                                ("127.0.0.1", target_port), timeout=1.0
                             ):
                                 is_up = True
                         except Exception:
                             pass
                         if not is_up:
-                            print(
-                                f"Error: sd-server is not running on port {srv['port']}."
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"sd-server on port {target_port}"
                             )
+                            print(f"Error: {port_msg} is not running.")
                             set_service_fail_metrics(
                                 benchmark_data,
                                 cache_key,
@@ -4411,12 +4515,15 @@ def main() -> None:
                                 "running on host",
                                 "unknown",
                                 srv["env_file"],
-                                ["Error: service is not running on port"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
                                 {},
                             )
                             continue
                         proc = None
                         master_fd = None
+
                     else:
                         baseline_vram = get_gpu_memory_mb(img_backend)
 
@@ -4467,15 +4574,25 @@ def main() -> None:
                 # Run benchmarks
                 print("Running Image Generation benchmark")
                 if not args.mock:
+                    image_test_args = [
+                        "--benchmark",
+                        "--repeat",
+                        "1",
+                        "--format",
+                        "json",
+                    ]
+                    if args.use_router and run_cfg == "running":
+                        image_test_args.extend(["--url", router_url])
                     start_time = time.time()
                     bench_start_time_str = datetime.datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
                     stdout, success, error_lines = run_benchmark(
                         srv["script"],
-                        ["--benchmark", "--repeat", "1", "--format", "json"],
+                        image_test_args,
                         server_proc=proc,
                     )
+
                     if not success:
                         print(
                             f"⚠️ Warning: Benchmark command for image on config '{cache_key}' failed."

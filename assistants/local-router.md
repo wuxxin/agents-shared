@@ -2,7 +2,9 @@
 
 `local-router.sh` manages the local combined services router systemd user service (`local-router.service`), running a FastAPI web application served by `uvicorn` on port `51080`. It aggregates all underlying local inference services into a single OpenAI-compatible entrypoint.
 
-- **Source Code**: [scripts/local-router.py](file:///home/wuxxin/agent-shared/code/agents-shared/scripts/local-router.py)
+On installation, the Python code is copied from `scripts/local-router.py` to the systemd user directory (`~/.config/systemd/user/local-router.py`), and is served directly from there.
+
+- **Source Code Repository Path**: [scripts/local-router.py](file:///home/wuxxin/agent-shared/code/agents-shared/scripts/local-router.py)
 - **Control Wrapper**: [assistants/local-router.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-router.sh)
 
 ## Usage
@@ -42,6 +44,7 @@ Default configuration values:
 LROUT_PORT=51080
 LROUT_HOST=127.0.0.1
 LROUT_EXTRA_ARGS=""
+LROUT_DEFAULT_MODEL="qwen3"
 ```
 
 ### Route Map (Port 51080)
@@ -54,7 +57,23 @@ LROUT_EXTRA_ARGS=""
 | `POST /v1/audio/transcriptions` | `http://{LSTT_HOST}:{LSTT_PORT}` | Local-Speech-To-Text | 50090 | Whisper transcription |
 | `POST /v1/audio/speech` | `http://{LTTS_HOST}:{LTTS_PORT}` | Local-Text-To-Speech | 50095 | Speech synthesis |
 | `POST /v1/images/generations` | `http://{LIMG_HOST}:{LIMG_PORT}` | Local-Image | 50100 | Stable Diffusion image generation |
-| `GET /v1/models` | Combined Merged Models Endpoint | All Active Backends | - | Merges active models list |
+| `GET /v1/models` | Cached Model Inventory | - | - | Returns cached model inventory built on startup |
+
+### Startup Synchronization & Model Inventory
+
+On startup, the router parses `~/.config/systemd/user/local-inference.env` to identify which sub-services are enabled. It then polls all enabled services:
+- For backends supporting models (`chat`, `embedding` if standalone, `rerank`), it queries their `/v1/models` HTTP endpoint.
+- For backends not exposing a models endpoint (`stt`, `tts`, `image`), it checks if their TCP port is open.
+
+The router polls every 2 seconds for up to **1 minute**.
+- If all enabled services become available, it constructs a global model inventory mapping model IDs and configured aliases to their respective services, then begins serving requests.
+- If not all services are online within 1 minute, the router prints an error to standard error and aborts startup with exit code `1`.
+
+### Default Model Routing
+
+When clients request tokenization (`/tokenize` or `/detokenize`) without specifying a `model` parameter in the request body, the router checks if `LROUT_DEFAULT_MODEL` is configured in `local-router.env` and maps to an active service in the inventory.
+- If found, the request is routed to the corresponding service (e.g. `embedding` if `LROUT_DEFAULT_MODEL="qwen3-embedding"`).
+- Otherwise, it falls back to routing to the `chat` service on port `50080`.
 
 ### Dynamic Embedding Routing
 

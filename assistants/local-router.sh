@@ -90,16 +90,7 @@ get_shared_options() {
 
     # Environment file & Working directory
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-router.env"
-    
-    # Calculate the relative scripts path from home_spec
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-    local repo_root
-    repo_root="$(cd "${script_dir}/.." &>/dev/null && pwd)"
-    local rel_scripts_dir
-    rel_scripts_dir=$(realpath --relative-to="$HOME" "${repo_root}/scripts")
-
-    echo "WorkingDirectory=${home_spec}/${rel_scripts_dir}"
+    echo "WorkingDirectory=${home_spec}/.config/systemd/user"
 
     # Basic hardening
     echo "NoNewPrivileges=yes"
@@ -210,6 +201,10 @@ LROUT_HOST=127.0.0.1
 
 # Extra arguments to pass to uvicorn
 LROUT_EXTRA_ARGS=""
+
+# Default model to route requests to if no model parameter is specified in the request (e.g. in /tokenize)
+LROUT_DEFAULT_MODEL="qwen3"
+
 EOF
 }
 
@@ -236,8 +231,23 @@ cmd_install() {
 
     echo "Installing ${SERVICE_NAME} systemd user service..."
 
+    # Resolve source python file location
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local source_py="${script_dir}/../scripts/local-router.py"
+
+    if [[ ! -f "${source_py}" ]]; then
+        echo "Error: Source Python file not found at ${source_py}" >&2
+        exit 1
+    fi
+
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
+
+    # Copy local-router.py to systemd config directory
+    echo "Copying local-router.py to ${SYSTEMD_USER_DIR}..."
+    cp "${source_py}" "${SYSTEMD_USER_DIR}/local-router.py"
+    chmod 644 "${SYSTEMD_USER_DIR}/local-router.py"
 
     # Write default env file if it doesn't exist
     if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" != "true" ]; then
@@ -289,6 +299,11 @@ cmd_uninstall() {
         echo "Removed service file."
     fi
 
+    if [[ -f "${SYSTEMD_USER_DIR}/local-router.py" ]]; then
+        rm -f "${SYSTEMD_USER_DIR}/local-router.py"
+        echo "Removed local-router.py from ${SYSTEMD_USER_DIR}."
+    fi
+
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
 
@@ -335,15 +350,9 @@ cmd_exec() {
     local args
     get_router_args args
 
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-    local repo_root
-    repo_root="$(cd "${script_dir}/.." &>/dev/null && pwd)"
-    local scripts_dir="${repo_root}/scripts"
-
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running uvicorn directly in foreground..."
-        cd "${scripts_dir}"
+        cd "${SYSTEMD_USER_DIR}"
         if [ $# -gt 0 ]; then
             exec /usr/bin/uvicorn "$@"
         else
