@@ -75,6 +75,18 @@ You can configure the target device using the `LTTS_DEVICE` environment variable
 # LTTS_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 ```
 
+# Default language for speech generation
+
+If not supplied by request, the default language generated is "en" (english).
+
+To set a different default language eg. german (de) use:
+
+```bash
+LTTS_EXTRA_ARGS="--language de"
+```
+
+Info: the --language parameter is only available in the patched libggml-git-hip qwen3-tts binary.
+
 
 ## Models & Repositories
 

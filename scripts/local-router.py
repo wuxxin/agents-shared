@@ -36,7 +36,7 @@ def resolve_service_alias(name: str) -> str:
         return rerank_env.get("LRR_ALIAS", "qwen3-reranker")
     elif name == "stt":
         stt_env = parse_env_file(os.path.join(user_dir, "local-speech-to-text.env"))
-        return stt_env.get("LSTT_ALIAS", stt_env.get("LSTT_MODEL_ALIAS", "whisper-1"))
+        return stt_env.get("LSTT_ALIAS", "whisper-1")
     elif name == "tts":
         tts_env = parse_env_file(os.path.join(user_dir, "local-text-to-speech.env"))
         return tts_env.get("LTTS_ALIAS", "qwen3-tts")

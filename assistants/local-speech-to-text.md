@@ -51,6 +51,66 @@ The service runs `whisper-server` which loads a GGML Whisper model and exposes a
 | `~/.config/systemd/user/local-speech-to-text.env` | Model path, port, host, and thread configuration |
 | `~/.config/systemd/user/local-speech-to-text.service` | Auto-generated systemd unit |
 
+
+## Supported Languages
+
+The default Whisper model (`ggml-large-v3-turbo`) supports transcribing and auto-detecting the following languages (using standard ISO 639-1 codes):
+
+| Code | Language | Code | Language | Code | Language | Code | Language |
+|---|---|---|---|---|---|---|---|
+| `af` | Afrikaans | `el` | Greek | `kn` | Kannada | `ro` | Romanian |
+| `ar` | Arabic | `en` | English | `ko` | Korean | `ru` | Russian |
+| `az` | Azerbaijani | `es` | Spanish | `lt` | Lithuanian | `sk` | Slovak |
+| `be` | Belarusian | `et` | Estonian | `lv` | Latvian | `sl` | Slovenian |
+| `bg` | Bulgarian | `fa` | Persian | `mk` | Macedonian | `sr` | Serbian |
+| `bs` | Bosnian | `fi` | Finnish | `mr` | Marathi | `sv` | Swedish |
+| `ca` | Catalan | `fr` | French | `ms` | Malay | `sw` | Swahili |
+| `cs` | Czech | `gl` | Galician | `ne` | Nepali | `ta` | Tamil |
+| `cy` | Welsh | `he` | Hebrew | `nl` | Dutch | `th` | Thai |
+| `da` | Danish | `hi` | Hindi | `no` | Norwegian | `tl` | Tagalog |
+| `de` | German | `hr` | Croatian | `pl` | Polish | `tr` | Turkish |
+| `id` | Indonesian | `hu` | Hungarian | `pt` | Portuguese | `uk` | Ukrainian |
+| `is` | Icelandic | `hy` | Armenian | `ur` | Urdu | `vi` | Vietnamese |
+| `it` | Italian | `ja` | Japanese | `zh` | Chinese | `kk` | Kazakh |
+
+*(Note: While other low-resource languages may also be transcribed, this list represents languages with high-to-medium transcription accuracy and reliability).*
+
+### Default Language Detection/Selection
+
+By default, the service uses automatic language detection. You can configure the target language using the `LSTT_LANG` environment variable. Run `./local-speech-to-text.sh edit` (or edit `~/.config/systemd/user/local-speech-to-text.env` directly) and configure the language:
+
+```bash
+# Spoken language ('auto' for auto-detect, or a language code like 'en', 'de', 'fr')
+# LSTT_LANG="auto"
+```
+
+
+## Supported Audio Input Formats
+
+Since the service runs `whisper-server` with the `--convert` flag enabled by default in [local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh), it leverages system-installed `ffmpeg` to dynamically transcode incoming audio files to the format expected by the whisper inference engine (16-bit PCM WAV, 16kHz, mono/stereo).
+
+Consequently, any audio format or container that can be demuxed and decoded by your host's `ffmpeg` installation is supported as an input format. This includes:
+
+- **MP3** (`.mp3`)
+- **AAC / MPEG-4 Audio** (`.aac`, `.m4a`, `.mp4`)
+- **Ogg / Vorbis / Opus** (`.ogg`, `.opus`)
+- **FLAC** (`.flac`)
+- **WAV / PCM** (`.wav`) (standardized to 16kHz during transcoding if not already)
+- **WebM / Matroska** (`.webm`, `.mka`, `.mkv`)
+- **Other formats** (such as WMA, AIFF, AMR, and others supported by the host's `ffmpeg` decoders)
+
+### Under the Hood: Transcoding Command
+
+When an audio file is uploaded to the server, it is temporarily stored and converted using the following `ffmpeg` call:
+
+```bash
+ffmpeg -i "<input_file>" -y -ar 16000 -ac <channels> -c:a pcm_s16le "<output_file>.wav" 2>&1
+```
+
+> [!NOTE]
+> Make sure `ffmpeg` is installed and available in the system's `PATH`. If running within the systemd sandbox, the service configures `BindPaths=%h` to ensure that any temporary files generated during transcoding can be written to the allowed directories in the home sandbox.
+
+
 ### Switching between GPU and CPU Inference
 
 By default, the service runs the speech-to-text transcription engine on the GPU for maximum speed. If GPU resources are constrained, it can be run on the CPU instead.
@@ -79,15 +139,6 @@ You can configure the target device using the `LSTT_DEVICE` environment variable
 # LSTT_DEVICE="vulkan"
 # LSTT_DEVICE="cpu"
 # LSTT_DEVICE="openblas"
-```
-
-### Language Selection
-
-By default, the service uses automatic language detection. You can configure the target language using the `LSTT_LANG` environment variable. Run `./local-speech-to-text.sh edit` (or edit `~/.config/systemd/user/local-speech-to-text.env` directly) and configure the language:
-
-```bash
-# Spoken language ('auto' for auto-detect, or a language code like 'en', 'de', 'fr')
-# LSTT_LANG="auto"
 ```
 
 

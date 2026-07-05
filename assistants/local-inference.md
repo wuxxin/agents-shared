@@ -6,13 +6,13 @@ Input:
 
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
-| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM (and optional embeddings) |
-| **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving Text Embeddings |
+| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving OpenAI Chat/Vision LLM (and optional text embeddings) |
+| **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving OpenAI Text Embeddings |
 | **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
-| **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
-| **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
-| **Local-Image** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
-| **Local-Router** | [51080](http://localhost:51080) | combined service router / OpenAI proxy (HTTP) |
+| **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server OpenAI audio transcription |
+| **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server OpenAI audio synthesis |
+| **Local-Image** | [50100](http://localhost:50100) | sd-server OpenAI and Automatic1111 image generation|
+| **Local-Router** | [51080](http://localhost:51080) | combined service router / OpenAI proxy |
 
 
 ## Usage

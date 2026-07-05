@@ -294,7 +294,9 @@ LTTS_MODE="cpu"
 LTTS_THREADS=8
 
 # Extra arguments to pass to qwen3-tts-server (e.g. --temperature, --seed, etc.)
-LTTS_EXTRA_ARGS=""
+# set default language for generation, if not supplied by request: only available in patched (libggml-git-hip) qwen3-tts
+# eg. "--language de"
+LTTS_EXTRA_ARGS="--language de"
 
 EOF
 }
@@ -643,7 +645,7 @@ cmd_test() {
     local lstt_host="${LSTT_HOST:-127.0.0.1}"
     local lstt_port="${LSTT_PORT:-50090}"
     local lstt_inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
-    local lstt_model_alias="${LSTT_MODEL_ALIAS:-whisper-1}"
+    local lstt_model_alias="${LSTT_ALIAS:-whisper-1}"
 
     echo "Transcribing generated audio using local-speech-to-text at http://${lstt_host}:${lstt_port}..."
     local stt_resp
