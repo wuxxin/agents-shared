@@ -49,6 +49,39 @@ The service runs `qwen3-tts-server` which loads a Qwen3-TTS talker model and a W
 | `~/.config/systemd/user/local-text-to-speech.env` | Model paths, port, host, and thread configuration |
 | `~/.config/systemd/user/local-text-to-speech.service` | Auto-generated systemd unit |
 
+#### Default Language for Speech Generation
+
+If not supplied by request, the default language generated is "en" (english).
+
+To set a different default language eg. german (de) use:
+
+```bash
+LTTS_EXTRA_ARGS="--language de"
+```
+
+Info: the --language parameter is only available in the patched libggml-git-hip qwen3-tts binary.
+
+### Available Voices
+
+When running the local text-to-speech service with the default custom voice model (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`), you can query the available voices via the `/v1/audio/voices` endpoint:
+
+```bash
+curl -s http://127.0.0.1:50095/v1/audio/voices
+```
+
+This returns the following active voice presets loaded by the model:
+
+- `default`
+- `serena`
+- `vivian`
+- `uncle_fu`
+- `ryan`
+- `aiden`
+- `ono_anna`
+- `sohee`
+- `eric`
+- `dylan`
+
 ### Performance Tuning Presets
 
 The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`. This control toggles four primary presets:
@@ -74,18 +107,6 @@ You can configure the target device using the `LTTS_DEVICE` environment variable
 # LTTS_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
 # LTTS_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 ```
-
-# Default language for speech generation
-
-If not supplied by request, the default language generated is "en" (english).
-
-To set a different default language eg. german (de) use:
-
-```bash
-LTTS_EXTRA_ARGS="--language de"
-```
-
-Info: the --language parameter is only available in the patched libggml-git-hip qwen3-tts binary.
 
 
 ## Models & Repositories
