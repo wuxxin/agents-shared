@@ -498,6 +498,14 @@ browser:
   use_gateway: false
 curator:
   consolidate: true
+custom_providers:
+  - name: local-openapi
+    base_url: http://localhost:51080/v1
+    api_key: unused
+    model: qwen3
+    models:
+      qwen3:
+        context_length: 80128
 display:
   tool_progress: all
   tui_compact: false
@@ -532,7 +540,7 @@ tts:
   openai:
     model: $DEFAULT_TTS_MODEL
     base_url: $DEFAULT_ROUTER_BASE_URL
-    # voice: "alloy"              # alloy, echo, fable, onyx, nova, shimmer
+    voice: "default"              # alloy, echo, fable, onyx, nova, shimmer
     # speed: 1.0
   use_gateway: false
 stt:
@@ -545,25 +553,11 @@ stt:
     base_url: $DEFAULT_ROUTER_BASE_URL
 voice:
   auto_tts: true
-
-custom_providers:
-  - name: local-openapi
-    base_url: http://localhost:51080/v1
-    api_key: unused
-    model: qwen3
-    models:
-      qwen3:
-        context_length: 80128
-plugins:
-  enabled:
-    - custom-provider
-    - openai
-    - image_gen/openai
-    - web-ddgs
-  disabled: []
+  default: true
 platforms:
   signal:
     enabled: true
+
 platform_toolsets:
   cli:
     - browser
@@ -584,6 +578,88 @@ platform_toolsets:
     - vision
     - web
 
+plugins:
+  enabled:
+    - custom-provider
+    - openai
+    - image_gen/openai
+    - web-brave-free
+    - web-ddgs
+  disabled:
+    - alibaba-coding-plan-provider
+    - alibaba-provider
+    - anthropic-provider
+    - arcee-provider
+    - azure-foundry-provider
+    - basic
+    - bedrock-provider
+    - browser-browser-use
+    - browser-browserbase
+    - browser-firecrawl
+    - chronos
+    - copilot-acp-provider
+    - copilot-provider
+    - deepseek-provider
+    - dingtalk-platform
+    - discord-platform
+    - disk-cleanup
+    - drain
+    - email-platform
+    - fal
+    - feishu-platform
+    - gemini-provider
+    - gmi-provider
+    - google_chat-platform
+    - google_meet
+    - homeassistant-platform
+    - huggingface-provider
+    - irc-platform
+    - kilocode-provider
+    - kimi-coding-provider
+    - krea
+    - langfuse
+    - line-platform
+    - matrix-platform
+    - mattermost-platform
+    - minimax-provider
+    - nemo_relay
+    - nous
+    - nous-provider
+    - novita-provider
+    - ntfy-platform
+    - nvidia-provider
+    - ollama-cloud-provider
+    - openai-codex
+    - openai-codex-provider
+    - opencode-zen-provider
+    - openrouter
+    - openrouter-provider
+    - photon-platform
+    - qwen-oauth-provider
+    - raft-platform
+    - security-guidance
+    - self-hosted
+    - simplex-platform
+    - slack-platform
+    - sms-platform
+    - spotify
+    - stepfun-provider
+    - teams-platform
+    - teams_pipeline
+    - telegram-platform
+    - vertex-provider
+    - web-exa
+    - web-firecrawl
+    - web-parallel
+    - web-searxng
+    - web-tavily
+    - web-xai
+    - wecom-platform
+    - whatsapp-platform
+    - xai
+    - xai-provider
+    - xiaomi-provider
+    - zai-provider
 skills:
   disabled:
     - airtable
