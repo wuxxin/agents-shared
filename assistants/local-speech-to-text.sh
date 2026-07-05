@@ -27,6 +27,7 @@ load_env() {
     # shellcheck disable=SC2034
     LSTT_MODEL_ALIAS=whisper-1
     LSTT_THREADS=8
+    LSTT_LANG=auto
     LSTT_DEVICE=""
     LSTT_NO_GPU=false
     LSTT_INFERENCE_PATH=/v1/audio/transcriptions
@@ -113,6 +114,10 @@ get_whisper_args() {
         --convert
         --flash-attn
     )
+
+    if [[ -n "${LSTT_LANG:-}" ]]; then
+        out_args+=(--language "${LSTT_LANG}")
+    fi
 
     if [[ -n "${LSTT_DEVICE:-}" ]]; then
         out_args+=(--device "${LSTT_DEVICE}")
@@ -204,6 +209,9 @@ LSTT_MODEL_ALIAS="whisper-1"
 
 # Number of threads to use for CPU-bound computations/preprocessing
 LSTT_THREADS=8
+
+# Spoken language ('auto' for auto-detect, or language code like 'en', 'de', 'fr')
+LSTT_LANG="auto"
 
 # GPU device ID to use (e.g. 0, 1, etc.)
 # By default, whisper-server automatically selects the best available GPU device.

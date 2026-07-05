@@ -81,6 +81,15 @@ You can configure the target device using the `LSTT_DEVICE` environment variable
 # LSTT_DEVICE="openblas"
 ```
 
+### Language Selection
+
+By default, the service uses automatic language detection. You can configure the target language using the `LSTT_LANG` environment variable. Run `./local-speech-to-text.sh edit` (or edit `~/.config/systemd/user/local-speech-to-text.env` directly) and configure the language:
+
+```bash
+# Spoken language ('auto' for auto-detect, or a language code like 'en', 'de', 'fr')
+# LSTT_LANG="auto"
+```
+
 
 ## VRAM Usage
 
