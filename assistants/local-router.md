@@ -62,6 +62,38 @@ The router polls every 2 seconds for up to **1 minute**.
 - If all enabled services become available, it constructs a global model inventory mapping model IDs and configured aliases to their respective services, then begins serving requests.
 - If not all services are online within 1 minute, the router prints an error to standard error and aborts startup with exit code `1`.
 
+### Model Pricing Object
+
+The `/v1/models` endpoint returns models with a `"pricing"` object containing token cost estimation details. This conforms to standard OpenAI-compatible pricing payloads and enables clients like Hermes to calculate execution costs.
+
+Example model object return:
+```json
+{
+  "id": "qwen3",
+  "object": "model",
+  "owned_by": "local-inference",
+  "pricing": {
+    "prompt": "0.0000015",
+    "completion": "0.0000090",
+    "input_cache_read": "0.00000015",
+    "input_cache_write": "0.0000015"
+  }
+}
+```
+
+The pricing values are modeled based on corresponding commercial standards:
+
+| Service | Configured Model / Alias | Pricing Reference | Prompt (per token) | Completion (per token) | Cache Read (per token) | Cache Write (per token) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `chat` | `qwen3` | Gemini 3.5 Flash | `$0.00000150` | `$0.00000900` | `$0.00000015` | `$0.00000150` |
+| `embedding` | `qwen3-embedding` | Gemini Embedding 001 | `$0.00000015` | `$0.00000000` | `$0.00000000` | `$0.00000000` |
+| `rerank` | `qwen3-reranker` | Jina/Gemini Embedding | `$0.00000015` | `$0.00000000` | `$0.00000000` | `$0.00000000` |
+| `image` | `z-image-turbo` | Gemini 3.1 Flash Image | `$0.00000050` | `$0.00006000` | `$0.00000000` | `$0.00000000` |
+| `tts` | `qwen3-tts` | Gemini 3.1 Flash TTS | `$0.00000100` | `$0.00002000` | `$0.00000000` | `$0.00000000` |
+| `stt` | `whisper-1` | OpenAI Whisper | `$0.00000000` | `$0.00003000` | `$0.00000000` | `$0.00000000` |
+
+*Note: For Speech-to-Text (`whisper-1`), the completion cost corresponds to `$0.006` per minute of speech assuming an average speaking speed of 150 words (200 tokens) per minute.*
+
 ### Default Model Routing
 
 When clients request tokenization (`/tokenize` or `/detokenize`) without specifying a `model` parameter in the request body, the router checks if `LROUT_DEFAULT_MODEL` is configured in `local-router.env` and maps to an active service in the inventory.

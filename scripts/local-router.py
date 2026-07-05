@@ -9,6 +9,7 @@ import re
 import socket
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Any
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -20,6 +21,45 @@ client: httpx.AsyncClient = None  # type: ignore[assignment]
 # Global model inventory
 model_inventory_list: list[dict] = []
 model_to_service: dict[str, str] = {}
+
+PRICING_REGISTRY: dict[str, dict[str, str]] = {
+    "chat": {
+        "prompt": "0.0000015",  # $1.50 per 1M tokens (similar to Gemini 3.5 Flash)
+        "completion": "0.0000090",  # $9.00 per 1M tokens (similar to Gemini 3.5 Flash)
+        "input_cache_read": "0.00000015",  # $0.15 per 1M tokens
+        "input_cache_write": "0.0000015",  # $1.50 per 1M tokens
+    },
+    "embedding": {
+        "prompt": "0.00000015",  # $0.15 per 1M tokens (Gemini Embedding 001)
+        "completion": "0.00000000",
+        "input_cache_read": "0.00000000",
+        "input_cache_write": "0.00000000",
+    },
+    "rerank": {
+        "prompt": "0.00000015",  # $0.15 per 1M tokens (reasonable equivalent to embedding)
+        "completion": "0.00000000",
+        "input_cache_read": "0.00000000",
+        "input_cache_write": "0.00000000",
+    },
+    "image": {
+        "prompt": "0.00000050",  # $0.50 per 1M tokens (Gemini 3.1 Flash Image)
+        "completion": "0.00006000",  # $60.00 per 1M tokens (images, $0.067 per 1K image)
+        "input_cache_read": "0.00000000",
+        "input_cache_write": "0.00000000",
+    },
+    "tts": {
+        "prompt": "0.00000100",  # $1.00 per 1M tokens (Gemini 3.1 Flash TTS text input)
+        "completion": "0.00002000",  # $20.00 per 1M tokens (Gemini 3.1 Flash TTS audio output)
+        "input_cache_read": "0.00000000",
+        "input_cache_write": "0.00000000",
+    },
+    "stt": {
+        "prompt": "0.00000000",
+        "completion": "0.00003000",  # OpenAI Whisper ($0.006/min; ~200 tokens/min => $0.00003/token)
+        "input_cache_read": "0.00000000",
+        "input_cache_write": "0.00000000",
+    },
+}
 
 
 def resolve_service_alias(name: str) -> str:
@@ -44,6 +84,22 @@ def resolve_service_alias(name: str) -> str:
         image_env = parse_env_file(os.path.join(user_dir, "local-image.env"))
         return image_env.get("LIMG_ALIAS", "z-image-turbo")
     return ""
+
+
+def resolve_service_from_model_id(model_id: str, default_svc: str) -> str:
+    """Resolve the proper service name for a given model ID to apply correct pricing and mapping."""
+    model_lower = model_id.lower()
+    if "embedding" in model_lower:
+        return "embedding"
+    elif "reranker" in model_lower or "rerank" in model_lower:
+        return "rerank"
+    elif "tts" in model_lower:
+        return "tts"
+    elif "whisper" in model_lower or "stt" in model_lower:
+        return "stt"
+    elif "image" in model_lower:
+        return "image"
+    return default_svc
 
 
 def get_enabled_services() -> dict[str, bool]:
@@ -139,26 +195,48 @@ async def build_inventory_and_wait():
             new_inventory_list = []
             new_model_to_service = {}
 
-            def add_model(model_id: str, svc_name: str):
+            def add_model(
+                model_id: str,
+                svc_name: str,
+                existing_pricing: dict[str, Any] | None = None,
+            ):
                 if not model_id:
                     return
+                # Resolve the true service name for the model based on its ID
+                true_svc = resolve_service_from_model_id(model_id, svc_name)
+
+                # Determine pricing
+                pricing = existing_pricing
+                if not pricing:
+                    pricing = PRICING_REGISTRY.get(true_svc)
+
                 # Check for duplicates
-                if not any(m["id"] == model_id for m in new_inventory_list):
-                    new_inventory_list.append(
-                        {
-                            "id": model_id,
-                            "object": "model",
-                            "owned_by": "local-inference",
-                        }
-                    )
-                new_model_to_service[model_id] = svc_name
+                existing_entry = None
+                for m in new_inventory_list:
+                    if m["id"] == model_id:
+                        existing_entry = m
+                        break
+
+                if existing_entry is not None:
+                    if pricing:
+                        existing_entry["pricing"] = pricing
+                else:
+                    model_entry: dict[str, Any] = {
+                        "id": model_id,
+                        "object": "model",
+                        "owned_by": "local-inference",
+                    }
+                    if pricing:
+                        model_entry["pricing"] = pricing
+                    new_inventory_list.append(model_entry)
+                new_model_to_service[model_id] = true_svc
 
             # Add dynamically returned models from llama-server backends
             for name, models in iteration_results.items():
                 for model_data in models:
                     m_id = model_data.get("id")
                     if m_id:
-                        add_model(m_id, name)
+                        add_model(m_id, name, model_data.get("pricing"))
 
             # Add configured aliases for all active/fallback services
             for name in ["chat", "embedding", "rerank", "stt", "tts", "image"]:
