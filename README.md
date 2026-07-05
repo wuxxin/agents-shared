@@ -56,8 +56,14 @@ See [Current Weekly Development Status](research/weekly-devel-activity.md) for G
 - **Features**: Generates images using the `z_image_turbo-Q8_0.gguf` model with options for sampler steps, CFG scale, and backend routing.
 - Documentation: [local-image.md](assistants/local-image.md)
 
+### Local Combined Inference Router
+- **Description**: Manages a persistent FastAPI web application served by `uvicorn` that aggregates all underlying local inference services into a single OpenAI-compatible entrypoint (`local-router.sh`).
+- **Sandboxing**: Enforces `ProtectSystem=strict` with `PrivateDevices=yes` (no GPU access required). Restricts filesystem access to the home directory (`BindPaths=%h`) and standard system directories read-only.
+- **Features**: OpenAI-compatible routing for chat completions, embeddings, reranking, transcription, speech, and image generation. Startup synchronization checking, default model fallback routing, and graceful OpenAI-format gateway error propagation.
+- Documentation: [local-router.md](assistants/local-router.md)
+
 ### Local Inference Coordinator
-- **Description**: Coordinator and wrapper script to manage the installation, state, and activation of all 6 local services (`local-inference.sh`).
+- **Description**: Coordinator and wrapper script to manage the installation, state, and activation of all 7 local services (`local-inference.sh`).
 - **Sandboxing**: Not a system service itself, but executes individual service scripts which utilize systemd user sandboxing.
 - **Features**: Bulk installation, uninstall, lifecycle control (start, stop, restart), status reports, combined logs, and automatic propagation of environment overrides (e.g. LRR_OVERRIDE) to target services.
 - Documentation: [local-inference.md](assistants/local-inference.md)
@@ -103,6 +109,7 @@ The following default ports are used by various agent systems and services to av
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
 | **Local-Image** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
+| **Local-Router** | [51080](http://localhost:51080) | Combined service router / OpenAI proxy (HTTP) |
 | **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
 | **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
 | **IronClaw** | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
