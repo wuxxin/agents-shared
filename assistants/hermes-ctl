@@ -445,6 +445,8 @@ EOF
 # Local-Router (OpenAI compatible on port 51080 for all services)
 OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
 OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
+# XXX stt:base_url is ignored , but STT_OPENAI_BASE_URL is recognized
+STT_OPENAI_BASE_URL="$DEFAULT_ROUTER_BASE_URL"
 
 # Hermes Execution Mode
 TERMINAL_ENV="${DEFAULT_TERMINAL_ENV}"
@@ -523,6 +525,7 @@ tts:
 stt:
   enabled: true
   provider: openai
+  # XXX stt:base_url is ignored , but STT_OPENAI_BASE_URL is recognized
   base_url: $DEFAULT_ROUTER_BASE_URL
 
   openai:
@@ -530,6 +533,15 @@ stt:
     base_url: $DEFAULT_ROUTER_BASE_URL
 voice:
   auto_tts: true
+
+custom_providers:
+  - name: local-openapi
+    base_url: http://localhost:51080/v1
+    api_key: unused
+    model: qwen3
+    models:
+      qwen3:
+        context_length: 80128
 plugins:
   enabled:
     - image_gen/openai
