@@ -1,6 +1,6 @@
 # LLM Caching Optimization Benchmarks
 
-**Benchmark Run Time:** `2026-07-04 22:27:18`
+**Benchmark Run Time:** `2026-07-05 21:28:08`
 
 ## Local Inference Services Benchmarks
 
@@ -14,7 +14,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**HIP-COMBI-ROCM0**](#hip-combi-rocm0-configuration-details) | chat_hip-combi-ROCm0 | ROCm0 | Layers: 999 | 55195.27 ms | 562.39 t/s | 255.74 ms | 101.32 t/s | 66.77 t/s | 0.00 ms | 0.00 t/s | 20346.8 MB | 81.4 MB |
 | [**HIP-ROCM0**](#hip-rocm0-configuration-details) | chat_hip-ROCm0 | ROCm0 | Layers: 999 | 55192.76 ms | 562.41 t/s | 302.68 ms | 101.31 t/s | 66.47 t/s | 0.00 ms | 0.00 t/s | 20346.9 MB | 77.9 MB |
 | [**VULKAN-COMBI-VULKAN0**](#vulkan-combi-vulkan0-configuration-details) | chat_vulkan-combi-Vulkan0 | Vulkan0 | Layers: 999 (Context: 20%) | 69000.03 ms | 84.29 t/s | 1631.10 ms | 13.84 t/s | 12.86 t/s | 0.00 ms | 0.00 t/s | 13938.7 MB | 65.3 MB |
-| [**VULKAN-COMBI-VULKAN1**](#vulkan-combi-vulkan1-configuration-details) | chat_vulkan-combi-Vulkan1 | Vulkan1 | Layers: 999 | 17753.22 ms | 1748.47 t/s | 143.14 ms | 132.22 t/s | **116.78 t/s** | 0.00 ms | 0.00 t/s | 19026.4 MB | 65.7 MB |
+| [**VULKAN-COMBI-VULKAN1**](#vulkan-combi-vulkan1-configuration-details) | chat_vulkan-combi-Vulkan1 | Vulkan1 | Layers: 999 | 17753.22 ms | 1748.47 t/s | 143.14 ms | 132.22 t/s | 116.78 t/s | 0.00 ms | 0.00 t/s | 19026.4 MB | 65.7 MB |
 | [**VULKAN-VULKAN0**](#vulkan-vulkan0-configuration-details) | chat_vulkan-Vulkan0 | Vulkan0 | Layers: 999 (Context: 20%) | 69407.87 ms | 83.79 t/s | 1796.20 ms | 13.56 t/s | 12.58 t/s | 0.00 ms | 0.00 t/s | 13927.8 MB | 65.3 MB |
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | chat_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 17850.39 ms | 1738.95 t/s | 159.42 ms | 132.02 t/s | 116.13 t/s | 0.00 ms | 0.00 t/s | 19026.4 MB | 65.8 MB |
 | [**CPU**](#cpu-configuration-details) | chat_cpu | none | Layers: 0 (Context: 5%) | 33334.50 ms | 44.19 t/s | 700.68 ms | 13.21 t/s | 12.55 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 65.2 MB |
@@ -22,7 +22,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | chat_cpu-blas | BLAS | Layers: 0 (Context: 5%) | 36565.32 ms | 40.28 t/s | 856.16 ms | 12.98 t/s | 11.99 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 64.9 MB |
 | [**CPU-BLAS-COMBI**](#cpu-blas-combi-configuration-details) | chat_cpu-blas-combi | BLAS | Layers: 0 (Context: 5%) | 36080.19 ms | 40.83 t/s | 879.28 ms | 12.86 t/s | 11.95 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 64.7 MB |
 | [**SPECIAL-COMBI**](#special-combi-configuration-details) | chat_special-combi | special | Layers: 999 | -fail- | -fail- | -fail- | -fail- | -fail- | -n.a.- | -n.a.- | -fail- | -fail- |
-| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 17614.25 ms | **1762.27 t/s** | 118.68 ms | 129.71 t/s | 114.08 t/s | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 17614.75 ms | **1762.22 t/s** | 146.65 ms | 132.76 t/s | **117.24 t/s** | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
 
 #### Text Embedding (`local-embedding`)
 | Configuration | Test Name | GPU | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
@@ -37,7 +37,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**CPU-COMBI**](#cpu-combi-configuration-details) | embedding_cpu-combi | none | Layers: 999 | 117.63 t/s | 4352.6 ms | 1109.3 MB | 67.9 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | embedding_cpu-blas | BLAS | Layers: 999 | 120.65 t/s | 4243.7 ms | 0.1 MB | 2642.0 MB |
 | [**CPU-BLAS-COMBI**](#cpu-blas-combi-configuration-details) | embedding_cpu-blas-combi | BLAS | Layers: 999 | 120.86 t/s | 4236.1 ms | 1109.3 MB | 67.6 MB |
-| [**RUNNING**](#running-configuration-details) | embedding_running | running on host | unknown | 4877.78 t/s | 104.7 ms | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | embedding_running | running on host | unknown | 4760.78 t/s | 107.3 ms | -n.a.- | -n.a.- |
 
 #### Document Reranking (`local-rerank`)
 | Configuration | Test Name | GPU | Special Setting | Avg Reranking Time | Avg Token Speed | Avg Docs Throughput | GPU Mem | CPU Mem |
@@ -47,7 +47,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | rerank_vulkan-Vulkan1 | Vulkan1 | Layers: 99 | 875.32 ms | 3928.84 tokens/s | 11.42 docs/s | 1597.7 MB | 265.8 MB |
 | [**CPU**](#cpu-configuration-details) | rerank_cpu | none | Layers: 0 | 10044.38 ms | 342.38 tokens/s | 1.00 docs/s | 0.1 MB | 2707.8 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | rerank_cpu-blas | BLAS | Layers: 99 | 14062.26 ms | 244.56 tokens/s | 0.71 docs/s | 0.1 MB | 2708.7 MB |
-| [**RUNNING**](#running-configuration-details) | rerank_running | running on host | unknown | 14651.89 ms | 234.71 tokens/s | 0.68 docs/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | rerank_running | running on host | unknown | 10325.63 ms | 333.05 tokens/s | 0.97 docs/s | -n.a.- | -n.a.- |
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 | Configuration | Test Name | GPU | Special Setting | Avg Transcribe Time | Avg Real-Time Factor (RTF) | Speedup vs Real-time | GPU Mem | CPU Mem |
@@ -57,7 +57,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | stt_vulkan-Vulkan1 | 1 | Use GPU | 0.88 s | 0.0195 | **51.4x** | 839.8 MB | 150.2 MB |
 | [**CPU**](#cpu-configuration-details) | stt_cpu | none | No GPU | 12.14 s | 0.2698 | 3.7x | 0.1 MB | 1099.2 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | stt_cpu-blas | BLAS | No GPU | 16.94 s | 0.3765 | 2.7x | 0.1 MB | 1097.6 MB |
-| [**RUNNING**](#running-configuration-details) | stt_running | running on host | unknown | 5.59 s | 0.1243 | 8.0x | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | stt_running | running on host | unknown | 7.76 s | 0.1724 | 5.8x | -n.a.- | -n.a.- |
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
 | Configuration | Test Name | GPU | Special Setting | Avg Synthesis Time | Avg Real-Time Factor (RTF) | Speed (chars/s) | GPU Mem | CPU Mem |
@@ -71,7 +71,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**CPU-HIP-ROCM1**](#special-cpu-hip-rocm1-configuration-details) | tts_cpu-hip-ROCm1 | ROCm1 | mode: hybrid | -fail- | -fail- | -fail- | -fail- | -fail- |
 | [**CPU-VULKAN-VULKAN0**](#special-cpu-vulkan-vulkan0-configuration-details) | tts_cpu-vulkan-Vulkan0 | Vulkan0 | mode: hybrid | 50.09 s | 2.4487 | 5.47 chars/s | 3378.7 MB | 696.9 MB |
 | [**CPU-VULKAN-VULKAN1**](#special-cpu-vulkan-vulkan1-configuration-details) | tts_cpu-vulkan-Vulkan1 | Vulkan1 | mode: hybrid | 6.60 s | 0.3371 | **41.52 chars/s** | 3354.3 MB | 677.4 MB |
-| [**RUNNING**](#running-configuration-details) | tts_running | running on host | unknown | 34.63 s | 1.9178 | 7.91 chars/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | tts_running | running on host | unknown | 27.09 s | 1.5628 | 10.11 chars/s | -n.a.- | -n.a.- |
 
 #### Image Generation (`local-image`)
 | Configuration | Test Name | GPU | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
@@ -81,7 +81,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | image_vulkan-Vulkan1 | vulkan1 | Steps: 8 | **6.96 s** | 9892.4 MB | 510.0 MB |
 | [**CPU**](#cpu-configuration-details) | image_cpu | cpu | Steps: 8 | 282.65 s | 0.1 MB | 10132.8 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | image_cpu-blas | cpu | Steps: 8 | 281.93 s | 0.1 MB | 10131.6 MB |
-| [**RUNNING**](#running-configuration-details) | image_running | running on host | unknown | 89.35 s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | image_running | running on host | unknown | 89.24 s | -n.a.- | -n.a.- |
 
 ---
 
@@ -138,7 +138,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       255.74 ms
   - Prefill Speed:        74.29 tokens/sec
@@ -200,7 +200,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         7.77 s
   - Avg Throughput:       5851.93 tokens/sec
@@ -256,7 +256,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       302.68 ms
   - Prefill Speed:        62.77 tokens/sec
@@ -295,7 +295,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PORT="50082"`
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         8.08 s
   - Avg Throughput:       5624.86 tokens/sec
@@ -326,7 +326,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_PORT="50086"`
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Reranking Time:   846.45 ms
   - Avg Docs Throughput:  11.81 docs/sec
@@ -344,12 +344,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES="0"`
   - `HIP_VISIBLE_DEVICES="0"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_DEVICE="0"`
   - `LSTT_EXTRA_ARGS=""`
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="false"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -412,7 +412,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-746-2574f59, commit 2574f593`
+- **Package Version:** `master-752-38a51f8-7-gdff0e88, commit dff0e882`
 - **Metrics:**
   - Avg Generation Time:  7.43 seconds
 
@@ -467,7 +467,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       1631.10 ms
   - Prefill Speed:        11.65 tokens/sec
@@ -529,7 +529,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         55.98 s
   - Avg Throughput:       812.08 tokens/sec
@@ -588,7 +588,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       143.14 ms
   - Prefill Speed:        132.74 tokens/sec
@@ -650,7 +650,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         8.56 s
   - Avg Throughput:       5307.90 tokens/sec
@@ -706,7 +706,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       1796.20 ms
   - Prefill Speed:        10.58 tokens/sec
@@ -745,7 +745,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PORT="50082"`
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         69.74 s
   - Avg Throughput:       651.82 tokens/sec
@@ -776,7 +776,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_PORT="50086"`
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Reranking Time:   5112.79 ms
   - Avg Docs Throughput:  1.96 docs/sec
@@ -794,12 +794,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_DEVICE="0"`
   - `LSTT_EXTRA_ARGS=""`
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="false"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -860,7 +860,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-746-2574f59, commit 2574f593`
+- **Package Version:** `master-752-38a51f8-7-gdff0e88, commit dff0e882`
 - **Metrics:**
   - Avg Generation Time:  92.76 seconds
 
@@ -912,7 +912,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       159.42 ms
   - Prefill Speed:        119.18 tokens/sec
@@ -951,7 +951,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PORT="50082"`
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         8.54 s
   - Avg Throughput:       5325.07 tokens/sec
@@ -982,7 +982,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_PORT="50086"`
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Reranking Time:   875.32 ms
   - Avg Docs Throughput:  11.42 docs/sec
@@ -1000,12 +1000,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_DEVICE="1"`
   - `LSTT_EXTRA_ARGS=""`
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="false"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -1068,7 +1068,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-746-2574f59, commit 2574f593`
+- **Package Version:** `master-752-38a51f8-7-gdff0e88, commit dff0e882`
 - **Metrics:**
   - Avg Generation Time:  6.96 seconds
 
@@ -1118,7 +1118,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       700.68 ms
   - Prefill Speed:        27.12 tokens/sec
@@ -1157,7 +1157,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PORT="50082"`
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         224.54 s
   - Avg Throughput:       182.42 tokens/sec
@@ -1188,7 +1188,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_PORT="50086"`
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Reranking Time:   10044.38 ms
   - Avg Docs Throughput:  1.00 docs/sec
@@ -1206,12 +1206,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_DEVICE=""`
   - `LSTT_EXTRA_ARGS=""`
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="true"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -1274,7 +1274,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-746-2574f59, commit 2574f593`
+- **Package Version:** `master-752-38a51f8-7-gdff0e88, commit dff0e882`
 - **Metrics:**
   - Avg Generation Time:  282.65 seconds
 
@@ -1327,7 +1327,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       859.65 ms
   - Prefill Speed:        22.10 tokens/sec
@@ -1389,7 +1389,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         348.21 s
   - Avg Throughput:       117.63 tokens/sec
@@ -1443,7 +1443,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       856.16 ms
   - Prefill Speed:        22.19 tokens/sec
@@ -1482,7 +1482,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PORT="50082"`
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         339.50 s
   - Avg Throughput:       120.65 tokens/sec
@@ -1513,7 +1513,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_PORT="50086"`
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Reranking Time:   14062.26 ms
   - Avg Docs Throughput:  0.71 docs/sec
@@ -1531,12 +1531,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `HIP_VISIBLE_DEVICES=""`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_DEVICE=""`
   - `LSTT_EXTRA_ARGS=""`
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="true"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -1597,7 +1597,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-746-2574f59, commit 2574f593`
+- **Package Version:** `master-752-38a51f8-7-gdff0e88, commit dff0e882`
 - **Metrics:**
   - Avg Generation Time:  281.93 seconds
 
@@ -1650,7 +1650,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       879.28 ms
   - Prefill Speed:        21.61 tokens/sec
@@ -1712,7 +1712,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
   - Avg Time/Run:         338.89 s
   - Avg Throughput:       120.86 tokens/sec
@@ -1899,7 +1899,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Errors Count:** 1
 - **Top Errors:**
   - `Error: llama-server failed to start or port timed out`
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       -fail-
   - Prefill Speed:        -n.a.-
@@ -1924,7 +1924,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 24.23 s
+- **Benchmark Running Time:** 24.13 s
 - **Active Environment Settings:**
   - `GGML_VK_DISABLE_MMVQ="1"`
   - `LCHAT_ALIAS="qwen3"`
@@ -1956,17 +1956,17 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS=""`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       118.68 ms
-  - Prefill Speed:        160.09 tokens/sec
-  - Generation Speed:     129.71 tokens/sec
+  - TTFT (Prefill):       146.65 ms
+  - Prefill Speed:        129.56 tokens/sec
+  - Generation Speed:     132.76 tokens/sec
 - **Generation (Phase 2):**
   - Avg Completion Tokens: 600.0
-  - Avg TTFT (Prefill):   17614.25 ms
-  - Avg Prefill Speed:    1762.27 tokens/sec
-  - Avg Generation Speed: 114.08 tokens/sec
-  - Avg Decode Time:      5.26 s
+  - Avg TTFT (Prefill):   17614.75 ms
+  - Avg Prefill Speed:    1762.22 tokens/sec
+  - Avg Generation Speed: 117.24 tokens/sec
+  - Avg Decode Time:      5.12 s
 - **Vision Description (Phase 4):**
   - Avg TTFT (Prefill):   0.00 ms
   - Avg Generation Speed: 0.00 tokens/sec
@@ -1979,7 +1979,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 9.51 s
+- **Benchmark Running Time:** 9.82 s
 - **Active Environment Settings:**
   - `LMBD_ALIAS="qwen3-embedding"`
   - `LMBD_DEVICE="Vulkan1"`
@@ -1993,13 +1993,13 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PORT="50082"`
   - `LMBD_THREADS="4"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
-  - Avg Time/Run:         9.32 s
-  - Avg Throughput:       4877.78 tokens/sec
-  - Avg Chunk Latency:    104.7 ms
-  - Avg Chunk p50:        103.5 ms
-  - Avg Chunk p95:        104.4 ms
+  - Avg Time/Run:         9.55 s
+  - Avg Throughput:       4760.78 tokens/sec
+  - Avg Chunk Latency:    107.3 ms
+  - Avg Chunk p50:        105.8 ms
+  - Avg Chunk p95:        108.3 ms
 
 #### Document Reranking (`local-rerank`)
 - **Benchmark Test Name:** `rerank_running`
@@ -2009,7 +2009,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 14.84 s
+- **Benchmark Running Time:** 10.42 s
 - **Active Environment Settings:**
   - `LRR_ALIAS="qwen3-reranker"`
   - `LRR_DEVICE="none"`
@@ -2022,11 +2022,11 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_PORT="50086"`
   - `LRR_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `9860 (fdb1db877c)`
+- **Package Version:** `9873 (a4107133a6)`
 - **Metrics:**
-  - Avg Reranking Time:   14651.89 ms
-  - Avg Docs Throughput:  0.68 docs/sec
-  - Avg Token Speed:      234.71 tokens/sec
+  - Avg Reranking Time:   10325.63 ms
+  - Avg Docs Throughput:  0.97 docs/sec
+  - Avg Token Speed:      333.05 tokens/sec
 
 #### Speech-to-Text (STT) (`local-speech-to-text`)
 - **Benchmark Test Name:** `stt_running`
@@ -2036,22 +2036,23 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 5.91 s
+- **Benchmark Running Time:** 8.01 s
 - **Active Environment Settings:**
   - `CUDA_VISIBLE_DEVICES=""`
   - `LSTT_DEVICE="0"`
   - `LSTT_EXTRA_ARGS=""`
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
+  - `LSTT_LANG="auto"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_ALIAS="whisper-1"`
+  - `LSTT_MODEL_ALIAS="whisper-1"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Package Version:** `1.9.1 (6fc7c33b4)`
 - **Metrics:**
-  - Avg Transcribe Time:  5.59 seconds
-  - Avg Real-Time Factor (RTF): 0.1243 (8.0x faster than real-time)
+  - Avg Transcribe Time:  7.76 seconds
+  - Avg Real-Time Factor (RTF): 0.1724 (5.8x faster than real-time)
 
 #### Text-to-Speech (TTS) (`local-text-to-speech`)
 - **Benchmark Test Name:** `tts_running`
@@ -2061,7 +2062,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 34.77 s
+- **Benchmark Running Time:** 27.26 s
 - **Active Environment Settings:**
   - `LTTS_DEVICE="none"`
   - `LTTS_EXTRA_ARGS=""`
@@ -2074,10 +2075,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Errors Count:** 0
 - **Package Version:** `qwen3-tts version 0.1-main-0c8b2ba`
 - **Metrics:**
-  - Generated Audio Duration: 18.06 seconds
-  - Avg Synthesis Time:   34.63 seconds
-  - Avg Real-Time Factor (RTF): 1.9178
-  - Avg Speed:            7.91 chars/sec
+  - Generated Audio Duration: 17.34 seconds
+  - Avg Synthesis Time:   27.09 seconds
+  - Avg Real-Time Factor (RTF): 1.5628
+  - Avg Speed:            10.11 chars/sec
 
 #### Image Generation (`local-image`)
 - **Benchmark Test Name:** `image_running`
@@ -2087,7 +2088,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 89.53 s
+- **Benchmark Running Time:** 89.39 s
 - **Active Environment Settings:**
   - `LIMG_BACKEND="vulkan0,te=cpu"`
   - `LIMG_CFG_SCALE="1.0"`
@@ -2100,7 +2101,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-746-2574f59, commit 2574f593`
+- **Package Version:** `master-752-38a51f8-7-gdff0e88, commit dff0e882`
 - **Metrics:**
-  - Avg Generation Time:  89.35 seconds
+  - Avg Generation Time:  89.24 seconds
 
