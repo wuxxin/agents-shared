@@ -51,7 +51,7 @@ DEFAULT_TTS_MODEL="qwen3-tts"
 # Local Image Port/URL
 DEFAULT_IMAGE_BASE_URL="http://localhost:50100/v1"
 DEFAULT_IMAGE_KEY="unused"
-DEFAULT_IMAGE_MODEL="txt2img"
+DEFAULT_IMAGE_MODEL="z-image-turbo"
 
 # Dummy reference to satisfy shellcheck SC2034 (unused variables to be used in the future)
 : "${DEFAULT_CHAT_BASE_URL}" "${DEFAULT_CHAT_MODEL}" "${DEFAULT_CHAT_KEY}" "${DEFAULT_EMBEDDING_PROVIDER}" "${DEFAULT_EMBEDDING_BASE_URL}" "${DEFAULT_EMBEDDING_KEY}" "${DEFAULT_EMBEDDING_MODEL}" "${DEFAULT_RERANK_PROVIDER}" "${DEFAULT_RERANK_BASE_URL}" "${DEFAULT_RERANK_KEY}" "${DEFAULT_RERANK_MODEL}" "${DEFAULT_RERANK_TOP_K}" "${DEFAULT_STT_BASE_URL}" "${DEFAULT_STT_MODEL}" "${DEFAULT_STT_KEY}"
@@ -442,9 +442,17 @@ EOF
 # Set your API keys and other configuration here.
 
 # Default openai compatible backend URL,
+
 # Local-Router (OpenAI compatible on port 51080 for all services)
-OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
-OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
+# OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+# OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+# OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
+
+# local-image (openAI compatible image generation on port 50100)
+OPENAI_BASE_URL="${DEFAULT_IMAGE_BASE_URL}"
+OPENAI_API_BASE_URL="${DEFAULT_IMAGE_BASE_URL}"
+OPENAI_API_KEY="${DEFAULT_IMAGE_KEY}"
+
 # XXX stt:base_url is ignored , but STT_OPENAI_BASE_URL is recognized
 STT_OPENAI_BASE_URL="$DEFAULT_ROUTER_BASE_URL"
 
@@ -480,12 +488,16 @@ EOF
 _config_version: 32
 agent:
   max_turns: 150
+approvals:
+  destructive_slash_confirm: false
 web:
   backend: ddgs
   use_gateway: false
 browser:
   cloud_provider: local
   use_gateway: false
+curator:
+  consolidate: true
 display:
   tool_progress: all
   tui_compact: false
@@ -499,13 +511,15 @@ dashboard:
   theme: default-large
   font: work-sans
 session_reset:
-  mode: none
+  mode: smart
 model:
   provider: custom
   default: $DEFAULT_CHAT_MODEL
   context_length: 80128
   base_url: http://localhost:51080/v1
   api_key: unused
+model_catalog:
+  enabled: false
 image_gen:
   enabled: true
   provider: openai
@@ -515,7 +529,6 @@ tts:
   enabled: true
   provider: openai
   base_url: $DEFAULT_ROUTER_BASE_URL
-
   openai:
     model: $DEFAULT_TTS_MODEL
     base_url: $DEFAULT_ROUTER_BASE_URL
@@ -527,7 +540,6 @@ stt:
   provider: openai
   # XXX stt:base_url is ignored , but STT_OPENAI_BASE_URL is recognized
   base_url: $DEFAULT_ROUTER_BASE_URL
-
   openai:
     model: $DEFAULT_STT_MODEL
     base_url: $DEFAULT_ROUTER_BASE_URL
@@ -544,7 +556,10 @@ custom_providers:
         context_length: 80128
 plugins:
   enabled:
+    - custom-provider
+    - openai
     - image_gen/openai
+    - web-ddgs
   disabled: []
 platforms:
   signal:
@@ -566,9 +581,40 @@ platform_toolsets:
     - terminal
     - todo
     - tts
-    - video
     - vision
     - web
+
+skills:
+  disabled:
+    - airtable
+    - architecture-diagram
+    - ascii-video
+    - audiocraft-audio-generation
+    - baoyu-infographic
+    - claude-code
+    - claude-design
+    - codex
+    - comfyui
+    - excalidraw
+    - gif-search
+    - heartmula
+    - llama-cpp
+    - llm-wiki
+    - manim-video
+    - notion
+    - obsidian
+    - openhue
+    - petdex
+    - polymarket
+    - powerpoint
+    - segment-anything-model
+    - serving-llms-vllm
+    - songsee
+    - teams-meeting-pipeline
+    - touchdesigner-mcp
+    - weights-and-biases
+    - xurl
+    - yuanbao
 
 # ── Security ──────────────────────────────────────────────────────────
 # Secret redaction is ON by default — strings that look like API keys,
