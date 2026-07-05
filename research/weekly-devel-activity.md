@@ -4,30 +4,30 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-#### 📊 Summary of Last 7 Days Activity (June 27, 2026 – July 04, 2026)
+#### 📊 Summary of Last 7 Days Activity (June 28, 2026 – July 05, 2026)
 
 <!-- START_TABLES -->
 #### Repository Overview & Package Status
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: |
-| **zeroclaw** | 32,151 | 4,794 | `master` | 2026-07-04 | `zeroclaw-git` @ `0.8.2.r163.gc1875895a-1` | 81 | **Highly Active** |
-| **ironclaw** | 12,498 | 1,464 | `main` | 2026-07-04 | `ironclaw-reborn-git` @ `0.29.1.r1647.g4b5997e-1` | 26 | **Highly Active** |
-| **librefang** | 318 | 64 | `main` | 2026-07-04 | `librefang-git` @ `2026.6.29.r9.g83ee2627b-1` | 13 | **Active** |
-| **hermes-agent** | 209,145 | 38,151 | `main` | 2026-07-04 | `hermes-agent-git` @ `0.18.0.r206.g19d417445-1` | 36 | **Highly Active** |
-| **nanobot** | 45,006 | 7,940 | `main` | 2026-07-04 | — | — | **Highly Active** |
-| **picoclaw** | 29,585 | 4,266 | `main` | 2026-07-04 | `picoclaw-git` @ `0.3.0.nightly.20260622.287853ab-1` | 50 | **Active** |
-| **nanoclaw** | 30,123 | 12,901 | `main` | 2026-07-04 | — | — | **Highly Active** |
+| **zeroclaw** | 32,153 | 4,793 | `master` | 2026-07-04 | `zeroclaw-git` @ `0.8.2.r163.gc1875895a-1` | 81 | **Highly Active** |
+| **ironclaw** | 12,497 | 1,464 | `main` | 2026-07-04 | `ironclaw-reborn-git` @ `0.29.1.r1647.g4b5997e-1` | 32 | **Highly Active** |
+| **librefang** | 318 | 64 | `main` | 2026-07-05 | `librefang-git` @ `2026.6.29.r9.g83ee2627b-1` | 14 | **Active** |
+| **hermes-agent** | 209,401 | 38,228 | `main` | 2026-07-04 | `hermes-agent-git` @ `0.18.0.r206.g19d417445-1` | 105 | **Highly Active** |
+| **nanobot** | 45,022 | 7,942 | `main` | 2026-07-04 | — | — | **Highly Active** |
+| **picoclaw** | 29,590 | 4,267 | `main` | 2026-07-05 | `picoclaw-git` @ `0.3.0.nightly.20260622.287853ab-1` | 52 | **Active** |
+| **nanoclaw** | 30,127 | 12,906 | `main` | 2026-07-04 | — | — | **Highly Active** |
 
 #### Weekly Activity Metrics (Human vs Bot)
 | Assistant Repo | Commits / Week | Lines Added (Human/Bot) | Lines Deleted (Human/Bot) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **zeroclaw** | **199** / 0 | 58.3k / 0 | 13.7k / 0 | 0 | 0 | 191.2 |
-| **ironclaw** | **125** / 4 | 152.5k / 5.3k | 139.5k / 1.2k | 0 | 1 | 116.2 |
-| **librefang** | **27** / 7 | 14.3k / 976 | 2.1k / 958 | 0 | 1 | 59.8 |
-| **hermes-agent** | **1124** / 3 | 149.7k / 519 | 30.7k / 11 | 89 | 1 | 817.5 |
-| **nanobot** | **87** / 0 | 14.4k / 0 | 2.9k / 0 | 0 | 0 | 120.8 |
-| **picoclaw** | **5** / 6 | 4.2k / 715 | 71 / 790 | 13 | 1 | 32.8 |
-| **nanoclaw** | **35** / 25 | 2.5k / 49 | 1.5k / 49 | 46 | 0 | 41.8 |
+| **zeroclaw** | **183** / 0 | 56.0k / 0 | 13.5k / 0 | 0 | 0 | 184.5 |
+| **ironclaw** | **127** / 3 | 152.8k / 3.6k | 139.2k / 291 | 0 | 1 | 117.5 |
+| **librefang** | **28** / 7 | 14.3k / 976 | 2.1k / 958 | 0 | 1 | 60.0 |
+| **hermes-agent** | **1026** / 3 | 138.9k / 519 | 37.0k / 11 | 95 | 1 | 816.2 |
+| **nanobot** | **87** / 0 | 14.4k / 0 | 2.9k / 0 | 0 | 0 | 120.5 |
+| **picoclaw** | **5** / 6 | 4.2k / 715 | 71 / 790 | 14 | 1 | 32.2 |
+| **nanoclaw** | **37** / 25 | 2.6k / 49 | 1.5k / 49 | 47 | 0 | 42.2 |
 <!-- END_TABLES -->
 
 ---
@@ -40,19 +40,19 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ### ZeroClaw (`zeroclaw-labs/zeroclaw`)
 <!-- START_BD_ZEROCLAW -->
-* **Status**: Highly Active (Total: 199 commits [199 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +58.3k/-13.7k (Human), +0/-0 (Bot). **81 commits since installed 0.8.2.r163.gc1875895a-1 (ref=c1875895a).**
-* **Contributors (according to last 7 days commits)** (Total: 36 Humans, 0 Bots):
+* **Status**: Highly Active (Total: 183 commits [183 H / 0 B], 0 tags/releases in the last week). Lines added/deleted: +56.0k/-13.5k (Human), +0/-0 (Bot). **81 commits since installed 0.8.2.r163.gc1875895a-1 (ref=c1875895a).**
+* **Contributors (according to last 7 days commits)** (Total: 33 Humans, 0 Bots):
   - **Top Humans**:
-    - `Dan Gilles <dfgilles@uchicago.edu>` (Human): 44 commits, +4.9k/-722 lines
+    - `Dan Gilles <dfgilles@uchicago.edu>` (Human): 38 commits, +3.9k/-643 lines
     - `Marc Collins <marc@nnet.tech>` (Human): 19 commits, +11.5k/-2.5k lines
-    - `Alix-007 <li.long15@xydigit.com>` (Human): 19 commits, +1.2k/-0 lines
-    - `Shane Engelman <contact@shane.gg>` (Human): 16 commits, +7.6k/-8.0k lines
+    - `Alix-007 <li.long15@xydigit.com>` (Human): 17 commits, +1.1k/-0 lines
     - `wangmiao0668000666 <wang.miao86@xydigit.com>` (Human): 15 commits, +3.3k/-480 lines
+    - `Shane Engelman <contact@shane.gg>` (Human): 13 commits, +7.3k/-8.0k lines
     - `JordanTheJet <morepencils@gmail.com>` (Human): 7 commits, +5.6k/-176 lines
     - `LiLan0125 <li.lan3@xydigit.com>` (Human): 7 commits, +908/-79 lines
     - `Tidux <jon@borg.moe>` (Human): 7 commits, +6.1k/-232 lines
-    - `Jason Perlow <jperlow@gmail.com>` (Human): 7 commits, +1.3k/-49 lines
     - `ConYel <18070323+ConYel@users.noreply.github.com>` (Human): 7 commits, +1.1k/-103 lines
+    - `mazhuima <xie.chaolong@xydigit.com>` (Human): 7 commits, +968/-75 lines
 <!-- END_BD_ZEROCLAW -->
 <!-- START_RF_ZEROCLAW -->
 * **Recent Focus**:
@@ -140,24 +140,31 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_RF_ZEROCLAW -->
 ### IronClaw (`nearai/ironclaw`)
 <!-- START_BD_IRONCLAW -->
-* **Status**: Highly Active (Total: 129 commits [125 H / 4 B], 1 tag/release in the last week). Lines added/deleted: +152.5k/-139.5k (Human), +5.3k/-1.2k (Bot). **26 commits since installed 0.29.1.r1647.g4b5997e-1 (ref=4b5997e).**
-* **Contributors (according to last 7 days commits)** (Total: 9 Humans, 2 Bots):
+* **Status**: Highly Active (Total: 130 commits [127 H / 3 B], 1 tag/release in the last week). Lines added/deleted: +152.8k/-139.2k (Human), +3.6k/-291 (Bot). **32 commits since installed 0.29.1.r1647.g4b5997e-1 (ref=4b5997e).**
+* **Contributors (according to last 7 days commits)** (Total: 10 Humans, 2 Bots):
   - **Top Humans**:
-    - `firat.sertgoz <firat.sertgoz@near.ai>` (Human): 51 commits, +55.9k/-4.0k lines
-    - `Henry Park <henrypark133@gmail.com>` (Human): 31 commits, +44.4k/-14.7k lines
-    - `Illia Polosukhin <ilblackdragon@gmail.com>` (Human): 16 commits, +30.9k/-102.0k lines
+    - `firat.sertgoz <firat.sertgoz@near.ai>` (Human): 52 commits, +56.3k/-4.0k lines
+    - `Henry Park <henrypark133@gmail.com>` (Human): 32 commits, +44.5k/-14.7k lines
+    - `Illia Polosukhin <ilblackdragon@gmail.com>` (Human): 15 commits, +30.7k/-101.7k lines
     - `jinxin <106428113+italic-jinxin@users.noreply.github.com>` (Human): 13 commits, +7.6k/-8.4k lines
     - `Robert Yan <46699230+think-in-universe@users.noreply.github.com>` (Human): 5 commits, +1.5k/-1.0k lines
     - `Benjamin Kurrek <57506486+BenKurrek@users.noreply.github.com>` (Human): 5 commits, +11.2k/-1.4k lines
     - `Coffee <zjchen1234@foxmail.com>` (Human): 2 commits, +932/-7.9k lines
+    - `abbyshekit <153240993+abbyshekit@users.noreply.github.com>` (Human): 1 commits, +43/-3 lines
     - `Pranav Raja <pranavraja99@gmail.com>` (Human): 1 commits, +15/-4 lines
     - `Josh Ford <thisisjoshford@gmail.com>` (Human): 1 commits, +145/-3 lines
   - **Top Bots**:
-    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 3 commits, +2.2k/-1.2k lines
+    - `dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>` (Bot): 2 commits, +543/-291 lines
     - `ironclaw-ci[bot] <266877842+ironclaw-ci[bot]@users.noreply.github.com>` (Bot): 1 commits, +3.1k/-0 lines
 <!-- END_BD_IRONCLAW -->
 <!-- START_RF_IRONCLAW -->
 * **Recent Focus**:
+  - `85c02c29` test(reborn): wiring-parity guard — harness runtime shape vs production local-dev (#5637) (#5642)
+  - `e339ce25` test(reborn): coverage-enabler batch — bridged tool disclosure, webui-v2/identity unlock, trace-capture (0% crates onto the int-tier lane) (#5649)
+  - `209da7d3` feat(migration): v1/engine-v2 → Reborn state migration tool (#5627)
+  - `3c54f13f` fix(agent-loop): admit one-line answers that name a __-tool (F3) (#5042)
+  - `28c3e944` docs: reborn error recoverability audit + remediation plan (#5383)
+  - `79b188d5` ci: bucket Reborn crate test jobs (#5635)
   - `54ab4088` test(reborn): integration-suite restructure — tests/integration/ home, framework disentanglement, single-run coverage (#5633)
   - `2603114b` fix(ci): stabilize Slack live QA harness (#5632)
   - `f67e482b` ci(fix): scope E2E coverage to standalone Reborn (#5634)
@@ -187,19 +194,19 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_RF_IRONCLAW -->
 ### Hermes Agent (`NousResearch/hermes-agent`)
 <!-- START_BD_HERMES_AGENT -->
-* **Status**: Highly Active (Total: 1127 commits [1124 H / 3 B], 1 tag/release in the last week). Lines added/deleted: +149.7k/-30.7k (Human), +519/-11 (Bot). **36 commits since installed 0.18.0.r206.g19d417445-1 (ref=19d417445).**
-* **Contributors (according to last 7 days commits)** (Total: 265 Humans, 3 Bots):
+* **Status**: Highly Active (Total: 1029 commits [1026 H / 3 B], 1 tag/release in the last week). Lines added/deleted: +138.9k/-37.0k (Human), +519/-11 (Bot). **105 commits since installed 0.18.0.r206.g19d417445-1 (ref=19d417445).**
+* **Contributors (according to last 7 days commits)** (Total: 259 Humans, 3 Bots):
   - **Top Humans**:
-    - `teknium1 <127238744+teknium1@users.noreply.github.com>` (Human): 178 commits, +10.0k/-1.2k lines
     - `Brooklyn Nicholson <brooklyn.bb.nicholson@gmail.com>` (Human): 170 commits, +37.3k/-15.1k lines
-    - `Teknium <127238744+teknium1@users.noreply.github.com>` (Human): 147 commits, +19.8k/-4.2k lines
-    - `kshitijk4poor <82637225+kshitijk4poor@users.noreply.github.com>` (Human): 96 commits, +6.4k/-774 lines
-    - `xxxigm <tuancanhnguyen706@gmail.com>` (Human): 21 commits, +1.4k/-75 lines
-    - `liuhao1024 <sunsky.lau@gmail.com>` (Human): 19 commits, +2.1k/-103 lines
-    - `HexLab98 <liruixinch@outlook.com>` (Human): 16 commits, +1.1k/-58 lines
-    - `Ben Barclay <ben@nousresearch.com>` (Human): 16 commits, +3.7k/-357 lines
+    - `teknium1 <127238744+teknium1@users.noreply.github.com>` (Human): 144 commits, +7.7k/-9.4k lines
+    - `Teknium <127238744+teknium1@users.noreply.github.com>` (Human): 113 commits, +16.0k/-2.4k lines
+    - `kshitijk4poor <82637225+kshitijk4poor@users.noreply.github.com>` (Human): 94 commits, +6.1k/-776 lines
+    - `xxxigm <tuancanhnguyen706@gmail.com>` (Human): 19 commits, +995/-60 lines
+    - `liuhao1024 <sunsky.lau@gmail.com>` (Human): 17 commits, +1.3k/-56 lines
+    - `srojk34 <286497132+srojk34@users.noreply.github.com>` (Human): 16 commits, +1.7k/-38 lines
     - `Ben <ben@nousresearch.com>` (Human): 16 commits, +4.0k/-350 lines
-    - `srojk34 <286497132+srojk34@users.noreply.github.com>` (Human): 15 commits, +1.6k/-38 lines
+    - `Ben Barclay <ben@nousresearch.com>` (Human): 15 commits, +3.6k/-347 lines
+    - `HexLab98 <liruixinch@outlook.com>` (Human): 12 commits, +911/-38 lines
   - **Top Bots**:
     - `Tranquil-Flow <agent@tranquil-flow.dev>` (Bot): 1 commits, +357/-4 lines
     - `hinotoi-agent <paperlantern.agent@gmail.com>` (Bot): 1 commits, +78/-1 lines
@@ -207,6 +214,70 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_BD_HERMES_AGENT -->
 <!-- START_RF_HERMES_AGENT -->
 * **Recent Focus**:
+  - `d577408f3` fix(webhook): reject generic V2 signature missing timestamp instead of falling back to V1
+  - `ebfc49c4d` fix(approval): require exact ./.. segments in the root-collapse hardline token (#56179)
+  - `cb6c47af0` feat(approvals): /deny <reason> relays denial reason to the agent (port nanoclaw#2832) (#54518)
+  - `9767e19b6` feat(skills): stacked slash-skill invocations — /skill-a /skill-b do XYZ (#57987)
+  - `30479961b` fix(gateway): tolerate punctuation on silence markers
+  - `edf8e0ba9` feat(mcp): surface MCP server log notifications in agent.log (#57416)
+  - `4751af0a0` feat(errors): fail fast on TLS certificate verification failures with fix hints (#57992)
+  - `619db0175` fix(gateway): move PATH bootstrap below imports, gate to POSIX
+  - `1b7853d7b` fix(gateway): add system dirs to PATH for UV Python compatibility
+  - `708b57e00` fix(webhook): rate-limit V1 deprecation warning + document V2 signature
+  - `70449a493` fix(security): add timestamp-bound V2 signature for generic webhook replay protection
+  - `dec4485d2` chore(release): AUTHOR_MAP entries for salvaged PR authors
+  - `7e037e1a3` fix: cover remaining GNU-only %-d strftime site in learning graph render
+  - `ce82b0c3c` fix: 'hermes journey' crashes on Windows due to '%-d' strftime directive
+  - `e4da3a7a5` chore(release): AUTHOR_MAP entry for salvaged PR author
+  - `791583704` fix(auth): prune stale custom model credentials
+  - `fc18d15f4` fix: preserve static custom provider models
+  - `020a71678` chore(release): AUTHOR_MAP entries for salvaged PR authors
+  - `b7192b1cb` fix(profiles): preserve symlinks in clone-all and skills clone paths
+  - `8d9684c9d` fix(profiles): allowlist default-export paths + preserve symlinks (#58394)
+  - `b6b9bcd2a` fix(profiles): preserve symlinks during profile export
+  - `9ae17b8ac` security(vision): route local-file inputs through the shared credential-read guard
+  - `6f052b7ff` fix(copilot): set x-initiator per turn so user prompts bill as premium requests (salvage #4097) (#58544)
+  - `485ae54c9` fix(gateway): pass full transcript to compressor instead of filtered messages (#58551)
+  - `d810ff2f2` chore(release): AUTHOR_MAP entries for salvaged PR authors
+  - `c01809600` test(whatsapp_cloud): intake-gate regression coverage for documented env vars
+  - `6c7960cfa` fix(whatsapp_cloud): honor documented WHATSAPP_CLOUD_ALLOWED_USERS / ALLOW_ALL_USERS
+  - `132bb8a16` fix(yuanbao): restore active singleton after WS reconnect
+  - `5b8593266` fix(gateway): cap proxy SSE line buffer
+  - `a0a3c716f` fix(telegram): dedup saturated mid-stream overflow previews to stop flood-control edit storms (#58563)
+  - `1388cd1c0` fix(logging): thread-safe queue state + bounded hard-exit drain + record copy
+  - `ac68a6411` fix(gateway): drain async log queue on os._exit shutdown backstop
+  - `eb0cc2720` fix(logging): drive rotating file handlers through an async QueueListener
+  - `af01b3cb3` fix(config): stop provider-key warn-storm that stalls Windows logging
+  - `7e8f50a14` fix(gateway): load display config from routed profile
+  - `11b4a21a5` fix(gateway): clear last-resolved-model cache on /new and compression auto-reset
+  - `ff4c8172c` fix(gateway): attach credential_pool to session /model overrides
+  - `10f7cb043` chore(release): AUTHOR_MAP entries for salvaged PR authors
+  - `8552cac65` fix: drop unrelated package-lock churn and dead poolside picker entry
+  - `70dffb6f1` fix(codex): recover final app-server text without completion
+  - `55e798689` fix(poolside): handle integer finish_reason and tool_call id
+  - `2bb11adb4` fix: classify OpenRouter 'no tool use' 404 as model_not_found with fallback
+  - `ddd3a2d24` fix(auxiliary): fall back to token resolver when anthropic pool has no usable entry
+  - `2b4ec0082` fix(api_server): return 413 for oversized chunked bodies
+  - `ec29590a0` fix(webhook): enforce body-size limit on chunked requests
+  - `0d27d2ed1` fix(vision): bound the sandbox exec-read at the ingest cap
+  - `6c068358e` fix(vision): stdin=DEVNULL on rasterizer subprocess (stdin guard)
+  - `4ac8c7546` fix(vision): mkdir converted-PNG output dir; wire SVG pass-through to rasterizer; AUTHOR_MAP for #52688
+  - `ac94f2c8a` fix(vision): convert SVG/unsupported image formats to PNG before embedding
+  - `ab2f5a077` fix(vision): address review — restore bare relative paths, remove dead code, async I/O
+  - `316e77517` fix(vision): unified image-source resolver + terminal-backend confinement
+  - `9e872db7d` fix(redact): skip env-assignment redaction for programmatic env lookups
+  - `6fcd470d5` chore(release): AUTHOR_MAP entries for salvaged PR authors
+  - `c3ab1424e` fix(telegram): redact transport error tokens
+  - `2b58febe4` fix(redact): cover fireworks token prefixes
+  - `a0c90edf4` fix(skills): retry rate-limited Contents API directory listings
+  - `d91083b2f` fix(website-policy): key blocklist cache on the real default config path
+  - `f9c543d6d` chore(release): add AUTHOR_MAP entry for @danilofalcao (PR #56674 salvage)
+  - `058873805` fix(update): skip unsupported Matrix refresh on Windows
+  - `c6dc7c03c` Revert "Merge pull request #30179 from NousResearch/feat/iron-proxy"
+  - `fe5054bcc` fix(desktop): avoid probing custom providers on model picker open
+  - `bd480b4c8` test(gateway): cover per-backend cwd placeholder resolution
+  - `1cc68fc89` fix(gateway): resolve terminal.cwd placeholders per backend and mount mode
+  - `53a8a7367` docs(debug): document Nous diagnostics upload
   - `81f1ba800` test(telegram): cancel leaked conflict-retry task before fatal assertion
   - `b1c7b9654` fix(telegram): bound the 3 sibling updater.stop() calls with the same CLOSE-WAIT timeout
   - `8645b3430` fix(telegram): bound updater.stop() with timeout to prevent CLOSE-WAIT reconnect hang
@@ -220,6 +291,7 @@ This document tracks repository activity, commit counts, merge frequency, and re
   - `86a0c5553` feat: allow suppressing Codex gpt-5.5 autoraise notice
   - `8b24376d6` fix(dashboard): close credential-dir-tree gap + .git-credentials in managed-files guard
   - `43ec69cef` security(dashboard): widen managed-files sensitive-filename guard past .env
+  - `86fcb2fe5` feat(egress): first-class x-api-key providers + hot reload via management API
   - `09693cd3a` fix: complete OAuth-UA salvage follow-up (stale comment + test keychain isolation)
   - `4c5b4417b` fix(anthropic): OAuth token endpoint UA must not be claude-code/ (login 429, #48534)
   - `88f2c0caf` fix(agent): match tool results on call_id||id in pre-request repair (#58168)
@@ -243,6 +315,10 @@ This document tracks repository activity, commit counts, merge frequency, and re
   - `8b797f7a7` fix(prompt-caching): skip invalid top-level cache_control on empty assistant/tool messages on OpenRouter
   - `7a648a8bf` fix(telegram): paginate model provider picker
   - `4bf749fd5` fix(desktop): add tooltip and fix scrollbar overlap on tool output copy button
+  - `6ff7e7864` feat(egress): smoother UX — restart command, auto-restart on setup, .env key discovery
+  - `eb7aae581` chore(egress): drop committed infographic PNG from tree
+  - `ae1bfa180` fix(egress): close GOOGLE_API_KEY coverage gap + config/mappings write TOCTOU
+  - `ad978ed96` feat(egress): iron-proxy credential-injection firewall for sandboxes
 <!-- END_RF_HERMES_AGENT -->
 ### NanoBot (`HKUDS/nanobot`)
 <!-- START_BD_NANOBOT -->
@@ -280,7 +356,7 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_RF_NANOBOT -->
 ### PicoClaw (`sipeed/picoclaw`)
 <!-- START_BD_PICOCLAW -->
-* **Status**: Active (Total: 11 commits [5 H / 6 B], 1 tag/release in the last week). Lines added/deleted: +4.2k/-71 (Human), +715/-790 (Bot). **50 commits since installed 0.3.0.nightly.20260622.287853ab-1 (ref=287853ab).**
+* **Status**: Active (Total: 11 commits [5 H / 6 B], 1 tag/release in the last week). Lines added/deleted: +4.2k/-71 (Human), +715/-790 (Bot). **52 commits since installed 0.3.0.nightly.20260622.287853ab-1 (ref=287853ab).**
 * **Contributors (according to last 7 days commits)** (Total: 3 Humans, 1 Bots):
   - **Top Humans**:
     - `Ethan1918 <75773519+Ethan1918@users.noreply.github.com>` (Human): 3 commits, +262/-49 lines
@@ -305,11 +381,12 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_RF_PICOCLAW -->
 ### NanoClaw (`nanocoai/nanoclaw`)
 <!-- START_BD_NANOCLAW -->
-* **Status**: Highly Active (Total: 60 commits [35 H / 25 B], 0 tags/releases in the last week). Lines added/deleted: +2.5k/-1.5k (Human), +49/-49 (Bot).
-* **Contributors (according to last 7 days commits)** (Total: 6 Humans, 1 Bots):
+* **Status**: Highly Active (Total: 62 commits [37 H / 25 B], 0 tags/releases in the last week). Lines added/deleted: +2.6k/-1.5k (Human), +49/-49 (Bot).
+* **Contributors (according to last 7 days commits)** (Total: 7 Humans, 1 Bots):
   - **Top Humans**:
-    - `gavrielc <gabicohen22@yahoo.com>` (Human): 29 commits, +972/-1.4k lines
+    - `gavrielc <gabicohen22@yahoo.com>` (Human): 30 commits, +973/-1.4k lines
     - `John Mathews <mthwsjc@gmail.com>` (Human): 2 commits, +406/-89 lines
+    - `glifocat <ethan@nanoco.ai>` (Human): 1 commits, +13/-3 lines
     - `leetwito <leetwito@gmail.com>` (Human): 1 commits, +8/-3 lines
     - `Amit Shafnir <amit@nanoco.ai>` (Human): 1 commits, +939/-8 lines
     - `Rob Stevenson <this.rob@protonmail.com>` (Human): 1 commits, +137/-26 lines
@@ -319,6 +396,8 @@ This document tracks repository activity, commit counts, merge frequency, and re
 <!-- END_BD_NANOCLAW -->
 <!-- START_RF_NANOCLAW -->
 * **Recent Focus**:
+  - `5a7e75f` Apply suggestion from @gavrielc
+  - `d770e56` docs: correct stale mount topology + removed env var vs code
   - `08a1ac9` chore: bump version to 2.1.38
   - `694ab74` chore: bump version to 2.1.37
   - `7145370` Apply suggestion from @gavrielc
@@ -332,15 +411,13 @@ This document tracks repository activity, commit counts, merge frequency, and re
   - `2035033` Delete docs/docker-sandboxes.md
   - `1c294ff` Delete docs/APPLE-CONTAINER-NETWORKING.md
   - `4319831` chore: bump version to 2.1.36
-  - `a8b7da7` docs: update token count to 208k tokens · 104% of context window
-  - `0b6ad55` chore: bump version to 2.1.35
 <!-- END_RF_NANOCLAW -->
 ### LibreFang (`librefang/librefang`)
 <!-- START_BD_LIBREFANG -->
-* **Status**: Active (Total: 34 commits [27 H / 7 B], 1 tag/release in the last week). Lines added/deleted: +14.3k/-2.1k (Human), +976/-958 (Bot). **13 commits since installed 2026.6.29.r9.g83ee2627b-1 (ref=83ee2627b).**
+* **Status**: Active (Total: 35 commits [28 H / 7 B], 1 tag/release in the last week). Lines added/deleted: +14.3k/-2.1k (Human), +976/-958 (Bot). **14 commits since installed 2026.6.29.r9.g83ee2627b-1 (ref=83ee2627b).**
 * **Contributors (according to last 7 days commits)** (Total: 4 Humans, 1 Bots):
   - **Top Humans**:
-    - `Evan <suzukaze.haduki@gmail.com>` (Human): 22 commits, +7.5k/-2.1k lines
+    - `Evan <suzukaze.haduki@gmail.com>` (Human): 23 commits, +7.5k/-2.1k lines
     - `Павло <pavvers1@gmail.com>` (Human): 3 commits, +687/-36 lines
     - `Seungjin Kim <seungjin@users.noreply.github.com>` (Human): 1 commits, +6.1k/-7 lines
     - `FrantaNautilus <142005599+FrantaNautilus@users.noreply.github.com>` (Human): 1 commits, +1/-0 lines
@@ -350,6 +427,7 @@ This document tracks repository activity, commit counts, merge frequency, and re
 * **Note**: LibreFang is a community fork of the former `RightNow-AI/openfang` repository, which had **17,623 stars** and **2,252 forks** before going stale.
 <!-- START_RF_LIBREFANG -->
 * **Recent Focus**:
+  - `f562aded` ci(nix-build): raise job timeout to 120 minutes for cold builds (#6389)
   - `a9c5496c` fix(deps): clear quick-xml RUSTSEC-2026-0194/0195 advisories (#6387)
   - `a6b84aa2` docs: add Arch Linux pacman installation instructions (#6386)
   - `b0d78537` chore(deps): bump the docs-minor-patch group in /docs with 10 updates (#6380)
