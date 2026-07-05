@@ -349,7 +349,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_MODEL_ALIAS="whisper-1"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="false"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -799,7 +799,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_MODEL_ALIAS="whisper-1"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="false"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -1005,7 +1005,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_MODEL_ALIAS="whisper-1"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="false"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -1211,7 +1211,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_MODEL_ALIAS="whisper-1"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="true"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -1536,7 +1536,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_MODEL_ALIAS="whisper-1"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_NO_GPU="true"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
@@ -2044,7 +2044,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_HOST="127.0.0.1"`
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_MODEL_ALIAS="whisper-1"`
+  - `LSTT_ALIAS="whisper-1"`
   - `LSTT_PORT="50090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
