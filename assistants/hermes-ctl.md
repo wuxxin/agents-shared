@@ -36,6 +36,10 @@ Both files are opened automatically when executing the `./assistants/hermes-ctl 
 
 Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
 
+```bash
+for i in agent_browser camofox cua_driver kittentts piper ddgs langfuse; do hermes tools post-setup $i; done
+```
+
 ### OpenClaw Migration
 
 Hermes supports importing configuration from an existing OpenClaw setup. To migrate your setup, run:
