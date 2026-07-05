@@ -9,30 +9,22 @@ On installation, the Python code is copied from `scripts/local-router.py` to the
 
 ## Usage
 
-```bash
-# Install the service and environment configuration
-./local-router.sh install [--no-start] [--new-config]
-
-# Start/Stop/Restart the service
-./local-router.sh start
-./local-router.sh stop
-./local-router.sh restart
-
-# Check runtime status
-./local-router.sh status
-
-# Tail service stdout/stderr logs
-./local-router.sh logs -f
-
-# Edit service environment configuration and auto-restart
-./local-router.sh edit
-
-# Run API validation tests
-./local-router.sh test
-
-# Run uvicorn as a transient systemd user service
-./local-router.sh exec [--env KEY=VALUE]* [-- uvicorn-args...]
-```
+- Install the service and environment configuration:
+  - `./local-router.sh install [--no-start] [--new-config]`
+- Start/Stop/Restart the service:
+  - `./local-router.sh start`
+  - `./local-router.sh stop`
+  - `./local-router.sh restart`
+- Check runtime status:
+  - `./local-router.sh status`
+- Tail service stdout/stderr logs:
+  - `./local-router.sh logs -f`
+- Edit service environment configuration and auto-restart:
+  - `./local-router.sh edit`
+- Run API validation tests:
+  - `./local-router.sh test`
+- Run uvicorn as a transient systemd user service:
+  - `./local-router.sh exec [--env KEY=VALUE]* [-- uvicorn-args...]`
 
 ## Configuration & Routing Details
 
@@ -49,15 +41,16 @@ LROUT_DEFAULT_MODEL="qwen3"
 
 ### Route Map (Port 51080)
 
-| Endpoint | Target URL | Service Name | Default Port | Description |
-|---|---|---|---|---|
-| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | 50080 | LLM completions |
-| `POST /v1/embeddings` | Dynamic (based on `LMBD_ENABLED`) | Local-Embedding | 50082 / 50080 | Embeddings |
-| `POST /v1/rerank` or `/rerank` | `http://{LRR_HOST}:{LRR_PORT}` | Local-Rerank | 50086 | Text document ranking |
-| `POST /v1/audio/transcriptions` | `http://{LSTT_HOST}:{LSTT_PORT}` | Local-Speech-To-Text | 50090 | Whisper transcription |
-| `POST /v1/audio/speech` | `http://{LTTS_HOST}:{LTTS_PORT}` | Local-Text-To-Speech | 50095 | Speech synthesis |
-| `POST /v1/images/generations` | `http://{LIMG_HOST}:{LIMG_PORT}` | Local-Image | 50100 | Stable Diffusion image generation |
-| `GET /v1/models` | Cached Model Inventory | - | - | Returns cached model inventory built on startup |
+| Endpoint | Target URL | Service | Model |  Port | Description |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3 | 50080 | LLM completions |
+| `POST /v1/embeddings` | Dynamic (based on `LMBD_ENABLED`) | Local-Embedding | qwen3-embedding | 50082 / 50080 | Embeddings |
+| `POST /v1/rerank` or `/rerank` | `http://{LRR_HOST}:{LRR_PORT}` | Local-Rerank | qwen3-reranker | 50086 | Text document ranking |
+| `POST /v1/audio/transcriptions` | `http://{LSTT_HOST}:{LSTT_PORT}` | Local-Speech-To-Text | whisper-1 | 50090 | Whisper transcription |
+| `POST /v1/audio/speech` | `http://{LTTS_HOST}:{LTTS_PORT}` | Local-Text-To-Speech | qwen3-tts | 50095 | Speech synthesis |
+| `POST /v1/images/generations` | `http://{LIMG_HOST}:{LIMG_PORT}` | Local-Image | z-image-turbo | 50100 | Stable Diffusion image generation |
+| `GET /v1/models` | Cached Model Inventory | - | - | - | Returns cached model inventory built on startup |
+
 
 ### Startup Synchronization & Model Inventory
 
