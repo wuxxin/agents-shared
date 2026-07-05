@@ -19,6 +19,10 @@ DEFAULT_AGENT_SIDECARS="dashboard"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard --no-open"
 
+# Local Router Ports/URLS
+DEFAULT_ROUTER_BASE_URL="http://localhost:51080/v1"
+DEFAULT_ROUTER_KEY="unused"
+
 # Local Inference Ports/URLs
 DEFAULT_CHAT_BASE_URL="http://localhost:50080/v1"
 DEFAULT_CHAT_KEY="unused"
@@ -437,24 +441,16 @@ EOF
 # .hermes/.env
 # Set your API keys and other configuration here.
 
-# Default openai/openai compatible backend URL,
-# change url to Image Gen for openai:image_gen, all other services have overrides available
-# Local Image endpoint (OpenAI compatible on port 50100)
-OPENAI_API_BASE_URL="${DEFAULT_IMAGE_BASE_URL}"
-OPENAI_API_KEY="${DEFAULT_IMAGE_KEY}"
-
-# disabled: Embeddings endpoint (llama-server on port 50082)
-# disabled: Reranker endpoint (llama-server on port 50086)
-
-# Speech-to-Text endpoint (whisper-server on port 50090) configured in config.yaml
-# Local TTS endpoint (OpenAI compatible on port 50095) configured in config.yaml
-# VOICE_TOOLS_OPENAI_KEY = custom key for both STT and TTS
-VOICE_TOOLS_OPENAI_KEY="${DEFAULT_TTS_KEY}"
+# Default openai compatible backend URL,
+# Local-Router (OpenAI compatible on port 51080 for all services)
+OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
 
 # Hermes Execution Mode
 TERMINAL_ENV="${DEFAULT_TERMINAL_ENV}"
 HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
 HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
+# HERMES_DISABLE_LAZY_INSTALLS=true
 
 # Signal Channel Configuration
 SIGNAL_HTTP_URL="${DEFAULT_SIGNAL_HTTP_URL}"
@@ -503,23 +499,35 @@ dashboard:
 session_reset:
   mode: none
 model:
-  provider: openai-api
-  base_url: $DEFAULT_CHAT_BASE_URL
+  provider: custom
   default: $DEFAULT_CHAT_MODEL
   context_length: 80128
+  base_url: http://localhost:51080/v1
+  api_key: unused
 image_gen:
+  enabled: true
   provider: openai
   model: $DEFAULT_IMAGE_MODEL
   use_gateway: false
 tts:
-  provider: openai-api
-  base_url: $DEFAULT_TTS_BASE_URL
-  model: $DEFAULT_TTS_MODEL
+  enabled: true
+  provider: openai
+  base_url: $DEFAULT_ROUTER_BASE_URL
+
+  openai:
+    model: $DEFAULT_TTS_MODEL
+    base_url: $DEFAULT_ROUTER_BASE_URL
+    # voice: "alloy"              # alloy, echo, fable, onyx, nova, shimmer
+    # speed: 1.0
   use_gateway: false
 stt:
-  provider: openai-api
-  base_url: $DEFAULT_STT_BASE_URL
-  model: $DEFAULT_STT_MODEL
+  enabled: true
+  provider: openai
+  base_url: $DEFAULT_ROUTER_BASE_URL
+
+  openai:
+    model: $DEFAULT_STT_MODEL
+    base_url: $DEFAULT_ROUTER_BASE_URL
 voice:
   auto_tts: true
 plugins:
