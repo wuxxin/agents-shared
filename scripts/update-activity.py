@@ -19,11 +19,11 @@ from typing import Any, Dict, List, Optional
 # Define the repositories to track
 TRACKED_REPOS = [
     {
-        "name": "zeroclaw",
-        "github": "zeroclaw-labs/zeroclaw",
-        "pkg": "zeroclaw-git",
-        "branch": "master",
-        "heading": "ZeroClaw",
+        "name": "hermes-agent",
+        "github": "NousResearch/hermes-agent",
+        "pkg": "hermes-agent-git",
+        "branch": "main",
+        "heading": "Hermes Agent",
     },
     {
         "name": "ironclaw",
@@ -33,18 +33,18 @@ TRACKED_REPOS = [
         "heading": "IronClaw",
     },
     {
+        "name": "zeroclaw",
+        "github": "zeroclaw-labs/zeroclaw",
+        "pkg": "zeroclaw-git",
+        "branch": "master",
+        "heading": "ZeroClaw",
+    },
+    {
         "name": "librefang",
         "github": "librefang/librefang",
         "pkg": "librefang-git",
         "branch": "main",
         "heading": "LibreFang",
-    },
-    {
-        "name": "hermes-agent",
-        "github": "NousResearch/hermes-agent",
-        "pkg": "hermes-agent-git",
-        "branch": "main",
-        "heading": "Hermes Agent",
     },
     {
         "name": "nanobot",
@@ -54,18 +54,18 @@ TRACKED_REPOS = [
         "heading": "NanoBot",
     },
     {
-        "name": "picoclaw",
-        "github": "sipeed/picoclaw",
-        "pkg": "picoclaw-git",
-        "branch": "main",
-        "heading": "PicoClaw",
-    },
-    {
         "name": "nanoclaw",
         "github": "nanocoai/nanoclaw",
         "pkg": "nanoclaw-git",
         "branch": "main",
         "heading": "NanoClaw",
+    },
+    {
+        "name": "picoclaw",
+        "github": "sipeed/picoclaw",
+        "pkg": "picoclaw-git",
+        "branch": "main",
+        "heading": "PicoClaw",
     },
 ]
 
