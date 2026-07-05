@@ -145,6 +145,8 @@ LTTS_OVERRIDE=(
 # run IMAGE on vulkan/igpu and te on cpu
 LIMG_OVERRIDE=(
     'LIMG_BACKEND="vulkan0,te=cpu"'
+    # limit the Vulkan command buffer batch size to 20 to keep VAE computation from timeout
+    'GGML_VK_MAX_NODES_PER_SUBMIT=20'
 )
 LROUT_OVERRIDE=(
 )
