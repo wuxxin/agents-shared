@@ -11,7 +11,7 @@ Input:
 | **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server OpenAI audio transcription |
 | **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server OpenAI audio synthesis |
-| **Local-Image** | [50100](http://localhost:50100) | sd-server OpenAI and Automatic1111 image generation|
+| **Local-Image** | [50100](http://localhost:50100) | sd-server OpenAI and Automatic1111 compatible image generation|
 | **Local-Router** | [51080](http://localhost:51080) | combined service router / OpenAI proxy |
 
 
