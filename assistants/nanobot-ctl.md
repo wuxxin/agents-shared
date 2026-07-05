@@ -25,33 +25,52 @@ For shared commands, variable expansion rules, sidecars supervision, temporary f
 
 ---
 
-## Sandboxing & Security Profile Differences
+## Configuration Example
 
-Because NanoBot executes skills and external tools using bubblewrap (`bwrap`) to build nested runtime sandboxes, the systemd configurations are adjusted:
-
-- **Properties Omitted:** `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
-- **Rationale:** Omitted because restricting namespaces inside systemd would prevent `bwrap` from using `CLONE_NEWUSER` and `CLONE_NEWNS` to create user/mount spaces.
-
----
-
-## Switch to Local Inference & Qwen3
-
-To route NanoBot to local inference servers, configure `~/.local/sandbox/nanobot/config.json`:
+To run NanoBot fully locally using local services (Ollama for chat/vision, local Whisper for speech-to-text, and local Stable Diffusion for image generation), merge the following configuration into your `~/.nanobot/config.json`:
 
 ```json
 {
-  "providers": {
-    "openai_compatible": {
-      "local": {
-        "api_key": "unused",
-        "base_url": "http://localhost:50080/v1"
-      }
-    }
-  },
   "agents": {
     "defaults": {
-      "provider": "openai_compatible/local",
-      "model": "qwen3"
+      "provider": "custom",
+      "model": "qwen3",
+      "temperature": 0.7,
+      "maxToolIterations": 200
+    }
+  },
+  "providers": {
+    "custom": {
+      "apiBase": "http://localhost:51080/v1",
+      "apiKey": "chat-vision-unused"
+      # custom: openai_compat used for chat AND Image generation
+    },
+    "siliconflow": {
+      "apiBase": "http://localhost:51080/v1",
+      "apiKey": "whisper-unused
+      # siliconflow: OpenAITranscriptionProvider
+    },
+  },
+  "transcription": {
+    "enabled": true,
+    "provider": "siliconflow", 
+    "model": "whisper-1",
+    "language": "auto",
+    "maxDurationSec": 120
+  },
+  "tools": {
+    "imageGeneration": {
+      "enabled": true,
+      "provider": "custom",
+      "model": "z-image-turbo"
+    }
+  },
+  "channels": {
+    "signal": {
+      "enabled": true,
+      "account": "+1234567890",
+      "apiBase": "http://localhost:50888",
+      "streaming": true
     }
   }
 }
@@ -64,11 +83,9 @@ In the config, ensure the WebSocket channel is enabled:
    { "channels": { "websocket": { "enabled": true } } }
    ```
 
----
+## Memory
 
-## MCP, RAG & Speech Configuration
-
-Add these blocks to `~/.local/sandbox/nanobot/config.json` to configure hybrid Dream memory stores, local embeddings, fetch-rerank MCP, and speech/image synthesizers:
+Add these blocks to `~/.local/sandbox/nanobot/config.json` to configure hybrid Dream memory stores
 
 ```json
 {
@@ -77,81 +94,18 @@ Add these blocks to `~/.local/sandbox/nanobot/config.json` to configure hybrid D
       "enabled": true,
       "long_term_store": "vector"
     }
-  },
-  "embeddings": {
-    "provider": "openai_compatible/local",
-    "model": "text-embedding-3-small",
-    "base_url": "http://localhost:50082/v1"
-  },
-  "tools": {
-    "mcp_servers": {
-      "local-reranker": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-fetch"],
-        "env": {
-          "RERANK_URL": "http://localhost:50086/v1/rerank",
-          "RERANK_MODEL": "qwen3-reranker"
-        }
-      }
-    },
-    "image_generation": {
-      "enabled": true,
-      "provider": "openai",
-      "model": "stability-ai/sdxl"
-    }
-  },
-  "providers": {
-    "openai": {
-      "api_key": "unused",
-      "api_base": "http://localhost:50100/v1"
-    }
-  },
-  "transcription": {
-    "provider": "openai",
-    "openai": {
-      "api_key": "dummy",
-      "base_url": "http://localhost:50090/v1"
-    }
-  }
+  }, 
 }
 ```
-
-## Signal Channel Configuration
-
-NanoBot supports native Signal integration. It communicates with a local `signal-cli` daemon in HTTP mode.
-
-### Configuration
-
-Add the following to your `~/.local/sandbox/nanobot/config.json` configuration file under the `"channels"` block (via `nanobot-ctl config`):
-
-```json
-{
-  "channels": {
-    "signal": {
-      "enabled": true,
-      "phoneNumber": "+1234567890",
-      "daemonHost": "localhost",
-      "daemonPort": 50888,
-      "dm": {
-        "enabled": true,
-        "policy": "open"
-      },
-      "group": {
-        "enabled": true,
-        "policy": "open",
-        "requireMention": true
-      }
-    }
-  }
-}
-```
-
-Ensure the local `signal-cli` daemon is running. NanoBot will connect, handle inbound messages via Server-Sent Events, convert markdown formatting to native Signal styles, and handle reconnects automatically.
 
 ## Implementation & Security Considerations
 
-### Sandboxing Profile
+### Sandboxing & Security Profile Differences
+
 Nanobot utilizes a **Relaxed Namespaces Profile** for systemd isolation. Based on auditing the packaging and runtime configuration, these permissions are required:
+
+- **Properties Omitted:** `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
+- **Rationale:** Omitted because restricting namespaces inside systemd would prevent `bwrap` from using `CLONE_NEWUSER` and `CLONE_NEWNS` to create user/mount spaces.
 
 1. **Namespace Support (Bubblewrap)**
    - **Properties Omitted**: `ProtectProc=invisible`, `ProcSubset=pid`, and `RestrictNamespaces=yes`.
