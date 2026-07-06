@@ -32,6 +32,15 @@ The application override file is loaded **after** the systemd service configurat
 
 Both files are opened automatically when executing the `./assistants/hermes-ctl edit` command.
 
+## Workspace & CWD Propagation
+
+To ensure that the agent, its sidecars (like the dashboard), and any spawned background processes (like the `prompt-size` diagnostics) correctly agree on the project's working directory:
+- **WorkingDirectory Configuration**: For the systemd service and fallback direct execution, the working directory (cwd) is dynamically resolved to the value of `AGENT_WORKSPACE` (which defaults to `%h/.local/sandbox/hermes/.hermes/workspace`).
+- **TERMINAL_CWD Propagation**: The environment variable `TERMINAL_CWD` is automatically set to `AGENT_WORKSPACE`'s resolved value at the systemd service/wrapper level (`Environment=TERMINAL_CWD=...` or `export TERMINAL_CWD="..."`).
+- **Dotenv Default**: The default `.env` template writes `TERMINAL_CWD="${AGENT_WORKSPACE}"` to ensure shell-based executions resolve it properly.
+
+This propagation is crucial for WebUI dashboard actions (such as computing the prompt size via `action-prompt-size`). It ensures that background diagnostic subprocesses (which are spawned in `/opt/hermes-agent` or `/opt/hermes`) can resolve project-local files (e.g., `AGENTS.md` and `.cursorrules`) by reading `TERMINAL_CWD` from their inherited environment instead of falling back to scan the installation directory.
+
 ## Setup Wizard
 
 Run `./assistants/hermes-ctl exec setup` to launch the interactive configuration setup.
