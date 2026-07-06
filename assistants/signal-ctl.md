@@ -81,8 +81,13 @@ exit
 - **Hardening**: Runs with a very strict profile including `ProtectSystem=strict`, `TemporaryFileSystem=%h` (transient home mount point), and `RestrictNamespaces=yes`.
 - **JVM Requirements**: `MemoryDenyWriteExecute` is **intentionally omitted** because the Java Virtual Machine requires writable and executable memory mappings for its JIT compiler.
 - **Isolation**: The data directory `~/.local/sandbox/signal-cli` is bind-mounted, but the rest of the home directory is hidden.
-- **Process Isolation**: Confinement is tightened with `ProtectProc=invisible`, `ProcSubset=pid`, and restrictive system call filtering (`SystemCallArchitectures=native`).
+- **Custom Sandbox Mounts**: Support is available for importing external paths into the sandbox namespace using `SIGNAL_PRIVATE_MOUNTS`, `SIGNAL_SANDBOX_MOUNTS`, and `SIGNAL_EXTRA_MOUNTS`.
+- **Fallback Execution**: When systemd is not running (e.g., inside sandboxed or `bwrap` environments), `signal-ctl` automatically falls back to direct execution in the host environment, setting the appropriate isolated environment variables (`HOME`, `XDG_DATA_HOME`, etc.) to match the sandbox directory structure.
+- **Process Isolation**: Confinement is tightened with `ProtectProc=invisible`, and restrictive system call filtering (`SystemCallArchitectures=native`).
 
 ### Configuration
-- `signal-cli.env`: Controls the phone number (`SC_ACCOUNT`), UNIX socket path (`SC_SOCKET_PATH`), optional TCP/HTTP host and ports (`SC_HOST`, `SC_TCP_PORT`, `SC_HTTP_PORT`), and extra flags (e.g. `--ignore-stories`).
+- `signal-cli.env`: Controls the phone number (`SC_ACCOUNT`), UNIX socket path (`SC_SOCKET_PATH`), optional TCP/HTTP host and ports (`SC_HOST`, `SC_TCP_PORT`, `SC_HTTP_PORT`), extra flags (e.g. `--ignore-stories`), and sandbox mounts:
+  - `SIGNAL_PRIVATE_MOUNTS`: Space-separated list of submounts from `~/agent-private/*` to bind-mount.
+  - `SIGNAL_SANDBOX_MOUNTS`: Space-separated list of submounts from other sandboxes to bind-mount.
+  - `SIGNAL_EXTRA_MOUNTS`: Space-separated list of extra bind-mounts (format: `abs_dir:rel_dir_to_HOME`). Defaults to mounting `~/agent-shared`.
 - `signal-api.env`: Controls the REST API bind address, `MODE=json-rpc`, security token (`AUTH_TOKEN`), and `SIGNAL_REST_API_ENABLED`.
