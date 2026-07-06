@@ -69,18 +69,28 @@ When running the local text-to-speech service with the default custom voice mode
 curl -s http://127.0.0.1:50095/v1/audio/voices
 ```
 
-This returns the following active voice presets loaded by the model:
+This returns the active voice presets loaded by the model. The table below lists the characteristics and native pronunciation/dialect profiles of these voices:
 
-- `default`
-- `serena`
-- `vivian`
-- `uncle_fu`
-- `ryan`
-- `aiden`
-- `ono_anna`
-- `sohee`
-- `eric`
-- `dylan`
+| Voice | Gender | Native Language / Dialect | Accent & Description |
+| :--- | :--- | :--- | :--- |
+| `default` | - | - | Default speaker (general/neutral) |
+| `serena` | Female | Chinese (Standard Mandarin) | Warm, gentle, young female voice |
+| `vivian` | Female | Chinese (Standard Mandarin) | Bright, slightly edgy, young female voice |
+| `uncle_fu` | Male | Chinese (Standard Mandarin) | Low, mellow, seasoned/mature male voice |
+| `ryan` | Male | English (British/General English) | Dynamic with a strong, rhythmic drive |
+| `aiden` | Male | English (American English) | Sunny, friendly, American accent with a clear midrange |
+| `ono_anna` | Female | Japanese | Playful, light, and nimble Japanese female voice |
+| `sohee` | Female | Korean | Warm, soft, gentle Korean female voice with rich emotion |
+| `eric` | Male | Chinese (Sichuan dialect) | Lively, slightly husky, bright male voice |
+| `dylan` | Male | Chinese (Beijing dialect) | Youthful, clear, natural Beijing-accented male voice |
+
+#### Cross-Language Pronunciation Capabilities
+
+A key feature of Qwen3-TTS is its **cross-language consistency**. Each voice is optimized for and maintains its signature timbre and accent, but is fully capable of pronouncing any of the 10 languages supported by the model (Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, and Italian). For example:
+- Generating German speech with `serena` outputs German spoken with a gentle female timbre and Chinese-influenced accent traits.
+- Generating Chinese speech with `aiden` outputs Chinese spoken with a sunny American-accented timbre.
+
+For optimal pronunciation naturalness, it is recommended to align the input language with the speaker's native language.
 
 ### Performance Tuning Presets
 
