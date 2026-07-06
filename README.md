@@ -1,24 +1,45 @@
 # Local Agent Ecosystem & Assistant Orchestrator
 
-This repository is a centralized orchestration hub for deploying, sandboxing, and monitoring local AI assistants, speech-to-text engines, local inference models, and communication integrations. It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure secure and isolated agent execution on Linux while facilitating structured inter-agent collaboration.
+This repository is a centralized orchestration hub for deploying, sandboxing, and monitoring local AI assistants, speech-to-text engines, local inference models, and communication integrations. 
 
-## Assistant Software covered
+It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure isolated agent execution.
+
+## Assistant Software
 
 See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
 
+| Agent | Language | Default Port(s) | Description |
+| :--- | :---: | :---: | :--- |
+| **[ZeroClaw](#zeroclaw)** | Rust | [42617](http://localhost:42617) | ZeroClaw Gateway |
+| **[IronClaw](#ironclaw)** | Rust | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
+| **[LibreFang](#librefang)** | Rust | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
+| **[Hermes](#hermes)** | Python | [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) || **[NanoBot](#nanobot)** | Python | [8790](http://localhost:8790) | NanoBot Gateway API |
+| **[PicoClaw](#picoclaw)** | Go | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
+| **[NanoClaw](#nanoclaw)** | TypeScript | [3000](http://localhost:3000) | Webhook Server |
 
-| Assistant | Language & Runtime | Embedding | Reranking | Search & Retrieval | Signal | STT |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **[ZeroClaw](#zeroclaw)** | Rust (Source) <br> Rust Backend + Web GUI| Remote & Local | Hybrid & Local | SQLite Hybrid (Vector & FTS5) | Native | Local |
-| **[LibreFang](#librefang)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native & Local | SQLite & Vector / MCP | Native | Local |
-| **[IronClaw](#ironclaw)** | Rust (Source) <br> Rust Backend + Web GUI | Remote & Local | Native (RRF) | PostgreSQL + pgvector / Hybrid (FTS + Vector) | Native | Local |
-| **[Hermes](#hermes)** | Python (Source) <br> frozen Python Backend + Web GUI | Remote & Local | Native & Local | SQLite FTS5 / Vector / RAG | Native | Local |
-| **[NanoBot](#nanobot)** | Python (Source) <br> Python CLI (via `uv`) | Remote & Local | Via MCP Tool | RAG / Document Store / MCP | Native | Local |
-| **[PicoClaw](#picoclaw)** | Go (Source) <br> Go Backend + Web GUI | Remote & Local via MCP | Via MCP | JSON state / MCP | No | Via MCP |
-| **[NanoClaw](#nanoclaw)** | TypeScript (Source) <br> Node.js Webhook Backend | Remote & Local via Tools | Via Custom Skills/MCP | SQLite state / Custom Tools / MCP | No | Via Custom Tools |
+## Helper Utilities
 
+The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
+
+For details, see the [scripts/README.md](scripts/README.md).
 
 ## Integrations
+
+| Service | Default Port(s) | Description / Protocol |
+|---------------|-----------------|------------------------|
+| **[Local Chat/Vision](#local-chat-services)** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM (embeddings disabled) |
+| **[Local Embedding](#local-embedding-services)** | [50082](http://localhost:50082) | Llama-server serving Text Embeddings |
+| **[Local Reranking](#local-reranking-services)** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
+| **[Local Speech to Text](#local-speech-to-text)** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
+| **[Local Text to Speech](#local-text-to-speech)** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
+| **[Local Image Generation](#local-image-services)** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
+| **[Local Router](#local-combined-inference-router)** | [51080](http://localhost:51080) | Combined service router / OpenAI proxy (HTTP) |
+| **[Local Inference Coordinator](#local-inference-coordinator)** | - | Combined service control script |
+| **[Signal Integration](#signal-integration)** | [50889](http://localhost:50889), [50888](http://localhost:50888), 50887 |REST-API:50889, HTTP/JSON-RPC: 50888, TCP/JSON-RPC:50887 |
+| **[Syncthing Integration](#syncthing-integration)** | [8384](http://localhost:8384), 22000 | Syncthing Web UI (HTTP) & Sync Protocol (TCP/UDP) |
+
+
+---
 
 ### Local Chat Services
 - **Description**: Manages persistent `llama-server` instances for chat/vision LLM completions (`local-chat.sh`).
@@ -88,37 +109,6 @@ To configure them, refer to their specific configuration sections in their respe
 - **Sandboxing**: Standard systemd strict filesystem confinement with a transient tmpfs home, mapping only configured directories. Exposes the host configuration and state directories.
 - **Features**: Decentralized and secure background file synchronization for agent workspaces and shared data.
 - **Documentation**: [syncthing-ctl.md](assistants/syncthing-ctl.md)
-
-
-## Helper Utilities
-
-The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
-
-For details, see the [scripts/README.md](scripts/README.md).
-
-
-## Default Ports
-
-The following default ports are used by various agent systems and services to avoid conflicts. When integrating new agents, ensure their configured `PORT` or `WEBHOOK_PORT` does not overlap with existing infrastructure.
-
-| Agent/Service | Default Port(s) | Description / Protocol |
-|---------------|-----------------|------------------------|
-| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM (embeddings disabled) |
-| **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving Text Embeddings |
-| **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
-| **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
-| **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
-| **Local-Image** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
-| **Local-Router** | [51080](http://localhost:51080) | Combined service router / OpenAI proxy (HTTP) |
-| **Signal-CLI** | [50889](http://localhost:50889) (optional: `50887`, `50888`) | REST API (TCP/HTTP JSON-RPC disabled by default in favor of secure UNIX socket) |
-| **ZeroClaw** | [42617](http://localhost:42617) | ZeroClaw Gateway |
-| **IronClaw** | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
-| **Hermes** | [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) |
-| **NanoBot** | [8790](http://localhost:8790) | NanoBot Gateway API |
-| **LibreFang** | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
-| **PicoClaw** | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
-| **NanoClaw** | [3000](http://localhost:3000) | Webhook Server |
-| **Syncthing** | [8384](http://localhost:8384), 22000 | Syncthing Web UI (HTTP) & Sync Protocol (TCP/UDP) |
 
 ---
 
