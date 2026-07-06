@@ -141,10 +141,17 @@ get_shared_options() {
     echo "Environment=HERMES_SANDBOX_HOME=${home_spec}/.local/sandbox/hermes"
     echo "Environment=HERMES_HOME=${home_spec}/.local/sandbox/hermes/.hermes"
     echo "Environment=PATH=${home_spec}/.local/sandbox/hermes/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    echo "Environment=AGENT_WORKSPACE=${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$home_spec}}"
+    local ws="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$home_spec}}"
+    ws="${ws//%h/$home_spec}"
+    ws="${ws//\$HOME/$home_spec}"
+    if [[ "$ws" =~ ^~ ]]; then
+        ws="${ws/#\~/$home_spec}"
+    fi
+    echo "Environment=AGENT_WORKSPACE=$ws"
+    echo "Environment=TERMINAL_CWD=$ws"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/hermes-gateway.env"
     echo "EnvironmentFile=-${home_spec}/.local/sandbox/hermes/.hermes/.env"
-    echo "WorkingDirectory=${home_spec}/.local/sandbox/hermes/.hermes"
+    echo "WorkingDirectory=$ws"
 
     # Security measures
     echo "NoNewPrivileges=yes"
@@ -461,6 +468,7 @@ TERMINAL_ENV="${DEFAULT_TERMINAL_ENV}"
 HERMES_DOCKER_BINARY="${DEFAULT_DOCKER_BINARY}"
 HERMES_YOLO_MODE="${DEFAULT_HERMES_YOLO_MODE}"
 # HERMES_DISABLE_LAZY_INSTALLS=true
+TERMINAL_CWD="\${AGENT_WORKSPACE}"
 
 # Signal Channel Configuration
 SIGNAL_HTTP_URL="${DEFAULT_SIGNAL_HTTP_URL}"
@@ -496,6 +504,16 @@ web:
 browser:
   cloud_provider: local
   use_gateway: false
+compression:
+  enabled: true
+  # Compress at this % of context limit
+  threshold: 0.8
+  # Fraction of threshold to preserve as recent tail
+  target_ratio: 0.15
+  # Min recent messages to keep uncompressed
+  protect_last_n: 20
+  # Non-system head messages pinned across compactions (0 = pin nothing)
+  protect_first_n: 3
 curator:
   consolidate: true
 custom_providers:
@@ -664,13 +682,17 @@ skills:
   disabled:
     - airtable
     - architecture-diagram
+    - ascii-art
     - ascii-video
     - audiocraft-audio-generation
     - baoyu-infographic
     - claude-code
     - claude-design
+    - codebase-inspection
     - codex
     - comfyui
+    - dogfood
+    - evaluating-llms-harness
     - excalidraw
     - gif-search
     - heartmula
@@ -680,14 +702,22 @@ skills:
     - notion
     - obsidian
     - openhue
+    - p5js
     - petdex
+    - plan
     - polymarket
+    - popular-web-designs
     - powerpoint
     - segment-anything-model
     - serving-llms-vllm
+    - signal-media-delivery
     - songsee
+    - songwriting-and-ai-music
+    - spike
     - teams-meeting-pipeline
+    - test-driven-development
     - touchdesigner-mcp
+    - web-data-extraction
     - weights-and-biases
     - xurl
     - yuanbao
@@ -886,9 +916,10 @@ setup_fallback_environment() {
         ws="${ws/#\~/$HOME}"
     fi
     export AGENT_WORKSPACE="$ws"
+    export TERMINAL_CWD="$ws"
 
     mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$AGENT_WORKSPACE" "$HERMES_SANDBOX_HOME/.local/bin"
-    cd "$HERMES_HOME" || exit 1
+    cd "$AGENT_WORKSPACE" || exit 1
 }
 
 FALLBACK_SIDECAR_PIDS=()
