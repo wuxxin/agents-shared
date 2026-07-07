@@ -6,7 +6,7 @@
 
 ## Features
 
-- **Relocated HOME**: Relocates the application's home directory to `$HOME/.local/sandbox/<app_name>` by overlaying the real user home with a temporary filesystem (tmpfs) and mounting the persistent path.
+- **Relocated HOME**: Relocates the application's home directory to `$HOME/.local/sandbox/<app_name>` by overlaying the real user home with a persistant path.
 - **Dual Calling Modes**: Supports being called directly as a manager/orchestrator or called transparently as a symlink named after the target application.
 - **Configurable Environment File**: Automatically sources and exports variables from `~/.local/sandbox/<app_name>.env` before execution.
 - **Configurable Engines**: Supports systemd transient service execution, Bubblewrap confinement, or automatic engine detection/fallback.
@@ -26,29 +26,30 @@ The launcher supports two distinct calling modes:
 When executed directly as `sandbox-ctl` you must specify the subcommand and the target application. This is the mode used to install, uninstall, destroy, configure, or run shell/custom commands:
 
 ```bash
-# Setup sandbox and symlink for firefox
-sandbox-ctl install firefox
+# Setup sandbox and symlink for opencode
+sandbox-ctl install opencode
 
-# Run firefox inside the sandbox
-sandbox-ctl exec firefox
+# Run opencode inside the sandbox
+sandbox-ctl exec opencode
 
-# Run an interactive bash shell in the firefox sandbox
-sandbox-ctl shell firefox
+# Run an interactive bash shell in the opencode sandbox
+sandbox-ctl shell opencode
 
-# Execute a custom command in the firefox sandbox
-sandbox-ctl run firefox ls -la
+# Execute a custom command in the opencode sandbox
+sandbox-ctl run opencode ls -la
 
-# Open the .env configuration file for firefox
-sandbox-ctl env firefox
+# Open the .env configuration file for opencode
+sandbox-ctl env opencode
 
-# Delete the persistent data/directories for firefox
-sandbox-ctl destroy firefox
+# Delete the persistent data/directories for opencode
+sandbox-ctl destroy opencode
 ```
 
 ### Style B: Symlink Mode (Transparent Wrapper)
 
 When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-ctl`), the script operates as a **transparent proxy**.
 
+- **Current Workdir**: the launcher sets the current workdirectory inside the sandbox to the equivalent outside the sandbox.
 - **Direct Argument Propagation**: All arguments are passed directly to the original binary inside the sandbox.
 - E.g., calling `opencode --version` runs `opencode --version` inside the sandbox, and calling `git commit` runs `git commit` inside the sandbox.
 
