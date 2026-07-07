@@ -345,8 +345,7 @@ EOF
 # AGENT_PRIVATE_MOUNTS=""
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
-# (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
-# AGENT_SANDBOX_MOUNTS=""
+AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.opencode-mem opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
 AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"

@@ -14,7 +14,7 @@ DEFAULT_AGENT_PROFILE_ROOT="%h/.local/sandbox/hermes/.hermes/profiles/${DEFAULT_
 DEFAULT_AGENT_WORKSPACE="${DEFAULT_AGENT_PROFILE_ROOT}/workspace"
 
 # Mounts
-DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
+DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.opencode-mem opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
 
@@ -557,7 +557,6 @@ AGENT_PROFILE_ROOT="${DEFAULT_AGENT_PROFILE_ROOT}"
 # AGENT_PRIVATE_MOUNTS=""
 
 # List of submounts from other sandboxes (e.g., opencode) to bind-mount into this assistant's sandbox
-# (e.g., AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode")
 AGENT_SANDBOX_MOUNTS="${DEFAULT_AGENT_SANDBOX_MOUNTS}"
 
 # List of extra mounts to bind-mount into the sandbox (syntax: absolute-dir:relative-dir-to-HOME)
