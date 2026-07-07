@@ -7,13 +7,14 @@ show_help() {
     cat <<EOF
 Usage: $(basename "$0") <target_model_dir> [options]
 
-Downloads local AI models into standard subdirectories:
+Downloads local AI models and benchmark context for models into standard subdirectories:
   - <target_model_dir>/vision-text
   - <target_model_dir>/embedding
   - <target_model_dir>/reranker
   - <target_model_dir>/speech-to-text
   - <target_model_dir>/text-to-speech
   - <target_model_dir>/image
+  - <target_model_dir>/benchmark-context.md
 
 Options:
   --all             Download all models and build the benchmark context
