@@ -5,11 +5,15 @@ set -euo pipefail
 
 # default configuration values
 DEFAULT_SERVICE_NAME="hermes-gateway"
-DEFAULT_HERMES_SANDBOX_HOME="$HOME/.local/sandbox/hermes"
-DEFAULT_HERMES_HOME="$DEFAULT_HERMES_SANDBOX_HOME/.hermes"
+DEFAULT_HERMES_SANDBOX_HOME="%h/.local/sandbox/hermes"
+DEFAULT_HERMES_HOME="%h/.local/sandbox/hermes/.hermes"
 
 # Agent service
-DEFAULT_AGENT_WORKSPACE="%h/.local/sandbox/hermes/.hermes/workspace"
+DEFAULT_AGENT_PROFILE="assistant"
+DEFAULT_AGENT_PROFILE_ROOT="%h/.local/sandbox/hermes/.hermes/profiles/${DEFAULT_AGENT_PROFILE}"
+DEFAULT_AGENT_WORKSPACE="${DEFAULT_AGENT_PROFILE_ROOT}/workspace"
+
+# Mounts
 DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
@@ -17,7 +21,7 @@ DEFAULT_AGENT_TMPFILES_CLEANUP="false"
 # Agent sidecars
 DEFAULT_AGENT_SIDECARS="dashboard"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
-DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="dashboard --no-open"
+DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="-p ${DEFAULT_AGENT_PROFILE} dashboard --no-open"
 
 # Local Router Ports/URLS
 DEFAULT_ROUTER_BASE_URL="http://localhost:51080/v1"
@@ -54,7 +58,28 @@ DEFAULT_IMAGE_KEY="unused"
 DEFAULT_IMAGE_MODEL="z-image-turbo"
 
 # Dummy reference to satisfy shellcheck SC2034 (unused variables to be used in the future)
-: "${DEFAULT_CHAT_BASE_URL}" "${DEFAULT_CHAT_MODEL}" "${DEFAULT_CHAT_KEY}" "${DEFAULT_EMBEDDING_PROVIDER}" "${DEFAULT_EMBEDDING_BASE_URL}" "${DEFAULT_EMBEDDING_KEY}" "${DEFAULT_EMBEDDING_MODEL}" "${DEFAULT_RERANK_PROVIDER}" "${DEFAULT_RERANK_BASE_URL}" "${DEFAULT_RERANK_KEY}" "${DEFAULT_RERANK_MODEL}" "${DEFAULT_RERANK_TOP_K}" "${DEFAULT_STT_BASE_URL}" "${DEFAULT_STT_MODEL}" "${DEFAULT_STT_KEY}"
+: "${DEFAULT_TTS_BASE_URL}" "${DEFAULT_TTS_KEY}" "${DEFAULT_CHAT_BASE_URL}" "${DEFAULT_CHAT_MODEL}" "${DEFAULT_CHAT_KEY}" "${DEFAULT_EMBEDDING_PROVIDER}" "${DEFAULT_EMBEDDING_BASE_URL}" "${DEFAULT_EMBEDDING_KEY}" "${DEFAULT_EMBEDDING_MODEL}" "${DEFAULT_RERANK_PROVIDER}" "${DEFAULT_RERANK_BASE_URL}" "${DEFAULT_RERANK_KEY}" "${DEFAULT_RERANK_MODEL}" "${DEFAULT_RERANK_TOP_K}" "${DEFAULT_STT_BASE_URL}" "${DEFAULT_STT_MODEL}" "${DEFAULT_STT_KEY}"
+
+resolve_profile_vars() {
+    local val="$1"
+    local home_val="$2"
+    local profile_val="${3:-}"
+    local profile_root_val="${4:-}"
+
+    val="${val//%h/"$home_val"}"
+    val="${val//\$HOME/"$home_val"}"
+    if [[ "$val" =~ ^~ ]]; then
+        val="${val/#\~/"$home_val"}"
+    fi
+
+    val="${val//\${AGENT_PROFILE\}/"$profile_val"}"
+    val="${val//\$AGENT_PROFILE/"$profile_val"}"
+
+    val="${val//\${AGENT_PROFILE_ROOT\}/"$profile_root_val"}"
+    val="${val//\$AGENT_PROFILE_ROOT/"$profile_root_val"}"
+
+    echo "$val"
+}
 
 # Signal Channel Configuration
 DEFAULT_SIGNAL_ACCOUNT="+1234567890"
@@ -67,9 +92,41 @@ SERVICE_NAME="$DEFAULT_SERVICE_NAME"
 SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.env"
 
-# Hermes Defaults
-HERMES_SANDBOX_HOME="$DEFAULT_HERMES_SANDBOX_HOME"
-HERMES_HOME="$DEFAULT_HERMES_HOME"
+## Save any command line environment overrides
+CMD_AGENT_PROFILE="${AGENT_PROFILE:-}"
+CMD_AGENT_PROFILE_ROOT="${AGENT_PROFILE_ROOT:-}"
+CMD_AGENT_WORKSPACE="${AGENT_WORKSPACE:-}"
+CMD_HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME:-}"
+CMD_HERMES_HOME="${HERMES_HOME:-}"
+
+# Load env file to get AGENT_PROFILE overrides before global resolution
+if [ -f "$ENV_FILE" ]; then
+    set +u
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set -u
+fi
+
+# If AGENT_PROFILE was overridden, clear the loaded profile root and workspace
+# from ENV_FILE so they fall back to templates and resolve using the new profile name.
+if [ -n "$CMD_AGENT_PROFILE" ] && [ "${CMD_AGENT_PROFILE}" != "${AGENT_PROFILE:-}" ]; then
+    AGENT_PROFILE_ROOT=""
+    AGENT_WORKSPACE=""
+fi
+
+# Restore overrides if they were passed in environment
+AGENT_PROFILE="${CMD_AGENT_PROFILE:-${AGENT_PROFILE:-}}"
+AGENT_PROFILE_ROOT="${CMD_AGENT_PROFILE_ROOT:-${AGENT_PROFILE_ROOT:-}}"
+AGENT_WORKSPACE="${CMD_AGENT_WORKSPACE:-${AGENT_WORKSPACE:-}}"
+HERMES_SANDBOX_HOME="${CMD_HERMES_SANDBOX_HOME:-${HERMES_SANDBOX_HOME:-}}"
+HERMES_HOME="${CMD_HERMES_HOME:-${HERMES_HOME:-}}"
+
+# Resolve profile variables globally for host commands
+AGENT_PROFILE="${AGENT_PROFILE:-$DEFAULT_AGENT_PROFILE}"
+AGENT_PROFILE_ROOT=$(resolve_profile_vars "${AGENT_PROFILE_ROOT:-$DEFAULT_AGENT_PROFILE_ROOT}" "$HOME" "$AGENT_PROFILE")
+AGENT_WORKSPACE=$(resolve_profile_vars "${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}" "$HOME" "$AGENT_PROFILE" "$AGENT_PROFILE_ROOT")
+HERMES_SANDBOX_HOME=$(resolve_profile_vars "${HERMES_SANDBOX_HOME:-$DEFAULT_HERMES_SANDBOX_HOME}" "$HOME")
+HERMES_HOME=$(resolve_profile_vars "${HERMES_HOME:-$DEFAULT_HERMES_HOME}" "$HOME")
 
 # Hermes Execution Mode
 DEFAULT_TERMINAL_ENV="local"
@@ -104,31 +161,59 @@ get_shared_options() {
         home_spec="$HOME"
     fi
 
+    local cmd_profile="${AGENT_PROFILE:-}"
+    local cmd_profile_root="${AGENT_PROFILE_ROOT:-}"
+    local cmd_workspace="${AGENT_WORKSPACE:-}"
+    local cmd_hermes_sandbox_home="${HERMES_SANDBOX_HOME:-}"
+    local cmd_hermes_home="${HERMES_HOME:-}"
+
     local AGENT_PRIVATE_MOUNTS=""
     local AGENT_SANDBOX_MOUNTS=""
     local AGENT_EXTRA_MOUNTS=""
+    local AGENT_PROFILE=""
+    local AGENT_PROFILE_ROOT=""
     local AGENT_WORKSPACE=""
-    # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
+
     if [ -f "$ENV_FILE" ]; then
         set +u
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
-
-        # Expand specifiers for transient runs on the host
-        if [ "$mode" = "transient" ]; then
-            HERMES_SANDBOX_HOME=$(expand_specifiers "${HERMES_SANDBOX_HOME:-$DEFAULT_HERMES_SANDBOX_HOME}")
-            HERMES_HOME=$(expand_specifiers "${HERMES_HOME:-$DEFAULT_HERMES_HOME}")
-            local temp_mounts=""
-            for m in ${AGENT_EXTRA_MOUNTS:-}; do
-                temp_mounts+="$(expand_specifiers "$m") "
-            done
-            AGENT_EXTRA_MOUNTS="$temp_mounts"
-        fi
     fi
 
-    local app_env_file="$HERMES_HOME/.env"
+    if [ -n "$cmd_profile" ] && [ "${cmd_profile}" != "${AGENT_PROFILE:-}" ]; then
+        AGENT_PROFILE_ROOT=""
+        AGENT_WORKSPACE=""
+    fi
+
+    AGENT_PROFILE="${cmd_profile:-${AGENT_PROFILE:-}}"
+    AGENT_PROFILE_ROOT="${cmd_profile_root:-${AGENT_PROFILE_ROOT:-}}"
+    AGENT_WORKSPACE="${cmd_workspace:-${AGENT_WORKSPACE:-}}"
+    local h_sandbox_home="${cmd_hermes_sandbox_home:-${HERMES_SANDBOX_HOME:-}}"
+    local h_home_override="${cmd_hermes_home:-${HERMES_HOME:-}}"
+
+    local profile="${AGENT_PROFILE:-$DEFAULT_AGENT_PROFILE}"
+    local profile_root
+    local ws
+    local h_home
+    local sandbox_home
+    profile_root=$(resolve_profile_vars "${AGENT_PROFILE_ROOT:-$DEFAULT_AGENT_PROFILE_ROOT}" "$home_spec" "$profile")
+    ws=$(resolve_profile_vars "${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}" "$home_spec" "$profile" "$profile_root")
+    h_home=$(resolve_profile_vars "${h_home_override:-$DEFAULT_HERMES_HOME}" "$home_spec")
+    sandbox_home=$(resolve_profile_vars "${h_sandbox_home:-$DEFAULT_HERMES_SANDBOX_HOME}" "$home_spec")
+
+    if [ "$mode" = "transient" ]; then
+        local temp_mounts=""
+        for m in ${AGENT_EXTRA_MOUNTS:-}; do
+            temp_mounts+="$(expand_specifiers "$m") "
+        done
+        AGENT_EXTRA_MOUNTS="$temp_mounts"
+    fi
+
+    local app_env_file
+    local host_profile_root
+    host_profile_root=$(resolve_profile_vars "${AGENT_PROFILE_ROOT:-$DEFAULT_AGENT_PROFILE_ROOT}" "$HOME" "$profile")
+    app_env_file="$host_profile_root/.env"
     if [ -f "$app_env_file" ]; then
         set +u
         # shellcheck disable=SC1090
@@ -137,20 +222,16 @@ get_shared_options() {
     fi
 
     # Environment & Working Directory
-    echo "Environment=HOME=${home_spec}/.local/sandbox/hermes"
-    echo "Environment=HERMES_SANDBOX_HOME=${home_spec}/.local/sandbox/hermes"
-    echo "Environment=HERMES_HOME=${home_spec}/.local/sandbox/hermes/.hermes"
-    echo "Environment=PATH=${home_spec}/.local/sandbox/hermes/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    local ws="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$home_spec}}"
-    ws="${ws//%h/$home_spec}"
-    ws="${ws//\$HOME/$home_spec}"
-    if [[ "$ws" =~ ^~ ]]; then
-        ws="${ws/#\~/$home_spec}"
-    fi
+    echo "Environment=HOME=$sandbox_home"
+    echo "Environment=HERMES_SANDBOX_HOME=$sandbox_home"
+    echo "Environment=HERMES_HOME=$h_home"
+    echo "Environment=PATH=$sandbox_home/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    echo "Environment=AGENT_PROFILE=$profile"
+    echo "Environment=AGENT_PROFILE_ROOT=$profile_root"
     echo "Environment=AGENT_WORKSPACE=$ws"
     echo "Environment=TERMINAL_CWD=$ws"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/hermes-gateway.env"
-    echo "EnvironmentFile=-${home_spec}/.local/sandbox/hermes/.hermes/.env"
+    echo "EnvironmentFile=-${profile_root}/.env"
     echo "WorkingDirectory=$ws"
 
     # Security measures
@@ -162,7 +243,7 @@ get_shared_options() {
     echo "ProtectSystem=strict"
     echo "TemporaryFileSystem=${home_spec}"
     # Retain changes by bind mounting the explicit hermes home directory
-    echo "BindPaths=${home_spec}/.local/sandbox/hermes:${home_spec}/.local/sandbox/hermes"
+    echo "BindPaths=$sandbox_home:$sandbox_home"
 
     for m in ${AGENT_PRIVATE_MOUNTS:-}; do
         mkdir -p "$HOME/agent-private/$m"
@@ -216,8 +297,6 @@ get_shared_options() {
 }
 
 write_service_file() {
-    # Set default AGENT_WORKSPACE before sourcing so self-referencing variables expand correctly
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
     if [ -f "$ENV_FILE" ]; then
         if grep -q "%h" "$ENV_FILE"; then
             sed -i "s|%h|$HOME|g" "$ENV_FILE"
@@ -229,7 +308,13 @@ write_service_file() {
         set -u
     fi
 
-    local app_env_file="$HERMES_HOME/.env"
+    local profile="${AGENT_PROFILE:-$DEFAULT_AGENT_PROFILE}"
+    local profile_root
+    profile_root=$(resolve_profile_vars "${AGENT_PROFILE_ROOT:-$DEFAULT_AGENT_PROFILE_ROOT}" "$HOME" "$profile")
+    local workspace_dir
+    workspace_dir=$(resolve_profile_vars "${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}" "$HOME" "$profile" "$profile_root")
+
+    local app_env_file="$profile_root/.env"
     if [ -f "$app_env_file" ]; then
         if grep -q "%h" "$app_env_file"; then
             sed -i "s|%h|$HOME|g" "$app_env_file"
@@ -240,10 +325,6 @@ write_service_file() {
         source "$app_env_file"
         set -u
     fi
-
-    # Ensure host workspace directory exists
-    local workspace_dir="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HOME}}"
-    workspace_dir="${workspace_dir//%h/$HOME}"
     mkdir -p "$workspace_dir"
 
     # Manage systemd-tmpfiles configuration file based on AGENT_TMPFILES_CLEANUP
@@ -264,8 +345,8 @@ write_service_file() {
 # systemd-tmpfiles configuration for Hermes
 
 # Example: Delete all files in workspace/voice-notes/read/ if older than 24 hours
-# Type  Path                                                                                Mode UID  GID  Age  Argument
-e       %h/.local/sandbox/hermes/.hermes/agents/default/workspace/voice-notes/read       -    -    -    24h  -
+# Type  Path                                  Mode UID  GID  Age  Argument
+e       $workspace_dir/voice-notes/read       -    -    -    24h  -
 EOF
             echo "Created and enabled default systemd-tmpfiles configuration at $tmpfiles_config"
         fi
@@ -346,9 +427,9 @@ EOF
         for ((i = 0; i < idx; i++)); do
             kill_pids="$kill_pids \$\$SIDECAR_PID_$i"
         done
-        exec_start_cmd="/bin/bash -c 'trap \"kill $kill_pids 2>/dev/null || true\" EXIT ; /usr/bin/hermes gateway run --force --no-supervise & MAIN_PID=\$\$! ; $sidecars_exec wait -n'"
+        exec_start_cmd="/bin/bash -c 'trap \"kill $kill_pids 2>/dev/null || true\" EXIT ; /usr/bin/hermes -p $profile gateway run --force --no-supervise & MAIN_PID=\$\$! ; $sidecars_exec wait -n'"
     else
-        exec_start_cmd="/usr/bin/hermes gateway run --force --no-supervise"
+        exec_start_cmd="/usr/bin/hermes -p $profile gateway run --force --no-supervise"
     fi
 
     cat >"$SERVICE_FILE" <<EOF
@@ -400,8 +481,60 @@ cmd_install() {
         shift
     done
 
-    echo "Setting up Hermes sandbox directory at $HERMES_SANDBOX_HOME and home at $HERMES_HOME..."
-    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$HERMES_SANDBOX_HOME/.local/bin"
+    # Resolve profile first
+    local cmd_profile="${AGENT_PROFILE:-}"
+    local cmd_profile_root="${AGENT_PROFILE_ROOT:-}"
+    local cmd_workspace="${AGENT_WORKSPACE:-}"
+    local cmd_hermes_sandbox_home="${HERMES_SANDBOX_HOME:-}"
+    local cmd_hermes_home="${HERMES_HOME:-}"
+
+    if [ -f "$ENV_FILE" ]; then
+        set +u
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set -u
+    fi
+
+    if [ -n "$cmd_profile" ] && [ "${cmd_profile}" != "${AGENT_PROFILE:-}" ]; then
+        AGENT_PROFILE_ROOT=""
+        AGENT_WORKSPACE=""
+    fi
+
+    AGENT_PROFILE="${cmd_profile:-${AGENT_PROFILE:-}}"
+    AGENT_PROFILE_ROOT="${cmd_profile_root:-${AGENT_PROFILE_ROOT:-}}"
+    AGENT_WORKSPACE="${cmd_workspace:-${cmd_workspace:-}}"
+    local h_sandbox_home="${cmd_hermes_sandbox_home:-${HERMES_SANDBOX_HOME:-}}"
+    local h_home_override="${cmd_hermes_home:-${HERMES_HOME:-}}"
+
+    local profile="${AGENT_PROFILE:-$DEFAULT_AGENT_PROFILE}"
+    local profile_root
+    local workspace_dir
+    local root_hermes_home
+    local sandbox_home
+    profile_root=$(resolve_profile_vars "${AGENT_PROFILE_ROOT:-$DEFAULT_AGENT_PROFILE_ROOT}" "$HOME" "$profile")
+    workspace_dir=$(resolve_profile_vars "${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}" "$HOME" "$profile" "$profile_root")
+    root_hermes_home=$(resolve_profile_vars "${h_home_override:-$DEFAULT_HERMES_HOME}" "$HOME")
+    sandbox_home=$(resolve_profile_vars "${h_sandbox_home:-$DEFAULT_HERMES_SANDBOX_HOME}" "$HOME")
+
+    echo "Setting up Hermes sandbox directory at $sandbox_home and profile root at $profile_root..."
+    mkdir -p "$sandbox_home" "$root_hermes_home" "$profile_root" "$workspace_dir" \
+        "$profile_root/cron" \
+        "$profile_root/home" \
+        "$profile_root/logs" \
+        "$profile_root/memories" \
+        "$profile_root/pairing" \
+        "$profile_root/plans" \
+        "$profile_root/sessions" \
+        "$profile_root/skills" \
+        "$profile_root/skins" \
+        "$profile_root/audio_cache" \
+        "$profile_root/image_cache" \
+        "$sandbox_home/.local/bin"
+
+    # Write active_profile file to root hermes home
+    mkdir -p "$root_hermes_home"
+    echo "$profile" >"$root_hermes_home/active_profile"
+    echo "Set active_profile to $profile in $root_hermes_home/active_profile"
 
     echo "Generating systemd user service..."
     mkdir -p "$(dirname "$SERVICE_FILE")"
@@ -414,6 +547,10 @@ cmd_install() {
 # Path to the sandbox home and hermes home directories
 HERMES_SANDBOX_HOME="${DEFAULT_HERMES_SANDBOX_HOME}"
 HERMES_HOME="${DEFAULT_HERMES_HOME}"
+
+# Agent profile configuration
+AGENT_PROFILE="${DEFAULT_AGENT_PROFILE}"
+AGENT_PROFILE_ROOT="${DEFAULT_AGENT_PROFILE_ROOT}"
 
 # List of submounts from ~/agent-private/* to bind-mount into the sandbox
 # (e.g., AGENT_PRIVATE_MOUNTS="health diary" binds ~/agent-private/health and ~/agent-private/diary)
@@ -442,13 +579,21 @@ EOF
         echo "Created default service environment file at $ENV_FILE"
     fi
 
-    local app_env_file="$HERMES_HOME/.env"
-    if [ ! -f "$app_env_file" ] || [ "$new_config" = "true" ]; then
-        cat >"$app_env_file" <<EOF
-# .hermes/.env
-# Set your API keys and other configuration here.
+    local main_env_file="$root_hermes_home/.env"
+    if [ ! -f "$main_env_file" ] || [ "$new_config" = "true" ]; then
+        cat >"$main_env_file" <<EOF
+# default profile , ntentinal empty
+EOF
+        chmod 600 "$main_env_file"
+        echo "Created default agent environment file at $main_env_file"
+    fi
 
-# Default openai compatible backend URL,
+    local profile_env_file="$profile_root/.env"
+    if [ ! -f "$profile_env_file" ] || [ "$new_config" = "true" ]; then
+        cat >"$profile_env_file" <<EOF
+# Profile-specific environment overrides for the '$profile' profile
+
+# Default openai compatible backend URL
 
 # Local-Router (OpenAI compatible on port 51080 for all services)
 # OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
@@ -484,15 +629,44 @@ SIGNAL_HOME_CHANNEL_THREAD_ID=""
 # OPENROUTER_API_KEY=sk-or-v1-...
 # TELEGRAM_BOT_TOKEN=...
 # TELEGRAM_ALLOWED_USERS=your_user_id
-
 EOF
-        chmod 600 "$app_env_file"
-        echo "Created default agent environment file at $app_env_file"
+        chmod 600 "$profile_env_file"
+        echo "Created profile environment file at $profile_env_file"
     fi
 
-    local config_yaml="$HERMES_HOME/config.yaml"
-    if [ ! -f "$config_yaml" ] || [ "$new_config" = "true" ]; then
-        cat >"$config_yaml" <<EOF
+    local profile_yaml="$profile_root/profile.yaml"
+    if [ ! -f "$profile_yaml" ] || [ "$new_config" = "true" ]; then
+        cat >"$profile_yaml" <<EOF
+description: Main Assistant
+description_auto: false
+EOF
+        chmod 600 "$profile_yaml"
+        echo "Created profile configuration file at $profile_yaml"
+    fi
+
+    local soul_md="$profile_root/SOUL.md"
+    if [ ! -f "$soul_md" ] || [ "$new_config" = "true" ]; then
+        cat >"$soul_md" <<EOF
+# Soul of the Assistant
+
+You are a helpful coding assistant running under the "$profile" profile.
+EOF
+        chmod 600 "$soul_md"
+        echo "Created profile SOUL.md at $soul_md"
+    fi
+
+    local main_config_yaml="$root_hermes_home/config.yaml"
+    local profile_config_yaml="$profile_root/config.yaml"
+
+    if [ ! -f "$main_config_yaml" ] || [ "$new_config" = "true" ]; then
+        cat >"$main_config_yaml" <<EOF
+# default profile , intentional empty
+EOF
+        echo "Created default config.yaml at $main_config_yaml"
+    fi
+
+    if [ ! -f "$profile_config_yaml" ] || [ "$new_config" = "true" ]; then
+        cat >"$profile_config_yaml" <<EOF
 _config_version: 32
 agent:
   max_turns: 150
@@ -724,7 +898,7 @@ skills:
 
 # ── Security ──────────────────────────────────────────────────────────
 # Secret redaction is ON by default — strings that look like API keys,
-# tokens, and passwords are masked in tool output, logs, and chat
+# passwords are masked in tool output, logs, and chat
 # responses before the model or user ever sees them. Set redact_secrets
 # to false to disable (e.g. when developing the redactor itself).
 # tirith pre-exec scanning is enabled by default when the tirith binary
@@ -739,7 +913,7 @@ skills:
 #   tirith_fail_open: true
 
 EOF
-        echo "Created default config.yaml at $config_yaml"
+        echo "Created profile configuration file at $profile_config_yaml"
     fi
 
     write_service_file
@@ -842,16 +1016,16 @@ cmd_logs() {
 }
 
 cmd_edit() {
-    local app_env_file="$HERMES_HOME/.env"
-    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$app_env_file")"
-    touch "$ENV_FILE" "$app_env_file"
+    local root_config_yaml="$HERMES_HOME/config.yaml"
+    local root_env_file="$HERMES_HOME/.env"
+    local profile_config_yaml="$AGENT_PROFILE_ROOT/config.yaml"
+    local profile_env_file="$AGENT_PROFILE_ROOT/.env"
 
-    local config_yaml="$HERMES_HOME/config.yaml"
-    mkdir -p "$(dirname "$config_yaml")"
-    touch "$config_yaml"
+    mkdir -p "$(dirname "$ENV_FILE")" "$(dirname "$root_env_file")" "$(dirname "$profile_env_file")"
+    touch "$ENV_FILE" "$root_config_yaml" "$root_env_file" "$profile_config_yaml" "$profile_env_file"
 
     local tmpfiles_config="${XDG_CONFIG_HOME:-$HOME/.config}/user-tmpfiles.d/${SERVICE_NAME}.conf"
-    local edit_files=("$ENV_FILE" "$app_env_file" "$config_yaml")
+    local edit_files=("$ENV_FILE" "$profile_config_yaml" "$profile_env_file")
     if [ -f "$tmpfiles_config" ]; then
         edit_files+=("$tmpfiles_config")
     elif [ -f "${tmpfiles_config}.disabled" ]; then
@@ -875,10 +1049,11 @@ setup_fallback_environment() {
     # Keep track of the original user home directory
     local real_home="$HOME"
 
-    # Set defaults before sourcing so self-referencing variables expand correctly
-    export HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME:-$DEFAULT_HERMES_SANDBOX_HOME}"
-    export HERMES_HOME="${HERMES_HOME:-$DEFAULT_HERMES_HOME}"
-    export AGENT_WORKSPACE="${AGENT_WORKSPACE:-${DEFAULT_AGENT_WORKSPACE//%h/$HERMES_SANDBOX_HOME}}"
+    local cmd_profile="${AGENT_PROFILE:-}"
+    local cmd_profile_root="${AGENT_PROFILE_ROOT:-}"
+    local cmd_workspace="${AGENT_WORKSPACE:-}"
+    local cmd_hermes_sandbox_home="${HERMES_SANDBOX_HOME:-}"
+    local cmd_hermes_home="${HERMES_HOME:-}"
 
     if [ -f "$ENV_FILE" ]; then
         set +u
@@ -889,13 +1064,29 @@ setup_fallback_environment() {
         set -u
     fi
 
-    # Expand specifiers using the real home directory on the host
-    HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME//%h/"$real_home"}"
-    HERMES_SANDBOX_HOME="${HERMES_SANDBOX_HOME/#\~/"$real_home"}"
-    HERMES_HOME="${HERMES_HOME//%h/"$real_home"}"
-    HERMES_HOME="${HERMES_HOME/#\~/"$real_home"}"
+    if [ -n "$cmd_profile" ] && [ "${cmd_profile}" != "${AGENT_PROFILE:-}" ]; then
+        AGENT_PROFILE_ROOT=""
+        AGENT_WORKSPACE=""
+    fi
 
-    local app_env_file="$HERMES_HOME/.env"
+    AGENT_PROFILE="${cmd_profile:-${AGENT_PROFILE:-}}"
+    AGENT_PROFILE_ROOT="${cmd_profile_root:-${AGENT_PROFILE_ROOT:-}}"
+    AGENT_WORKSPACE="${cmd_workspace:-${AGENT_WORKSPACE:-}}"
+    local h_sandbox_home="${cmd_hermes_sandbox_home:-${HERMES_SANDBOX_HOME:-}}"
+    local h_home_override="${cmd_hermes_home:-${HERMES_HOME:-}}"
+
+    # Expand/resolve paths using the real home directory on the host
+    local sandbox_home
+    sandbox_home=$(resolve_profile_vars "${h_sandbox_home:-$DEFAULT_HERMES_SANDBOX_HOME}" "$real_home")
+    local h_home
+    h_home=$(resolve_profile_vars "${h_home_override:-$DEFAULT_HERMES_HOME}" "$real_home")
+    local profile="${AGENT_PROFILE:-$DEFAULT_AGENT_PROFILE}"
+    local profile_root
+    profile_root=$(resolve_profile_vars "${AGENT_PROFILE_ROOT:-$DEFAULT_AGENT_PROFILE_ROOT}" "$real_home" "$profile")
+    local ws
+    ws=$(resolve_profile_vars "${AGENT_WORKSPACE:-$DEFAULT_AGENT_WORKSPACE}" "$real_home" "$profile" "$profile_root")
+
+    local app_env_file="$profile_root/.env"
     if [ -f "$app_env_file" ]; then
         set +u
         set -a
@@ -905,21 +1096,17 @@ setup_fallback_environment() {
         set -u
     fi
 
-    export HOME="$HERMES_SANDBOX_HOME"
-    export HERMES_SANDBOX_HOME="$HERMES_SANDBOX_HOME"
-    export HERMES_HOME="$HERMES_HOME"
-    export PATH="$HERMES_SANDBOX_HOME/.local/bin:$PATH"
-
-    local ws="${AGENT_WORKSPACE}"
-    ws="${ws//%h/$HOME}"
-    if [[ "$ws" =~ ^~ ]]; then
-        ws="${ws/#\~/$HOME}"
-    fi
+    export HOME="$sandbox_home"
+    export HERMES_SANDBOX_HOME="$sandbox_home"
+    export HERMES_HOME="$h_home"
+    export PATH="$sandbox_home/.local/bin:$PATH"
+    export AGENT_PROFILE="$profile"
+    export AGENT_PROFILE_ROOT="$profile_root"
     export AGENT_WORKSPACE="$ws"
     export TERMINAL_CWD="$ws"
 
-    mkdir -p "$HERMES_SANDBOX_HOME" "$HERMES_HOME" "$AGENT_WORKSPACE" "$HERMES_SANDBOX_HOME/.local/bin"
-    cd "$AGENT_WORKSPACE" || exit 1
+    mkdir -p "$sandbox_home" "$h_home" "$profile_root" "$ws" "$sandbox_home/.local/bin"
+    cd "$ws" || exit 1
 }
 
 FALLBACK_SIDECAR_PIDS=()
@@ -981,6 +1168,8 @@ spawn_fallback_sidecars() {
 }
 
 cmd_exec() {
+    local profile="${AGENT_PROFILE:-$DEFAULT_AGENT_PROFILE}"
+
     if ! is_systemd_running; then
         echo "Systemd is not running. Running hermes directly..."
         setup_fallback_environment
@@ -992,7 +1181,7 @@ cmd_exec() {
                 systemd-tmpfiles --user --create --clean || true
             fi
             # Run daemon in the background
-            /usr/bin/hermes "$@" &
+            /usr/bin/hermes -p "$profile" "$@" &
             local main_pid=$!
             spawn_fallback_sidecars
             wait -n
@@ -1001,7 +1190,7 @@ cmd_exec() {
             kill "$main_pid" "${FALLBACK_SIDECAR_PIDS[@]}" 2>/dev/null || true
             exit 1
         else
-            exec /usr/bin/hermes "$@"
+            exec /usr/bin/hermes -p "$profile" "$@"
         fi
     fi
 
@@ -1009,6 +1198,7 @@ cmd_exec() {
 
     local opts=(
         --user
+        --quiet
         --pty
         --wait
         --collect
@@ -1021,7 +1211,7 @@ cmd_exec() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" /usr/bin/hermes "$@"
+    systemd-run "${opts[@]}" /usr/bin/hermes -p "$profile" "$@"
 }
 
 cmd_shell() {
@@ -1035,6 +1225,7 @@ cmd_shell() {
 
     local opts=(
         --user
+        --quiet
         --pty
         --wait
         --collect
@@ -1066,6 +1257,7 @@ cmd_run() {
 
     local opts=(
         --user
+        --quiet
         --pty
         --wait
         --collect
@@ -1099,31 +1291,35 @@ usage() {
     echo "  shell     - Spawn an interactive shell in the hermes systemd environment"
 }
 
-if [ $# -lt 1 ]; then
-    usage
-    exit 1
-fi
+main() {
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
 
-COMMAND="$1"
-shift
+    local command="$1"
+    shift
 
-case "$COMMAND" in
-install) cmd_install "$@" ;;
-uninstall) cmd_uninstall ;;
-start) cmd_start ;;
-stop) cmd_stop ;;
-restart) cmd_restart ;;
-status) cmd_status ;;
-enable) cmd_enable ;;
-disable) cmd_disable ;;
-logs) cmd_logs "$@" ;;
-edit) cmd_edit ;;
-exec) cmd_exec "$@" ;;
-run) cmd_run "$@" ;;
-shell) cmd_shell "$@" ;;
-*)
-    echo "Unknown command: $COMMAND"
-    usage
-    exit 1
-    ;;
-esac
+    case "$command" in
+    install) cmd_install "$@" ;;
+    uninstall) cmd_uninstall ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_restart ;;
+    status) cmd_status ;;
+    enable) cmd_enable ;;
+    disable) cmd_disable ;;
+    logs) cmd_logs "$@" ;;
+    edit) cmd_edit ;;
+    exec) cmd_exec "$@" ;;
+    run) cmd_run "$@" ;;
+    shell) cmd_shell "$@" ;;
+    *)
+        echo "Unknown command: $command"
+        usage
+        exit 1
+        ;;
+    esac
+}
+
+main "$@"

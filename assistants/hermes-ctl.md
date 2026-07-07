@@ -9,14 +9,19 @@ For shared commands, variable expansion rules, sidecars supervision, temporary f
 
 ---
 
-## Agent-Specific Defaults
+## Profile Directory Layout & Defaults
 
-- **Sandbox Directory:** `~/.local/sandbox/hermes`
-- **Home Directory (`HERMES_HOME`):** `~/.local/sandbox/hermes/.hermes`
-- **Default Workspace Path:** `~/.local/sandbox/hermes/.hermes/workspace`
-- **Bootstrap Environment Config:** `~/.config/systemd/user/hermes-gateway.env` (systemd service environment)
-- **Local Application Secrets Override:** `~/.local/sandbox/hermes/.hermes/.env` (stores local secrets and environment overrides)
-- **Main Settings Configuration:** `~/.local/sandbox/hermes/.hermes/config.yaml` (sources main settings for models, toolsets, memory providers)
+By default, Hermes is configured to use the named profile **`assistant`** (`DEFAULT_AGENT_PROFILE="assistant"`). The file layout is structured as follows:
+
+- **Sandbox Home Directory:** `~/.local/sandbox/hermes`
+- **Hermes Home Directory (`HERMES_HOME`):** `~/.local/sandbox/hermes/.hermes` (always points to the base `.hermes` directory and does NOT change with active profile)
+- **Active Profile File:** `~/.local/sandbox/hermes/.hermes/active_profile` (written on install to make the profile the sticky default)
+- **Active Profile Root (`AGENT_PROFILE_ROOT`):** `~/.local/sandbox/hermes/.hermes/profiles/assistant`
+- **Active Profile Workspace (`AGENT_WORKSPACE`):** `~/.local/sandbox/hermes/.hermes/profiles/assistant/workspace` (where the service starts and transient runs are run)
+- **Profile Config Overrides:** `~/.local/sandbox/hermes/.hermes/profiles/assistant/config.yaml`
+- **Profile Secret Overrides:** `~/.local/sandbox/hermes/.hermes/profiles/assistant/.env`
+- **Profile SOUL.md**: `~/.local/sandbox/hermes/.hermes/profiles/assistant/SOUL.md`
+- **Profile profile.yaml**: `~/.local/sandbox/hermes/.hermes/profiles/assistant/profile.yaml`
 - **Gateway API Port:** [8642](http://localhost:8642/)
 - **Dashboard Web UI Port:** [9119](http://localhost:9119/)
 
@@ -24,13 +29,29 @@ For shared commands, variable expansion rules, sidecars supervision, temporary f
 
 ## Environment Overrides & Secret Configuration
 
-Hermes supports a two-stage environment variable resolution order to allow clean separation of bootstrap variables and local keys/secrets:
-1. **Systemd Service Environment:** `~/.config/systemd/user/hermes-gateway.env`
-2. **Application Environment Override:** `~/.local/sandbox/hermes/.hermes/.env`
+Hermes resolves configuration settings using a structured environment variable resolution order to allow clean separation of bootstrap variables and local keys/secrets. Environment loading is completely consistent across the **installed systemd service**, **transient execution runner (`exec`, `run`, `shell`)**, and **fallback direct execution** modes:
 
-The application override file is loaded **after** the systemd service configuration. Any duplicate variables declared in both files will prioritize the values set in the application `.env` file (e.g. `OPENAI_API_KEY`, custom ports, or paths).
+### Environment Sourcing Order
 
-Both files are opened automatically when executing the `./assistants/hermes-ctl edit` command.
+1. **Systemd Bootstrap Environment:** `~/.config/systemd/user/hermes-gateway.env`
+   - Defines systemd service bootstrap paths and profile selection variables (`AGENT_PROFILE`, `AGENT_PROFILE_ROOT`, `AGENT_WORKSPACE`, `HERMES_SANDBOX_HOME`, `HERMES_HOME`). Sourced on startup/wrapper initialization.
+2. **Profile Application Environment:** `~/.local/sandbox/hermes/.hermes/profiles/<profile>/.env`
+   - Stores the active profile's local keys and secret overrides (e.g. `OPENAI_API_KEY`, `HERMES_YOLO_MODE`, etc.). Sourced after the bootstrap environment; any duplicate variables declared here override previous stages.
+
+### Consistency Across Run Modes
+
+- **Service Run**: The systemd service uses `EnvironmentFile=` directives to load the bootstrap env file first, followed by the profile-specific env file.
+- **Transient Run (`exec`/`run`/`shell` under systemd)**: Translates local paths using Bubblewrap mappings, and feeds the resolved directories as transient options (`-p Environment=...`, `-p EnvironmentFile=...`) to `systemd-run` in the exact same loading order.
+- **Fallback Direct Run (outside systemd)**: Sources the files in sequence (`source <bootstrap-env>`, then `source <profile-env>`), exports variables (`export PATH`, `export HERMES_HOME`, etc.), and changes directory to the workspace.
+
+> [!IMPORTANT]
+> - Command-line overrides (e.g., executing `AGENT_PROFILE=test ./assistants/hermes-ctl run env`) take precedence over the settings loaded from systemd's bootstrap `ENV_FILE`. If `AGENT_PROFILE` is overridden, the wrapper clears any static profile paths loaded from systemd and regenerates them dynamically.
+> - Core systemd bootstrap variables (`AGENT_PROFILE`, `AGENT_PROFILE_ROOT`, `AGENT_WORKSPACE`, `HERMES_SANDBOX_HOME`, and `HERMES_HOME`) are resolved prior to sourcing the local `.env` files and **cannot** be modified or overridden by the profile's `.env`.
+
+Executing the `./assistants/hermes-ctl edit` command automatically opens these active config files:
+1. Systemd User Env Config (`~/.config/systemd/user/hermes-gateway.env`)
+2. Profile-specific Configuration (`~/.local/sandbox/hermes/.hermes/profiles/assistant/config.yaml`)
+3. Profile-specific Environment overrides (`~/.local/sandbox/hermes/.hermes/profiles/assistant/.env`)
 
 ## Workspace & CWD Propagation
 
