@@ -115,6 +115,7 @@ initialize_sandbox() {
 # Helper: Build unified sandbox configurations
 build_sandbox_config() {
     local target_mode="$1" # "systemd" or "bwrap"
+    local target_cwd="${2:-$persistent_home}"
 
     # Extract values from environment with defaults
     local disable_ipc_share="${DISABLE_IPC_SHARE:-true}"
@@ -145,9 +146,9 @@ build_sandbox_config() {
         echo "PrivateTmp=yes"
 
         # Relocated HOME
-        echo "TemporaryFileSystem=%h"
+        echo "TemporaryFileSystem=$HOME"
         echo "BindPaths=$persistent_home:$persistent_home"
-        echo "WorkingDirectory=$persistent_home"
+        echo "WorkingDirectory=$target_cwd"
         echo "Environment=HOME=$persistent_home"
 
         # Workspace bind
@@ -255,7 +256,7 @@ build_sandbox_config() {
                 local subpath="${m#*/}"
                 mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
                 mkdir -p "$persistent_home/${subpath}"
-                echo "BindPaths=%h/.local/sandbox/${sandbox_name}/${subpath}:%h/.local/sandbox/$app_name/${subpath}"
+                echo "BindPaths=$HOME/.local/sandbox/${sandbox_name}/${subpath}:$HOME/.local/sandbox/$app_name/${subpath}"
             fi
         done
 
@@ -272,13 +273,13 @@ build_sandbox_config() {
                 if [[ "$sandbox_path" == /* ]]; then
                     target_path="$sandbox_path"
                 else
-                    target_path="%h/$sandbox_path"
+                    target_path="$HOME/$sandbox_path"
                 fi
 
                 mkdir -p "$host_path" || true
 
                 # For host creation of target mount point
-                local real_target_path="${target_path//%h/$HOME}"
+                local real_target_path="$target_path"
                 if [[ "$real_target_path" == "$HOME/.local/sandbox/$app_name"/* ]]; then
                     if [[ -L "$real_target_path" ]]; then
                         rm -f "$real_target_path"
@@ -339,7 +340,7 @@ build_sandbox_config() {
                 echo "--unshare-ipc"
                 echo "--unshare-net"
                 echo "--unshare-uts"
-                echo "--unshare-cgroup"
+                echo "--unshare-cgroup-try"
             fi
         else
             if [[ "$disable_pid_share" == "true" || "$disable_pid_share" == "1" ]]; then
@@ -347,12 +348,12 @@ build_sandbox_config() {
                 echo "--unshare-pid"
                 echo "--unshare-net"
                 echo "--unshare-uts"
-                echo "--unshare-cgroup"
+                echo "--unshare-cgroup-try"
             else
                 echo "--unshare-user"
                 echo "--unshare-net"
                 echo "--unshare-uts"
-                echo "--unshare-cgroup"
+                echo "--unshare-cgroup-try"
             fi
         fi
 
@@ -511,10 +512,10 @@ run_sandbox() {
     # Check if current working directory is within target mounts
     local cwd
     cwd="$(pwd)"
-    local is_allowed=false
+    local is_mounted=false
 
     if is_under "$cwd" "$persistent_home" || is_under "$cwd" "$work_dir"; then
-        is_allowed=true
+        is_mounted=true
     fi
 
     # Check launcher extra mounts
@@ -526,26 +527,50 @@ run_sandbox() {
             host_path="${host_path//\~/$HOME}"
             host_path="${host_path//\$HOME/$HOME}"
             if is_under "$cwd" "$host_path"; then
-                is_allowed=true
+                is_mounted=true
                 break
             fi
         fi
     done
 
     # Check custom bind paths
-    if [[ "$is_allowed" == "false" && -n "${SANDBOX_BIND_PATHS:-}" ]]; then
+    if [[ "$is_mounted" == "false" && -n "${SANDBOX_BIND_PATHS:-}" ]]; then
         IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
         for p in "${paths[@]}"; do
             if [[ -n "$p" ]] && is_under "$cwd" "$p"; then
-                is_allowed=true
+                is_mounted=true
                 break
             fi
         done
     fi
 
-    if [[ "$is_allowed" == "false" ]]; then
-        echo "Warning: Current working directory '$cwd' is outside the sandbox target mounts." >&2
-        echo "This will likely cause the sandbox execution to fail." >&2
+    # Determine target working directory inside the sandbox
+    local target_cwd
+    if [[ "$is_mounted" == "true" ]]; then
+        target_cwd="$cwd"
+    else
+        local real_home
+        real_home="$(realpath "$HOME")"
+        local real_cwd
+        real_cwd="$(realpath "$cwd")"
+        local rel_path
+        rel_path=$(realpath --relative-to="$real_home" "$real_cwd" 2>/dev/null || echo "")
+
+        if [[ -n "$rel_path" && "$rel_path" != ..* ]]; then
+            if [[ "$rel_path" == "." ]]; then
+                target_cwd="$persistent_home"
+            else
+                target_cwd="$persistent_home/$rel_path"
+            fi
+
+            if [[ ! -d "$target_cwd" ]]; then
+                echo "Warning: Current working directory '$cwd' is mapped to '$target_cwd' inside the sandbox, which does not exist." >&2
+                echo "This will likely cause the sandbox execution to fail." >&2
+            fi
+        else
+            # Outside HOME
+            target_cwd="$cwd"
+        fi
     fi
 
     # Determine execution engine
@@ -591,7 +616,7 @@ run_sandbox() {
             if [[ -n "$prop" ]]; then
                 systemd_opts+=(-p "$prop")
             fi
-        done < <(build_sandbox_config systemd)
+        done < <(build_sandbox_config systemd "$target_cwd")
 
         exec systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
     else
@@ -610,7 +635,7 @@ run_sandbox() {
         done < <(build_sandbox_config bwrap)
 
         # Add chdir to current working directory
-        bwrap_args+=(--chdir "$cwd")
+        bwrap_args+=(--chdir "$target_cwd")
 
         exec bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
     fi

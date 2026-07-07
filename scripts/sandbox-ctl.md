@@ -49,7 +49,7 @@ sandbox-ctl destroy opencode
 
 When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-ctl`), the script operates as a **transparent proxy**.
 
-- **Current Workdir**: the launcher sets the current workdirectory inside the sandbox to the equivalent outside the sandbox.
+- **Current Workdir**: If the current working directory is under `$HOME`, it is mapped to the corresponding path under the wrapped persistent home (`~/.local/sandbox/<app_name>`). If the current working directory is outside `$HOME` or is an explicitly mounted directory, it is mapped 1:1 inside the sandbox. No extra mounting is performed; if the directory does not exist, sandbox execution will fail.
 - **Direct Argument Propagation**: All arguments are passed directly to the original binary inside the sandbox.
 - E.g., calling `opencode --version` runs `opencode --version` inside the sandbox, and calling `git commit` runs `git commit` inside the sandbox.
 
