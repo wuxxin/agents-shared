@@ -710,6 +710,7 @@ display:
 dashboard:
   theme: default-large
   font: work-sans
+  show_token_analytics: true
 session_reset:
   mode: smart
 model:
