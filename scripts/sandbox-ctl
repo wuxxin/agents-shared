@@ -101,7 +101,6 @@ is_under() {
 
 # Helper: Initialize the sandbox directory structure
 initialize_sandbox() {
-    echo "Initializing sandbox directories for '$app_name'..."
     mkdir -p "$persistent_home" "$work_dir"
 
     # Only create a mount point in persistent home if work_dir is under $HOME
@@ -509,51 +508,129 @@ run_sandbox() {
     # Initialize sandbox directories if missing
     initialize_sandbox
 
-    # Check if current working directory is within target mounts
-    local cwd
-    cwd="$(pwd)"
-    local is_mounted=false
-
-    if is_under "$cwd" "$persistent_home" || is_under "$cwd" "$work_dir"; then
-        is_mounted=true
+    # Determine execution engine
+    local run_engine="bwrap"
+    if [[ "${LAUNCHER_ENGINE:-auto}" == "systemd" ]]; then
+        if ! is_systemd_running; then
+            echo "Error: systemd user manager is not reachable but LAUNCHER_ENGINE=systemd was set." >&2
+            exit 1
+        fi
+        run_engine="systemd"
+    elif [[ "${LAUNCHER_ENGINE:-auto}" == "bwrap" ]]; then
+        run_engine="bwrap"
+    else
+        if is_systemd_running; then
+            run_engine="systemd"
+        fi
     fi
 
-    # Check launcher extra mounts
-    local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$HOME/agent-shared:agent-shared /data/download:download}"
-    for m in $launcher_extra_mounts; do
-        if [[ -n "$m" ]]; then
-            local host_path="${m%%:*}"
-            host_path="${host_path//%h/$HOME}"
-            host_path="${host_path//\~/$HOME}"
-            host_path="${host_path//\$HOME/$HOME}"
-            if is_under "$cwd" "$host_path"; then
-                is_mounted=true
-                break
-            fi
-        fi
-    done
+    # Determine target working directory inside the sandbox
+    local cwd
+    cwd="$(pwd)"
+    local target_cwd=""
+    local is_mounted=false
+    local rel_path=""
 
-    # Check custom bind paths
+    # 1. Check if CWD is under persistent_home
+    if is_under "$cwd" "$persistent_home"; then
+        is_mounted=true
+        rel_path=$(realpath --relative-to="$persistent_home" "$cwd" 2>/dev/null || echo "")
+        if [[ "$rel_path" == "." ]]; then
+            target_cwd="$persistent_home"
+        else
+            target_cwd="$persistent_home/$rel_path"
+        fi
+    # 2. Check if CWD is under work_dir
+    elif is_under "$cwd" "$work_dir"; then
+        is_mounted=true
+        rel_path=$(realpath --relative-to="$work_dir" "$cwd" 2>/dev/null || echo "")
+        if [[ "$rel_path" == "." ]]; then
+            target_cwd="$work_dir"
+        else
+            target_cwd="$work_dir/$rel_path"
+        fi
+    fi
+
+    # 3. Check extra mounts
+    if [[ "$is_mounted" == "false" ]]; then
+        local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$HOME/agent-shared:agent-shared /data/download:download}"
+        for m in $launcher_extra_mounts; do
+            if [[ -n "$m" ]]; then
+                local host_path="${m%%:*}"
+                host_path="${host_path//%h/$HOME}"
+                host_path="${host_path//\~/$HOME}"
+                host_path="${host_path//\$HOME/$HOME}"
+                if is_under "$cwd" "$host_path"; then
+                    is_mounted=true
+                    rel_path=$(realpath --relative-to="$host_path" "$cwd" 2>/dev/null || echo "")
+
+                    local sandbox_path="${m#*:}"
+                    local target_base
+                    if [[ "$sandbox_path" == /* ]]; then
+                        target_base="$sandbox_path"
+                    else
+                        if [[ "$run_engine" == "systemd" ]]; then
+                            target_base="$HOME/$sandbox_path"
+                        else
+                            target_base="$persistent_home/$sandbox_path"
+                        fi
+                    fi
+
+                    if [[ "$rel_path" == "." ]]; then
+                        target_cwd="$target_base"
+                    else
+                        target_cwd="$target_base/$rel_path"
+                    fi
+                    break
+                fi
+            fi
+        done
+    fi
+
+    # 4. Check private mounts
+    if [[ "$is_mounted" == "false" ]]; then
+        local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-}"
+        local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
+        for m in $launcher_private_mounts; do
+            if [[ -n "$m" ]]; then
+                local mount_path="$launcher_private_basepath/$m"
+                if is_under "$cwd" "$mount_path"; then
+                    is_mounted=true
+                    rel_path=$(realpath --relative-to="$mount_path" "$cwd" 2>/dev/null || echo "")
+                    if [[ "$rel_path" == "." ]]; then
+                        target_cwd="$mount_path"
+                    else
+                        target_cwd="$mount_path/$rel_path"
+                    fi
+                    break
+                fi
+            fi
+        done
+    fi
+
+    # 5. Check custom bind paths
     if [[ "$is_mounted" == "false" && -n "${SANDBOX_BIND_PATHS:-}" ]]; then
         IFS=':' read -ra paths <<<"$SANDBOX_BIND_PATHS"
         for p in "${paths[@]}"; do
             if [[ -n "$p" ]] && is_under "$cwd" "$p"; then
                 is_mounted=true
+                rel_path=$(realpath --relative-to="$p" "$cwd" 2>/dev/null || echo "")
+                if [[ "$rel_path" == "." ]]; then
+                    target_cwd="$p"
+                else
+                    target_cwd="$p/$rel_path"
+                fi
                 break
             fi
         done
     fi
 
-    # Determine target working directory inside the sandbox
-    local target_cwd
-    if [[ "$is_mounted" == "true" ]]; then
-        target_cwd="$cwd"
-    else
+    # 6. If not mounted, check if CWD is under HOME
+    if [[ "$is_mounted" == "false" ]]; then
         local real_home
         real_home="$(realpath "$HOME")"
         local real_cwd
         real_cwd="$(realpath "$cwd")"
-        local rel_path
         rel_path=$(realpath --relative-to="$real_home" "$real_cwd" 2>/dev/null || echo "")
 
         if [[ -n "$rel_path" && "$rel_path" != ..* ]]; then
@@ -570,22 +647,6 @@ run_sandbox() {
         else
             # Outside HOME
             target_cwd="$cwd"
-        fi
-    fi
-
-    # Determine execution engine
-    local run_engine="bwrap"
-    if [[ "${LAUNCHER_ENGINE:-auto}" == "systemd" ]]; then
-        if ! is_systemd_running; then
-            echo "Error: systemd user manager is not reachable but LAUNCHER_ENGINE=systemd was set." >&2
-            exit 1
-        fi
-        run_engine="systemd"
-    elif [[ "${LAUNCHER_ENGINE:-auto}" == "bwrap" ]]; then
-        run_engine="bwrap"
-    else
-        if is_systemd_running; then
-            run_engine="systemd"
         fi
     fi
 
@@ -617,7 +678,7 @@ run_sandbox() {
                 systemd_opts+=(-p "$prop")
             fi
         done < <(build_sandbox_config systemd "$target_cwd")
-
+        echo "Executing sandbox using systemd-run: ${cmd_args[@]}"
         exec systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
     else
         # 2. Run via bubblewrap
@@ -636,7 +697,7 @@ run_sandbox() {
 
         # Add chdir to current working directory
         bwrap_args+=(--chdir "$target_cwd")
-
+        echo "Executing sandbox using bwrap: ${cmd_args[@]}"
         exec bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
     fi
 }
@@ -842,92 +903,98 @@ cmd_destroy() {
 
 # --- Parsing Command and Routing ---
 
-if [[ "$central_mode" == "true" ]]; then
-    # Central Mode: sandbox-ctl <cmd> <app_name> [args...]
-    if [[ $# -lt 1 ]]; then
-        show_help
-        exit 1
-    fi
+main() {
+    if [[ "$central_mode" == "true" ]]; then
+        # Central Mode: sandbox-ctl <cmd> <app_name> [args...]
+        if [[ $# -lt 1 ]]; then
+            show_help
+            exit 1
+        fi
 
-    cmd="$1"
-    shift
+        local cmd="$1"
+        shift
 
-    if [[ "$cmd" == "help" ]]; then
-        show_help
-        exit 0
-    fi
+        if [[ "$cmd" == "help" ]]; then
+            show_help
+            exit 0
+        fi
 
-    if [[ $# -lt 1 ]]; then
-        echo "Error: Application name (app_name) is required for command '$cmd'." >&2
-        show_help >&2
-        exit 1
-    fi
+        if [[ $# -lt 1 ]]; then
+            echo "Error: Application name (app_name) is required for command '$cmd'." >&2
+            show_help >&2
+            exit 1
+        fi
 
-    app_name="$1"
-    shift
+        app_name="$1"
+        shift
 
-    # Re-evaluate paths for app_name
-    persistent_home="$HOME/.local/sandbox/$app_name"
-    LAUNCHER_PRIVATE_BASEPATH="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
-    work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
-    env_file="$HOME/.local/sandbox/$app_name.env"
+        # Re-evaluate paths for app_name
+        persistent_home="$HOME/.local/sandbox/$app_name"
+        LAUNCHER_PRIVATE_BASEPATH="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
+        work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
+        env_file="$HOME/.local/sandbox/$app_name.env"
 
-    case "$cmd" in
-    install)
-        cmd_install "$@"
-        ;;
-    uninstall)
-        cmd_uninstall
-        ;;
-    destroy)
-        cmd_destroy
-        ;;
-    env)
-        cmd_env
-        ;;
-    exec)
+        case "$cmd" in
+        install)
+            cmd_install "$@"
+            ;;
+        uninstall)
+            cmd_uninstall
+            ;;
+        destroy)
+            cmd_destroy
+            ;;
+        env)
+            cmd_env
+            ;;
+        exec)
+            local real_bin
+            real_bin=$(find_real_binary "$app_name")
+            local target_bin=""
+            if [[ -n "$real_bin" ]]; then
+                target_bin="$real_bin"
+            else
+                target_bin="$app_name"
+            fi
+            if [[ $# -eq 0 && -n "${LAUNCHER_DEFAULT_ARGS:-}" ]]; then
+                eval "set -- ${LAUNCHER_DEFAULT_ARGS}"
+            fi
+            run_sandbox "$target_bin" "$@"
+            ;;
+        run)
+            if [[ $# -lt 1 ]]; then
+                echo "Error: run requires a command to run." >&2
+                exit 1
+            fi
+            run_sandbox "$@"
+            ;;
+        shell)
+            run_sandbox "${SHELL:-/bin/bash}" "$@"
+            ;;
+        *)
+            echo "Unknown command: $cmd" >&2
+            show_help >&2
+            exit 1
+            ;;
+        esac
+
+    else
+        # App Symlink Mode: <app_name> [args...]
+        local real_bin
         real_bin=$(find_real_binary "$app_name")
-        target_bin=""
+        local target_bin=""
         if [[ -n "$real_bin" ]]; then
             target_bin="$real_bin"
         else
             target_bin="$app_name"
         fi
+
         if [[ $# -eq 0 && -n "${LAUNCHER_DEFAULT_ARGS:-}" ]]; then
             eval "set -- ${LAUNCHER_DEFAULT_ARGS}"
         fi
+
         run_sandbox "$target_bin" "$@"
-        ;;
-    run)
-        if [[ $# -lt 1 ]]; then
-            echo "Error: run requires a command to run." >&2
-            exit 1
-        fi
-        run_sandbox "$@"
-        ;;
-    shell)
-        run_sandbox "${SHELL:-/bin/bash}" "$@"
-        ;;
-    *)
-        echo "Unknown command: $cmd" >&2
-        show_help >&2
-        exit 1
-        ;;
-    esac
-
-else
-    # App Symlink Mode: <app_name> [args...]
-    real_bin=$(find_real_binary "$app_name")
-    target_bin=""
-    if [[ -n "$real_bin" ]]; then
-        target_bin="$real_bin"
-    else
-        target_bin="$app_name"
     fi
+}
 
-    if [[ $# -eq 0 && -n "${LAUNCHER_DEFAULT_ARGS:-}" ]]; then
-        eval "set -- ${LAUNCHER_DEFAULT_ARGS}"
-    fi
-
-    run_sandbox "$target_bin" "$@"
-fi
+main "$@"
