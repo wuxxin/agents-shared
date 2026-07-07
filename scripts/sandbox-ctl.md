@@ -1,6 +1,6 @@
 # Generalized Sandbox & systemd Transient Launcher
 
-`sandbox-launcher.sh` is a flexible, generalized wrapper for running any command-line or graphical binary inside a hardened container or namespace sandbox on Linux. By default, it runs the application inside a native **systemd user transient service (`systemd-run`)** for cgroups confinement, resource limiting, and systemd security controls. If systemd is not reachable or if configured to do so, it falls back to a **Bubblewrap (`bwrap`)** sandbox.
+`sandbox-ctl` is a flexible, generalized wrapper for running any command-line or graphical binary inside a hardened container or namespace sandbox on Linux. By default, it runs the application inside a native **systemd user transient service (`systemd-run`)** for cgroups confinement, resource limiting, and systemd security controls. If systemd is not reachable or if configured to do so, it falls back to a **Bubblewrap (`bwrap`)** sandbox.
 
 ---
 
@@ -23,31 +23,31 @@ The launcher supports two distinct calling modes:
 
 ### Style A: Direct Orchestrator Mode (Central Launcher)
 
-When executed directly as `sandbox-launcher.sh` or `sandbox-launcher`, you must specify the subcommand and the target application. This is the mode used to install, uninstall, destroy, configure, or run shell/custom commands:
+When executed directly as `sandbox-ctl` you must specify the subcommand and the target application. This is the mode used to install, uninstall, destroy, configure, or run shell/custom commands:
 
 ```bash
 # Setup sandbox and symlink for firefox
-sandbox-launcher.sh install firefox
+sandbox-ctl install firefox
 
 # Run firefox inside the sandbox
-sandbox-launcher.sh exec firefox
+sandbox-ctl exec firefox
 
 # Run an interactive bash shell in the firefox sandbox
-sandbox-launcher.sh shell firefox
+sandbox-ctl shell firefox
 
 # Execute a custom command in the firefox sandbox
-sandbox-launcher.sh run firefox ls -la
+sandbox-ctl run firefox ls -la
 
 # Open the .env configuration file for firefox
-sandbox-launcher.sh env firefox
+sandbox-ctl env firefox
 
 # Delete the persistent data/directories for firefox
-sandbox-launcher.sh destroy firefox
+sandbox-ctl destroy firefox
 ```
 
 ### Style B: Symlink Mode (Transparent Wrapper)
 
-When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-launcher.sh`), the script operates as a **transparent proxy**.
+When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-ctl`), the script operates as a **transparent proxy**.
 
 - **Direct Argument Propagation**: All arguments are passed directly to the original binary inside the sandbox.
 - E.g., calling `opencode --version` runs `opencode --version` inside the sandbox, and calling `git commit` runs `git commit` inside the sandbox.

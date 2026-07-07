@@ -1,7 +1,7 @@
 # Helper Utilities
 
 - **[local-download.sh](local-download.sh)**: Intelligent downloader for local AI models (LLMs, Embeddings, Reranker, Whisper STT) featuring caching, Hugging Face Hub downloads, and automated GGUF quantization.
-- **[sandbox-launcher.sh](sandbox-launcher.sh)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
+- **[sandbox-ctl](sandbox-ctl)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
 - **[antigravity-launcher.sh](antigravity-launcher.sh)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
 - **[run-local-benchmark.py](run-local-benchmark.py)**: Automate running and recording local service benchmarks (chat, embedding, rerank, STT, TTS) across configurations.
 - **[tiktoken_count.py](tiktoken_count.py)** / **[tiktoken_tps_sim.py](tiktoken_tps_sim.py)**: Calibrates timeout thresholds and measures token counts of input texts using OpenAI-compatible counts.
@@ -15,12 +15,12 @@ An intelligent Bash utility to download local AI models (LLM, Embeddings, Rerank
 ./scripts/local-download.sh <target_model_dir> --all
 ```
 
-## `sandbox-launcher.sh`
+## `sandbox-ctl`
 
 A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened **Bubblewrap (`bwrap`)** sandbox with persistent home directory mapping, X11/Wayland display sharing, Pipewire/PulseAudio sound support, and SSH agent forwarding.
 
 ```bash
-./scripts/sandbox-launcher.sh install <app_name>
+./scripts/sandbox-ctl install <app_name>
 ```
 
 Documentation: [sandbox-launcher.md](sandbox-launcher.md)

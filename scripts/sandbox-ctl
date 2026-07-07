@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Constants
-LAUNCHER_NAME="sandbox-launcher.sh"
+LAUNCHER_NAME="sandbox-ctl"
 
 # Helper: Check if systemd user manager is reachable
 is_systemd_running() {
@@ -645,8 +645,8 @@ cmd_install() {
         fi
     fi
 
-    # Generic or opencode default project initialization
-    if [[ "$app_name" == "opencode" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "true" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "1" ]]; then
+    # Generic default project initialization
+    if [[ "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "true" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "1" ]]; then
         local default_project="$work_dir/default"
         mkdir -p "$default_project"
         if [[ ! -d "$default_project/.git" ]]; then
@@ -696,8 +696,8 @@ cmd_install() {
 # DISABLE_DBUS="false"          # Disable DBus session bus communication
 
 # --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
-# DISABLE_IPC_SHARE="true"     # Isolate IPC namespace (set to false for GPU/ROCm hardware)
 # DISABLE_HARDWARE="false"     # Isolate host GPU/DRI devices (set to true to run headless)
+# DISABLE_IPC_SHARE="true"     # Isolate IPC namespace (set to false for GPU/ROCm hardware)
 # DISABLE_PID_SHARE="true"     # Isolate PID namespace (set to false to share host PIDs, to enable trace or inspect of child processes)
 
 # --- Path / Directory Mounts ---
@@ -708,7 +708,7 @@ cmd_install() {
 
 # --- Desktop / GUI Integration ---
 # LAUNCHER_GUI="false"            # Set to true to enable generating a desktop entry (.desktop file)
-# LAUNCHER_GUI_NAME="${app_name^}"
+# LAUNCHER_GUI_NAME="${app_name}"
 # LAUNCHER_GUI_COMMENT="Sandboxed $app_name"
 # LAUNCHER_GUI_ICON="$app_name"
 # LAUNCHER_GUI_CATEGORIES="Utility;"
@@ -818,7 +818,7 @@ cmd_destroy() {
 # --- Parsing Command and Routing ---
 
 if [[ "$central_mode" == "true" ]]; then
-    # Central Mode: sandbox-launcher.sh <cmd> <app_name> [args...]
+    # Central Mode: sandbox-ctl <cmd> <app_name> [args...]
     if [[ $# -lt 1 ]]; then
         show_help
         exit 1
