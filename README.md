@@ -44,7 +44,9 @@ For details, see the [scripts/README.md](scripts/README.md).
 ### Local Chat Services
 - **Description**: Manages persistent `llama-server` instances for chat/vision LLM completions (`local-chat.sh`).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
-- **Features**: Chat completions (`50080`) running with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens).
+- **Features**: Chat completions (`50080`) service
+    - serving the main model with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens). 
+    - optionally serving a code completion model (`qwen-coder-fim`) with native Fill-in-the-Middle (FIM) support for editor tab completion.
 - Documentation: [local-chat.md](assistants/local-chat.md)
 
 ### Local Embedding Services
