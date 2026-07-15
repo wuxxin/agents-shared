@@ -6,7 +6,7 @@ Input:
 
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
-| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving OpenAI Chat/Vision LLM (and optional text embeddings) |
+| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving OpenAI Chat/Vision LLM, FIM Code Completions (qwen-coder-fim), and optional text embeddings |
 | **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving OpenAI Text Embeddings |
 | **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
 | **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server OpenAI audio transcription |
@@ -77,6 +77,17 @@ To run in **Combined Mode** (serving both Chat and Embeddings in a single `llama
        'LCHAT_EMBEDDING_ENABLED=true'
    )
    ```
+
+#### Code Completions (FIM)
+The code completions model (`qwen-coder-fim`) is run inside the `local-chat` server instance. You can customize completions settings by adding overrides within the `LCHAT_OVERRIDE` array in `local-inference.env`:
+```env
+LCHAT_OVERRIDE=(
+    'LCOMP_ENABLED=true'
+    'LCOMP_PARALLEL=2'
+    'LCOMP_CACHE_TYPE_K="q4_0"'
+    'LCOMP_CACHE_TYPE_V="q4_0"'
+)
+```
 
 ### Propagating Service Overrides
 

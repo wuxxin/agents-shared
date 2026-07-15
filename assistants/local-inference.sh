@@ -120,8 +120,10 @@ LROUT_ENABLED=1
 LCHAT_OVERRIDE=(
     'LCHAT_DEVICE="Vulkan1"'
     'GGML_VK_DISABLE_MMVQ=1'
-    'LCHAT_EMBEDDING_ENABLED=false'
     # Disable combined embedding on port 50080
+    'LCHAT_EMBEDDING_ENABLED=false'
+    # Enable code completion service model
+    'LCOMP_ENABLED=true'
 )
 # run EMBEDDING on vulkan/dgpu
 LMBD_OVERRIDE=(
@@ -393,29 +395,31 @@ Commands:
 EOF
 }
 
-# Main
+main() {
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
 
-if [ $# -lt 1 ]; then
-    usage
-    exit 1
-fi
+    COMMAND="$1"
+    shift
 
-COMMAND="$1"
-shift
+    case "$COMMAND" in
+    install) cmd_install "$@" ;;
+    uninstall) cmd_uninstall ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_restart ;;
+    status) cmd_status ;;
+    logs) cmd_logs "$@" ;;
+    edit) cmd_edit ;;
+    test) cmd_test "$@" ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        usage
+        exit 1
+        ;;
+    esac
+}
 
-case "$COMMAND" in
-install) cmd_install "$@" ;;
-uninstall) cmd_uninstall ;;
-start) cmd_start ;;
-stop) cmd_stop ;;
-restart) cmd_restart ;;
-status) cmd_status ;;
-logs) cmd_logs "$@" ;;
-edit) cmd_edit ;;
-test) cmd_test "$@" ;;
-*)
-    echo "Unknown command: $COMMAND"
-    usage
-    exit 1
-    ;;
-esac
+main "$@"
