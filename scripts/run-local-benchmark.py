@@ -77,6 +77,12 @@ SERVICES: Dict[str, Dict[str, Any]] = {
         "port": 50080,
         "proc_pattern": "llama-server.*--port 50080",
     },
+    "completion": {
+        "script": os.path.join(REPO_ROOT, "assistants", "local-chat.sh"),
+        "env_file": os.path.join(SYSTEMD_USER_DIR, "local-chat.env"),
+        "port": 50080,
+        "proc_pattern": "llama-server.*--port 50080",
+    },
     "embedding": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-embedding.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-embedding.env"),
@@ -461,6 +467,10 @@ def get_mock_gpu_mem(mode: str, config: str) -> float:
             "hip": 8500.0,
             "vulkan": 8800.0,
         },
+        "completion": {
+            "hip": 1200.0,
+            "vulkan": 1250.0,
+        },
     }
     return mems.get(mode, {}).get(lookup_cfg, 0.0)
 
@@ -492,6 +502,11 @@ def get_mock_cpu_mem(mode: str, config: str) -> float:
             "hip": 500.0,
             "vulkan": 550.0,
             "cpu": 9500.0,
+        },
+        "completion": {
+            "hip": 300.0,
+            "vulkan": 320.0,
+            "cpu": 1500.0,
         },
     }
     return mems.get(mode, {}).get(lookup_cfg, 0.0)
@@ -970,6 +985,7 @@ def start_service(
                     "GGML_",
                     "LCHAT_",
                     "LMBD_",
+                    "LCOMP_",
                     "LRR_",
                     "LSTT_",
                     "LTTS_",
@@ -1324,7 +1340,33 @@ def parse_embed_output(output: str) -> Dict[str, float]:
             r"Avg Chunk Latency:\s+([\d\.]+)\s+ms", output
         )
         res["embed_p50"] = extract_metric(r"Avg Chunk p50:\s+([\d\.]+)\s+ms", output)
-        res["embed_p95"] = extract_metric(r"Avg Chunk p95:\s+([\d\.]+)\s+ms", output)
+    return res
+
+
+def parse_comp_output(output: str) -> Dict[str, float]:
+    """Parse completion benchmark stats from stdout."""
+    res = {}
+    data = extract_json_block(output)
+    if data is not None:
+        res["comp_warmup_ttft"] = float(data.get("comp_warmup_ttft", 0.0))
+        res["comp_warmup_gen"] = float(data.get("comp_warmup_gen", 0.0))
+        res["comp_avg_ttft"] = float(data.get("comp_avg_ttft", 0.0))
+        res["comp_avg_prefill"] = float(data.get("comp_avg_prefill", 0.0))
+        res["comp_avg_gen"] = float(data.get("comp_avg_gen", 0.0))
+        res["comp_avg_decode"] = float(data.get("comp_avg_decode", 0.0))
+        return res
+    res["comp_warmup_ttft"] = extract_metric(r"Warmup TTFT:\s+([\d\.]+)\s+ms", output)
+    res["comp_warmup_gen"] = extract_metric(
+        r"Warmup Gen Speed:\s+([\d\.]+)\s+tokens", output
+    )
+    res["comp_avg_ttft"] = extract_metric(r"Avg TTFT:\s+([\d\.]+)\s+ms", output)
+    res["comp_avg_prefill"] = extract_metric(
+        r"Avg Prefill Speed:\s+([\d\.]+)\s+tokens", output
+    )
+    res["comp_avg_gen"] = extract_metric(
+        r"Avg Generation Speed:\s+([\d\.]+)\s+tokens", output
+    )
+    res["comp_avg_decode"] = extract_metric(r"Avg Decode Time:\s+([\d\.]+)\s+s", output)
     return res
 
 
@@ -1507,6 +1549,17 @@ Audio Duration:       15.74 seconds
 Avg Synthesis Time:   {23.47 * fac:.2f} seconds
 Avg RTF:              {1.4914 * fac:.4f}
 Avg Speed:            {11.67 / fac:.2f} chars/sec (1.92 words/sec)
+"""
+    elif mode == "completion":
+        return f"""
+{{
+  "comp_warmup_ttft": {35.0 * fac:.1f},
+  "comp_warmup_gen": {120.0 / fac:.1f},
+  "comp_avg_ttft": {15.0 * fac:.1f},
+  "comp_avg_prefill": {450.0 / fac:.1f},
+  "comp_avg_gen": {115.0 / fac:.1f},
+  "comp_avg_decode": {0.5 * fac:.2f}
+}}
 """
     return ""
 
@@ -1714,6 +1767,8 @@ def generate_report(
     tts_keys.sort(key=sort_config_keys)
     image_keys = [cfg for cfg in data.keys() if "image" in data[cfg]]
     image_keys.sort(key=sort_config_keys)
+    comp_keys = [cfg for cfg in data.keys() if "completion" in data[cfg]]
+    comp_keys.sort(key=sort_config_keys)
 
     # Find the best configuration for each metric
     best_chat_cfg = None
@@ -1737,6 +1792,20 @@ def generate_report(
                 if v > max_chat_prefill:
                     max_chat_prefill = v
                     best_chat_prefill_cfg = cfg
+
+    best_comp_cfg = None
+    max_comp_gen = -1.0
+    for cfg in comp_keys:
+        if (
+            cfg in data
+            and "completion" in data[cfg]
+            and "comp_avg_gen" in data[cfg]["completion"]
+        ):
+            v = data[cfg]["completion"]["comp_avg_gen"]
+            if isinstance(v, (int, float)):
+                if v > max_comp_gen:
+                    max_comp_gen = v
+                    best_comp_cfg = cfg
 
     best_embed_cfg = None
     max_embed_throughput = -1.0
@@ -1934,6 +2003,26 @@ def generate_report(
         )
     image_table_body = "\n".join(image_rows)
 
+    # 7. Code Completion Table Body
+    comp_rows = []
+    for cfg in comp_keys:
+        cfg_label = cfg.upper()
+        row = f"| [**{cfg_label}**]({get_cfg_anchor(cfg)}) | {get_test_name(cfg, 'completion')} | {get_device_setting(cfg, 'completion')} | {get_special_setting(cfg, 'completion')} | {val(cfg, 'completion', 'comp_avg_ttft', '.2f', ' ms')} | {val(cfg, 'completion', 'comp_avg_prefill', '.2f', ' t/s')} | {val(cfg, 'completion', 'comp_warmup_ttft', '.2f', ' ms')} | {val(cfg, 'completion', 'comp_avg_gen', '.2f', ' t/s', bold=(cfg == best_comp_cfg))} | {val(cfg, 'completion', 'gpu_mem_mb', '.1f', ' MB')} | {val(cfg, 'completion', 'cpu_mem_mb', '.1f', ' MB')} |"
+        comp_rows.append(row)
+    if not any(cfg.startswith("hip") for cfg in comp_keys):
+        comp_rows.append(
+            "| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
+    if not any(cfg.startswith("vulkan") for cfg in comp_keys):
+        comp_rows.append(
+            "| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
+    if not any(cfg.startswith("cpu") for cfg in comp_keys):
+        comp_rows.append(
+            "| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |"
+        )
+    comp_table_body = "\n".join(comp_rows)
+
     report = f"""# LLM Caching Optimization Benchmarks
 
 **Benchmark Run Time:** `{now_str}`
@@ -1973,6 +2062,11 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | Configuration | Test Name | GPU | Special Setting | Avg Generation Time | GPU Mem | CPU Mem |
 |---|---|---|---|---|---|---|
 {image_table_body}
+
+#### Code Completion FIM (`local-chat` - tab completion)
+| Configuration | Test Name | GPU | Special Setting | Avg Completion TTFT | Avg Prefill Speed | Warmup TTFT | Avg Generation Speed | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|
+{comp_table_body}
 
 ---
 
@@ -2054,6 +2148,32 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - Avg Chunk Latency:    {val(cfg, "embedding", "embed_lat", ".1f", " ms")}
   - Avg Chunk p50:        {val(cfg, "embedding", "embed_p50", ".1f", " ms")}
   - Avg Chunk p95:        {val(cfg, "embedding", "embed_p95", ".1f", " ms")}
+
+"""
+
+        # Completion details
+        if "completion" in data[cfg]:
+            report += f"""#### Code Completion FIM (`local-chat` - tab completion)
+- **Benchmark Test Name:** `{get_test_name(cfg, "completion")}`
+- **Device Setting:** `{get_device_setting(cfg, "completion")}`
+- **Special Setting:** `{get_special_setting(cfg, "completion")}`
+- **Model:** `qwen-coder-fim` (`qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`)
+- **Execution Target:** `{cfg_upper}`
+- **GPU Memory Used:** {val(cfg, "completion", "gpu_mem_mb", ".1f", " MB")}
+- **CPU Memory Used:** {val(cfg, "completion", "cpu_mem_mb", ".1f", " MB")}
+- **Benchmark Running Time:** {val(cfg, "completion", "bench_time_s", ".2f", " s")}
+- **Active Environment Settings:**
+{format_env(cfg, "completion")}
+{format_errors(cfg, "completion")}
+- **Package Version:** `{data.get("pkg_versions", {}).get("llama", "unknown")}`
+- **Warmup (Phase 0):**
+  - TTFT (Prefill):       {val(cfg, "completion", "comp_warmup_ttft", ".2f", " ms")}
+  - Generation Speed:     {val(cfg, "completion", "comp_warmup_gen", ".2f", " tokens/sec")}
+- **Generation (Phase 2):**
+  - Avg TTFT (Prefill):   {val(cfg, "completion", "comp_avg_ttft", ".2f", " ms")}
+  - Avg Prefill Speed:    {val(cfg, "completion", "comp_avg_prefill", ".2f", " tokens/sec")}
+  - Avg Generation Speed: {val(cfg, "completion", "comp_avg_gen", ".2f", " tokens/sec")}
+  - Avg Decode Time:      {val(cfg, "completion", "comp_avg_decode", ".2f", " s")}
 
 """
 
@@ -2233,7 +2353,15 @@ def main() -> None:
 
     target_configs = [c.strip().lower() for c in args.configs.split(",")]
     if args.services.lower() == "all":
-        target_services = ["chat", "embedding", "rerank", "stt", "tts", "image"]
+        target_services = [
+            "chat",
+            "embedding",
+            "rerank",
+            "stt",
+            "tts",
+            "image",
+            "completion",
+        ]
     else:
         target_services = [s.strip().lower() for s in args.services.split(",")]
 
@@ -3399,6 +3527,382 @@ def main() -> None:
                 if not args.mock and run_cfg != "running":
                     stop_service(
                         "embedding",
+                        srv["port"],
+                        srv["proc_pattern"],
+                        proc,
+                        master_fd,
+                    )
+
+        # ---------------------------------------------------------
+        # 1.8 Code Completion Service
+        # ---------------------------------------------------------
+        if "completion" in target_services:
+            srv = SERVICES["completion"]
+            if run_cfg == "special":
+                print("Skipping Code Completion for Special configuration.")
+            else:
+                if run_cfg != "running":
+                    print(f"Preparing environment file: {srv['env_file']}")
+                proc = None
+                master_fd = None
+                baseline_vram = 0.0
+
+                # Determine configuration settings for current config
+                if run_cfg == "running":
+                    comp_device = "running on host"
+                    fraction = 1.0
+                else:
+                    lookup_cfg = run_cfg[:-6] if run_cfg.endswith("-combi") else run_cfg
+                    device_map = {
+                        "hip": dev if dev else "ROCm0",
+                        "vulkan": dev if dev else "Vulkan0",
+                        "cpu": "none",
+                        "cpu-blas": "BLAS",
+                    }
+                    comp_device = device_map.get(lookup_cfg, lookup_cfg)
+
+                    fraction = 1.0
+                    if lookup_cfg.startswith("cpu"):
+                        fraction = 0.05
+                    elif dev:
+                        gpu = GLOBAL_GPU_REGISTRY.get_by_device_string(dev)
+                        if gpu and gpu.is_igpu:
+                            fraction = 0.20
+
+                target_port = (
+                    router_port
+                    if (args.use_router and run_cfg == "running")
+                    else srv["port"]
+                )
+
+                if not args.mock:
+                    if run_cfg == "running":
+                        baseline_vram = 0.0
+                        updates = {}
+                        is_up = False
+                        try:
+                            with socket.create_connection(
+                                ("127.0.0.1", target_port), timeout=1.0
+                            ):
+                                is_up = True
+                        except Exception:
+                            pass
+                        if not is_up:
+                            port_msg = (
+                                f"router on port {target_port}"
+                                if args.use_router
+                                else f"llama-server on port {target_port}"
+                            )
+                            print(f"Error: {port_msg} is not running.")
+                            set_service_fail_metrics(
+                                benchmark_data,
+                                cache_key,
+                                "completion",
+                                "running on host",
+                                "unknown",
+                                srv["env_file"],
+                                [
+                                    f"Error: service is not running on port {target_port}"
+                                ],
+                                {},
+                            )
+                            continue
+                        proc = None
+                        master_fd = None
+
+                    else:
+                        baseline_vram = get_gpu_memory_mb(comp_device)
+                        lookup_cfg = (
+                            run_cfg[:-6] if run_cfg.endswith("-combi") else run_cfg
+                        )
+
+                        # Enable completion model, disable embedding (unless combi)
+                        updates = {
+                            "LCOMP_DEVICE": comp_device,
+                            "LCOMP_ENABLED": "true",
+                            "LCOMP_N_GPU_LAYERS": 0
+                            if lookup_cfg.startswith("cpu")
+                            else 999,
+                            "LMBD_ENABLED": "false",
+                            "LCHAT_EMBEDDING_ENABLED": "false",
+                            "LCHAT_SERVE_EMBEDDINGS": "false",
+                        }
+                        if run_cfg.endswith("-combi"):
+                            updates["LMBD_ENABLED"] = "true"
+                            updates["LCHAT_EMBEDDING_ENABLED"] = "true"
+                            updates["LCHAT_SERVE_EMBEDDINGS"] = "true"
+                            updates["LMBD_DEVICE"] = comp_device
+                            updates["LMBD_N_GPU_LAYERS"] = (
+                                0 if lookup_cfg.startswith("cpu") else 999
+                            )
+                            if dev and "1" in dev:
+                                updates["LMBD_N_CTX"] = 4096
+                            else:
+                                updates["LMBD_N_CTX"] = 8192
+
+                        hip_vis, cuda_vis = get_visible_devices_env(
+                            lookup_cfg, comp_device, hip_devices_resolved
+                        )
+                        updates["HIP_VISIBLE_DEVICES"] = hip_vis
+                        updates["CUDA_VISIBLE_DEVICES"] = cuda_vis
+
+                        # Build environment arguments
+                        env_args = []
+                        for k, v in updates.items():
+                            env_args.extend(["--env", f"{k}={v}"])
+
+                        # Start service
+                        proc, master_fd = start_service(srv["script"], env_args)
+
+                        # Wait for server readiness
+                        print(f"Waiting for llama-server on port {srv['port']}...")
+                        if not wait_for_port(srv["port"], proc=proc):
+                            print(
+                                f"Error: llama-server failed to start on port {srv['port']}."
+                            )
+                            stop_service(
+                                "completion",
+                                srv["port"],
+                                srv["proc_pattern"],
+                                proc,
+                                master_fd,
+                            )
+                            set_service_fail_metrics(
+                                benchmark_data,
+                                cache_key,
+                                "completion",
+                                comp_device if comp_device else "Default",
+                                f"Layers: {0 if run_cfg == 'cpu' else 999}"
+                                + (
+                                    f" (Context: {fraction * 100:.0f}%)"
+                                    if fraction < 1.0
+                                    else ""
+                                ),
+                                srv["env_file"],
+                                [
+                                    "Error: llama-server failed to start or port timed out"
+                                ],
+                                updates,
+                            )
+                            continue
+
+                # Run benchmarks
+                print("Running Code Completion benchmark")
+                if not args.mock:
+                    if run_cfg != "running":
+                        print("Warming up completion model (qwen-coder-fim)...")
+                        if not warmup_model(
+                            f"http://127.0.0.1:{target_port}/v1/completions",
+                            {
+                                "model": "qwen-coder-fim",
+                                "prompt": "<|fim_prefix|>def add(a, b):\n    <|fim_suffix|>\n    return c<|fim_middle|>",
+                                "max_tokens": 1,
+                            },
+                        ):
+                            print(
+                                "⚠️ Warning: Model warmup timed out. Benchmark might fail."
+                            )
+                    repeats_scaled = int(30 * fraction)
+                    if repeats_scaled < 1:
+                        repeats_scaled = 1
+                    test_args = [
+                        "--benchmark",
+                        "--repeat",
+                        str(repeats_scaled),
+                        "--format",
+                        "json",
+                        "--skip-chat",
+                        "--skip-embedding",
+                    ]
+                    if args.use_router and run_cfg == "running":
+                        test_args.extend(["--url", router_url])
+                    start_time = time.time()
+                    bench_start_time_str = datetime.datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    stdout, success, error_lines = run_benchmark(
+                        srv["script"], test_args, server_proc=proc
+                    )
+
+                    if not success:
+                        print(
+                            f"⚠️ Warning: Benchmark command for completion on config '{cache_key}' failed."
+                        )
+                        if run_cfg == "running":
+                            journal_errors = get_journal_errors(
+                                "local-chat", bench_start_time_str
+                            )
+                            error_lines.extend(journal_errors)
+                        set_service_fail_metrics(
+                            benchmark_data,
+                            cache_key,
+                            "completion",
+                            "running on host"
+                            if run_cfg == "running"
+                            else (comp_device if comp_device else "Default"),
+                            "unknown"
+                            if run_cfg == "running"
+                            else f"Layers: {0 if run_cfg.startswith('cpu') else 999}",
+                            srv["env_file"],
+                            error_lines,
+                            updates,
+                        )
+                    else:
+                        elapsed_time = time.time() - start_time
+                        benchmark_data[cache_key]["completion"] = parse_comp_output(
+                            stdout
+                        )
+                        benchmark_data[cache_key]["completion"]["bench_time_s"] = (
+                            elapsed_time
+                        )
+                        if run_cfg == "running":
+                            journal_errors = get_journal_errors(
+                                "local-chat", bench_start_time_str
+                            )
+                            error_lines.extend(journal_errors)
+                        if error_lines:
+                            benchmark_data[cache_key]["completion"]["errors"] = (
+                                error_lines
+                            )
+
+                        # Measure resources if running
+                        rss_mb = get_process_rss_mem_mb(srv["proc_pattern"])
+                        gpu_mb = (
+                            get_gpu_memory_mb(comp_device)
+                            if run_cfg != "running"
+                            else 0.0
+                        )
+                        benchmark_data[cache_key]["completion"]["gpu_mem_mb"] = gpu_mb
+                        benchmark_data[cache_key]["completion"]["cpu_mem_mb"] = rss_mb
+                        benchmark_data[cache_key]["completion"]["test_name"] = (
+                            f"completion_{cache_key}"
+                        )
+                        benchmark_data[cache_key]["completion"]["device_setting"] = (
+                            "running on host"
+                            if run_cfg == "running"
+                            else (comp_device if comp_device else "Default")
+                        )
+                        benchmark_data[cache_key]["completion"]["special_setting"] = (
+                            "unknown"
+                            if run_cfg == "running"
+                            else f"Layers: {999 if not run_cfg.startswith('cpu') else 0}"
+                        )
+                        env_dict = read_env_file(srv["env_file"])
+                        env_dict.update(updates)
+                        benchmark_data[cache_key]["completion"]["env"] = env_dict
+                        if run_cfg != "running" and comp_device in available_devices:
+                            benchmark_data[cache_key]["completion"][
+                                "device_details"
+                            ] = available_devices[comp_device]
+                else:
+                    stdout = get_mock_output("completion", run_cfg)
+                    benchmark_data[cache_key]["completion"] = parse_comp_output(stdout)
+                    benchmark_data[cache_key]["completion"]["errors"] = []
+
+                    if run_cfg == "running":
+                        benchmark_data[cache_key]["completion"]["gpu_mem_mb"] = "-n.a.-"
+                        benchmark_data[cache_key]["completion"]["cpu_mem_mb"] = "-n.a.-"
+                        benchmark_data[cache_key]["completion"]["device_setting"] = (
+                            "running on host"
+                        )
+                        benchmark_data[cache_key]["completion"]["special_setting"] = (
+                            "unknown"
+                        )
+                    else:
+                        benchmark_data[cache_key]["completion"]["gpu_mem_mb"] = (
+                            get_mock_gpu_mem("completion", run_cfg)
+                        )
+                        benchmark_data[cache_key]["completion"]["cpu_mem_mb"] = (
+                            get_mock_cpu_mem("completion", run_cfg)
+                        )
+                        benchmark_data[cache_key]["completion"]["device_setting"] = (
+                            dev
+                            if dev
+                            else (
+                                "ROCm0"
+                                if run_cfg == "hip"
+                                else (
+                                    "Vulkan0"
+                                    if run_cfg == "vulkan"
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "Default")
+                                    )
+                                )
+                            )
+                        )
+                        benchmark_data[cache_key]["completion"]["special_setting"] = (
+                            f"Layers: {999 if not run_cfg.startswith('cpu') else 0}"
+                        )
+
+                    benchmark_data[cache_key]["completion"]["bench_time_s"] = 12.5
+                    benchmark_data[cache_key]["completion"]["test_name"] = (
+                        f"completion_{cache_key}"
+                    )
+
+                    if run_cfg == "running":
+                        mock_updates = {}
+                    else:
+                        mock_updates = {
+                            "LCOMP_DEVICE": dev
+                            if dev
+                            else (
+                                "ROCm0"
+                                if run_cfg == "hip"
+                                else (
+                                    "Vulkan0"
+                                    if run_cfg == "vulkan"
+                                    else (
+                                        "BLAS"
+                                        if run_cfg == "cpu-blas"
+                                        else ("none" if run_cfg == "cpu" else "")
+                                    )
+                                )
+                            ),
+                            "LCOMP_N_GPU_LAYERS": "999"
+                            if not run_cfg.startswith("cpu")
+                            else "0",
+                        }
+                    try:
+                        env_dict = read_env_file(srv["env_file"])
+                    except Exception:
+                        env_dict = {}
+                    env_dict.update(mock_updates)
+                    benchmark_data[cache_key]["completion"]["env"] = env_dict
+
+                    if run_cfg != "running":
+                        comp_device = (
+                            dev
+                            if dev
+                            else (
+                                "ROCm0"
+                                if run_cfg == "hip"
+                                else ("Vulkan0" if run_cfg == "vulkan" else "")
+                            )
+                        )
+                        dev_details = available_devices.get(comp_device, {})
+                        if not dev_details:
+                            dev_details = {
+                                "device_id": comp_device,
+                                "name": "AMD Radeon RX 7900 XTX"
+                                if "0" in comp_device
+                                else "AMD Radeon Graphics",
+                                "total_mem_mib": 24576.0
+                                if "0" in comp_device
+                                else 56261.0,
+                                "free_mem_mib": 24000.0
+                                if "0" in comp_device
+                                else 92380.0,
+                            }
+                        benchmark_data[cache_key]["completion"]["device_details"] = (
+                            dev_details
+                        )
+
+                # Stop service
+                if not args.mock and run_cfg != "running":
+                    stop_service(
+                        "completion",
                         srv["port"],
                         srv["proc_pattern"],
                         proc,

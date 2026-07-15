@@ -582,7 +582,7 @@ def run_llm_chat(
         avg_p2_gen_speed = sum(x["generation_speed"] for x in phase2_runs) / len(
             phase2_runs
         )
-        avg_p2_prompt_tokens = phase2_runs[0]["prompt_tokens"]
+        avg_p2_prompt_tokens = int(phase2_runs[0]["prompt_tokens"])
         avg_p2_comp_tokens = sum(x["completion_tokens"] for x in phase2_runs) / len(
             phase2_runs
         )
@@ -630,7 +630,7 @@ def run_llm_chat(
         avg_p4_gen_speed = sum(x["generation_speed"] for x in phase4_runs) / len(
             phase4_runs
         )
-        avg_p4_prompt_tokens = phase4_runs[0]["prompt_tokens"]
+        avg_p4_prompt_tokens = int(phase4_runs[0]["prompt_tokens"])
         avg_p4_comp_tokens = sum(x["completion_tokens"] for x in phase4_runs) / len(
             phase4_runs
         )
@@ -1259,6 +1259,239 @@ def run_image(url: str, model: str, repeats: int, output_format: str = "text") -
     tprint("=============================================================\n")
 
 
+def run_streamed_completion(
+    url: str, payload: dict, display_label: str, quiet: bool = False
+) -> Tuple[float, float, str, int, int]:
+    """Runs a streamed text completion query (e.g. FIM completions via /v1/completions)."""
+    t0 = time.perf_counter()
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/v1/completions",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    first_token_time = None
+    run_text = []
+    prompt_tokens = 0
+    completion_tokens = 0
+
+    if not quiet:
+        tprint(f"  {display_label} Prefilling... ", end="", flush=True)
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            for line in response:
+                if not line:
+                    continue
+                line_str = line.decode("utf-8").strip()
+                if not line_str.startswith("data: "):
+                    continue
+                if line_str == "data: [DONE]":
+                    break
+
+                try:
+                    chunk = json.loads(line_str[6:])
+                    if "usage" in chunk and chunk["usage"]:
+                        prompt_tokens = chunk["usage"].get("prompt_tokens", 0)
+                        completion_tokens = chunk["usage"].get("completion_tokens", 0)
+
+                    if "choices" in chunk and chunk["choices"]:
+                        text = chunk["choices"][0].get("text", "")
+                        if text:
+                            if first_token_time is None:
+                                first_token_time = time.perf_counter()
+                                if not quiet:
+                                    ttft = first_token_time - t0
+                                    tprint(
+                                        f"Completed in {ttft:.2f}s. Generating... ",
+                                        end="",
+                                        flush=True,
+                                    )
+                            run_text.append(text)
+                except json.JSONDecodeError:
+                    pass
+        t_end = time.perf_counter()
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        if not quiet:
+            tprint()
+        raise RuntimeError(f"HTTP Error {e.code}: {error_body}") from e
+    except Exception as e:
+        if not quiet:
+            tprint()
+        raise RuntimeError(f"Request failed: {e}") from e
+
+    if first_token_time is None:
+        first_token_time = t_end
+
+    ttft = first_token_time - t0
+    total_time = t_end - t0
+    text = "".join(run_text)
+    generation_time = total_time - ttft
+
+    if not quiet:
+        tprint(f"Completed in {generation_time:.2f}s.")
+
+    if prompt_tokens == 0:
+        content_len = len(payload.get("prompt", ""))
+        prompt_tokens = int(content_len / 3.8)
+    if completion_tokens == 0:
+        completion_tokens = int(len(text) / 3.8)
+
+    return ttft, total_time, text, prompt_tokens, completion_tokens
+
+
+def run_llm_completion(
+    url: str,
+    model: str,
+    context_file: str,
+    repeats: int,
+    output_format: str = "text",
+) -> None:
+    """Run completions FIM benchmark using test_fim.py."""
+    if not os.path.exists(context_file):
+        raise FileNotFoundError(f"Context/FIM file not found: {context_file}")
+
+    with open(context_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Find boundaries of functions (e.g. def request(, def get() to construct FIM splits)
+    import re
+
+    matches = list(re.finditer(r"def (\w+)\(", content))
+    test_cases = []
+
+    if len(matches) >= 2:
+        for i, match in enumerate(matches[:-1]):
+            func_name = match.group(1)
+            prefix = content[: match.start()]
+            next_start = matches[i + 1].start()
+            suffix = content[next_start:]
+            test_cases.append((func_name, prefix, suffix))
+    else:
+        # Fallback to percentage-based splitting if fewer than 2 functions found
+        tprint(
+            f"Warning: Only {len(matches)} functions found. Falling back to percentage split."
+        )
+        for pct in [0.25, 0.50, 0.75]:
+            split_idx = int(len(content) * pct)
+            prefix = content[:split_idx]
+            suffix = content[split_idx:]
+            test_cases.append((f"split_{int(pct * 100)}", prefix, suffix))
+
+    tprint("===================================================")
+    tprint("=== PHASE 0: Warmup (Validation FIM Query) ===")
+    tprint("===================================================")
+
+    # Warmup FIM query
+    warmup_payload = {
+        "model": model,
+        "prompt": "<|fim_prefix|>def add(a, b):\n    <|fim_suffix|>\n    return c<|fim_middle|>",
+        "max_tokens": 10,
+        "temperature": 0.0,
+        "stream": True,
+        "stream_options": {"include_usage": True},
+    }
+
+    ttft_p0, total_time_p0, text_p0, prompt_tokens_p0, completion_tokens_p0 = (
+        run_streamed_completion(url, warmup_payload, "[Warmup FIM]", quiet=False)
+    )
+
+    generation_time_p0 = total_time_p0 - ttft_p0
+    prefill_speed_p0 = (prompt_tokens_p0 / ttft_p0) if ttft_p0 > 0 else 0.0
+    generation_speed_p0 = (
+        (completion_tokens_p0 / generation_time_p0) if generation_time_p0 > 0 else 0.0
+    )
+
+    tprint(
+        f"  Warmup FIM: TTFT={ttft_p0 * 1000:.1f}ms, Prefill={prefill_speed_p0:.2f} t/s, Gen={generation_speed_p0:.2f} t/s"
+    )
+    tprint(f"  Warmup Response: {text_p0.strip()}")
+
+    # Phase 2: Completion FIM Loop
+    tprint("\n===================================================")
+    tprint("=== PHASE 2: Completion FIM Loop ===")
+    tprint("===================================================")
+
+    comp_runs = []
+    for r in range(repeats):
+        case = test_cases[r % len(test_cases)]
+        func_name, prefix, suffix = case
+
+        payload = {
+            "model": model,
+            "prompt": f"<|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>",
+            "max_tokens": 100,
+            "temperature": 0.0,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+
+        display_label = f"[Run {r + 1}/{repeats}] (FIM: {func_name})"
+        quiet = r > 0
+
+        ttft, total_time, text, prompt_tokens, completion_tokens = (
+            run_streamed_completion(url, payload, display_label, quiet=quiet)
+        )
+
+        generation_time = total_time - ttft
+        prefill_speed = (prompt_tokens / ttft) if ttft > 0 else 0.0
+        generation_speed = (
+            (completion_tokens / generation_time) if generation_time > 0 else 0.0
+        )
+
+        comp_runs.append(
+            {
+                "ttft": ttft,
+                "generation_time": generation_time,
+                "prefill_speed": prefill_speed,
+                "generation_speed": generation_speed,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+            }
+        )
+
+        if quiet:
+            tprint(
+                f"  [Run {r + 1}/{repeats}] FIM {func_name} Completed: TTFT {ttft * 1000:.1f} ms, Decode {generation_time * 1000:.1f} ms ({generation_speed:.2f} t/s)"
+            )
+
+    # Calculate stats
+    avg_warmup_ttft_ms = ttft_p0 * 1000
+    avg_warmup_gen_speed = generation_speed_p0
+
+    avg_ttft_ms = sum(run["ttft"] for run in comp_runs) / len(comp_runs) * 1000
+    avg_prefill_speed = sum(run["prefill_speed"] for run in comp_runs) / len(comp_runs)
+    avg_gen_speed = sum(run["generation_speed"] for run in comp_runs) / len(comp_runs)
+    avg_decode_time = sum(run["generation_time"] for run in comp_runs) / len(comp_runs)
+
+    if output_format in ("json", "yaml"):
+        result = {
+            "mode": "completion",
+            "comp_warmup_ttft": avg_warmup_ttft_ms,
+            "comp_warmup_gen": avg_warmup_gen_speed,
+            "comp_avg_ttft": avg_ttft_ms,
+            "comp_avg_prefill": avg_prefill_speed,
+            "comp_avg_gen": avg_gen_speed,
+            "comp_avg_decode": avg_decode_time,
+        }
+        print(json.dumps(result, indent=2))
+        return
+
+    tprint("\n=== Completion FIM Benchmark Results (Cumulative Average) ===")
+    tprint(f"Model:             {model}")
+    tprint(f"Repeats:           {repeats}")
+    tprint(f"Warmup TTFT:       {avg_warmup_ttft_ms:.2f} ms")
+    tprint(f"Warmup Gen Speed:  {avg_warmup_gen_speed:.2f} tokens/sec")
+    tprint(f"Avg TTFT:          {avg_ttft_ms:.2f} ms")
+    tprint(f"Avg Prefill Speed: {avg_prefill_speed:.2f} tokens/sec")
+    tprint(f"Avg Gen Speed:     {avg_gen_speed:.2f} tokens/sec")
+    tprint(f"Avg Decode Time:   {avg_decode_time:.2f} s")
+    tprint("=============================================================\n")
+
+
 def main() -> None:
     """Parse args and dispatch benchmark execution."""
     parser = argparse.ArgumentParser(
@@ -1266,7 +1499,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=["chat", "embedding", "rerank", "tts", "stt", "image"],
+        choices=["chat", "embedding", "rerank", "tts", "stt", "image", "completion"],
         required=True,
         help="Benchmark mode to run",
     )
@@ -1391,6 +1624,16 @@ def main() -> None:
         run_image(args.url, args.model, repeats, output_format=args.format)
     elif args.mode == "image":
         run_image(args.url, args.model, repeats, output_format=args.format)
+    elif args.mode == "completion":
+        if not args.context:
+            parser.error("--context is required in completion mode")
+        run_llm_completion(
+            args.url,
+            args.model,
+            args.context,
+            repeats,
+            output_format=args.format,
+        )
 
 
 if __name__ == "__main__":

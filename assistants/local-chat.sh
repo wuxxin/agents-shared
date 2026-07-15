@@ -26,6 +26,7 @@ load_env() {
     local env_lchat_n_gpu_layers="${LCHAT_N_GPU_LAYERS:-}"
     local env_lchat_embedding_enabled="${LCHAT_EMBEDDING_ENABLED:-}"
     local env_lmbd_enabled="${LMBD_ENABLED:-}"
+    local env_lcomp_enabled="${LCOMP_ENABLED:-}"
 
     # Default parameters for server/chat section
     LCHAT_PORT=50080
@@ -57,6 +58,17 @@ load_env() {
     LMBD_CACHE_TYPE_V=q8_0
     # shellcheck disable=SC2034
     LMBD_EXTRA_ARGS="--flash-attn on"
+
+    # Default parameters for completion section
+    LCOMP_ENABLED=true
+    LCOMP_MODEL=/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+    LCOMP_ALIAS=qwen-coder-fim
+    LCOMP_CTX_SIZE=8192
+    LCOMP_PARALLEL=2
+    LCOMP_N_GPU_LAYERS=""
+    LCOMP_THREADS=""
+    LCOMP_CACHE_TYPE_K=q4_0
+    LCOMP_CACHE_TYPE_V=q4_0
 
     # Embedding port mirror
     LMBD_MIRROR_PORT=50082
@@ -90,6 +102,20 @@ load_env() {
         LMBD_ENABLED=false
     else
         LMBD_ENABLED=true
+    fi
+
+    # Resolve completion activation override
+    LCOMP_ENABLED="${env_lcomp_enabled:-${LCOMP_ENABLED}}"
+    if [[ "${LCOMP_ENABLED}" =~ ^(false|0|no|FALSE|NO)$ ]]; then
+        LCOMP_ENABLED=false
+    else
+        LCOMP_ENABLED=true
+    fi
+
+    # Fallback: if LCOMP_ENABLED is true but the model file doesn't exist, turn it off and warn
+    if [[ "${LCOMP_ENABLED}" == "true" && ! -f "${LCOMP_MODEL}" ]]; then
+        echo "Warning: Completion model file not found at ${LCOMP_MODEL}. Disabling code completion." >&2
+        LCOMP_ENABLED=false
     fi
 
     # Compute default portmirror sidecar CMD if not explicitly set by user
@@ -177,7 +203,7 @@ parse_env_args() {
         local key="${update%%=*}"
         local val="${update#*=}"
         export "${key}"="${val}"
-        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^LMBD_ || "$key" =~ ^LCHAT_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
+        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^LMBD_ || "$key" =~ ^LCHAT_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ || "$key" =~ ^LCOMP_ ]]; then
             printf -v "$key" "%s" "$val"
         fi
         SETENV_OPTS+=("--setenv=${key}=${val}")
@@ -328,6 +354,27 @@ EOF
             echo "cache-type-v = ${LMBD_CACHE_TYPE_V}"
         fi
     fi
+
+    if [ "${LCOMP_ENABLED}" = "true" ]; then
+        local c_alias="${LCOMP_ALIAS:-qwen-coder-fim}"
+        local c_ngl="${LCOMP_N_GPU_LAYERS:-${m_ngl}}"
+        local c_threads="${LCOMP_THREADS:-${m_threads}}"
+        cat <<EOF
+
+[${c_alias}]
+model = ${LCOMP_MODEL}
+ctx-size = ${LCOMP_CTX_SIZE}
+parallel = ${LCOMP_PARALLEL}
+ngl = ${c_ngl}
+threads = ${c_threads}
+EOF
+        if [[ -n "${LCOMP_CACHE_TYPE_K:-}" ]]; then
+            echo "cache-type-k = ${LCOMP_CACHE_TYPE_K}"
+        fi
+        if [[ -n "${LCOMP_CACHE_TYPE_V:-}" ]]; then
+            echo "cache-type-v = ${LCOMP_CACHE_TYPE_V}"
+        fi
+    fi
 }
 
 generate_launcher_script() {
@@ -459,9 +506,7 @@ generate_env_file() {
 # Combined Chat and Embedding settings. Sourced by local-chat.sh.
 # Reload with:  local-chat.sh restart
 
-# ==============================================================================
-# SERVER SETTINGS
-# ==============================================================================
+# ### SERVER SETTINGS
 
 # Port to bind the server to (default: 50080)
 LCHAT_PORT=50080
@@ -484,17 +529,8 @@ LCHAT_THREADS=4
 # Number of layers to offload to GPU (all=999, none=0)
 LCHAT_N_GPU_LAYERS=999
 
-# Extra arguments to pass to llama-server (default: "")
 
-# Qwen3.6-35B-A3B
-# --top-k 20: https://qwen.ai/blog?id=qwen3.6-35b-a3b
-#   * Terminal-Bench 2.0: Harbor/Terminus-2 harness; 3h timeout, 32 CPU/48 GB RAM; temp=1.0, top_p=0.95, top_k=20, max_tokens=80K, 256K ctx; avg of 5 runs.
-# --repeat-penalty 1.1: https://www.reddit.com/r/hermesagent/comments/1tk8x46/infinite_loop/
-LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"
-
-# ==============================================================================
-# CHAT / VISION MODEL SETTINGS
-# ==============================================================================
+# ### CHAT / VISION MODEL SETTINGS
 
 # Path to the chat model file
 LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
@@ -521,9 +557,14 @@ LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-
 LCHAT_CACHE_TYPE_K=q4_0
 LCHAT_CACHE_TYPE_V=q4_0
 
-# ==============================================================================
-# TEXT EMBEDDING MODEL SETTINGS
-# ==============================================================================
+# Extra arguments to pass to chat service (default: "--temp 0.6 --top-k 20 --repeat-penalty 1.1")
+# --top-k 20: https://qwen.ai/blog?id=qwen3.6-35b-a3b
+#   * Terminal-Bench 2.0: Harbor/Terminus-2 harness; 3h timeout, 32 CPU/48 GB RAM; temp=1.0, top_p=0.95, top_k=20, max_tokens=80K, 256K ctx; avg of 5 runs.
+# --repeat-penalty 1.1: https://www.reddit.com/r/hermesagent/comments/1tk8x46/infinite_loop/
+LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"
+
+
+# ### TEXT EMBEDDING MODEL SETTINGS
 
 # Whether to enable the text embedding model in this server instance (default: true)
 LMBD_ENABLED=true
@@ -550,18 +591,38 @@ LMBD_CACHE_TYPE_V=q8_0
 # Extra arguments for embedding (optional)
 LMBD_EXTRA_ARGS="--flash-attn on"
 
-# ==============================================================================
-# EMBEDDING PORT MIRROR
-# ==============================================================================
+
+# ### CODE COMPLETION FIM SETTINGS
+
+# Whether to enable completions model in this server instance (default: true)
+LCOMP_ENABLED=true
+
+# Path to the completions model file
+LCOMP_MODEL=/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+
+# Model alias used by client integrations (default: qwen-coder-fim)
+LCOMP_ALIAS=qwen-coder-fim
+
+# Context size (default: 8192)
+LCOMP_CTX_SIZE=8192
+
+# Parallel request slots (default: 2)
+LCOMP_PARALLEL=2
+
+# KV cache type (default: q4_0 for completions)
+LCOMP_CACHE_TYPE_K=q4_0
+LCOMP_CACHE_TYPE_V=q4_0
+
+
+# ### EMBEDDING PORT MIRROR
 
 # Port to mirror embedding API on (default: 50082, matching standalone local-embedding)
 # When LMBD_ENABLED=true, the portmirror sidecar forwards this port → LCHAT_PORT
 # When LMBD_ENABLED=false, the portmirror sidecar sleeps (port unused)
 LMBD_MIRROR_PORT=50082
 
-# ==============================================================================
-# SIDECARS CONFIGURATION
-# ==============================================================================
+
+# ### SIDECARS CONFIGURATION
 
 # Space or semicolon separated list of sidecar names (default: "portmirror")
 # Each sidecar runs as a background process alongside llama-server.
@@ -847,6 +908,7 @@ cmd_test() {
     local skip_all_chat=false
     local skip_image=false
     local skip_embedding=false
+    local skip_completion=false
     local repeat=""
     local extra_args=()
     while [ $# -gt 0 ]; do
@@ -857,6 +919,7 @@ cmd_test() {
         --skip-chat | --skip-all-chat) skip_all_chat=true ;;
         --skip-image) skip_image=true ;;
         --skip-embedding) skip_embedding=true ;;
+        --skip-completion) skip_completion=true ;;
         --repeat)
             shift
             repeat="$1"
@@ -934,6 +997,32 @@ cmd_test() {
                 "${repeat_arg[@]}" \
                 "${extra_args[@]}"
         fi
+
+        # 3. Run completion benchmark if enabled and not skipped
+        if [ "${LCOMP_ENABLED}" = "true" ] && [ "$skip_completion" = "false" ]; then
+            local c_alias="${LCOMP_ALIAS:-qwen-coder-fim}"
+            local comp_file
+            comp_file="/data/public/machine-learning/models/completion/test_fim.py"
+            if [[ ! -f "$comp_file" ]]; then
+                comp_file="$(dirname "$(dirname "$LCHAT_MODEL")")/completion/test_fim.py"
+            fi
+            if [[ ! -f "$comp_file" ]]; then
+                comp_file="/tmp/test_fim.py"
+            fi
+            if [[ ! -f "$comp_file" ]]; then
+                echo "test_fim.py not found. Downloading it..."
+                curl -L -s -f -o "$comp_file" "https://raw.githubusercontent.com/psf/requests/main/src/requests/api.py" || true
+            fi
+
+            echo "=== Running Completion Benchmark ==="
+            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+                --mode completion \
+                --url "${base_url}" \
+                --model "${c_alias}" \
+                --context "${comp_file}" \
+                "${repeat_arg[@]}" \
+                "${extra_args[@]}"
+        fi
         return 0
     fi
 
@@ -975,6 +1064,27 @@ cmd_test() {
             return 1
         fi
         echo "Text embedding: Success."
+    fi
+
+    if [ "${LCOMP_ENABLED}" = "true" ] && [ "$skip_completion" = "false" ]; then
+        local c_alias="${LCOMP_ALIAS:-qwen-coder-fim}"
+        echo "=== Testing Code Completion (FIM) ==="
+        local comp_resp
+        comp_resp=$(curl -s -f -X POST "${base_url}/v1/completions" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"${c_alias}\",
+              \"prompt\": \"<|fim_prefix|>def add(a, b):\n    <|fim_suffix|>\n    return c<|fim_middle|>\",
+              \"max_tokens\": 10,
+              \"temperature\": 0.0
+            }")
+
+        echo "${comp_resp}"
+        if ! echo "${comp_resp}" | grep -q "choices"; then
+            echo "Error: Code completion FIM test failed." >&2
+            return 1
+        fi
+        echo "Code completion FIM: Success."
     fi
 }
 

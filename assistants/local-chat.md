@@ -11,38 +11,37 @@ When combined embedding mode is enabled, a **port mirror sidecar** automatically
 
 ## Usage
 
-```bash
-# Install the service and environment configuration
-./local-chat.sh install [--no-start] [--new-config]
+Install the service and environment configuration:
+  - `./local-chat.sh install [--no-start] [--new-config]`
 
-# Start/Stop/Restart the service
-./local-chat.sh start
-./local-chat.sh stop
-./local-chat.sh restart
-./local-chat.sh enable
-./local-chat.sh disable
+Start/Stop/Restart/Enable/Disable the Service:
+  - `./local-chat.sh start`
+  - `./local-chat.sh stop`
+  - `./local-chat.sh restart`
+  - `./local-chat.sh enable`
+  - `./local-chat.sh disable`
 
-# Check runtime status
-./local-chat.sh status
+Check runtime status:
+  - `./local-chat.sh status'
 
-# Tail service stdout/stderr logs
-./local-chat.sh logs -f
+Tail service stdout/stderr logs:
+  - `./local-chat.sh logs -f`
 
-# Edit service environment configuration and auto-restart
-./local-chat.sh edit
+Edit service environment configuration and auto-restart:
+  - `./local-chat.sh edit`
 
-# Run API validation tests
-./local-chat.sh test
+Run API validation tests:
+  - `./local-chat.sh test`
 
-# Run llama-server as a transient systemd user service
-./local-chat.sh exec [--env KEY=VALUE]* [-- llama-server-args...]
+Run llama-server as a transient systemd user service:
+  - `./local-chat.sh exec [--env KEY=VALUE]* [-- llama-server-args...]`
 
-# Run a custom command inside the sandboxed environment
-./local-chat.sh run [--env KEY=VALUE]* <command> [args...]
+Run a custom command inside the sandboxed environment:
+  - `./local-chat.sh run [--env KEY=VALUE]* <command> [args...]`
 
-# Spawn an interactive shell inside the sandboxed environment
-./local-chat.sh shell [--env KEY=VALUE]*
-```
+Spawn an interactive shell inside the sandboxed environment:
+  - `./local-chat.sh shell [--env KEY=VALUE]*`
+
 
 ### In-Memory Environment Overrides
 
@@ -59,9 +58,38 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Default Models
 
-### Default LLM
+### Default LLM Model
 
 The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model.
+
+#### Service Configuration Defaults
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `80128` per slot |
+| `LCHAT_PARALLEL` | `3` | Concurrent chat slots |
+| `LCHAT_EXTRA_ARGS` | `--temp 0.6 --top-k 20 --repeat-penalty 1.1` | agentic workload tuning |
+| `LCHAT_SPECULATIVE` | `--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4` | speculative decoding config| 
+
+#### Architecture (Qwen3.6-35B-A3B)
+
+| Attribute                  | Value |
+|----------------------------|-------|
+| **Architecture Type**      | Sparse Mixture-of-Experts (MoE) with Hybrid Attention |
+| **Transformer Layers**     | 40 |
+| **Attention Layout**       | Alternating Gated DeltaNet (linear) & Gated Attention |
+| **Total Parameters**       | 35 Billion |
+| **Active Parameters**      | ~3 Billion per token |
+| **Expert Count**           | 256 experts (8 routed + 1 shared active per token) |
+| **Expert Intermediate Dim**| 512 |
+| **Hidden Dimension**       | 2048 |
+| **Native Max Context**     | 262,144 tokens (extensible to 1,000,000 via YaRN) |
+| **Multimodal Inputs**      | Text, Image, Video |
+
+GGUF File (APEX-I-Compact):
+- **File:** `Qwen3.6-35B-A3B-APEX-I-Compact.gguf`
+- **File Size:** ~17 GiB on disk
+- **Quantization:** APEX-I-Compact — specialized Mixture-of-Experts adaptive quantization using importance matrix calibration.
 
 Key specifications and limits:
 - **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**.
@@ -77,7 +105,7 @@ Key specifications and limits:
 
 The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning.
 
-- **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](file:///data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
+- **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
 - **Thinking Mode Control**:
   - By default, `enable_thinking` is `true`. The template pre-fills `<think>\n` at the start of the assistant response, encouraging the model to perform reasoning.
   - When thinking is disabled (e.g. `enable_thinking = false` via template arguments or if `<|think_off|>` is detected in prompt content), the template pre-fills `<think>\n\n</think>\n\n`, immediately closing the reasoning block and forcing the model to generate the direct answer.
@@ -85,9 +113,51 @@ The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-th
   - In **ZeroClaw**, configuring `reasoning_enabled = true` / `reasoning_effort = "low"` maps to these parameters.
   - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
 
+### Default Completions Model
+
+When completions mode is enabled (default via `LCOMP_ENABLED=true`), the service also hosts the code completion model **`Qwen2.5-Coder-1.5B-Instruct`** with alias `qwen-coder-fim` on the same server instance.
+
+#### Service Configuration Defaults
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `LCOMP_ENABLED` | `true` | Set to false to disable completions |
+| `LCOMP_CTX_SIZE` | `8192` | Max context length for completion slot |
+| `LCOMP_PARALLEL` | `2` | Concurrent completion slots |
+| `LCOMP_CACHE_TYPE_K` | `q4_0` | Key cache format |
+| `LCOMP_CACHE_TYPE_V` | `q4_0` | Value cache format |
+
+#### Architecture (Qwen2.5-Coder-1.5B)
+
+| Attribute                  | Value |
+|----------------------------|-------|
+| **Parameters**             | 1.54B (Non-Embedding: 1.31B) |
+| **Transformer Layers**     | 28 |
+| **Hidden Size**            | 1536 |
+| **Attention Mechanism**    | Grouped Query Attention (GQA) |
+| **Attention Heads**        | 12 Query heads, 2 Key-Value heads |
+| **Native Max Context**     | 32,768 tokens |
+| **Activation Function**    | SwiGLU |
+| **Layer Normalization**    | RMSNorm |
+| **Tied Word Embeddings**   | Yes |
+
+GGUF File (Q4_K_M):
+- **File:** `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`
+- **File Size:** ~1.0 GiB on disk
+- **Quantization:** Q4_K_M — 4-bit quantization optimized for code generation speed
+
+
 ### Default Embedding Model
 
 When combined mode is enabled (default via `LMBD_ENABLED=true`), the service also hosts the text embedding model **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF format on the same server instance.
+
+#### Service Configuration Defaults
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `LMBD_N_CTX` | `4096` | Max context length per parallel slot |
+| `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
+| `LMBD_UBATCH_SIZE` | `512` | Max hardware batch size |
 
 #### Architecture (Qwen3-Embedding-0.6B)
 
@@ -104,32 +174,23 @@ When combined mode is enabled (default via `LMBD_ENABLED=true`), the service als
 | **Pooling (service)**      | `mean` (configured via `--pooling mean`) |
 | **Multilingual**           | 100+ languages, 100+ programming languages |
 | **Base Model**             | `Qwen/Qwen3-0.6B-Base` |
-| **License**                | Apache-2.0 |
 | **Paper**                  | [arXiv:2506.05176](https://arxiv.org/abs/2506.05176) |
 
 > **MRL** (Matryoshka Representation Learning) allows truncating the output embedding to any dimension from 32 to 1024, enabling smaller index sizes at a small accuracy cost. The full 1024-dimensional output is used by default.
 
-#### GGUF File (Q8_0)
-
-- **File:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
+GGUF File (Q8_0):
+- **File:** `Qwen3-Embedding-0.6B-Q8_0.gguf`
 - **File Size:** ~568 MiB on disk
 - **Quantization:** Q8_0 — 8-bit integer weights, minimal quality loss vs. F16
 
-#### Service Configuration Defaults (Embedding Section)
 
-| Parameter | Default | Notes |
-|-----------|---------|-------|
-| `LMBD_N_CTX` | `4096` | Max context length per parallel slot |
-| `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
-| `LMBD_UBATCH_SIZE` | `512` | Max hardware batch size |
-
-## Service Configuration & Ports
+## Service Ports
 
 - **Default Port**: `50080` (HTTP) — primary chat and embedding API
 - **Default Mirror Port**: `50082` (HTTP) — embedding-only port mirror (via socat sidecar)
 - **Default Host**: `127.0.0.1`
 
-### Service Endpoints (Port `50080`)
+### Service Endpoints 
 
 - **`POST /v1/chat/completions`**: OpenAI-compatible chat completion endpoint (routed to the chat LLM).
 - **`POST /v1/completions`**: OpenAI-compatible text completion endpoint.
@@ -286,7 +347,26 @@ LCHAT_SPECULATIVE_ARGS=""
 For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](local-memory-map.md).
 
 
-## Verification & Manual Testing
+## Completions service Integration
+
+### Zed Editor Integration
+
+To configure Zed editor to use the local completions service for inline edit predictions, add the following configuration block to your Zed `settings.json` file:
+
+```json
+{
+  "edit_predictions": {
+    "provider": "open_ai_compatible_api",
+    "open_ai_compatible_api": {
+      "api_url": "http://127.0.0.1:50080/v1",
+      "model": "qwen-coder-fim",
+      "prompt_format": "qwen"
+    }
+  }
+}
+```
+
+## Verification and Testing
 
 You can test that the service is running and behaving correctly by running the validation command:
 
@@ -296,27 +376,25 @@ You can test that the service is running and behaving correctly by running the v
 
 ### Benchmarking Mode
 
-To benchmark prefill and decoding latency and throughput using `benchmark-context.md`, run:
+To benchmark prefill and decoding latency and throughput using benchmark data, run:
 
-```bash
-# Run both Chat and Embedding benchmarks (sequentially, if embedding is enabled)
-./local-chat.sh test --benchmark
+Run Chat, Embedding, and Completions benchmarks (sequentially, if enabled):
+ - `./local-chat.sh test --benchmark`
 
-# Skip the Chat benchmark, running only the Embedding benchmark
-./local-chat.sh test --benchmark --skip-all-chat
+Run only the Completions benchmark (skipping others)
+ - `./local-chat.sh test --benchmark --skip-all-chat --skip-embedding`
 
-# Skip the Embedding benchmark, running only the Chat benchmark
-./local-chat.sh test --benchmark --skip-embedding
+Skip the Completions benchmark, running Chat and Embedding
+ - `./local-chat.sh test --benchmark --skip-completion`
 
-# Skip Phase 1 (Sequential Prefill) of the Chat benchmark
-./local-chat.sh test --benchmark --skip-prefill
+Skip Phase 1 (Sequential Prefill) of the Chat benchmark
+ - `./local-chat.sh test --benchmark --skip-prefill`
 
-# Skip Phase 3 (Prefix Caching & Distractor Tests) of the Chat benchmark
-./local-chat.sh test --benchmark --skip-distractor
+Skip Phase 3 (Prefix Caching & Distractor Tests) of the Chat benchmark
+ - `./local-chat.sh test --benchmark --skip-distractor`
 
-# Specify the number of runs to compute cumulative average over (e.g. 5 runs)
-./local-chat.sh test --benchmark --repeat 5
-```
+Specify the number of runs to compute cumulative average over (e.g. 5 runs)
+ - `./local-chat.sh test --benchmark --repeat 5`
 
 The chat completion benchmark evaluates prefill speed, generation speed, and Key-Value (KV) cache retrieval latency using a truncated ~30k token context (~115k characters) from `benchmark-context.md`. The benchmark runs in 4 distinct phases:
 
@@ -343,16 +421,3 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
 > [!NOTE]
 > If `--repeat` is omitted, the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs.
 
-Alternatively, you can test it manually using `curl`:
-
-### Chat Completion Test
-```bash
-curl -s -X POST http://localhost:50080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3",
-    "messages": [
-      {"role": "user", "content": "Hello, respond with exactly: Hello World!"}
-    ]
-  }'
-```
