@@ -67,7 +67,9 @@ Key specifications:
 
 ### Service Endpoints (Port `50086`)
 
-- **`POST /v1/rerank`**: OpenAI/Cohere-compatible reranking endpoint (returns relevance scores for query-document pairs).
+Cohere-compatible /rerank endpoint (Azure AI Foundry, Jina, Voyage, etc.)
+
+- **`POST /v1/rerank`**: Cohere-compatible reranking endpoint (returns relevance scores for query-document pairs).
 - **`POST /tokenize`**: Converts input text into model-specific integer token IDs.
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /health`**: Returns JSON details regarding slots, queue metrics, and service health.
