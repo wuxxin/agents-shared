@@ -44,6 +44,7 @@ LROUT_DEFAULT_MODEL="qwen3"
 | Endpoint | Target URL | Service | Model |  Port | Description |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3 | 50080 | LLM completions |
+| `POST /v1/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen-coder-fim | 50080 | FIM code completion |
 | `POST /v1/embeddings` | Dynamic (based on `LMBD_ENABLED`) | Local-Embedding | qwen3-embedding | 50082 / 50080 | Embeddings |
 | `POST /v1/rerank` or `/rerank` | `http://{LRR_HOST}:{LRR_PORT}` | Local-Rerank | qwen3-reranker | 50086 | Text document ranking |
 | `POST /v1/audio/transcriptions` | `http://{LSTT_HOST}:{LSTT_PORT}` | Local-Speech-To-Text | whisper-1 | 50090 | Whisper transcription |
@@ -86,6 +87,7 @@ The pricing values are modeled based on corresponding commercial standards:
 | Service | Configured Model / Alias | Pricing Reference | Prompt (per token) | Completion (per token) | Cache Read (per token) | Cache Write (per token) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `chat` | `qwen3` | Gemini 3.5 Flash | `$0.00000150` | `$0.00000900` | `$0.00000015` | `$0.00000150` |
+| `chat` | `qwen-coder-fim` | Gemini 3.5 Flash | `$0.00000150` | `$0.00000900` | `$0.00000015` | `$0.00000150` |
 | `embedding` | `qwen3-embedding` | Gemini Embedding 001 | `$0.00000015` | `$0.00000000` | `$0.00000000` | `$0.00000000` |
 | `rerank` | `qwen3-reranker` | Jina/Gemini Embedding | `$0.00000015` | `$0.00000000` | `$0.00000000` | `$0.00000000` |
 | `image` | `z-image-turbo` | Gemini 3.1 Flash Image | `$0.00000050` | `$0.00006000` | `$0.00000000` | `$0.00000000` |
