@@ -1,6 +1,8 @@
 # Generalized Sandbox & systemd Transient Launcher
 
-`sandbox-ctl` is a flexible, generalized wrapper for running any command-line or graphical binary inside a hardened container or namespace sandbox on Linux. By default, it runs the application inside a native **systemd user transient service (`systemd-run`)** for cgroups confinement, resource limiting, and systemd security controls. If systemd is not reachable or if configured to do so, it falls back to a **Bubblewrap (`bwrap`)** sandbox.
+`sandbox-ctl` is a flexible, generalized wrapper for running any command-line or graphical binary inside a hardened container or namespace sandbox on Linux. 
+
+By default, it runs the application inside a native **systemd user transient service (`systemd-run`)** for cgroups confinement, resource limiting, and systemd security controls. If systemd is not reachable or if configured to do so, it falls back to a **Bubblewrap (`bwrap`)** sandbox.
 
 ---
 
@@ -26,7 +28,7 @@ The launcher supports two distinct calling modes:
 When executed directly as `sandbox-ctl` you must specify the subcommand and the target application. This is the mode used to install, uninstall, destroy, configure, or run shell/custom commands:
 
 ```bash
-# Setup sandbox and symlink for opencode
+# Setup sandbox, service files, and symlink for opencode
 sandbox-ctl install opencode
 
 # Run opencode inside the sandbox
@@ -38,8 +40,20 @@ sandbox-ctl shell opencode
 # Execute a custom command in the opencode sandbox
 sandbox-ctl run opencode ls -la
 
-# Open the .env configuration file for opencode
-sandbox-ctl env opencode
+# Open the environment configuration file for opencode
+sandbox-ctl edit opencode
+
+# Display environment config, bubblewrap / systemd-run representations, and service file
+sandbox-ctl analyse opencode
+
+# Service Control Commands:
+sandbox-ctl start opencode
+sandbox-ctl stop opencode
+sandbox-ctl restart opencode
+sandbox-ctl status opencode
+sandbox-ctl enable opencode
+sandbox-ctl disable opencode
+sandbox-ctl logs opencode
 
 # Delete the persistent data/directories for opencode
 sandbox-ctl destroy opencode
@@ -59,41 +73,46 @@ When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox
 
 The launcher provides several commands to manage your sandbox configurations:
 
-### `install [--no-git-config] [--new-config]`
+### `install [--no-git-config] [--new-config] [--no-start]`
 
 Sets up:
 - the persistent sandbox home directory (`~/.local/sandbox/<app_name>`)
 - the workspace (`~/agent-private/<app_name>`)
-- creates the `.env` configuration file, establishes the symlink in `~/.local/bin/<app_name>`, and creates desktop files if `LAUNCHER_GUI=true` is configured.
+- creates the `.env` configuration file, establishes the symlink in `~/.local/bin/<app_name>`, generates the systemd user service unit file, and creates desktop files if `LAUNCHER_GUI=true` is configured.
 - by default, it copies your host's `~/.gitconfig` into the sandbox home to preserve your Git identity.
     - Use `--no-git-config` to skip copying the Git configuration.
 - Use `--new-config` to force overwrite the environment configuration file with defaults.
+- Use `--no-start` to register files without automatically enabling/starting the service (if `LAUNCHER_SERVICE_ENABLED=true` is configured).
 
 ### `uninstall`
 
-Removes the launcher symlink `~/.local/bin/<app_name>` and any desktop entries. Persistent data directories are preserved.
+Stops, disables, and removes the systemd user service file. It also removes the launcher symlink `~/.local/bin/<app_name>` and any desktop entries. Persistent data directories and the environment configuration file are preserved.
 
 ### `destroy`
 
 Permanently deletes the persistent sandbox home directory (`~/.local/sandbox/<app_name>`).
 - **Safety**: The workspace directory (`~/agent-private/<app_name>`) is **never** touched or deleted by this command.
 
-### `env`
+### `edit`
 
-Opens the environment configuration file `~/.local/sandbox/<app_name>.env` in the editor specified by your `$EDITOR` environment variable (defaults to `nano` if unset).
+Opens the environment configuration file `~/.config/systemd/user/<app_name>.env` in the editor specified by your `$EDITOR` environment variable (defaults to `nano` if unset). If systemd is running and the service is active, restarts the service upon editor exit to apply the updated environment.
+
+### `analyse`
+
+Displays the environment configuration file content, the bubblewrap CLI arguments representation, the systemd-run CLI arguments representation, and the generated systemd service file (if it exists) to help inspect and debug containment parameters.
 
 ---
 
 ## Configuration (`.env` file)
 
 Each application's environment configuration file is stored on the host at:
-`~/.local/sandbox/<app_name>.env`
+`~/.config/systemd/user/<app_name>.env`
 
-Sourcing this file automatically loads and exports variables into the sandbox.
+Sourcing this file automatically loads and exports variables into the sandbox. Note: For backward compatibility, installing or running a command automatically migrates any legacy environment files from `~/.local/sandbox/<app_name>.env` to the new path.
 
 ### Detailed Configuration Option Documentation
 
-These variables can be defined in the application's environment configuration file on the host (`~/.local/sandbox/<app_name>.env`):
+These variables can be defined in the application's environment configuration file on the host (`~/.config/systemd/user/<app_name>.env`):
 
 - **`LAUNCHER_ENGINE`** (Default: `"auto"`)
   Configures the execution engine. Can be set to `auto` (detect systemd and fallback to bwrap), `systemd` (force systemd scope transient service execution), or `bwrap` (force bubblewrap container execution). Use `bwrap` if you need strict namespace isolation bypassing systemd, or `systemd` to force cgroups containment.
@@ -160,3 +179,24 @@ These variables can be defined in the application's environment configuration fi
 
 - **`LAUNCHER_INIT_DEFAULT_PROJECT`** (Default: `"false"`)
   Automates repository initialization. Set to `"true"` to run `git init` on the default project workspace on install.
+
+- **`LAUNCHER_SERVICE_ENABLED`** (Default: `"false"`)
+  Enables the systemd user service. If `"true"`, the service will be enabled and started on installation or configuration updates.
+
+- **`LAUNCHER_SERVICE_CMD`** (Default: `"sleep"`)
+  The main command/binary to run in the background as the primary service.
+
+- **`LAUNCHER_SERVICE_ARGS`** (Default: `"10"`)
+  The arguments passed to the primary service command.
+
+- **`LAUNCHER_SIDECARS`** (Default: `"sleep"`)
+  A space- or semicolon-separated list of background sidecar processes to monitor and execute with the main service.
+
+- **`LAUNCHER_SIDECAR_<NAME>_CMD`**
+  The command or path to the sidecar executable (e.g. `LAUNCHER_SIDECAR_SLEEP_CMD="sleep"`).
+
+- **`LAUNCHER_SIDECAR_<NAME>_ARGS`**
+  The arguments to pass to the sidecar command (e.g. `LAUNCHER_SIDECAR_SLEEP_ARGS="10"`).
+
+- **`LAUNCHER_EXPORTS`** (Default: `()`)
+  A bash array containing key-value environment variable exports (e.g., `'KEY=VALUE'`) to be injected into the sandbox for all execution modes (service, run, exec, shell).

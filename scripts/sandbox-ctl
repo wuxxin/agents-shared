@@ -6,9 +6,93 @@ set -euo pipefail
 # Constants
 LAUNCHER_NAME="sandbox-ctl"
 
+# Default Configuration Constants
+DEFAULT_LAUNCHER_ENGINE="auto"
+DEFAULT_DISABLE_XDG_RUNTIME="false"
+DEFAULT_DISABLE_SSH_AUTH="false"
+DEFAULT_DISABLE_WAYLAND="false"
+DEFAULT_DISABLE_AUDIO="false"
+DEFAULT_DISABLE_DBUS="false"
+DEFAULT_DISABLE_HARDWARE="false"
+DEFAULT_DISABLE_IPC_SHARE="true"
+DEFAULT_DISABLE_PID_SHARE="true"
+DEFAULT_LAUNCHER_PRIVATE_BASEPATH="%h/agent-private"
+DEFAULT_LAUNCHER_PRIVATE_MOUNTS=""
+DEFAULT_LAUNCHER_SANDBOX_MOUNTS=""
+DEFAULT_LAUNCHER_EXTRA_MOUNTS="%h/agent-shared:agent-shared /data/download:download"
+DEFAULT_LAUNCHER_GUI="false"
+DEFAULT_LAUNCHER_GUI_NAME=""
+DEFAULT_LAUNCHER_GUI_COMMENT="Sandboxed app"
+DEFAULT_LAUNCHER_GUI_ICON=""
+DEFAULT_LAUNCHER_GUI_CATEGORIES="Utility;"
+DEFAULT_LAUNCHER_GUI_TERMINAL="false"
+DEFAULT_LAUNCHER_APP_FLAGS=""
+DEFAULT_LAUNCHER_DEFAULT_ARGS=""
+DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT="false"
+
+# Service & Sidecar Default Constants
+DEFAULT_LAUNCHER_SERVICE_ENABLED="false"
+DEFAULT_LAUNCHER_SERVICE_CMD="sleep"
+DEFAULT_LAUNCHER_SERVICE_ARGS="10"
+DEFAULT_LAUNCHER_SIDECARS="sleep"
+DEFAULT_LAUNCHER_SIDECAR_SLEEP_CMD="sleep"
+DEFAULT_LAUNCHER_SIDECAR_SLEEP_ARGS="10"
+
+# Global environment variable exports (array of KEY=VALUE strings)
+declare -g -a LAUNCHER_EXPORTS=()
+
 # Helper: Check if systemd user manager is reachable
 is_systemd_running() {
     [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]
+}
+
+resolve_path() {
+    local val="$1"
+    val="${val//%h/"$HOME"}"
+    val="${val//\$HOME/"$HOME"}"
+    if [[ "$val" =~ ^~ ]]; then
+        val="${val/#\~/"$HOME"}"
+    fi
+    echo "$val"
+}
+
+sanitize_var_name() {
+    local val="$1"
+    val="${val//-/_}"
+    val="${val//./_}"
+    val="${val^^}"
+    echo "$val"
+}
+
+init_app_vars() {
+    local name="$1"
+    app_name="$name"
+    persistent_home="$HOME/.local/sandbox/$app_name"
+    SERVICE_NAME="${app_name}"
+    env_file="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.env"
+    SERVICE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SERVICE_NAME}.service"
+
+    # Migrate old env file if it exists and new one does not
+    local old_env_file="$HOME/.local/sandbox/$app_name.env"
+    if [[ ! -f "$env_file" && -f "$old_env_file" ]]; then
+        mkdir -p "$(dirname "$env_file")"
+        mv "$old_env_file" "$env_file"
+        echo "Migrated environment file from $old_env_file to $env_file" >&2
+    fi
+
+    # Source env file if it exists
+    if [[ -f "$env_file" ]]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+        set -u
+    fi
+
+    # Apply defaults using constants
+    LAUNCHER_PRIVATE_BASEPATH=$(resolve_path "${LAUNCHER_PRIVATE_BASEPATH:-$DEFAULT_LAUNCHER_PRIVATE_BASEPATH}")
+    work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
 }
 
 # Determine Calling Mode & App Name
@@ -26,20 +110,8 @@ else
     app_name="$cmd_name"
 fi
 
-# Load env file if app_name is known
 if [[ -n "${app_name:-}" ]]; then
-    persistent_home="$HOME/.local/sandbox/$app_name"
-    env_file="$HOME/.local/sandbox/$app_name.env"
-    if [[ -f "$env_file" ]]; then
-        set +u
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-        set -u
-    fi
-    LAUNCHER_PRIVATE_BASEPATH="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
-    work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
+    init_app_vars "$app_name"
 fi
 
 # Helper: Display launcher help information
@@ -50,19 +122,23 @@ Sandbox Launcher Help
 Usage when called directly ($LAUNCHER_NAME):
 
 $0 install <app_name> [opts]
-    - Setup sandbox and create symlink in ~/.local/bin
+    - Setup sandbox, service files, and symlink in ~/.local/bin
     - Options:
         --no-git-config (skip copying .gitconfig)
         --new-config (overwrite environment file)
+        --no-start (setup files without starting service)
 
 $0 uninstall <app_name>
-    - Remove symlink and desktop files (preserves data)
+    - Remove symlinks, desktop, and systemd service files (preserves data)
 
 $0 destroy <app_name>
     - Delete persistent sandbox home and env file
 
-$0 env <app_name>
+$0 edit <app_name>
     - Edit environment configuration file for app
+
+$0 analyse <app_name>
+    - Display env file content, bwrap args, systemd-run args, and service file
 
 $0 exec <app_name> [args...]
     - Run the sandboxed application with optional args
@@ -73,9 +149,19 @@ $0 run <app_name> <cmd> [args...]
 $0 shell <app_name>
     - Spawn an interactive shell inside the sandbox
 
+Service Control Commands:
+$0 start <app_name>     - Start the systemd user service
+$0 stop <app_name>      - Stop the systemd user service
+$0 restart <app_name>   - Restart the systemd user service
+$0 status <app_name>    - Show status of the systemd user service
+$0 enable <app_name>    - Enable systemd user service on boot
+$0 disable <app_name>   - Disable systemd user service on boot
+$0 logs <app_name>      - Tail systemd user service logs
+
 Usage when called as a symlink (e.g. <app_name>):
   $0 [args...]                 - Run the sandboxed <app_name> with all arguments
                                  passed transparently to the original binary
+
 EOF
 }
 
@@ -117,18 +203,21 @@ build_sandbox_config() {
     local target_cwd="${2:-$persistent_home}"
 
     # Extract values from environment with defaults
-    local disable_ipc_share="${DISABLE_IPC_SHARE:-true}"
-    local disable_pid_share="${DISABLE_PID_SHARE:-true}"
-    local disable_hardware="${DISABLE_HARDWARE:-false}"
-    local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
-    local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-}"
-    local launcher_sandbox_mounts="${LAUNCHER_SANDBOX_MOUNTS:-}"
-    local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$HOME/agent-shared:agent-shared /data/download:download}"
-    local disable_xdg_runtime="${DISABLE_XDG_RUNTIME:-false}"
-    local disable_ssh_auth="${DISABLE_SSH_AUTH:-false}"
-    local disable_wayland="${DISABLE_WAYLAND:-false}"
-    local disable_audio="${DISABLE_AUDIO:-false}"
-    local disable_dbus="${DISABLE_DBUS:-false}"
+    local disable_ipc_share="${DISABLE_IPC_SHARE:-$DEFAULT_DISABLE_IPC_SHARE}"
+    local disable_pid_share="${DISABLE_PID_SHARE:-$DEFAULT_DISABLE_PID_SHARE}"
+    local disable_hardware="${DISABLE_HARDWARE:-$DEFAULT_DISABLE_HARDWARE}"
+    local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-}"
+    if [[ -z "$launcher_private_basepath" ]]; then
+        launcher_private_basepath=$(resolve_path "$DEFAULT_LAUNCHER_PRIVATE_BASEPATH")
+    fi
+    local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-$DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
+    local launcher_sandbox_mounts="${LAUNCHER_SANDBOX_MOUNTS:-$DEFAULT_LAUNCHER_SANDBOX_MOUNTS}"
+    local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$DEFAULT_LAUNCHER_EXTRA_MOUNTS}"
+    local disable_xdg_runtime="${DISABLE_XDG_RUNTIME:-$DEFAULT_DISABLE_XDG_RUNTIME}"
+    local disable_ssh_auth="${DISABLE_SSH_AUTH:-$DEFAULT_DISABLE_SSH_AUTH}"
+    local disable_wayland="${DISABLE_WAYLAND:-$DEFAULT_DISABLE_WAYLAND}"
+    local disable_audio="${DISABLE_AUDIO:-$DEFAULT_DISABLE_AUDIO}"
+    local disable_dbus="${DISABLE_DBUS:-$DEFAULT_DISABLE_DBUS}"
 
     # Determine DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR, SSH_AUTH_SOCK
     local display="${DISPLAY:-}"
@@ -149,6 +238,15 @@ build_sandbox_config() {
         echo "BindPaths=$persistent_home:$persistent_home"
         echo "WorkingDirectory=$target_cwd"
         echo "Environment=HOME=$persistent_home"
+
+        # LAUNCHER_EXPORTS
+        if [[ ${#LAUNCHER_EXPORTS[@]} -gt 0 ]]; then
+            for exp in "${LAUNCHER_EXPORTS[@]}"; do
+                if [[ -n "$exp" ]]; then
+                    echo "Environment=$exp"
+                fi
+            done
+        fi
 
         # Workspace bind
         echo "BindPaths=$work_dir:$work_dir"
@@ -319,6 +417,19 @@ build_sandbox_config() {
         echo "--setenv"
         echo "HOME"
         echo "$persistent_home"
+
+        # LAUNCHER_EXPORTS
+        if [[ ${#LAUNCHER_EXPORTS[@]} -gt 0 ]]; then
+            for exp in "${LAUNCHER_EXPORTS[@]}"; do
+                if [[ -n "$exp" ]]; then
+                    local key="${exp%%=*}"
+                    local val="${exp#*=}"
+                    echo "--setenv"
+                    echo "$key"
+                    echo "$val"
+                fi
+            done
+        fi
 
         # Host device sharing / isolation
         if [[ "$disable_hardware" == "true" || "$disable_hardware" == "1" ]]; then
@@ -553,7 +664,7 @@ run_sandbox() {
 
     # 3. Check extra mounts
     if [[ "$is_mounted" == "false" ]]; then
-        local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$HOME/agent-shared:agent-shared /data/download:download}"
+        local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$DEFAULT_LAUNCHER_EXTRA_MOUNTS}"
         for m in $launcher_extra_mounts; do
             if [[ -n "$m" ]]; then
                 local host_path="${m%%:*}"
@@ -589,8 +700,11 @@ run_sandbox() {
 
     # 4. Check private mounts
     if [[ "$is_mounted" == "false" ]]; then
-        local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-}"
-        local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
+        local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-$DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
+        local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-}"
+        if [[ -z "$launcher_private_basepath" ]]; then
+            launcher_private_basepath=$(resolve_path "$DEFAULT_LAUNCHER_PRIVATE_BASEPATH")
+        fi
         for m in $launcher_private_mounts; do
             if [[ -n "$m" ]]; then
                 local mount_path="$launcher_private_basepath/$m"
@@ -678,7 +792,7 @@ run_sandbox() {
                 systemd_opts+=(-p "$prop")
             fi
         done < <(build_sandbox_config systemd "$target_cwd")
-        echo "Executing sandbox using systemd-run: ${cmd_args[@]}"
+        echo "Executing sandbox using systemd-run: ${cmd_args[*]}"
         exec systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
     else
         # 2. Run via bubblewrap
@@ -697,7 +811,7 @@ run_sandbox() {
 
         # Add chdir to current working directory
         bwrap_args+=(--chdir "$target_cwd")
-        echo "Executing sandbox using bwrap: ${cmd_args[@]}"
+        echo "Executing sandbox using bwrap: ${cmd_args[*]}"
         exec bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
     fi
 }
@@ -706,10 +820,12 @@ run_sandbox() {
 cmd_install() {
     local no_git_config=false
     local new_config=false
+    local no_start=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
         --no-git-config) no_git_config=true ;;
         --new-config) new_config=true ;;
+        --no-start) no_start=true ;;
         esac
         shift
     done
@@ -732,7 +848,7 @@ cmd_install() {
     fi
 
     # Generic default project initialization
-    if [[ "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "true" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-false}" == "1" ]]; then
+    if [[ "${LAUNCHER_INIT_DEFAULT_PROJECT:-$DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT}" == "true" || "${LAUNCHER_INIT_DEFAULT_PROJECT:-$DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT}" == "1" ]]; then
         local default_project="$work_dir/default"
         mkdir -p "$default_project"
         if [[ ! -d "$default_project/.git" ]]; then
@@ -772,64 +888,73 @@ cmd_install() {
 # --- Execution Options ---
 # Configures the execution engine (auto, systemd, bwrap).
 # Set to 'systemd' to force cgroups containment or 'bwrap' to force bubblewrap container.
-# LAUNCHER_ENGINE="auto"
+# LAUNCHER_ENGINE="${DEFAULT_LAUNCHER_ENGINE}"
 
 # --- Hardening / Feature Flags (set to true to disable) ---
-# DISABLE_XDG_RUNTIME="false"   # Disable XDG runtime directory (Wayland, DBus, audio)
-# DISABLE_SSH_AUTH="false"      # Disable SSH agent forwarding
-# DISABLE_WAYLAND="false"       # Disable Wayland display access
-# DISABLE_AUDIO="false"         # Disable audio playback/recording
-# DISABLE_DBUS="false"          # Disable DBus session bus communication
+# DISABLE_XDG_RUNTIME="${DEFAULT_DISABLE_XDG_RUNTIME}"   # Disable XDG runtime directory (Wayland, DBus, audio)
+# DISABLE_SSH_AUTH="${DEFAULT_DISABLE_SSH_AUTH}"      # Disable SSH agent forwarding
+# DISABLE_WAYLAND="${DEFAULT_DISABLE_WAYLAND}"       # Disable Wayland display access
+# DISABLE_AUDIO="${DEFAULT_DISABLE_AUDIO}"         # Disable audio playback/recording
+# DISABLE_DBUS="${DEFAULT_DISABLE_DBUS}"          # Disable DBus session bus communication
 
 # --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
-# DISABLE_HARDWARE="false"     # Isolate host GPU/DRI devices (set to true to run headless)
-# DISABLE_IPC_SHARE="true"     # Isolate IPC namespace (set to false for GPU/ROCm hardware)
-# DISABLE_PID_SHARE="true"     # Isolate PID namespace (set to false to share host PIDs, to enable trace or inspect of child processes)
+# DISABLE_HARDWARE="${DEFAULT_DISABLE_HARDWARE}"     # Isolate host GPU/DRI devices (set to true to run headless)
+# DISABLE_IPC_SHARE="${DEFAULT_DISABLE_IPC_SHARE}"     # Isolate IPC namespace (set to false for GPU/ROCm hardware)
+# DISABLE_PID_SHARE="${DEFAULT_DISABLE_PID_SHARE}"     # Isolate PID namespace (set to false to share host PIDs, to enable trace or inspect of child processes)
 
 # --- Path / Directory Mounts ---
-# LAUNCHER_PRIVATE_BASEPATH="$HOME/agent-private"
-# LAUNCHER_PRIVATE_MOUNTS=""
-# LAUNCHER_SANDBOX_MOUNTS=""
-# LAUNCHER_EXTRA_MOUNTS="\$HOME/agent-shared:agent-shared /data/download:download"
+# LAUNCHER_PRIVATE_BASEPATH="${DEFAULT_LAUNCHER_PRIVATE_BASEPATH}"
+# LAUNCHER_PRIVATE_MOUNTS="${DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
+# LAUNCHER_SANDBOX_MOUNTS="${DEFAULT_LAUNCHER_SANDBOX_MOUNTS}"
+# LAUNCHER_EXTRA_MOUNTS="${DEFAULT_LAUNCHER_EXTRA_MOUNTS}"
 
 # --- Desktop / GUI Integration ---
-# LAUNCHER_GUI="false"            # Set to true to enable generating a desktop entry (.desktop file)
-# LAUNCHER_GUI_NAME="${app_name}"
-# LAUNCHER_GUI_COMMENT="Sandboxed $app_name"
-# LAUNCHER_GUI_ICON="$app_name"
-# LAUNCHER_GUI_CATEGORIES="Utility;"
-# LAUNCHER_GUI_TERMINAL="false"
+# LAUNCHER_GUI="${DEFAULT_LAUNCHER_GUI}"            # Set to true to enable generating a desktop entry (.desktop file)
+# LAUNCHER_GUI_NAME="${DEFAULT_LAUNCHER_GUI_NAME}"
+# LAUNCHER_GUI_COMMENT="${DEFAULT_LAUNCHER_GUI_COMMENT}"
+# LAUNCHER_GUI_ICON="${DEFAULT_LAUNCHER_GUI_ICON}"
+# LAUNCHER_GUI_CATEGORIES="${DEFAULT_LAUNCHER_GUI_CATEGORIES}"
+# LAUNCHER_GUI_TERMINAL="${DEFAULT_LAUNCHER_GUI_TERMINAL}"
+
+# --- Service & Sidecar Options ---
+LAUNCHER_SERVICE_ENABLED="${DEFAULT_LAUNCHER_SERVICE_ENABLED}"
+LAUNCHER_SERVICE_CMD="${DEFAULT_LAUNCHER_SERVICE_CMD}"
+LAUNCHER_SERVICE_ARGS="${DEFAULT_LAUNCHER_SERVICE_ARGS}"
+LAUNCHER_SIDECARS="${DEFAULT_LAUNCHER_SIDECARS}"
+LAUNCHER_SIDECAR_SLEEP_CMD="${DEFAULT_LAUNCHER_SIDECAR_SLEEP_CMD}"
+LAUNCHER_SIDECAR_SLEEP_ARGS="${DEFAULT_LAUNCHER_SIDECAR_SLEEP_ARGS}"
+
+# --- Environment Variable Exports ---
+# List of environment variables to export into the sandbox environment
+# LAUNCHER_EXPORTS=(
+#   'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true'
+# )
 
 # --- Application Startup Options ---
-# LAUNCHER_APP_FLAGS=""     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
-# LAUNCHER_DEFAULT_ARGS=""   # Default args passed if none are provided (e.g. '\$work_dir/default')
-# LAUNCHER_INIT_DEFAULT_PROJECT="false" # Set to true to run 'git init' on the default project workspace
+# LAUNCHER_APP_FLAGS="${DEFAULT_LAUNCHER_APP_FLAGS}"     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
+# LAUNCHER_DEFAULT_ARGS="${DEFAULT_LAUNCHER_DEFAULT_ARGS}"   # Default args passed if none are provided (e.g. '\$work_dir/default')
+# LAUNCHER_INIT_DEFAULT_PROJECT="${DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT}" # Set to true to run 'git init' on the default project workspace
 
 EOF
         chmod 600 "$env_file"
 
         # Re-source environment to load freshly created settings
-        set +u
-        set -a
-        # shellcheck disable=SC1090
-        source "$env_file"
-        set +a
-        set -u
+        init_app_vars "$app_name"
     fi
 
     # GUI / Desktop Entry support
     local app_dir="$HOME/.local/share/applications"
     local desktop_file="$app_dir/$app_name.desktop"
 
-    if [[ "${LAUNCHER_GUI:-false}" == "true" || "${LAUNCHER_GUI:-false}" == "1" ]]; then
+    if [[ "${LAUNCHER_GUI:-$DEFAULT_LAUNCHER_GUI}" == "true" || "${LAUNCHER_GUI:-$DEFAULT_LAUNCHER_GUI}" == "1" ]]; then
         echo "Creating desktop entry for '$app_name' at $desktop_file..."
         mkdir -p "$app_dir"
 
         local gui_name="${LAUNCHER_GUI_NAME:-${app_name^}}"
-        local gui_comment="${LAUNCHER_GUI_COMMENT:-Sandboxed $app_name}"
+        local gui_comment="${LAUNCHER_GUI_COMMENT:-$DEFAULT_LAUNCHER_GUI_COMMENT}"
         local gui_icon="${LAUNCHER_GUI_ICON:-$app_name}"
-        local gui_categories="${LAUNCHER_GUI_CATEGORIES:-Utility;}"
-        local gui_terminal="${LAUNCHER_GUI_TERMINAL:-false}"
+        local gui_categories="${LAUNCHER_GUI_CATEGORIES:-$DEFAULT_LAUNCHER_GUI_CATEGORIES}"
+        local gui_terminal="${LAUNCHER_GUI_TERMINAL:-$DEFAULT_LAUNCHER_GUI_TERMINAL}"
 
         cat <<EOF >"$desktop_file"
 [Desktop Entry]
@@ -851,20 +976,182 @@ EOF
         fi
     fi
 
+    # Generate systemd user service file
+    write_service_file
+
+    if is_systemd_running; then
+        if [[ "${LAUNCHER_SERVICE_ENABLED:-false}" == "true" || "${LAUNCHER_SERVICE_ENABLED:-false}" == "1" ]]; then
+            echo "Reloading systemd and enabling service..."
+            systemctl --user enable "${SERVICE_NAME}.service" || true
+
+            if [[ "$no_start" == "true" ]]; then
+                echo "Stopping service if running (--no-start specified)..."
+                systemctl --user stop "${SERVICE_NAME}.service" || true
+            else
+                echo "Starting service automatically..."
+                systemctl --user restart "${SERVICE_NAME}.service" || true
+            fi
+        fi
+    else
+        echo "Systemd user manager is not running/available in this environment. Skipping systemd service activation."
+    fi
+
     echo "Installation complete!"
     echo "Sandbox home directory: $persistent_home"
     echo "Sandbox environment file: $env_file"
     echo "Sandbox workspace: $work_dir"
 }
 
+# Helper: Generate systemd user service file contents
+write_service_file() {
+    local target_cwd="$work_dir"
+
+    echo "Generating systemd user service for '$app_name' at $SERVICE_FILE..."
+    mkdir -p "$(dirname "$SERVICE_FILE")"
+
+    local service_cmd="${LAUNCHER_SERVICE_CMD:-$DEFAULT_LAUNCHER_SERVICE_CMD}"
+    local service_args="${LAUNCHER_SERVICE_ARGS:-$DEFAULT_LAUNCHER_SERVICE_ARGS}"
+    local sidecars_val="${LAUNCHER_SIDECARS:-}"
+    sidecars_val="${sidecars_val//;/ }"
+    sidecars_val="${sidecars_val//$'\n'/ }"
+
+    local sidecars_exec=""
+    local idx=0
+    for sidecar in ${sidecars_val}; do
+        local var_name
+        var_name=$(sanitize_var_name "$sidecar")
+        local cmd_var="LAUNCHER_SIDECAR_${var_name}_CMD"
+        local cmd_val="${!cmd_var:-}"
+        if [[ -z "$cmd_val" ]]; then
+            cmd_val="$sidecar"
+        fi
+
+        # Warn if command doesn't exist on host
+        local host_cmd_val="$cmd_val"
+        host_cmd_val="${host_cmd_val//\$HOME/$HOME}"
+        host_cmd_val="${host_cmd_val//%h/$HOME}"
+        if [[ "$host_cmd_val" =~ ^(/|\.|\~) ]] || [[ -f "$host_cmd_val" ]]; then
+            if [[ "$host_cmd_val" =~ ^~ ]]; then
+                host_cmd_val="${host_cmd_val/#\~/$HOME}"
+            fi
+            if [[ ! -x "$host_cmd_val" ]]; then
+                echo "Warning: Sidecar '$sidecar' executable '$cmd_val' (resolved: '$host_cmd_val') does not exist or is not executable." >&2
+            fi
+        else
+            if ! command -v "$host_cmd_val" >/dev/null 2>&1; then
+                echo "Warning: Sidecar '$sidecar' executable '$cmd_val' is not found in PATH." >&2
+            fi
+        fi
+
+        local args_var="LAUNCHER_SIDECAR_${var_name}_ARGS"
+        local args_val="${!args_var:-}"
+
+        local env_remove_var="LAUNCHER_SIDECAR_${var_name}_ENV_REMOVE"
+        local env_remove_val="${!env_remove_var:-}"
+        local env_flags=""
+        for r in ${env_remove_val}; do
+            env_flags="$env_flags -u $r"
+        done
+
+        local env_override_var="LAUNCHER_SIDECAR_${var_name}_ENV_OVERRIDE"
+        local env_override_val="${!env_override_var:-}"
+        for o in ${env_override_val}; do
+            env_flags="$env_flags $o"
+        done
+
+        sidecars_exec="$sidecars_exec if ! command -v $cmd_val >/dev/null 2>&1 && [ ! -x \"$cmd_val\" ]; then echo \"Error: Cannot spawn sidecar $sidecar because its executable '$cmd_val' is missing or not executable.\" >&2 ; exit 1 ; fi ; env$env_flags $cmd_val $args_val & SIDECAR_PID_$idx=\$\$! ; "
+        idx=$((idx + 1))
+    done
+
+    local exec_start_cmd
+    if [[ -n "$sidecars_exec" ]]; then
+        local kill_pids="\$\$MAIN_PID"
+        for ((i = 0; i < idx; i++)); do
+            kill_pids="$kill_pids \$\$SIDECAR_PID_$i"
+        done
+        exec_start_cmd="/bin/bash -c 'trap \"kill $kill_pids 2>/dev/null || true\" EXIT ; $service_cmd $service_args & MAIN_PID=\$\$! ; $sidecars_exec wait -n'"
+    else
+        exec_start_cmd="$service_cmd $service_args"
+    fi
+
+    # Build sandbox config
+    local sandbox_props=""
+    while IFS= read -r prop; do
+        if [[ -n "$prop" ]]; then
+            sandbox_props="$sandbox_props"$'\n'"$prop"
+        fi
+    done < <(build_sandbox_config systemd "$target_cwd")
+
+    cat >"$SERVICE_FILE" <<EOF
+[Unit]
+Description=Sandbox Service - ${app_name}
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=40
+StartLimitBurst=4
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/systemd/user/${SERVICE_NAME}.env
+${sandbox_props}
+ExecStart=${exec_start_cmd}
+Restart=always
+RestartSec=60
+RestartMaxDelaySec=300
+RestartSteps=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=${SERVICE_NAME}
+
+[Install]
+WantedBy=default.target
+EOF
+
+    if is_systemd_running; then
+        systemctl --user daemon-reload
+    fi
+}
+
 # Command: Edit environment configuration file
-cmd_env() {
+cmd_edit() {
     mkdir -p "$(dirname "$env_file")"
     touch "$env_file"
     ${EDITOR:-nano} "$env_file"
+
+    if [[ -f "$env_file" ]]; then
+        set +u
+        set -a
+        # shellcheck disable=SC1090
+        source "$env_file"
+        set +a
+        set -u
+    fi
+
+    if is_systemd_running; then
+        write_service_file
+        if [[ "${LAUNCHER_SERVICE_ENABLED:-false}" == "true" || "${LAUNCHER_SERVICE_ENABLED:-false}" == "1" ]]; then
+            echo "Ensuring service is enabled..."
+            systemctl --user enable "${SERVICE_NAME}.service" || true
+            echo "Restarting service to apply updated environment..."
+            systemctl --user restart "${SERVICE_NAME}.service" || true
+        else
+            if systemctl --user is-active "${SERVICE_NAME}.service" &>/dev/null; then
+                echo "Restarting service to apply updated environment..."
+                systemctl --user restart "${SERVICE_NAME}.service" || true
+            else
+                echo "Service is not active. Service restart skipped."
+            fi
+        fi
+    else
+        echo "Systemd is not running. Service restart skipped."
+    fi
 }
 
-# Command: Uninstall symlink & desktop file
+# Command: Uninstall symlink, desktop file & systemd service
 cmd_uninstall() {
     local bin_dir="$HOME/.local/bin"
     local symlink_target="$bin_dir/$app_name"
@@ -872,6 +1159,20 @@ cmd_uninstall() {
     local desktop_file="$app_dir/$app_name.desktop"
 
     echo "Uninstalling Sandbox Launcher for '$app_name'..."
+
+    if is_systemd_running; then
+        echo "Stopping and disabling service..."
+        systemctl --user stop "${SERVICE_NAME}.service" || true
+        systemctl --user disable "${SERVICE_NAME}.service" || true
+    fi
+
+    if [[ -f "$SERVICE_FILE" ]]; then
+        rm -f "$SERVICE_FILE"
+        if is_systemd_running; then
+            systemctl --user daemon-reload
+        fi
+        echo "Removed service file: $SERVICE_FILE"
+    fi
 
     if [[ -L "$symlink_target" || -e "$symlink_target" ]]; then
         rm -f "$symlink_target"
@@ -886,7 +1187,7 @@ cmd_uninstall() {
     fi
 
     echo "Uninstallation complete!"
-    echo "Persistent sandbox directories was NOT deleted: '$persistent_home'"
+    echo "Persistent sandbox directories and environment file were NOT deleted: '$persistent_home'"
 }
 
 # Command: Destroy sandbox data
@@ -899,6 +1200,240 @@ cmd_destroy() {
     fi
 
     echo "Sandbox destruction for '$app_name' complete (workspace '$work_dir', and env file: $env_file was preserved)."
+}
+
+# Command: Analyse sandbox setup and print execution environment details
+cmd_analyse() {
+    echo "=== Sandbox Analysis for '$app_name' ==="
+    echo
+    if [[ -f "$env_file" ]]; then
+        echo "--- Environment File: $env_file ---"
+        cat "$env_file"
+    else
+        echo "--- Environment File: $env_file (Not Found) ---"
+    fi
+    echo
+
+    local real_bin
+    real_bin=$(find_real_binary "$app_name")
+    local target_bin="${real_bin:-$app_name}"
+
+    local cmd_args=()
+    cmd_args+=("$target_bin")
+    if [[ -n "${LAUNCHER_DEFAULT_ARGS:-$DEFAULT_LAUNCHER_DEFAULT_ARGS}" ]]; then
+        eval "cmd_args+=(${LAUNCHER_DEFAULT_ARGS:-$DEFAULT_LAUNCHER_DEFAULT_ARGS})"
+    fi
+
+    local cwd
+    cwd="$(pwd)"
+    local target_cwd=""
+    local is_mounted=false
+    local rel_path=""
+
+    if is_under "$cwd" "$persistent_home"; then
+        is_mounted=true
+        rel_path=$(realpath --relative-to="$persistent_home" "$cwd" 2>/dev/null || echo "")
+        if [[ "$rel_path" == "." ]]; then
+            target_cwd="$persistent_home"
+        else
+            target_cwd="$persistent_home/$rel_path"
+        fi
+    elif is_under "$cwd" "$work_dir"; then
+        is_mounted=true
+        rel_path=$(realpath --relative-to="$work_dir" "$cwd" 2>/dev/null || echo "")
+        if [[ "$rel_path" == "." ]]; then
+            target_cwd="$work_dir"
+        else
+            target_cwd="$work_dir/$rel_path"
+        fi
+    fi
+
+    if [[ "$is_mounted" == "false" ]]; then
+        local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$DEFAULT_LAUNCHER_EXTRA_MOUNTS}"
+        for m in $launcher_extra_mounts; do
+            if [[ -n "$m" ]]; then
+                local host_path="${m%%:*}"
+                host_path="${host_path//%h/$HOME}"
+                host_path="${host_path//\~/$HOME}"
+                host_path="${host_path//\$HOME/$HOME}"
+                if is_under "$cwd" "$host_path"; then
+                    is_mounted=true
+                    rel_path=$(realpath --relative-to="$host_path" "$cwd" 2>/dev/null || echo "")
+
+                    local sandbox_path="${m#*:}"
+                    local target_base
+                    if [[ "$sandbox_path" == /* ]]; then
+                        target_base="$sandbox_path"
+                    else
+                        target_base="$persistent_home/$sandbox_path"
+                    fi
+
+                    if [[ "$rel_path" == "." ]]; then
+                        target_cwd="$target_base"
+                    else
+                        target_cwd="$target_base/$rel_path"
+                    fi
+                    break
+                fi
+            fi
+        done
+    fi
+
+    if [[ "$is_mounted" == "false" ]]; then
+        local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-$DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
+        local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-}"
+        if [[ -z "$launcher_private_basepath" ]]; then
+            launcher_private_basepath=$(resolve_path "$DEFAULT_LAUNCHER_PRIVATE_BASEPATH")
+        fi
+        for m in $launcher_private_mounts; do
+            if [[ -n "$m" ]]; then
+                local mount_path="$launcher_private_basepath/$m"
+                if is_under "$cwd" "$mount_path"; then
+                    is_mounted=true
+                    rel_path=$(realpath --relative-to="$mount_path" "$cwd" 2>/dev/null || echo "")
+                    if [[ "$rel_path" == "." ]]; then
+                        target_cwd="$mount_path"
+                    else
+                        target_cwd="$mount_path/$rel_path"
+                    fi
+                    break
+                fi
+            fi
+        done
+    fi
+
+    if [[ "$is_mounted" == "false" ]]; then
+        local real_home
+        real_home="$(realpath "$HOME")"
+        local real_cwd
+        real_cwd="$(realpath "$cwd")"
+        rel_path=$(realpath --relative-to="$real_home" "$real_cwd" 2>/dev/null || echo "")
+
+        if [[ -n "$rel_path" && "$rel_path" != ..* ]]; then
+            if [[ "$rel_path" == "." ]]; then
+                target_cwd="$persistent_home"
+            else
+                target_cwd="$persistent_home/$rel_path"
+            fi
+        else
+            target_cwd="$cwd"
+        fi
+    fi
+
+    echo "--- Mapped Working Directory ---"
+    echo "Host CWD: $cwd"
+    echo "Sandbox CWD: $target_cwd"
+    echo
+
+    echo "--- Bubblewrap (bwrap) Arguments ---"
+    if command -v bwrap >/dev/null 2>&1; then
+        local bwrap_args=()
+        while IFS= read -r arg; do
+            if [[ -n "$arg" ]]; then
+                bwrap_args+=("$arg")
+            fi
+        done < <(build_sandbox_config bwrap)
+        echo "bwrap \\"
+        for arg in "${bwrap_args[@]}"; do
+            echo "  $arg \\"
+        done
+        echo "  --chdir \"$target_cwd\" \\"
+        echo "  ${cmd_args[*]}"
+    else
+        echo "Bubblewrap is not installed on this host."
+    fi
+    echo
+
+    echo "--- Transient systemd-run Arguments ---"
+    if is_systemd_running; then
+        local systemd_opts=(
+            --user
+            --pty
+            --wait
+            --collect
+            --quiet
+            -p "Type=exec"
+        )
+        while IFS= read -r prop; do
+            if [[ -n "$prop" ]]; then
+                systemd_opts+=(-p "$prop")
+            fi
+        done < <(build_sandbox_config systemd "$target_cwd")
+        echo "systemd-run \\"
+        for opt in "${systemd_opts[@]}"; do
+            echo "  $opt \\"
+        done
+        echo "  ${cmd_args[*]}"
+    else
+        echo "systemd user manager is not running/reachable."
+    fi
+    echo
+
+    if [[ -f "$SERVICE_FILE" ]]; then
+        echo "--- Service File: $SERVICE_FILE ---"
+        cat "$SERVICE_FILE"
+    else
+        echo "--- Service File: $SERVICE_FILE (Not Found) ---"
+    fi
+}
+
+cmd_start() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    write_service_file
+    systemctl --user start "${SERVICE_NAME}.service"
+}
+
+cmd_stop() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    systemctl --user stop "${SERVICE_NAME}.service"
+}
+
+cmd_restart() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    write_service_file
+    systemctl --user restart "${SERVICE_NAME}.service"
+}
+
+cmd_status() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    systemctl --user status "${SERVICE_NAME}.service"
+}
+
+cmd_enable() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    write_service_file
+    systemctl --user enable "${SERVICE_NAME}.service"
+}
+
+cmd_disable() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    systemctl --user disable "${SERVICE_NAME}.service"
+}
+
+cmd_logs() {
+    if ! is_systemd_running; then
+        echo "Error: Systemd is not running." >&2
+        exit 1
+    fi
+    journalctl --user -u "${SERVICE_NAME}.service" "$@"
 }
 
 # --- Parsing Command and Routing ---
@@ -929,10 +1464,7 @@ main() {
         shift
 
         # Re-evaluate paths for app_name
-        persistent_home="$HOME/.local/sandbox/$app_name"
-        LAUNCHER_PRIVATE_BASEPATH="${LAUNCHER_PRIVATE_BASEPATH:-$HOME/agent-private}"
-        work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
-        env_file="$HOME/.local/sandbox/$app_name.env"
+        init_app_vars "$app_name"
 
         case "$cmd" in
         install)
@@ -945,7 +1477,35 @@ main() {
             cmd_destroy
             ;;
         env)
-            cmd_env
+            echo "Warning: command 'env' is deprecated, please use 'edit' instead." >&2
+            cmd_edit
+            ;;
+        edit)
+            cmd_edit
+            ;;
+        analyse)
+            cmd_analyse
+            ;;
+        start)
+            cmd_start
+            ;;
+        stop)
+            cmd_stop
+            ;;
+        restart)
+            cmd_restart
+            ;;
+        status)
+            cmd_status
+            ;;
+        enable)
+            cmd_enable
+            ;;
+        disable)
+            cmd_disable
+            ;;
+        logs)
+            cmd_logs "$@"
             ;;
         exec)
             local real_bin
