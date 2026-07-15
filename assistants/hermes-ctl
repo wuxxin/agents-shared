@@ -40,7 +40,7 @@ DEFAULT_EMBEDDING_KEY="unused"
 DEFAULT_EMBEDDING_MODEL="qwen3-embedding"
 
 DEFAULT_RERANK_PROVIDER="local"
-DEFAULT_RERANK_BASE_URL="http://localhost:50086/v1/rerank"
+DEFAULT_RERANK_BASE_URL="http://localhost:50086/v1"
 DEFAULT_RERANK_KEY="unused"
 DEFAULT_RERANK_MODEL="qwen3-reranker"
 DEFAULT_RERANK_TOP_K=30
@@ -590,6 +590,8 @@ HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
 HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
 HINDSIGHT_API_LLM_MODEL="${DEFAULT_CHAT_MODEL}"
+# LLM usage for hindsight is better/faster/more robust without thinking
+HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}}'
 
 # hindsight embedding
 HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
@@ -722,6 +724,7 @@ model:
   api_key: unused
 agent:
   max_turns: 150
+  reasoning_effort: "low"
 approvals:
   destructive_slash_confirm: false
 web:
