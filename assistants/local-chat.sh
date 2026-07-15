@@ -33,8 +33,6 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_EXTRA_ARGS=""
-
     LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
     LCHAT_ALIAS=qwen3
     LCHAT_CTX_SIZE=240384
@@ -44,6 +42,7 @@ load_env() {
     LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
+    LCHAT_EXTRA_ARGS=""
 
     # Default parameters for embedding section
     LMBD_ENABLED=true
@@ -486,7 +485,12 @@ LCHAT_THREADS=4
 LCHAT_N_GPU_LAYERS=999
 
 # Extra arguments to pass to llama-server (default: "")
-LCHAT_EXTRA_ARGS=""
+
+# Qwen3.6-35B-A3B
+# --top-k 20: https://qwen.ai/blog?id=qwen3.6-35b-a3b
+#   * Terminal-Bench 2.0: Harbor/Terminus-2 harness; 3h timeout, 32 CPU/48 GB RAM; temp=1.0, top_p=0.95, top_k=20, max_tokens=80K, 256K ctx; avg of 5 runs.
+# --repeat-penalty 1.1: https://www.reddit.com/r/hermesagent/comments/1tk8x46/infinite_loop/
+LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"
 
 # ==============================================================================
 # CHAT / VISION MODEL SETTINGS
