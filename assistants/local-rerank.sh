@@ -604,34 +604,37 @@ usage() {
     echo "  test [--benchmark] - Run validation tests or rerank benchmark"
 }
 
-# Main
+main() {
 
-if [ $# -lt 1 ]; then
-    usage
-    exit 1
-fi
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
 
-COMMAND="$1"
-shift
+    COMMAND="$1"
+    shift
 
-case "$COMMAND" in
-install) cmd_install "$@" ;;
-uninstall) cmd_uninstall ;;
-start) cmd_start ;;
-stop) cmd_stop ;;
-restart) cmd_restart ;;
-status) cmd_status ;;
-enable) cmd_enable ;;
-disable) cmd_disable ;;
-logs) cmd_logs "$@" ;;
-edit) cmd_edit ;;
-exec) cmd_exec "$@" ;;
-run) cmd_run "$@" ;;
-shell) cmd_shell "$@" ;;
-test) cmd_test "$@" ;;
-*)
-    echo "Unknown command: $COMMAND"
-    usage
-    exit 1
-    ;;
-esac
+    case "$COMMAND" in
+    install) cmd_install "$@" ;;
+    uninstall) cmd_uninstall ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_restart ;;
+    status) cmd_status ;;
+    enable) cmd_enable ;;
+    disable) cmd_disable ;;
+    logs) cmd_logs "$@" ;;
+    edit) cmd_edit ;;
+    exec) cmd_exec "$@" ;;
+    run) cmd_run "$@" ;;
+    shell) cmd_shell "$@" ;;
+    test) cmd_test "$@" ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        usage
+        exit 1
+        ;;
+    esac
+}
+
+main "$@"

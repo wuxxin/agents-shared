@@ -347,21 +347,45 @@ LCHAT_SPECULATIVE_ARGS=""
 For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](local-memory-map.md).
 
 
-## Completions service Integration
+## Editor `Language Model` and `Edit Prediction Service` Integration
 
 ### Zed Editor Integration
 
-To configure Zed editor to use the local completions service for inline edit predictions, add the following configuration block to your Zed `settings.json` file:
+To configure the Zed editor to use the local services for both chat and inline edit predictions (tab completions), add the following configuration block to your Zed `settings.json` file. This directs chat requests to the main `qwen3` model and code completions to the lightweight `qwen-coder-fim` model through the local service router (port `51080`):
 
 ```json
 {
+  "language_models": {
+    "openai_compatible": {
+      "local-inference": {
+        "api_url": "http://localhost:51080",
+        "available_models": [
+          {
+            "name": "qwen3",
+            "max_tokens": 80128,
+            "max_output_tokens": 16384,
+            "max_completion_tokens": 80128,
+            "capabilities": {
+              "tools": true,
+              "images": true,
+              "parallel_tool_calls": true,
+              "prompt_cache_key": true,
+              "chat_completions": true,
+              "interleaved_reasoning": true
+            }
+          }
+        ]
+      }
+    }
+  },
   "edit_predictions": {
     "provider": "open_ai_compatible_api",
     "open_ai_compatible_api": {
-      "api_url": "http://127.0.0.1:50080/v1",
+      "api_url": "http://localhost:51080",
       "model": "qwen-coder-fim",
-      "prompt_format": "qwen"
-    }
+      "max_output_tokens": 250
+    },
+    "allow_data_collection": "no"
   }
 }
 ```
