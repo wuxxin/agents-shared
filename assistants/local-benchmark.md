@@ -1,6 +1,6 @@
 # LLM Caching Optimization Benchmarks
 
-**Benchmark Run Time:** `2026-07-05 21:28:08`
+**Benchmark Run Time:** `2026-07-15 14:24:46`
 
 ## Local Inference Services Benchmarks
 
@@ -14,7 +14,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**HIP-COMBI-ROCM0**](#hip-combi-rocm0-configuration-details) | chat_hip-combi-ROCm0 | ROCm0 | Layers: 999 | 55195.27 ms | 562.39 t/s | 255.74 ms | 101.32 t/s | 66.77 t/s | 0.00 ms | 0.00 t/s | 20346.8 MB | 81.4 MB |
 | [**HIP-ROCM0**](#hip-rocm0-configuration-details) | chat_hip-ROCm0 | ROCm0 | Layers: 999 | 55192.76 ms | 562.41 t/s | 302.68 ms | 101.31 t/s | 66.47 t/s | 0.00 ms | 0.00 t/s | 20346.9 MB | 77.9 MB |
 | [**VULKAN-COMBI-VULKAN0**](#vulkan-combi-vulkan0-configuration-details) | chat_vulkan-combi-Vulkan0 | Vulkan0 | Layers: 999 (Context: 20%) | 69000.03 ms | 84.29 t/s | 1631.10 ms | 13.84 t/s | 12.86 t/s | 0.00 ms | 0.00 t/s | 13938.7 MB | 65.3 MB |
-| [**VULKAN-COMBI-VULKAN1**](#vulkan-combi-vulkan1-configuration-details) | chat_vulkan-combi-Vulkan1 | Vulkan1 | Layers: 999 | 17753.22 ms | 1748.47 t/s | 143.14 ms | 132.22 t/s | 116.78 t/s | 0.00 ms | 0.00 t/s | 19026.4 MB | 65.7 MB |
+| [**VULKAN-COMBI-VULKAN1**](#vulkan-combi-vulkan1-configuration-details) | chat_vulkan-combi-Vulkan1 | Vulkan1 | Layers: 999 | 17753.22 ms | **1748.47 t/s** | 143.14 ms | 132.22 t/s | **116.78 t/s** | 0.00 ms | 0.00 t/s | 19026.4 MB | 65.7 MB |
 | [**VULKAN-VULKAN0**](#vulkan-vulkan0-configuration-details) | chat_vulkan-Vulkan0 | Vulkan0 | Layers: 999 (Context: 20%) | 69407.87 ms | 83.79 t/s | 1796.20 ms | 13.56 t/s | 12.58 t/s | 0.00 ms | 0.00 t/s | 13927.8 MB | 65.3 MB |
 | [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | chat_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 17850.39 ms | 1738.95 t/s | 159.42 ms | 132.02 t/s | 116.13 t/s | 0.00 ms | 0.00 t/s | 19026.4 MB | 65.8 MB |
 | [**CPU**](#cpu-configuration-details) | chat_cpu | none | Layers: 0 (Context: 5%) | 33334.50 ms | 44.19 t/s | 700.68 ms | 13.21 t/s | 12.55 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 65.2 MB |
@@ -22,7 +22,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | chat_cpu-blas | BLAS | Layers: 0 (Context: 5%) | 36565.32 ms | 40.28 t/s | 856.16 ms | 12.98 t/s | 11.99 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 64.9 MB |
 | [**CPU-BLAS-COMBI**](#cpu-blas-combi-configuration-details) | chat_cpu-blas-combi | BLAS | Layers: 0 (Context: 5%) | 36080.19 ms | 40.83 t/s | 879.28 ms | 12.86 t/s | 11.95 t/s | 0.00 ms | 0.00 t/s | 1109.2 MB | 64.7 MB |
 | [**SPECIAL-COMBI**](#special-combi-configuration-details) | chat_special-combi | special | Layers: 999 | -fail- | -fail- | -fail- | -fail- | -fail- | -n.a.- | -n.a.- | -fail- | -fail- |
-| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 17614.75 ms | **1762.22 t/s** | 146.65 ms | 132.76 t/s | **117.24 t/s** | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 17800.35 ms | 1743.84 t/s | 80.98 ms | 120.56 t/s | 108.85 t/s | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
 
 #### Text Embedding (`local-embedding`)
 | Configuration | Test Name | GPU | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
@@ -82,6 +82,14 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**CPU**](#cpu-configuration-details) | image_cpu | cpu | Steps: 8 | 282.65 s | 0.1 MB | 10132.8 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | image_cpu-blas | cpu | Steps: 8 | 281.93 s | 0.1 MB | 10131.6 MB |
 | [**RUNNING**](#running-configuration-details) | image_running | running on host | unknown | 89.24 s | -n.a.- | -n.a.- |
+
+#### Code Completion FIM (`local-chat` - tab completion)
+| Configuration | Test Name | GPU | Special Setting | Avg Completion TTFT | Avg Prefill Speed | Warmup TTFT | Avg Generation Speed | GPU Mem | CPU Mem |
+|---|---|---|---|---|---|---|---|---|---|
+| [**RUNNING**](#running-configuration-details) | completion_running | running on host | unknown | 70.11 ms | 38128.82 t/s | 14.24 ms | **251.72 t/s** | 0.0 MB | 70.0 MB |
+| **HIP** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |
+| **VULKAN** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |
+| **CPU** | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- | -n.a.- |
 
 ---
 
@@ -1924,7 +1932,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 24.13 s
+- **Benchmark Running Time:** 24.64 s
 - **Active Environment Settings:**
   - `GGML_VK_DISABLE_MMVQ="1"`
   - `LCHAT_ALIAS="qwen3"`
@@ -1934,7 +1942,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_CTX_SIZE="240384"`
   - `LCHAT_DEVICE="Vulkan1"`
   - `LCHAT_EMBEDDING_ENABLED="false"`
-  - `LCHAT_EXTRA_ARGS=""`
+  - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
   - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
@@ -1943,6 +1951,13 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_PORT="50080"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
+  - `LCOMP_ALIAS="qwen-coder-fim"`
+  - `LCOMP_CACHE_TYPE_K="q4_0"`
+  - `LCOMP_CACHE_TYPE_V="q4_0"`
+  - `LCOMP_CTX_SIZE="8192"`
+  - `LCOMP_ENABLED="true"`
+  - `LCOMP_MODEL="/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"`
+  - `LCOMP_PARALLEL="2"`
   - `LMBD_ALIAS="qwen3-embedding"`
   - `LMBD_CACHE_TYPE_K="q8_0"`
   - `LMBD_CACHE_TYPE_V="q8_0"`
@@ -1958,15 +1973,15 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Errors Count:** 0
 - **Package Version:** `9873 (a4107133a6)`
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       146.65 ms
-  - Prefill Speed:        129.56 tokens/sec
-  - Generation Speed:     132.76 tokens/sec
+  - TTFT (Prefill):       80.98 ms
+  - Prefill Speed:        234.63 tokens/sec
+  - Generation Speed:     120.56 tokens/sec
 - **Generation (Phase 2):**
   - Avg Completion Tokens: 600.0
-  - Avg TTFT (Prefill):   17614.75 ms
-  - Avg Prefill Speed:    1762.22 tokens/sec
-  - Avg Generation Speed: 117.24 tokens/sec
-  - Avg Decode Time:      5.12 s
+  - Avg TTFT (Prefill):   17800.35 ms
+  - Avg Prefill Speed:    1743.84 tokens/sec
+  - Avg Generation Speed: 108.85 tokens/sec
+  - Avg Decode Time:      5.51 s
 - **Vision Description (Phase 4):**
   - Avg TTFT (Prefill):   0.00 ms
   - Avg Generation Speed: 0.00 tokens/sec
@@ -2000,6 +2015,63 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - Avg Chunk Latency:    107.3 ms
   - Avg Chunk p50:        105.8 ms
   - Avg Chunk p95:        108.3 ms
+
+#### Code Completion FIM (`local-chat` - tab completion)
+- **Benchmark Test Name:** `completion_running`
+- **Device Setting:** `running on host`
+- **Special Setting:** `unknown`
+- **Model:** `qwen-coder-fim` (`qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`)
+- **Execution Target:** `RUNNING`
+- **GPU Memory Used:** 0.0 MB
+- **CPU Memory Used:** 70.0 MB
+- **Benchmark Running Time:** 14.22 s
+- **Active Environment Settings:**
+  - `GGML_VK_DISABLE_MMVQ="1"`
+  - `LCHAT_ALIAS="qwen3"`
+  - `LCHAT_CACHE_TYPE_K="q4_0"`
+  - `LCHAT_CACHE_TYPE_V="q4_0"`
+  - `LCHAT_CHAT_TEMPLATE_FILE="/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja"`
+  - `LCHAT_CTX_SIZE="240384"`
+  - `LCHAT_DEVICE="Vulkan1"`
+  - `LCHAT_EMBEDDING_ENABLED="false"`
+  - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
+  - `LCHAT_HOST="127.0.0.1"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_N_GPU_LAYERS="999"`
+  - `LCHAT_PARALLEL="3"`
+  - `LCHAT_PORT="50080"`
+  - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
+  - `LCHAT_THREADS="4"`
+  - `LCOMP_ALIAS="qwen-coder-fim"`
+  - `LCOMP_CACHE_TYPE_K="q4_0"`
+  - `LCOMP_CACHE_TYPE_V="q4_0"`
+  - `LCOMP_CTX_SIZE="8192"`
+  - `LCOMP_ENABLED="true"`
+  - `LCOMP_MODEL="/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"`
+  - `LCOMP_PARALLEL="2"`
+  - `LMBD_ALIAS="qwen3-embedding"`
+  - `LMBD_CACHE_TYPE_K="q8_0"`
+  - `LMBD_CACHE_TYPE_V="q8_0"`
+  - `LMBD_CTX_SIZE="8192"`
+  - `LMBD_ENABLED="true"`
+  - `LMBD_EXTRA_ARGS="--flash-attn on"`
+  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
+  - `LMBD_PARALLEL="2"`
+  - `LMBD_UBATCH_SIZE="512"`
+  - `LOCAL_SIDECARS=""`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+- **Errors Count:** 0
+- **Package Version:** `9873 (a4107133a6)`
+- **Warmup (Phase 0):**
+  - TTFT (Prefill):       14.24 ms
+  - Generation Speed:     252.60 tokens/sec
+- **Generation (Phase 2):**
+  - Avg TTFT (Prefill):   70.11 ms
+  - Avg Prefill Speed:    38128.82 tokens/sec
+  - Avg Generation Speed: 251.72 tokens/sec
+  - Avg Decode Time:      0.40 s
 
 #### Document Reranking (`local-rerank`)
 - **Benchmark Test Name:** `rerank_running`
