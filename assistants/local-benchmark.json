@@ -911,14 +911,14 @@
             "test_name": "chat_hip-ROCm0"
         },
         "completion": {
-            "bench_time_s": 14.221541166305542,
-            "comp_avg_decode": 0.39669752021630605,
-            "comp_avg_gen": 252.08526687178195,
-            "comp_avg_prefill": 38147.864450077555,
-            "comp_avg_ttft": 70.4876213412111,
-            "comp_warmup_gen": 251.30664335428241,
-            "comp_warmup_ttft": 15.771278878673911,
-            "cpu_mem_mb": 78.75,
+            "bench_time_s": 18.024442434310913,
+            "comp_avg_decode": 0.475735661899671,
+            "comp_avg_gen": 210.22266948549083,
+            "comp_avg_prefill": 34648.08336787233,
+            "comp_avg_ttft": 116.35993384600927,
+            "comp_warmup_gen": 194.33533812914067,
+            "comp_warmup_ttft": 29.02370598167181,
+            "cpu_mem_mb": 76.1875,
             "device_details": {
                 "device_id": "ROCm0",
                 "free_mem_mib": 24560.0,
@@ -929,14 +929,13 @@
             "device_setting": "ROCm0",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "0",
-                "GGML_VK_DISABLE_MMVQ": "1",
                 "HIP_VISIBLE_DEVICES": "0",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CACHE_TYPE_K": "q4_0",
                 "LCHAT_CACHE_TYPE_V": "q4_0",
                 "LCHAT_CHAT_TEMPLATE_FILE": "/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_CTX_SIZE": "240384",
-                "LCHAT_DEVICE": "Vulkan1",
+                "LCHAT_DEVICE": "",
                 "LCHAT_EMBEDDING_ENABLED": "false",
                 "LCHAT_EXTRA_ARGS": "--temp 0.6 --top-k 20 --repeat-penalty 1.1",
                 "LCHAT_HOST": "127.0.0.1",
@@ -970,7 +969,7 @@
                 "LOCAL_SIDECARS": "",
                 "LOCAL_SIDECAR_PORTMIRROR_CMD": "bash -c 'if [ \\\"\\${LMBD_ENABLED}\\\" = \\\"true\\\" ]; then exec socat TCP-LISTEN:\\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\\${LCHAT_HOST:-127.0.0.1}:\\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
             },
-            "gpu_mem_mb": 1121.7890625,
+            "gpu_mem_mb": 1916.26953125,
             "special_setting": "Layers: 999",
             "test_name": "completion_hip-ROCm0"
         },
@@ -1500,7 +1499,6 @@
             "tts_time": 27.094558429031167
         }
     },
-    "special": {},
     "special-combi": {
         "chat": {
             "bench_time_s": "-fail-",
@@ -1622,14 +1620,14 @@
             "test_name": "chat_vulkan-Vulkan0"
         },
         "completion": {
-            "bench_time_s": 3.3051416873931885,
-            "comp_avg_decode": 0.39654645676879835,
-            "comp_avg_gen": 252.18523646114855,
-            "comp_avg_prefill": 15967.395898506737,
-            "comp_avg_ttft": 115.55030720774084,
-            "comp_warmup_gen": 250.41355842964748,
-            "comp_warmup_ttft": 15.666392166167498,
-            "cpu_mem_mb": 64.86328125,
+            "bench_time_s": 3.4056310653686523,
+            "comp_avg_decode": 0.40319794579409063,
+            "comp_avg_gen": 248.1183523390798,
+            "comp_avg_prefill": 15479.28781331623,
+            "comp_avg_ttft": 128.03991022519767,
+            "comp_warmup_gen": 240.106969447718,
+            "comp_warmup_ttft": 26.34884021244943,
+            "cpu_mem_mb": 59.40625,
             "device_details": {
                 "device_id": "Vulkan0",
                 "free_mem_mib": 16384.0,
@@ -1640,14 +1638,13 @@
             "device_setting": "Vulkan0",
             "env": {
                 "CUDA_VISIBLE_DEVICES": "",
-                "GGML_VK_DISABLE_MMVQ": "1",
                 "HIP_VISIBLE_DEVICES": "",
                 "LCHAT_ALIAS": "qwen3",
                 "LCHAT_CACHE_TYPE_K": "q4_0",
                 "LCHAT_CACHE_TYPE_V": "q4_0",
                 "LCHAT_CHAT_TEMPLATE_FILE": "/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja",
                 "LCHAT_CTX_SIZE": "240384",
-                "LCHAT_DEVICE": "Vulkan1",
+                "LCHAT_DEVICE": "",
                 "LCHAT_EMBEDDING_ENABLED": "false",
                 "LCHAT_EXTRA_ARGS": "--temp 0.6 --top-k 20 --repeat-penalty 1.1",
                 "LCHAT_HOST": "127.0.0.1",
@@ -1681,7 +1678,7 @@
                 "LOCAL_SIDECARS": "",
                 "LOCAL_SIDECAR_PORTMIRROR_CMD": "bash -c 'if [ \\\"\\${LMBD_ENABLED}\\\" = \\\"true\\\" ]; then exec socat TCP-LISTEN:\\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\\${LCHAT_HOST:-127.0.0.1}:\\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
             },
-            "gpu_mem_mb": 1962.73828125,
+            "gpu_mem_mb": 1944.171875,
             "special_setting": "Layers: 999",
             "test_name": "completion_vulkan-Vulkan0"
         },
