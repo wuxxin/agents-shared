@@ -24,6 +24,7 @@ Options:
   --speech-to-text  Download the Speech-to-Text (Whisper) model
   --text-to-speech, --tts Download the Text-to-Speech (Qwen3-TTS) models
   --image           Download the image generation (Z-Image-Turbo) models
+  --completion      Download the completions model (qwen-coder-fim) and testdata
   --benchmark-context, --benchmark Build the benchmark-context.md file using downloaded skills
   -h, --help        Show this help message and exit
 
@@ -47,6 +48,7 @@ download_reranker=false
 download_stt=false
 download_tts=false
 download_image=false
+download_completion=false
 download_benchmark=false
 
 # Check for help
@@ -91,6 +93,10 @@ while [[ $# -gt 0 ]]; do
         download_image=true
         shift
         ;;
+    --completion)
+        download_completion=true
+        shift
+        ;;
     --benchmark-context | --benchmark)
         download_benchmark=true
         shift
@@ -103,8 +109,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_benchmark" == false ]]; then
-    echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --benchmark-context)." >&2
+if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false ]]; then
+    echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context)." >&2
     exit 1
 fi
 
@@ -115,6 +121,7 @@ if [[ "$download_all" == true ]]; then
     download_stt=true
     download_tts=true
     download_image=true
+    download_completion=true
     download_benchmark=true
 fi
 
@@ -365,6 +372,20 @@ if [[ "$download_image" == true ]]; then
         "image/Qwen3-4B-Q4_K_M.gguf" \
         "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf" \
         "${target_dir}/image/Qwen3-4B-Q4_K_M.gguf"
+fi
+
+# 6.5. Code Completion Model and FIM Testdata
+if [[ "$download_completion" == true ]]; then
+    echo "=== Acquiring Code Completion Models & Testdata ==="
+    acquire_file \
+        "completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf" \
+        "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf" \
+        "${target_dir}/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+
+    acquire_file \
+        "completion/test_fim.py" \
+        "https://raw.githubusercontent.com/psf/requests/main/src/requests/api.py" \
+        "${target_dir}/completion/test_fim.py"
 fi
 
 # 7. Benchmark Context
