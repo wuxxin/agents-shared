@@ -22,7 +22,7 @@ Start/Stop/Restart/Enable/Disable the Service:
   - `./local-chat.sh disable`
 
 Check runtime status:
-  - `./local-chat.sh status'
+  - `./local-chat.sh status`
 
 Tail service stdout/stderr logs:
   - `./local-chat.sh logs -f`
@@ -106,12 +106,28 @@ Key specifications and limits:
 The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning.
 
 - **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
+- **Default Behavior**: In our customized template, `enable_thinking` defaults to **`false`** (thinking off/none by default) to keep background memory queries, extraction, and verification tasks fast, cheap, and robust.
 - **Thinking Mode Control**:
-  - By default, `enable_thinking` is `true`. The template pre-fills `<think>\n` at the start of the assistant response, encouraging the model to perform reasoning.
-  - When thinking is disabled (e.g. `enable_thinking = false` via template arguments or if `<|think_off|>` is detected in prompt content), the template pre-fills `<think>\n\n</think>\n\n`, immediately closing the reasoning block and forcing the model to generate the direct answer.
+  - **API Request Control (`api_kwargs` / `extra_body`)**: You can explicitly override the default template behavior on a per-request basis by sending `chat_template_kwargs` in the root of the request payload. For example:
+    ```json
+    {
+      "model": "qwen3",
+      "messages": [{"role": "user", "content": "Say ok"}],
+      "chat_template_kwargs": {
+        "enable_thinking": true
+      }
+    }
+    ```
+    To disable it, pass `"enable_thinking": false`. Hindsight and other clients can set this globally by passing it inside their `extra_body` config (e.g. `HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}}'`).
+  - **System Prompt / Prompt Content Injection**: The template automatically inspects prompt messages (system, developer, or user prompts) for control tags:
+    - Prepend **`<|think_on|>`** to the system instructions or prompt content to force the model to think (perform chain-of-thought reasoning).
+    - Prepend **`<|think_off|>`** to force-disable thinking.
+    - *Note: The chat template automatically detects and strips these control tags (`<|think_on|>` / `<|think_off|>`) from the final prompt text, so the model itself never sees them.*
+  - **Local Router Virtual Alias (`qwen3-thinking`)**: For client integrations that do not support custom request payloads or template parameters (such as the Zed Editor), you can point the client to the local-router (port `51080`) and request model **`qwen3-thinking`**. The local-router automatically rewrites the request to use `qwen3` with the `enable_thinking` template argument enabled. (See [local-router.md](local-router.md) for details).
 - **Client Integration**:
   - In **ZeroClaw**, configuring `reasoning_enabled = true` / `reasoning_effort = "low"` maps to these parameters.
   - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
+  - In **Hermes Agent**, configuring `agent: reasoning_effort: "xhigh" (max), "high", "medium", "low", "minimal", "none" (disable)
 
 ### Default Completions Model
 

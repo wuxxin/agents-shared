@@ -253,6 +253,8 @@ async def build_inventory_and_wait():
                     alias = resolve_service_alias(name)
                     if alias:
                         add_model(alias, name)
+                        if alias == "qwen3":
+                            add_model("qwen3-thinking", name)
 
             model_inventory_list = new_inventory_list
             model_to_service = new_model_to_service
@@ -405,9 +407,11 @@ def resolve_config() -> dict:
     }
 
 
-async def proxy_request(target_url: str, request: Request) -> Response:
+async def proxy_request(
+    target_url: str, request: Request, content: bytes = None
+) -> Response:
     """Asynchronously streams request to target and forwards the response back."""
-    body = await request.body()
+    body = content if content is not None else await request.body()
     headers = {
         k: v
         for k, v in request.headers.items()
@@ -487,7 +491,20 @@ async def proxy_request(target_url: str, request: Request) -> Response:
 @app.post("/v1/chat/completions")
 async def route_chat(request: Request):
     config = resolve_config()
-    return await proxy_request(f"{config['chat']}/v1/chat/completions", request)
+    body = await request.body()
+    try:
+        import json
+
+        data = json.loads(body)
+        if data.get("model") == "qwen3-thinking":
+            data["model"] = "qwen3"
+            kwargs = data.get("chat_template_kwargs") or {}
+            kwargs["enable_thinking"] = True
+            data["chat_template_kwargs"] = kwargs
+            body = json.dumps(data).encode("utf-8")
+    except Exception:
+        pass
+    return await proxy_request(f"{config['chat']}/v1/chat/completions", request, content=body)
 
 
 @app.post("/v1/embeddings")

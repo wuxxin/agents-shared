@@ -41,9 +41,8 @@ LROUT_DEFAULT_MODEL="qwen3"
 
 ### Route Map (Port 51080)
 
-| Endpoint | Target URL | Service | Model |  Port | Description |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3 | 50080 | LLM completions |
+| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3 | 50080 | LLM completions (uses default template settings) |
+| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3-thinking | 50080 | LLM completions (forces thinking/CoT ON) |
 | `POST /v1/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen-coder-fim | 50080 | FIM code completion |
 | `POST /v1/embeddings` | Dynamic (based on `LMBD_ENABLED`) | Local-Embedding | qwen3-embedding | 50082 / 50080 | Embeddings |
 | `POST /v1/rerank` or `/rerank` | `http://{LRR_HOST}:{LRR_PORT}` | Local-Rerank | qwen3-reranker | 50086 | Text document ranking |
@@ -51,6 +50,16 @@ LROUT_DEFAULT_MODEL="qwen3"
 | `POST /v1/audio/speech` | `http://{LTTS_HOST}:{LTTS_PORT}` | Local-Text-To-Speech | qwen3-tts | 50095 | Speech synthesis |
 | `POST /v1/images/generations` | `http://{LIMG_HOST}:{LIMG_PORT}` | Local-Image | z-image-turbo | 50100 | Stable Diffusion image generation |
 | `GET /v1/models` | Cached Model Inventory | - | - | - | Returns cached model inventory built on startup |
+
+### Special Model Aliases & Parameter Rewriting
+
+To accommodate client integrations that do not support custom request bodies or template arguments (such as the Zed Editor), the router exposes virtual model aliases:
+- **`qwen3-thinking`**: Exposes the same backend `qwen3` model but forces chain-of-thought (CoT) reasoning **ON** by default.
+  When a request is received, the router:
+  1. Rewrites `"model": "qwen3-thinking"` back to `"model": "qwen3"` so `llama-server` accepts it.
+  2. Dynamically injects `"chat_template_kwargs": {"enable_thinking": true}` into the request payload.
+  3. Forwards the modified payload to the chat service.
+  This allows specific clients to leverage thinking while other services (like hindsight) target `qwen3` for low-latency non-thinking calls.
 
 
 ### Startup Synchronization & Model Inventory

@@ -27,6 +27,8 @@ load_env() {
     local env_lchat_embedding_enabled="${LCHAT_EMBEDDING_ENABLED:-}"
     local env_lmbd_enabled="${LMBD_ENABLED:-}"
     local env_lcomp_enabled="${LCOMP_ENABLED:-}"
+    local env_lchat_chat_template_file="${LCHAT_CHAT_TEMPLATE_FILE:-}"
+    local env_lchat_chat_template_kwargs="${LCHAT_CHAT_TEMPLATE_KWARGS:-}"
 
     # Default parameters for server/chat section
     LCHAT_PORT=50080
@@ -40,6 +42,7 @@ load_env() {
     LCHAT_PARALLEL=3
     LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
     LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+    LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
     LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
@@ -117,6 +120,10 @@ load_env() {
         echo "Warning: Completion model file not found at ${LCOMP_MODEL}. Disabling code completion." >&2
         LCOMP_ENABLED=false
     fi
+
+    # Resolve template overrides
+    LCHAT_CHAT_TEMPLATE_FILE="${env_lchat_chat_template_file:-${LCHAT_CHAT_TEMPLATE_FILE}}"
+    LCHAT_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_CHAT_TEMPLATE_KWARGS}}"
 
     # Compute default portmirror sidecar CMD if not explicitly set by user
     if [[ -z "${LOCAL_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
@@ -329,6 +336,9 @@ EOF
     fi
     if [[ -n "${LCHAT_CHAT_TEMPLATE_FILE:-}" ]]; then
         echo "chat-template-file = ${LCHAT_CHAT_TEMPLATE_FILE}"
+    fi
+    if [[ -n "${LCHAT_CHAT_TEMPLATE_KWARGS:-}" ]]; then
+        echo "chat-template-kwargs = ${LCHAT_CHAT_TEMPLATE_KWARGS}"
     fi
 
     if [ "${LMBD_ENABLED}" = "true" ]; then
@@ -549,6 +559,10 @@ LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-AP
 
 # Chat template file (optional)
 LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+
+# Additional parameters for the Jinja chat template parser (JSON string)
+# Default '{"enable_thinking": false}' turns off chain-of-thought/thinking by default.
+LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
 
 # Speculative Decoding config (default: "--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4")
 LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
