@@ -7,6 +7,7 @@ It automates target environment setups, captures VRAM/RAM resource utilization, 
 ## Supported Services
 
 - **Chat (`chat` / `local-chat.sh`)**: Measures prompt prefill speed, generation/decode throughput, and Time-To-First-Token (TTFT).
+- **Code Completion (`completion` / `local-chat.sh`)**: Measures Fill-in-the-Middle (FIM) prompt prefill speed, generation/decode speed, and Warmup/Completion TTFT.
 - **Text Embedding (`embedding` / `local-embedding.sh`)**: Measures document embedding throughput (tokens/second) and average chunk latency.
 - **Document Reranking (`rerank` / `local-rerank.sh`)**: Measures reranking throughput (documents/second) and token evaluation speed.
 - **Speech-to-Text (`stt` / `local-speech-to-text.sh`)**: Measures transcription time and the Real-Time Factor (RTF).
@@ -87,6 +88,9 @@ python3 scripts/run-local-benchmark.py
 # Test only HIP and Vulkan backends for Embedding and Reranker
 python3 scripts/run-local-benchmark.py --configs hip,vulkan --services embedding,rerank
 
+# Run completions/FIM benchmark on the currently running configurations
+python3 scripts/run-local-benchmark.py --configs running --services completion
+
 # Dry-run (mock mode) to verify report formatting and script parsing logic on all services
 python3 scripts/run-local-benchmark.py --mock --services all
 ```
@@ -96,7 +100,7 @@ python3 scripts/run-local-benchmark.py --mock --services all
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `--configs` | `hip,vulkan,cpu,special` | Comma-separated list of hardware configurations to test, or `running` to test already running services. |
-| `--services` | `chat,embedding,rerank,stt,tts` | Comma-separated list of services to test, or `all` to run all tests. |
+| `--services` | `chat,completion,embedding,rerank,stt,tts,image` | Comma-separated list of services to test, or `all` to run all tests. |
 | `--hip-devices` | `ROCm0` | Comma-separated list of HIP/ROCm devices or `all`. |
 | `--vulkan-devices` | `Vulkan0` | Comma-separated list of Vulkan devices or `all`. |
 | `--mock` | `False` | Run in simulation mode (does not start servers or run actual tests). |

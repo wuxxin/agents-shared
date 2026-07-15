@@ -1182,26 +1182,33 @@ def run_benchmark(
 # Regex Parsers
 
 
-def extract_metric(
-    pattern: str,
-    text: str,
-    group_idx: int = 1,
-    default: float = 0.0,
-) -> float:
-    """Extract a float metric from text using a regular expression."""
-    match = re.search(pattern, text)
-    if match:
-        try:
-            return float(match.group(group_idx))
-        except ValueError:
-            return default
-    return default
+# Regex Parsers / JSON Block Extraction
+
+def extract_json_block(output: str, required_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Find and load the valid JSON block containing required_key in output."""
+    idx = 0
+    while True:
+        idx = output.find("{", idx)
+        if idx == -1:
+            break
+        jdx = output.rfind("}")
+        while jdx > idx:
+            sub = output[idx : jdx + 1]
+            try:
+                data = json.loads(sub)
+                if required_key is None or required_key in data:
+                    return data
+            except Exception:
+                pass
+            jdx = output.rfind("}", 0, jdx)
+        idx += 1
+    return None
 
 
 def parse_chat_output(output: str) -> Dict[str, float]:
     """Parse chat benchmark stats from stdout."""
     res = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "chat_avg_gen")
     if data is not None:
         res["chat_warmup_prompt"] = float(data.get("chat_warmup_prompt", 0.0))
         res["chat_warmup_comp"] = float(data.get("chat_warmup_comp", 0.0))
@@ -1215,106 +1222,22 @@ def parse_chat_output(output: str) -> Dict[str, float]:
         res["chat_avg_decode"] = float(data.get("chat_avg_decode", 0.0))
         res["chat_image_ttft"] = float(data.get("chat_image_ttft", 0.0))
         res["chat_image_gen"] = float(data.get("chat_image_gen", 0.0))
-        return res
-
-    # Partition Phase 0, Phase 2, and Phase 4
-    p0_content = ""
-    p2_content = ""
-    p4_content = ""
-
-    parts_p0 = output.split("--- Phase 0: Warmup ---")
-    if len(parts_p0) > 1:
-        p0_content = parts_p0[1].split("---")[0]
-
-    parts_p2 = output.split("--- Phase 2: Generation (300-word summary) ---")
-    if len(parts_p2) > 1:
-        p2_content = parts_p2[1].split("---")[0]
-
-    parts_p4 = output.split("--- Phase 4: Image Description (Vision) ---")
-    if len(parts_p4) > 1:
-        p4_content = parts_p4[1].split("---")[0]
-
-    if p0_content:
-        res["chat_warmup_prompt"] = extract_metric(
-            r"Prompt Tokens:\s+(\d+)", p0_content
-        )
-        res["chat_warmup_comp"] = extract_metric(
-            r"Completion Tokens:\s+(\d+)", p0_content
-        )
-        res["chat_warmup_ttft"] = extract_metric(
-            r"TTFT \(Prefill\):\s+([\d\.]+)\s+ms", p0_content
-        )
-        res["chat_warmup_prefill"] = extract_metric(
-            r"Prefill Speed:\s+([\d\.]+)\s+tokens", p0_content
-        )
-        res["chat_warmup_gen"] = extract_metric(
-            r"Generation Speed:\s+([\d\.]+)\s+tokens", p0_content
-        )
-
-    if p2_content:
-        res["chat_avg_comp"] = extract_metric(
-            r"Avg Completion Tokens:\s+([\d\.]+)", p2_content
-        )
-        res["chat_avg_ttft"] = extract_metric(
-            r"Avg TTFT \(Prefill\):\s+([\d\.]+)\s+ms", p2_content
-        )
-        res["chat_avg_prefill"] = extract_metric(
-            r"Avg Prefill Speed:\s+([\d\.]+)\s+tokens", p2_content
-        )
-        res["chat_avg_gen"] = extract_metric(
-            r"Avg Generation Speed:\s+([\d\.]+)\s+tokens", p2_content
-        )
-        res["chat_avg_decode"] = extract_metric(
-            r"Avg Decode Time:\s+([\d\.]+)\s+s", p2_content
-        )
-
-    if p4_content:
-        res["chat_image_ttft"] = extract_metric(
-            r"Avg TTFT \(Prefill\):\s+([\d\.]+)\s+ms", p4_content
-        )
-        res["chat_image_gen"] = extract_metric(
-            r"Avg Generation Speed:\s+([\d\.]+)\s+tokens", p4_content
-        )
-
     return res
-
-
-def extract_json_block(output: str) -> Optional[Dict[str, Any]]:
-    """Find and load the valid JSON block ending at the last curly brace in output."""
-    last_brace = output.rfind("}")
-    if last_brace == -1:
-        return None
-
-    idx = output.find("{")
-    while idx != -1:
-        if idx >= last_brace:
-            break
-        sub = output[idx : last_brace + 1]
-        try:
-            return json.loads(sub)
-        except Exception:
-            pass
-        idx = output.find("{", idx + 1)
-    return None
 
 
 def parse_image_output(output: str) -> Dict[str, Any]:
     """Parse image benchmark stats from stdout."""
     res = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "image_time")
     if data is not None:
         res["image_time"] = float(data.get("image_time", 0.0))
-    else:
-        res["image_time"] = extract_metric(
-            r"Avg Generation Time:\s*([\d\.]+)\s*seconds", output
-        )
     return res
 
 
 def parse_embed_output(output: str) -> Dict[str, float]:
     """Parse embedding benchmark stats from stdout."""
     res = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "embed_throughput")
     if data is not None:
         res["embed_throughput"] = float(data.get("embed_throughput", 0.0))
         embed_time = float(data.get("embed_time_s", 0.0))
@@ -1331,22 +1254,13 @@ def parse_embed_output(output: str) -> Dict[str, float]:
         res["embed_lat"] = float(data.get("embed_lat", 0.0))
         res["embed_p50"] = float(data.get("embed_p50", 0.0))
         res["embed_p95"] = float(data.get("embed_p95", 0.0))
-    else:
-        res["embed_throughput"] = extract_metric(
-            r"Avg Throughput:\s+([\d\.]+)\s+tokens/sec", output
-        )
-        res["embed_time_s"] = extract_metric(r"Avg Time/Run:\s+([\d\.]+)\s+s", output)
-        res["embed_lat"] = extract_metric(
-            r"Avg Chunk Latency:\s+([\d\.]+)\s+ms", output
-        )
-        res["embed_p50"] = extract_metric(r"Avg Chunk p50:\s+([\d\.]+)\s+ms", output)
     return res
 
 
 def parse_comp_output(output: str) -> Dict[str, float]:
     """Parse completion benchmark stats from stdout."""
     res = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "comp_avg_gen")
     if data is not None:
         res["comp_warmup_ttft"] = float(data.get("comp_warmup_ttft", 0.0))
         res["comp_warmup_gen"] = float(data.get("comp_warmup_gen", 0.0))
@@ -1354,88 +1268,40 @@ def parse_comp_output(output: str) -> Dict[str, float]:
         res["comp_avg_prefill"] = float(data.get("comp_avg_prefill", 0.0))
         res["comp_avg_gen"] = float(data.get("comp_avg_gen", 0.0))
         res["comp_avg_decode"] = float(data.get("comp_avg_decode", 0.0))
-        return res
-    res["comp_warmup_ttft"] = extract_metric(r"Warmup TTFT:\s+([\d\.]+)\s+ms", output)
-    res["comp_warmup_gen"] = extract_metric(
-        r"Warmup Gen Speed:\s+([\d\.]+)\s+tokens", output
-    )
-    res["comp_avg_ttft"] = extract_metric(r"Avg TTFT:\s+([\d\.]+)\s+ms", output)
-    res["comp_avg_prefill"] = extract_metric(
-        r"Avg Prefill Speed:\s+([\d\.]+)\s+tokens", output
-    )
-    res["comp_avg_gen"] = extract_metric(
-        r"Avg Generation Speed:\s+([\d\.]+)\s+tokens", output
-    )
-    res["comp_avg_decode"] = extract_metric(r"Avg Decode Time:\s+([\d\.]+)\s+s", output)
     return res
 
 
 def parse_rerank_output(output: str) -> Dict[str, Any]:
     """Parse reranker benchmark stats from stdout."""
     res = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "rerank_token_speed")
     if data is not None:
         res["rerank_time"] = float(data.get("rerank_time", 0.0))
         res["rerank_throughput"] = float(data.get("rerank_throughput", 0.0))
         res["rerank_token_speed"] = float(data.get("rerank_token_speed", 0.0))
-    else:
-        res["rerank_time"] = extract_metric(
-            r"Avg Reranking Time:\s*([\d\.]+)\s*ms", output
-        )
-        res["rerank_throughput"] = extract_metric(
-            r"Avg Docs Throughput:\s*([\d\.]+)\s*docs", output
-        )
-        res["rerank_token_speed"] = extract_metric(
-            r"Avg Token Speed:\s*([\d\.]+)\s*tokens", output
-        )
     return res
 
 
 def parse_stt_output(output: str) -> Dict[str, Any]:
     """Parse STT benchmark stats from stdout."""
     res: Dict[str, Any] = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "stt_rtf")
     if data is not None:
         res["stt_time"] = float(data.get("stt_time", 0.0))
         res["stt_rtf"] = float(data.get("stt_rtf", 0.0))
         res["stt_text"] = data.get("stt_text", "")
-    else:
-        res["stt_time"] = extract_metric(
-            r"Avg Transcribe Time:\s*([\d\.]+)\s*seconds", output
-        )
-        res["stt_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
-        text_match = re.search(
-            r"--- Transcription Snippet \(Repeat 1\) ---\s*\n(.*?)\n={2,}",
-            output,
-            re.DOTALL,
-        )
-        if text_match:
-            res["stt_text"] = text_match.group(1).strip()
-        else:
-            res["stt_text"] = ""
     return res
 
 
 def parse_tts_output(output: str) -> Dict[str, Any]:
     """Parse TTS benchmark stats from stdout."""
     res = {}
-    data = extract_json_block(output)
+    data = extract_json_block(output, "tts_char_speed")
     if data is not None:
         res["tts_duration"] = float(data.get("tts_duration", 0.0))
         res["tts_time"] = float(data.get("tts_time", 0.0))
         res["tts_rtf"] = float(data.get("tts_rtf", 0.0))
         res["tts_char_speed"] = float(data.get("tts_char_speed", 0.0))
-    else:
-        res["tts_duration"] = extract_metric(
-            r"Audio Duration:\s*([\d\.]+)\s*seconds", output
-        )
-        res["tts_time"] = extract_metric(
-            r"Avg Synthesis Time:\s*([\d\.]+)\s*seconds", output
-        )
-        res["tts_rtf"] = extract_metric(r"Avg RTF:\s*([\d\.]+)", output)
-        res["tts_char_speed"] = extract_metric(
-            r"Avg Speed:\s*([\d\.]+)\s*chars", output
-        )
     return res
 
 
@@ -2286,8 +2152,8 @@ def main() -> None:
     parser.add_argument(
         "--services",
         type=str,
-        default="chat,embedding,rerank,stt,tts,image",
-        help="Comma-separated list of services to test, or 'all' to test all services (default: chat,embedding,rerank,stt,tts,image)",
+        default="chat,completion,embedding,rerank,stt,tts,image",
+        help="Comma-separated list of services to test, or 'all' to test all services (default: chat,completion,embedding,rerank,stt,tts,image)",
     )
     parser.add_argument(
         "--hip-devices",
@@ -2753,6 +2619,7 @@ def main() -> None:
                         "--format",
                         "json",
                         "--skip-embedding",
+                        "--skip-completion",
                     ]
                     if args.use_router and run_cfg == "running":
                         test_args.extend(["--url", router_url])
@@ -3331,6 +3198,8 @@ def main() -> None:
                         "1",
                         "--format",
                         "json",
+                        "--skip-chat",
+                        "--skip-completion",
                     ]
                     if run_cfg.startswith("cpu"):
                         test_args.extend(["--fraction-chunks", "0.1"])

@@ -3,7 +3,7 @@
 - **[local-download.sh](local-download.sh)**: Intelligent downloader for local AI models (LLMs, Embeddings, Reranker, Whisper STT) featuring caching, Hugging Face Hub downloads, and automated GGUF quantization.
 - **[sandbox-ctl](sandbox-ctl)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
 - **[antigravity-launcher.sh](antigravity-launcher.sh)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
-- **[run-local-benchmark.py](run-local-benchmark.py)**: Automate running and recording local service benchmarks (chat, embedding, rerank, STT, TTS) across configurations.
+- **[run-local-benchmark.py](run-local-benchmark.py)**: Automate running and recording local service benchmarks (chat, completion, embedding, rerank, STT, TTS, image) across configurations.
 - **[tiktoken_count.py](tiktoken_count.py)** / **[tiktoken_tps_sim.py](tiktoken_tps_sim.py)**: Calibrates timeout thresholds and measures token counts of input texts using OpenAI-compatible counts.
 
 
@@ -37,7 +37,7 @@ Documentation: [antigravity-launcher.md](antigravity-launcher.md)
 
 ## `run-local-benchmark.py`
 
-A Python automation script to run local service benchmarks (chat, embedding, rerank, STT, TTS) across configurations (HIP, Vulkan, CPU, special) and write a comparative markdown report.
+A Python automation script to run local service benchmarks (chat, completion, embedding, rerank, STT, TTS, image) across configurations (HIP, Vulkan, CPU, special) and write a comparative markdown report.
 
 Documentation: [run-local-benchmark.md](run-local-benchmark.md)
 
