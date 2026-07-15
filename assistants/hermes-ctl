@@ -19,9 +19,11 @@ DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
 
 # Agent sidecars
-DEFAULT_AGENT_SIDECARS="dashboard"
+DEFAULT_AGENT_SIDECARS="dashboard hindsight"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="-p ${DEFAULT_AGENT_PROFILE} dashboard --no-open"
+DEFAULT_AGENT_SIDECAR_HINDSIGHT_CMD="/opt/hermes-agent/venv/bin/hindsight-api"
+DEFAULT_AGENT_SIDECAR_HINDSIGHT_ARGS="--port 8888 --host 127.0.0.1"
 
 # Local Router Ports/URLS
 DEFAULT_ROUTER_BASE_URL="http://localhost:51080/v1"
@@ -569,9 +571,44 @@ AGENT_WORKSPACE="${DEFAULT_AGENT_WORKSPACE}"
 AGENT_SIDECARS="${DEFAULT_AGENT_SIDECARS}"
 AGENT_SIDECAR_DASHBOARD_CMD="${DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD}"
 AGENT_SIDECAR_DASHBOARD_ARGS="${DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS}"
+AGENT_SIDECAR_HINDSIGHT_CMD="${DEFAULT_AGENT_SIDECAR_HINDSIGHT_CMD}"
+AGENT_SIDECAR_HINDSIGHT_ARGS="${DEFAULT_AGENT_SIDECAR_HINDSIGHT_ARGS}"
 
 # systemd-tmpfiles cleanup policy status
 AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
+
+# Hindsight daemon configuration
+HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
+HINDSIGHT_API_WORKER_ENABLED="true"
+HINDSIGHT_API_MCP_ENABLED="true"
+
+# multilingual support needs the following parts to be multilingual:
+# chat model, embedding model, reranking model and database (postgresql) text search extension
+
+# hindsight chat
+HINDSIGHT_API_LLM_PROVIDER=openai
+HINDSIGHT_API_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
+HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+HINDSIGHT_API_LLM_MODEL="${DEFAULT_CHAT_MODEL}"
+
+# hindsight embedding
+HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
+HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
+HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="${DEFAULT_EMBEDDING_MODEL}"
+
+# hindsight rerank
+HINDSIGHT_API_RERANKER_PROVIDER=cohere
+HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_ROUTER_KEY}"
+HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+HINDSIGHT_API_RERANKER_COHERE_MODEL="${DEFAULT_RERANK_MODEL}"
+
+# hindsight database
+# use postgresql with pgvector as vector extension and pgroonga (multilingual) for BM25 / Full-Text Search
+HINDSIGHT_API_DATABASE_BACKEND=postgresql
+HINDSIGHT_API_VECTOR_EXTENSION=pgvector
+HINDSIGHT_API_TEXT_SEARCH_EXTENSION=pgroonga
+HINDSIGHT_API_DATABASE_URL="postgresql://username:password@localhost:5432/dbname"
 
 EOF
         chmod 600 "$ENV_FILE"
@@ -624,10 +661,20 @@ SIGNAL_HOME_CHANNEL_THREAD_ID=""
 # Messaging gateway settings
 # GATEWAY_ALLOW_ALL_USERS=false
 
+# Hindsight Hermes configuration
+HINDSIGHT_MODE=local_external
+HINDSIGHT_API_URL="http://localhost:8888"
+HINDSIGHT_API_KEY=""
+HINDSIGHT_BANK_ID="hermes"
+# provide unused legacy hindsight keys for hermes hindsight plugin to work
+HINDSIGHT_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
+
+
 # Example API keys (uncomment and fill)
 # OPENROUTER_API_KEY=sk-or-v1-...
 # TELEGRAM_BOT_TOKEN=...
 # TELEGRAM_ALLOWED_USERS=your_user_id
+
 EOF
         chmod 600 "$profile_env_file"
         echo "Created profile environment file at $profile_env_file"
@@ -667,6 +714,12 @@ EOF
     if [ ! -f "$profile_config_yaml" ] || [ "$new_config" = "true" ]; then
         cat >"$profile_config_yaml" <<EOF
 _config_version: 32
+model:
+  provider: custom
+  default: $DEFAULT_CHAT_MODEL
+  context_length: 80128
+  base_url: http://localhost:51080/v1
+  api_key: unused
 agent:
   max_turns: 150
 approvals:
@@ -712,12 +765,15 @@ dashboard:
   show_token_analytics: true
 session_reset:
   mode: smart
-model:
-  provider: custom
-  default: $DEFAULT_CHAT_MODEL
-  context_length: 80128
-  base_url: http://localhost:51080/v1
-  api_key: unused
+streaming:
+  enabled: true
+memory:
+  user_char_limit: 2500
+  provider: builtin
+mcp_servers:
+  sequentialthinking:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
 model_catalog:
   enabled: false
 image_gen:
@@ -744,8 +800,9 @@ stt:
     model: $DEFAULT_STT_MODEL
     base_url: $DEFAULT_ROUTER_BASE_URL
 voice:
-  auto_tts: true
+  auto_tts: false
   default: true
+  max_recording_seconds: 180
 platforms:
   signal:
     enabled: true
@@ -911,6 +968,28 @@ skills:
 #   tirith_path: "tirith"
 #   tirith_timeout: 5
 #   tirith_fail_open: true
+
+# ── Fallback Model ────────────────────────────────────────────────────
+# Automatic provider failover when primary is unavailable.
+# Uncomment and configure to enable. Triggers on rate limits (429),
+# overload (529), service errors (503), or connection failures.
+#
+# Supported providers:
+#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
+#   openai-codex (OAuth — hermes auth) — OpenAI Codex
+#   nous         (OAuth — hermes auth) — Nous Portal
+#   zai          (ZAI_API_KEY)         — Z.AI / GLM
+#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
+#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
+#   minimax      (MINIMAX_API_KEY)     — MiniMax
+#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
+#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
+#
+# For custom OpenAI-compatible endpoints, add base_url and key_env.
+#
+# fallback_model:
+#   provider: openrouter
+#   model: anthropic/claude-sonnet-4
 
 EOF
         echo "Created profile configuration file at $profile_config_yaml"
