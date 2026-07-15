@@ -23,7 +23,7 @@ A flexible, generalized wrapper for running any command-line or graphical binary
 ./scripts/sandbox-ctl install <app_name>
 ```
 
-Documentation: [sandbox-launcher.md](sandbox-launcher.md)
+Documentation: [sandbox-ctl.md](sandbox-ctl.md)
 
 ## `antigravity-launcher.sh`
 
