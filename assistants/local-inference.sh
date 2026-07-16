@@ -27,6 +27,8 @@ LTTS_ENABLED=1
 LIMG_ENABLED=1
 # shellcheck disable=SC2034
 LROUT_ENABLED=1
+# shellcheck disable=SC2034
+LMEM_ENABLED=1
 
 # Load environment
 
@@ -110,6 +112,7 @@ LSTT_ENABLED=1
 LTTS_ENABLED=1
 LIMG_ENABLED=1
 LROUT_ENABLED=1
+LMEM_ENABLED=1
 
 # ROCm0 = dgpu
 # Vulkan0 = igpu
@@ -152,6 +155,8 @@ LIMG_OVERRIDE=(
 )
 LROUT_OVERRIDE=(
 )
+LMEM_OVERRIDE=(
+)
 
 EOF
 }
@@ -181,8 +186,8 @@ cmd_install() {
     # Reload variables from env file
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -209,7 +214,7 @@ cmd_install() {
 
 cmd_uninstall() {
     echo "Uninstalling all managed local services..."
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -224,7 +229,7 @@ cmd_uninstall() {
 }
 
 cmd_status() {
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
 
     for svc in "${services[@]}"; do
         echo "● ${svc}.service"
@@ -238,7 +243,7 @@ cmd_status() {
 }
 
 cmd_logs() {
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local log_args=()
     for svc in "${services[@]}"; do
         log_args+=("-u" "${svc}.service")
@@ -257,8 +262,8 @@ cmd_edit() {
 cmd_start() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -284,8 +289,8 @@ cmd_start() {
 cmd_stop() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -311,8 +316,8 @@ cmd_stop() {
 cmd_restart() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -355,8 +360,8 @@ cmd_restart() {
 cmd_test() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT")
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
