@@ -577,6 +577,10 @@ AGENT_SIDECAR_HINDSIGHT_ARGS="${DEFAULT_AGENT_SIDECAR_HINDSIGHT_ARGS}"
 # systemd-tmpfiles cleanup policy status
 AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
 
+# Hindsight Hermes Configuration
+HINDSIGHT_MODE=local_external
+HINDSIGHT_API_URL="http://localhost:8888"
+
 # Hindsight daemon configuration
 HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
 HINDSIGHT_API_WORKER_ENABLED="true"
@@ -667,7 +671,7 @@ SIGNAL_HOME_CHANNEL_THREAD_ID=""
 HINDSIGHT_MODE=local_external
 HINDSIGHT_API_URL="http://localhost:8888"
 HINDSIGHT_API_KEY=""
-HINDSIGHT_BANK_ID="hermes"
+HINDSIGHT_BANK_ID="hermes-assistant"
 # provide unused legacy hindsight keys for hermes hindsight plugin to work
 HINDSIGHT_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
 
