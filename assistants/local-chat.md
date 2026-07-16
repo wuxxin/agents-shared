@@ -246,23 +246,23 @@ Sidecars are configured in the env file via:
 
 ```bash
 # Space or semicolon separated list of sidecar names
-LOCAL_SIDECARS="portmirror"
+LCHAT_SIDECARS="portmirror"
 
 # For each sidecar, define CMD and optional ARGS:
-# LOCAL_SIDECAR_<NAME>_CMD="command"
-# LOCAL_SIDECAR_<NAME>_ARGS="arguments"
+# LCHAT_SIDECAR_<NAME>_CMD="command"
+# LCHAT_SIDECAR_<NAME>_ARGS="arguments"
 ```
 
 The built-in **portmirror** sidecar is pre-configured as a bash one-liner that checks `LMBD_ENABLED` at runtime:
 - `true` → runs `socat TCP-LISTEN:${LMBD_MIRROR_PORT},fork,reuseaddr TCP:${LCHAT_HOST}:${LCHAT_PORT}`
 - `false` → runs `sleep infinity`
 
-To disable the port mirror, remove `portmirror` from `LOCAL_SIDECARS`. To add custom sidecars:
+To disable the port mirror, remove `portmirror` from `LCHAT_SIDECARS`. To add custom sidecars:
 
 ```bash
-LOCAL_SIDECARS="portmirror mycustom"
-LOCAL_SIDECAR_MYCUSTOM_CMD="/path/to/command"
-LOCAL_SIDECAR_MYCUSTOM_ARGS="--flag value"
+LCHAT_SIDECARS="portmirror mycustom"
+LCHAT_SIDECAR_MYCUSTOM_CMD="/path/to/command"
+LCHAT_SIDECAR_MYCUSTOM_ARGS="--flag value"
 ```
 
 > [!NOTE]

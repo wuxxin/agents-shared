@@ -77,7 +77,7 @@ load_env() {
     LMBD_MIRROR_PORT=50082
 
     # Sidecar configuration
-    LOCAL_SIDECARS="portmirror"
+    LCHAT_SIDECARS="portmirror"
 
     # Source the env file if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -126,8 +126,8 @@ load_env() {
     LCHAT_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_CHAT_TEMPLATE_KWARGS}}"
 
     # Compute default portmirror sidecar CMD if not explicitly set by user
-    if [[ -z "${LOCAL_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
-        LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
+    if [[ -z "${LCHAT_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
+        LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -157,21 +157,21 @@ FALLBACK_SIDECAR_PIDS=()
 FALLBACK_SIDECAR_NAMES=()
 
 spawn_fallback_sidecars() {
-    local sidecars_val="${LOCAL_SIDECARS:-}"
+    local sidecars_val="${LCHAT_SIDECARS:-}"
     sidecars_val="${sidecars_val//;/ }"
     sidecars_val="${sidecars_val//$'\n'/ }"
 
     for sidecar in ${sidecars_val}; do
         local var_name
         var_name=$(sanitize_var_name "$sidecar")
-        local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+        local cmd_var="LCHAT_SIDECAR_${var_name}_CMD"
         local cmd_val="${!cmd_var:-}"
         if [ -z "$cmd_val" ]; then
-            echo "Warning: Sidecar '$sidecar' has no LOCAL_SIDECAR_${var_name}_CMD defined. Skipping." >&2
+            echo "Warning: Sidecar '$sidecar' has no LCHAT_SIDECAR_${var_name}_CMD defined. Skipping." >&2
             continue
         fi
 
-        local args_var="LOCAL_SIDECAR_${var_name}_ARGS"
+        local args_var="LCHAT_SIDECAR_${var_name}_ARGS"
         local args_val="${!args_var:-}"
 
         echo "Starting sidecar: $sidecar"
@@ -391,7 +391,7 @@ generate_launcher_script() {
     local args
     get_llama_args args
 
-    local sidecars_val="${LOCAL_SIDECARS:-}"
+    local sidecars_val="${LCHAT_SIDECARS:-}"
     sidecars_val="${sidecars_val//;/ }"
     sidecars_val="${sidecars_val//$'\n'/ }"
 
@@ -399,7 +399,7 @@ generate_launcher_script() {
     for sidecar in ${sidecars_val}; do
         local var_name
         var_name=$(sanitize_var_name "$sidecar")
-        local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+        local cmd_var="LCHAT_SIDECAR_${var_name}_CMD"
         if [ -n "${!cmd_var:-}" ]; then
             has_sidecars=true
             break
@@ -432,13 +432,13 @@ HEADER
         for sidecar in ${sidecars_val}; do
             local var_name
             var_name=$(sanitize_var_name "$sidecar")
-            local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+            local cmd_var="LCHAT_SIDECAR_${var_name}_CMD"
             local cmd_val="${!cmd_var:-}"
             if [ -z "$cmd_val" ]; then
                 continue
             fi
 
-            local args_var="LOCAL_SIDECAR_${var_name}_ARGS"
+            local args_var="LCHAT_SIDECAR_${var_name}_ARGS"
             local args_val="${!args_var:-}"
 
             echo "echo \"Starting sidecar: $sidecar\""
@@ -458,7 +458,7 @@ HEADER
         for sidecar in ${sidecars_val}; do
             local var_name
             var_name=$(sanitize_var_name "$sidecar")
-            local cmd_var="LOCAL_SIDECAR_${var_name}_CMD"
+            local cmd_var="LCHAT_SIDECAR_${var_name}_CMD"
             if [ -z "${!cmd_var:-}" ]; then
                 continue
             fi
@@ -577,11 +577,34 @@ LCHAT_CACHE_TYPE_V=q4_0
 # --repeat-penalty 1.1: https://www.reddit.com/r/hermesagent/comments/1tk8x46/infinite_loop/
 LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"
 
+# ### SIDECARS CONFIGURATION
+
+# Space or semicolon separated list of sidecar names (default: "portmirror")
+# Each sidecar runs as a background process alongside llama-server.
+# LCHAT_SIDECARS="portmirror"
+LCHAT_SIDECARS=""
+
+# --- Port Mirror Sidecar (default built-in)
+# Checks LMBD_ENABLED at runtime: socat port mirror when true, sleep when false.
+# To disable the portmirror, remove "portmirror" from LCHAT_SIDECARS.
+LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
+
+# Custom sidecar example:
+# LCHAT_SIDECARS="portmirror mycustom"
+# LCHAT_SIDECAR_MYCUSTOM_CMD="/path/to/command"
+# LCHAT_SIDECAR_MYCUSTOM_ARGS="--flag value"
+
 
 # ### TEXT EMBEDDING MODEL SETTINGS
 
 # Whether to enable the text embedding model in this server instance (default: true)
 LMBD_ENABLED=true
+
+# EMBEDDING PORT MIRROR
+# Port to mirror embedding API on (default: 50082, matching standalone local-embedding)
+# When LMBD_ENABLED=true, the portmirror sidecar forwards this port → LCHAT_PORT
+# When LMBD_ENABLED=false, the portmirror sidecar sleeps (port unused)
+LMBD_MIRROR_PORT=50082
 
 # Path to the text embedding model file
 LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
@@ -627,31 +650,6 @@ LCOMP_PARALLEL=2
 LCOMP_CACHE_TYPE_K=q4_0
 LCOMP_CACHE_TYPE_V=q4_0
 
-
-# ### EMBEDDING PORT MIRROR
-
-# Port to mirror embedding API on (default: 50082, matching standalone local-embedding)
-# When LMBD_ENABLED=true, the portmirror sidecar forwards this port → LCHAT_PORT
-# When LMBD_ENABLED=false, the portmirror sidecar sleeps (port unused)
-LMBD_MIRROR_PORT=50082
-
-
-# ### SIDECARS CONFIGURATION
-
-# Space or semicolon separated list of sidecar names (default: "portmirror")
-# Each sidecar runs as a background process alongside llama-server.
-# LOCAL_SIDECARS="portmirror"
-LOCAL_SIDECARS=""
-
-# --- Port Mirror Sidecar (default built-in)
-# Checks LMBD_ENABLED at runtime: socat port mirror when true, sleep when false.
-# To disable the portmirror, remove "portmirror" from LOCAL_SIDECARS.
-LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
-
-# Custom sidecar example:
-# LOCAL_SIDECARS="portmirror mycustom"
-# LOCAL_SIDECAR_MYCUSTOM_CMD="/path/to/command"
-# LOCAL_SIDECAR_MYCUSTOM_ARGS="--flag value"
 
 EOF
 }
