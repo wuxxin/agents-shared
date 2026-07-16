@@ -12,13 +12,13 @@ SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-memory"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
 ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
-LMEM_HOME="${HOME}/.local/share/local-memory"
+LMEM_HOME="${HOME}/.local/sandbox/local-memory"
 VENV_DIR="${LMEM_HOME}/venv"
 
 # Default Configuration Constants
 DEFAULT_LMEM_PORT=8888
 DEFAULT_LMEM_HOST=127.0.0.1
-DEFAULT_LMEM_SERVICE_CMD="%h/.local/share/local-memory/venv/bin/hindsight-api"
+DEFAULT_LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
 DEFAULT_LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
 DEFAULT_LMEM_SIDECARS=""
 
@@ -462,9 +462,9 @@ cmd_install() {
     # Create virtual environment using system Python 3
     uv venv --clear --python /usr/bin/python3 "${VENV_DIR}"
 
-    # Install packages targeting python-version 3.12 (bypasses requires-python limitation of litellm)
+    # fix limitation for litellm different.
     echo "Installing Hindsight packages into venv..."
-    uv pip install --python "${VENV_DIR}" --python-version 3.12 hindsight-client hindsight-api-slim
+    uv pip install --python "${VENV_DIR}" hindsight-client hindsight-api-slim
 
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
