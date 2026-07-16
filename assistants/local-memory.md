@@ -2,10 +2,7 @@
 
 `local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `8888`. It provides long-term temporal, semantic, and entity-graph memory for local agents.
 
-Hindsight has been split out from the default agent wrapper scripts (like `hermes-ctl`) to operate as a central, dedicated local microservice, offloading its processing workloads and aligning with the standalone local inference design.
-
-- **Source Code**: [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
-- **Control Wrapper**: [assistants/local-memory.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-memory.sh)
+- **Control Wrapper**: [assistants/local-memory.sh](assistants/local-memory.sh)
 
 ---
 
@@ -29,15 +26,17 @@ In `local_external` mode, the Hindsight service itself remains lightweight: it o
 
 ## Installation & Arch Linux Dependencies
 
-Hindsight requires PostgreSQL with the `pgvector` and `pgroonga` extensions. On Arch Linux, these must be installed via Pacman / AUR.
+Hindsight requires PostgreSQL with the `pgvector` and `pgroonga` extensionsn and `nltk-data` (NLTK Corpora, grammars a.o.) installed.
+
+On Arch Linux, these must be installed via Pacman / AUR.
 
 ### 1. Install System and AUR Packages
 
 Run the following commands to install PostgreSQL and its required vector and full-text search extensions:
 
 ```bash
-# Install PostgreSQL and the vector extension from Arch extra repos
-sudo pacman -S postgresql pgvector
+# Install PostgreSQL and the vector extension, NLTK Corpora from Arch extra repos
+sudo pacman -S postgresql pgvector nltk-data
 
 # Install the Groonga full-text search extension from AUR
 yay -S pgroonga
@@ -92,7 +91,7 @@ Install the virtual environment and default configuration files:
 ```
 
 This subcommand:
-1. Recreates a clean Python virtual environment at `~/.local/share/local-memory/venv` using `uv`.
+1. Recreates a clean Python virtual environment at `~/.local/sandbox/local-memory/venv` using `uv`.
 2. Bypasses the `litellm` version constraint on Python 3.14+ by enforcing a target dependency resolution of Python 3.12 (`--python-version 3.12` during `uv pip install`).
 3. Installs `hindsight-client` and `hindsight-api-slim` (which avoids downloading gigabytes of machine learning libraries).
 4. Creates a default service configuration file at `~/.config/systemd/user/local-memory.env`.
@@ -115,7 +114,7 @@ Default configuration values:
 # Service Configuration
 LMEM_PORT=8888
 LMEM_HOST=127.0.0.1
-LMEM_SERVICE_CMD="%h/.local/share/local-memory/venv/bin/hindsight-api"
+LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
 LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
 LMEM_SIDECARS=""
 
@@ -207,3 +206,4 @@ Common issues:
 - **`ValueError: LLM API key is required`**: Ensure `HINDSIGHT_API_LLM_API_KEY` is not blank (use `"unused"` for local routing backends).
 - **`Rolle »hindsight« existiert nicht` or DB connection failure**: Verify the database role and password match your configuration in `HINDSIGHT_API_DATABASE_URL`. Ensure PostgreSQL service is active (`systemctl status postgresql.service`).
 - **`ValueError: Unknown reranker provider: none`**: Ensure `HINDSIGHT_API_RERANKER_PROVIDER` is set to a supported remote engine like `cohere` or `tei` pointing to local-router (plain `none` is not allowed by Hindsight).
+
