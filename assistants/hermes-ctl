@@ -19,48 +19,18 @@ DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
 
 # Agent sidecars
-DEFAULT_AGENT_SIDECARS="dashboard hindsight"
+DEFAULT_AGENT_SIDECARS="dashboard"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="-p ${DEFAULT_AGENT_PROFILE} dashboard --no-open"
-DEFAULT_AGENT_SIDECAR_HINDSIGHT_CMD="/opt/hermes-agent/venv/bin/hindsight-api"
-DEFAULT_AGENT_SIDECAR_HINDSIGHT_ARGS="--port 8888 --host 127.0.0.1"
 
 # Local Router Ports/URLS
 DEFAULT_ROUTER_BASE_URL="http://localhost:51080/v1"
 DEFAULT_ROUTER_KEY="unused"
-
-# Local Inference Ports/URLs
-DEFAULT_CHAT_BASE_URL="http://localhost:50080/v1"
-DEFAULT_CHAT_KEY="unused"
 DEFAULT_CHAT_MODEL="qwen3"
-
-DEFAULT_EMBEDDING_PROVIDER="local"
-DEFAULT_EMBEDDING_BASE_URL="http://localhost:50082/v1"
-DEFAULT_EMBEDDING_KEY="unused"
-DEFAULT_EMBEDDING_MODEL="qwen3-embedding"
-
-DEFAULT_RERANK_PROVIDER="local"
-DEFAULT_RERANK_BASE_URL="http://localhost:50086/v1"
-DEFAULT_RERANK_KEY="unused"
-DEFAULT_RERANK_MODEL="qwen3-reranker"
-DEFAULT_RERANK_TOP_K=30
-
-DEFAULT_STT_BASE_URL="http://localhost:50090/v1"
-DEFAULT_STT_KEY="unused"
+DEFAULT_CHAT_CTX=80128
 DEFAULT_STT_MODEL="whisper-1"
-
-# Local TTS Port/URL (for Custom OpenAI-compatible TTS)
-DEFAULT_TTS_BASE_URL="http://localhost:50095/v1"
-DEFAULT_TTS_KEY="unused"
 DEFAULT_TTS_MODEL="qwen3-tts"
-
-# Local Image Port/URL
-DEFAULT_IMAGE_BASE_URL="http://localhost:50100/v1"
-DEFAULT_IMAGE_KEY="unused"
 DEFAULT_IMAGE_MODEL="z-image-turbo"
-
-# Dummy reference to satisfy shellcheck SC2034 (unused variables to be used in the future)
-: "${DEFAULT_TTS_BASE_URL}" "${DEFAULT_TTS_KEY}" "${DEFAULT_CHAT_BASE_URL}" "${DEFAULT_CHAT_MODEL}" "${DEFAULT_CHAT_KEY}" "${DEFAULT_EMBEDDING_PROVIDER}" "${DEFAULT_EMBEDDING_BASE_URL}" "${DEFAULT_EMBEDDING_KEY}" "${DEFAULT_EMBEDDING_MODEL}" "${DEFAULT_RERANK_PROVIDER}" "${DEFAULT_RERANK_BASE_URL}" "${DEFAULT_RERANK_KEY}" "${DEFAULT_RERANK_MODEL}" "${DEFAULT_RERANK_TOP_K}" "${DEFAULT_STT_BASE_URL}" "${DEFAULT_STT_MODEL}" "${DEFAULT_STT_KEY}"
 
 resolve_profile_vars() {
     local val="$1"
@@ -571,8 +541,6 @@ AGENT_WORKSPACE="${DEFAULT_AGENT_WORKSPACE}"
 AGENT_SIDECARS="${DEFAULT_AGENT_SIDECARS}"
 AGENT_SIDECAR_DASHBOARD_CMD="${DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD}"
 AGENT_SIDECAR_DASHBOARD_ARGS="${DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS}"
-AGENT_SIDECAR_HINDSIGHT_CMD="${DEFAULT_AGENT_SIDECAR_HINDSIGHT_CMD}"
-AGENT_SIDECAR_HINDSIGHT_ARGS="${DEFAULT_AGENT_SIDECAR_HINDSIGHT_ARGS}"
 
 # systemd-tmpfiles cleanup policy status
 AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
@@ -580,41 +548,8 @@ AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
 # Hindsight Hermes Configuration
 HINDSIGHT_MODE=local_external
 HINDSIGHT_API_URL="http://localhost:8888"
-
-# Hindsight daemon configuration
-HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
-HINDSIGHT_API_WORKER_ENABLED="true"
-HINDSIGHT_API_MCP_ENABLED="true"
-
-# multilingual support needs the following parts to be multilingual:
-# chat model, embedding model, reranking model and database (postgresql) text search extension
-
-# hindsight chat
-HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
-HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
-HINDSIGHT_API_LLM_MODEL="${DEFAULT_CHAT_MODEL}"
-# LLM usage for hindsight is better/faster/more robust without thinking
-HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}}'
 
-# hindsight embedding
-HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
-HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
-HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
-HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="${DEFAULT_EMBEDDING_MODEL}"
-
-# hindsight rerank
-HINDSIGHT_API_RERANKER_PROVIDER=cohere
-HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_ROUTER_KEY}"
-HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
-HINDSIGHT_API_RERANKER_COHERE_MODEL="${DEFAULT_RERANK_MODEL}"
-
-# hindsight database
-# use postgresql with pgvector as vector extension and pgroonga (multilingual) for BM25 / Full-Text Search
-HINDSIGHT_API_DATABASE_BACKEND=postgresql
-HINDSIGHT_API_VECTOR_EXTENSION=pgvector
-HINDSIGHT_API_TEXT_SEARCH_EXTENSION=pgroonga
-HINDSIGHT_API_DATABASE_URL="postgresql://username:password@localhost:5432/dbname"
 
 EOF
         chmod 600 "$ENV_FILE"
@@ -643,9 +578,9 @@ EOF
 # OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
 
 # local-image (openAI compatible image generation on port 50100)
-OPENAI_BASE_URL="${DEFAULT_IMAGE_BASE_URL}"
-OPENAI_API_BASE_URL="${DEFAULT_IMAGE_BASE_URL}"
-OPENAI_API_KEY="${DEFAULT_IMAGE_KEY}"
+OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
+OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
 
 # XXX stt:base_url is ignored , but STT_OPENAI_BASE_URL is recognized
 STT_OPENAI_BASE_URL="$DEFAULT_ROUTER_BASE_URL"
@@ -668,13 +603,16 @@ SIGNAL_HOME_CHANNEL_THREAD_ID=""
 # GATEWAY_ALLOW_ALL_USERS=false
 
 # Hindsight Hermes configuration
+# Note: Activate hindsight as memory provider by configuring memory: provider: hindsight in config.yaml, and dont disable buildin memory plugin
 HINDSIGHT_MODE=local_external
 HINDSIGHT_API_URL="http://localhost:8888"
 HINDSIGHT_API_KEY=""
 HINDSIGHT_BANK_ID="hermes-assistant"
+HINDSIGHT_RECALL_BUDGET="low"
+HINDSIGHT_RECALL_MAX_TOKENS=4096
+
 # provide unused legacy hindsight keys for hermes hindsight plugin to work
 HINDSIGHT_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
-
 
 # Example API keys (uncomment and fill)
 # OPENROUTER_API_KEY=sk-or-v1-...
@@ -721,14 +659,15 @@ EOF
         cat >"$profile_config_yaml" <<EOF
 _config_version: 32
 model:
-  provider: custom
-  default: $DEFAULT_CHAT_MODEL
-  context_length: 80128
-  base_url: http://localhost:51080/v1
-  api_key: unused
+  provider: custom:local-chat
+  api_key: $DEFAULT_ROUTER_KEY
+  base_url: $DEFAULT_ROUTER_BASE_URL
+  default: ${DEFAULT_CHAT_MODEL}-thinking
+  context_length: $DEFAULT_CHAT_CTX
+  supports_vision: true
 agent:
   max_turns: 150
-  reasoning_effort: "low"
+  reasoning_effort: low
 approvals:
   destructive_slash_confirm: false
 web:
@@ -740,23 +679,26 @@ browser:
 compression:
   enabled: true
   # Compress at this % of context limit
-  threshold: 0.8
+  threshold: 0.85
   # Fraction of threshold to preserve as recent tail
   target_ratio: 0.15
   # Min recent messages to keep uncompressed
-  protect_last_n: 20
+  protect_last_n: 15
   # Non-system head messages pinned across compactions (0 = pin nothing)
   protect_first_n: 3
 curator:
   consolidate: true
+  interval_hours: 96
 custom_providers:
-  - name: local-openapi
-    base_url: http://localhost:51080/v1
-    api_key: unused
-    model: qwen3
+  - name: local-chat
+    base_url: $DEFAULT_ROUTER_BASE_URL
+    api_key: $DEFAULT_ROUTER_KEY
+    model: $DEFAULT_CHAT_MODEL
     models:
-      qwen3:
-        context_length: 80128
+      ${DEFAULT_CHAT_MODEL}:
+        context_length: $DEFAULT_CHAT_CTX
+      ${DEFAULT_CHAT_MODEL}-thinking:
+        context_length: $DEFAULT_CHAT_CTX
 display:
   tool_progress: all
   tui_compact: false
@@ -776,7 +718,7 @@ streaming:
   enabled: true
 memory:
   user_char_limit: 2500
-  provider: builtin
+  provider: hindsight
 mcp_servers:
   sequentialthinking:
     command: "npx"
