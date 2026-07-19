@@ -26,6 +26,7 @@ load_env() {
     LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
     LRR_ALIAS=qwen3-reranker
     LRR_N_CTX=8192
+    LRR_N_UBATCH=512
     LRR_N_GPU_LAYERS=99
     LRR_THREADS=8
     LRR_PARALLEL=2
@@ -155,7 +156,11 @@ get_llama_args() {
         --model "${LRR_MODEL}"
         --embedding
         --pooling rank
+        --cache-type-k q4_0
+        --cache-type-v q4_0
         --ctx-size "${LRR_N_CTX}"
+        --batch-size "${LRR_N_CTX}"
+        --ubatch-size "${LRR_N_UBATCH}"
         --alias "${LRR_ALIAS}"
         --threads "${LRR_THREADS}"
         --parallel "${LRR_PARALLEL}"
@@ -245,13 +250,14 @@ LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K
 # Model alias used by client integrations (default: qwen3-reranker)
 LRR_ALIAS=qwen3-reranker
 
-# Context size (default: 8192)
+# Context size (default: 8192), micro batch size (default: 512)
 LRR_N_CTX=8192
+LRR_N_UBATCH=512
 
 # Number of layers to offload to GPU (all=99)
-# LRR_N_GPU_LAYERS=99
+LRR_N_GPU_LAYERS=99
 # To run inference on CPU instead of GPU (none=0)
-LRR_N_GPU_LAYERS=0
+# LRR_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, llama-server automatically selects the best available device.
