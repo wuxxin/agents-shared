@@ -504,7 +504,9 @@ async def route_chat(request: Request):
             body = json.dumps(data).encode("utf-8")
     except Exception:
         pass
-    return await proxy_request(f"{config['chat']}/v1/chat/completions", request, content=body)
+    return await proxy_request(
+        f"{config['chat']}/v1/chat/completions", request, content=body
+    )
 
 
 @app.post("/v1/embeddings")
