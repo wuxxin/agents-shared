@@ -20,10 +20,13 @@ DEFAULT_LMEM_PORT=8888
 DEFAULT_LMEM_HOST=127.0.0.1
 DEFAULT_LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
 DEFAULT_LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
-DEFAULT_LMEM_SIDECARS=""
+DEFAULT_LMEM_SIDECARS="worker"
+DEFAULT_LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
+DEFAULT_LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
 
 DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
-DEFAULT_HINDSIGHT_API_WORKER_ENABLED="true"
+DEFAULT_HINDSIGHT_API_WORKER_ENABLED="false"
+DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT=8889
 DEFAULT_HINDSIGHT_API_MCP_ENABLED="true"
 
 # hindsight chat
@@ -42,7 +45,7 @@ DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="qwen3-embedding"
 # hindsight rerank
 DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER=cohere
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY="unused"
-DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1"
+DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1/rerank"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="qwen3-reranker"
 
 # hindsight database
@@ -60,9 +63,12 @@ load_env() {
     local env_lmem_service_cmd="${LMEM_SERVICE_CMD:-}"
     local env_lmem_service_args="${LMEM_SERVICE_ARGS:-}"
     local env_lmem_sidecars="${LMEM_SIDECARS:-}"
+    local env_lmem_sidecar_worker_cmd="${LMEM_SIDECAR_WORKER_CMD:-}"
+    local env_lmem_sidecar_worker_args="${LMEM_SIDECAR_WORKER_ARGS:-}"
 
     local env_hindsight_api_run_migrations_on_startup="${HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP:-}"
     local env_hindsight_api_worker_enabled="${HINDSIGHT_API_WORKER_ENABLED:-}"
+    local env_hindsight_api_worker_http_port="${HINDSIGHT_API_WORKER_HTTP_PORT:-}"
     local env_hindsight_api_mcp_enabled="${HINDSIGHT_API_MCP_ENABLED:-}"
 
     local env_hindsight_api_llm_provider="${HINDSIGHT_API_LLM_PROVIDER:-}"
@@ -92,9 +98,12 @@ load_env() {
     export LMEM_SERVICE_CMD="${DEFAULT_LMEM_SERVICE_CMD}"
     export LMEM_SERVICE_ARGS="${DEFAULT_LMEM_SERVICE_ARGS}"
     export LMEM_SIDECARS="${DEFAULT_LMEM_SIDECARS}"
+    export LMEM_SIDECAR_WORKER_CMD="${DEFAULT_LMEM_SIDECAR_WORKER_CMD}"
+    export LMEM_SIDECAR_WORKER_ARGS="${DEFAULT_LMEM_SIDECAR_WORKER_ARGS}"
 
     export HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="${DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP}"
     export HINDSIGHT_API_WORKER_ENABLED="${DEFAULT_HINDSIGHT_API_WORKER_ENABLED}"
+    export HINDSIGHT_API_WORKER_HTTP_PORT="${DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT}"
     export HINDSIGHT_API_MCP_ENABLED="${DEFAULT_HINDSIGHT_API_MCP_ENABLED}"
 
     export HINDSIGHT_API_LLM_PROVIDER="${DEFAULT_HINDSIGHT_API_LLM_PROVIDER}"
@@ -134,9 +143,12 @@ load_env() {
     if [[ -n "$env_lmem_service_cmd" ]]; then export LMEM_SERVICE_CMD="$env_lmem_service_cmd"; fi
     if [[ -n "$env_lmem_service_args" ]]; then export LMEM_SERVICE_ARGS="$env_lmem_service_args"; fi
     if [[ -n "$env_lmem_sidecars" ]]; then export LMEM_SIDECARS="$env_lmem_sidecars"; fi
+    if [[ -n "$env_lmem_sidecar_worker_cmd" ]]; then export LMEM_SIDECAR_WORKER_CMD="$env_lmem_sidecar_worker_cmd"; fi
+    if [[ -n "$env_lmem_sidecar_worker_args" ]]; then export LMEM_SIDECAR_WORKER_ARGS="$env_lmem_sidecar_worker_args"; fi
 
     if [[ -n "$env_hindsight_api_run_migrations_on_startup" ]]; then export HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="$env_hindsight_api_run_migrations_on_startup"; fi
     if [[ -n "$env_hindsight_api_worker_enabled" ]]; then export HINDSIGHT_API_WORKER_ENABLED="$env_hindsight_api_worker_enabled"; fi
+    if [[ -n "$env_hindsight_api_worker_http_port" ]]; then export HINDSIGHT_API_WORKER_HTTP_PORT="$env_hindsight_api_worker_http_port"; fi
     if [[ -n "$env_hindsight_api_mcp_enabled" ]]; then export HINDSIGHT_API_MCP_ENABLED="$env_hindsight_api_mcp_enabled"; fi
 
     if [[ -n "$env_hindsight_api_llm_provider" ]]; then export HINDSIGHT_API_LLM_PROVIDER="$env_hindsight_api_llm_provider"; fi
@@ -393,10 +405,17 @@ LMEM_HOST="${DEFAULT_LMEM_HOST}"
 LMEM_SERVICE_CMD="${DEFAULT_LMEM_SERVICE_CMD}"
 LMEM_SERVICE_ARGS="${DEFAULT_LMEM_SERVICE_ARGS}"
 LMEM_SIDECARS="${DEFAULT_LMEM_SIDECARS}"
+LMEM_SIDECAR_WORKER_CMD="${DEFAULT_LMEM_SIDECAR_WORKER_CMD}"
+LMEM_SIDECAR_WORKER_ARGS="${DEFAULT_LMEM_SIDECAR_WORKER_ARGS}"
+
+# https://hindsight.vectorize.io/developer/configuration
 
 # Hindsight daemon configuration
 HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="${DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP}"
+# Main API daemon worker is set to false because worker runs as a dedicated sidecar process below
 HINDSIGHT_API_WORKER_ENABLED="${DEFAULT_HINDSIGHT_API_WORKER_ENABLED}"
+# Hindsight worker control plane / metrics HTTP port (default: 8889). Set to 0 to disable control plane.
+HINDSIGHT_API_WORKER_HTTP_PORT="${DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT}"
 HINDSIGHT_API_MCP_ENABLED="${DEFAULT_HINDSIGHT_API_MCP_ENABLED}"
 
 # hindsight chat
@@ -404,7 +423,20 @@ HINDSIGHT_API_LLM_PROVIDER="${DEFAULT_HINDSIGHT_API_LLM_PROVIDER}"
 HINDSIGHT_API_LLM_API_KEY="${DEFAULT_HINDSIGHT_API_LLM_API_KEY}"
 HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_HINDSIGHT_API_LLM_BASE_URL}"
 HINDSIGHT_API_LLM_MODEL="${DEFAULT_HINDSIGHT_API_LLM_MODEL}"
+
+# HINDSIGHT_API_LLM_DEFAULT_HEADERS
+# HINDSIGHT_API_LLM_DEFAULT_HEADERS: JSON dict passed as default_headers
+
+# HINDSIGHT_API_LLM_EXTRA_BODY: JSON dict of extra request-body params
+# (e.g. temperature, top_p, max_tokens) merged into every LLM call.
+# Each provider merges them in its own native parameter space, so use that provider's field names (e.g. max_tokens for OpenAI/Anthropic vs max_output_tokens for Gemini). Also useful for custom model servers (e.g. vLLM chat_template_kwargs).
 HINDSIGHT_API_LLM_EXTRA_BODY='${DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY}'
+
+# HINDSIGHT_API_LLM_MAX_CONCURRENT default 32, assumes cloud provider, scale down to two for local-inference
+HINDSIGHT_API_LLM_MAX_CONCURRENT=2
+# HINDSIGHT_API_LLM_REASONING_EFFORT Reasoning effort for providers/models that support it (for example low, medium, high, xhigh)
+HINDSIGHT_API_LLM_REASONING_EFFORT=low
+
 
 # hindsight embedding
 HINDSIGHT_API_EMBEDDINGS_PROVIDER="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER}"
@@ -418,11 +450,17 @@ HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_A
 HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL}"
 HINDSIGHT_API_RERANKER_COHERE_MODEL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL}"
 
+# hindsight consolidation
+HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET=low
+HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS=4096
+HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION=256
+
 # hindsight database
 HINDSIGHT_API_DATABASE_BACKEND="${DEFAULT_HINDSIGHT_API_DATABASE_BACKEND}"
 HINDSIGHT_API_VECTOR_EXTENSION="${DEFAULT_HINDSIGHT_API_VECTOR_EXTENSION}"
 HINDSIGHT_API_TEXT_SEARCH_EXTENSION="${DEFAULT_HINDSIGHT_API_TEXT_SEARCH_EXTENSION}"
 HINDSIGHT_API_DATABASE_URL="${DEFAULT_HINDSIGHT_API_DATABASE_URL}"
+
 EOF
 }
 
@@ -459,8 +497,8 @@ cmd_install() {
         rm -rf "${VENV_DIR}"
     fi
 
-    # Create virtual environment using system Python 3
-    uv venv --clear --python /usr/bin/python3 "${VENV_DIR}"
+    # Create virtual environment using Python 3.12 to avoid Python 3.14 package build/ABI issues
+    uv venv --clear --python 3.12 "${VENV_DIR}"
 
     # fix limitation for litellm different.
     echo "Installing Hindsight packages into venv..."
@@ -691,6 +729,18 @@ cmd_test() {
     fi
     echo "${resp}"
     echo "Hindsight Memory API validation: Success."
+    echo ""
+    echo "=== Running Integration Tests (Retain, Recall, Reflect) ==="
+
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local test_script="${script_dir}/../scripts/local-memory-test.py"
+
+    if [[ -f "${test_script}" ]]; then
+        "${VENV_DIR}/bin/python" "${test_script}" --host "${LMEM_HOST}" --port "${LMEM_PORT}"
+    else
+        echo "Warning: local-memory-test.py not found at ${test_script}."
+    fi
 }
 
 usage() {

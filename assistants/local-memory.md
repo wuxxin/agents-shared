@@ -50,8 +50,9 @@ To set up the Hindsight database and enable the required extensions:
    ```bash
    sudo -u postgres -i
    ```
-2. Create a new PostgreSQL database role for the service (e.g., `hindsight`):
+2. Create a strong password and new PostgreSQL database role for the service (e.g., `hindsight`):
    ```bash
+   tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32; echo
    createuser --interactive --pwprompt
    # Enter name of role to add: hindsight
    # Shall the new role be a superuser? no
@@ -64,7 +65,7 @@ To set up the Hindsight database and enable the required extensions:
    ```
 4. Connect to the database and register both extensions:
    ```bash
-   psql -d hindsight_db -c "CREATE EXTENSION IF NOT EXISTS pgvector;"
+   psql -d hindsight_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
    psql -d hindsight_db -c "CREATE EXTENSION IF NOT EXISTS pgroonga;"
    ```
 5. Exit back to your user account:
@@ -78,7 +79,7 @@ You can check if the database extensions are properly configured and loaded by r
 ```bash
 psql -U hindsight -d hindsight_db -h localhost -c "\dx"
 ```
-Both `pgvector` and `pgroonga` should be listed in the output table.
+Both `vector` and `pgroonga` should be listed in the output table.
 
 ---
 
@@ -92,7 +93,7 @@ Install the virtual environment and default configuration files:
 
 This subcommand:
 1. Recreates a clean Python virtual environment at `~/.local/sandbox/local-memory/venv` using `uv`.
-2. Bypasses the `litellm` version constraint on Python 3.14+ by enforcing a target dependency resolution of Python 3.12 (`--python-version 3.12` during `uv pip install`).
+2. Bypasses Python 3.14+ package compilation and runtime ABI compatibility issues (like with `litellm`) by creating the virtual environment using `uv`-managed Python 3.12 (`--python 3.12`).
 3. Installs `hindsight-client` and `hindsight-api-slim` (which avoids downloading gigabytes of machine learning libraries).
 4. Creates a default service configuration file at `~/.config/systemd/user/local-memory.env`.
 5. Writes and registers `local-memory.service` in systemd.
@@ -112,44 +113,20 @@ The service is configured in:
 Default configuration values:
 ```env
 # Service Configuration
-LMEM_PORT=8888
-LMEM_HOST=127.0.0.1
+LMEM_PORT="8888"
+LMEM_HOST="127.0.0.1"
 LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
 LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
-LMEM_SIDECARS=""
+LMEM_SIDECARS="worker"
+LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
+LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
 
 # Hindsight daemon configuration
 HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
-HINDSIGHT_API_WORKER_ENABLED="true"
+HINDSIGHT_API_WORKER_ENABLED="false"
+HINDSIGHT_API_WORKER_HTTP_PORT="8889"
 HINDSIGHT_API_MCP_ENABLED="true"
-
-# Hindsight Chat Config (Redirected to Router)
-HINDSIGHT_API_LLM_PROVIDER=openai
-HINDSIGHT_API_LLM_API_KEY="unused"
-HINDSIGHT_API_LLM_BASE_URL="http://localhost:51080/v1"
-HINDSIGHT_API_LLM_MODEL="qwen3"
-HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}}'
-
-# Hindsight Embeddings Config (Redirected to Router)
-HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
-HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="unused"
-HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="http://localhost:51080/v1"
-HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="qwen3-embedding"
-
-# Hindsight Rerank Config (Redirected to Router)
-HINDSIGHT_API_RERANKER_PROVIDER=cohere
-HINDSIGHT_API_RERANKER_COHERE_API_KEY="unused"
-HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1"
-HINDSIGHT_API_RERANKER_COHERE_MODEL="qwen3-reranker"
-
-# Hindsight Database Config (Update with your DB password)
-HINDSIGHT_API_DATABASE_BACKEND=postgresql
-HINDSIGHT_API_VECTOR_EXTENSION=pgvector
-HINDSIGHT_API_TEXT_SEARCH_EXTENSION=pgroonga
-HINDSIGHT_API_DATABASE_URL="postgresql://hindsight:YOUR_PASSWORD@localhost:5432/hindsight_db"
 ```
-
----
 
 ## Usage Commands
 
@@ -189,6 +166,83 @@ HINDSIGHT_API_DATABASE_URL="postgresql://hindsight:YOUR_PASSWORD@localhost:5432/
 `exec`, `run`, and `shell` support transient overrides via `--env KEY=VALUE` which are passed directly to systemd-run or local foreground shells without touching your disk configurations.
 
 ---
+
+## Sidecars Configuration
+
+`local-memory.sh` supports spawning background sidecar processes (such as a Control Plane worker, local MCP server, or web dashboard) alongside the main `hindsight-api` service. All sidecars are lifecycle-managed via process traps and terminate automatically if either the main daemon or any sidecar exits.
+
+To configure a sidecar:
+
+1. **Edit `~/.config/systemd/user/local-memory.env`** and add the sidecar name(s) to `LMEM_SIDECARS`:
+   ```env
+   LMEM_SIDECARS="controlplane"
+   ```
+   *(Multiple sidecars can be listed separated by spaces, e.g. `LMEM_SIDECARS="controlplane mcp"`)*
+
+2. **Define the sidecar command and arguments**:
+   Each sidecar derives its configuration environment variables from its uppercase name (e.g., `controlplane` -> `CONTROLPLANE`):
+   ```env
+   # Control plane worker sidecar
+   LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
+   LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
+
+   # Worker control plane / metrics port (default: 8889)
+   # Set to 8889 to enable the control plane (/health, /metrics), or set to 0 to disable it completely
+   HINDSIGHT_API_WORKER_HTTP_PORT="8889"
+   ```
+
+3. **Or run transiently via CLI**:
+   ```bash
+   LMEM_SIDECARS="controlplane" \
+   LMEM_SIDECAR_CONTROLPLANE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker" \
+   LMEM_SIDECAR_CONTROLPLANE_ARGS="--http-port 8889" \
+   ./local-memory.sh exec
+   ```
+
+4. **Restart the service to apply changes**:
+   ```bash
+   ./local-memory.sh restart
+   ```
+
+You can view the resulting evaluated multi-process trap execution command using:
+```bash
+./local-memory.sh cat
+```
+
+---
+
+## update / import a mental model for a bank
+
+POST /v1/default/banks/{bank_id}/import
+
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract the user's preferences, routines, scheduled events, commitments, people they mention, and any personal context they share. Track what they ask for repeatedly and what they care about.",
+    "enable_observations": true,
+    "observations_mission": "Track the user's stable preferences, recurring routines, important people and relationships, and how their priorities shift over time."
+  },
+  "mental_models": [
+    {
+      "id": "user-profile",
+      "name": "User Profile",
+      "source_query": "What do we know about this user? What are their preferences, routines, important people, and how do they like to be helped?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "active-tasks",
+      "name": "Active Tasks & Commitments",
+      "source_query": "What tasks, commitments, or follow-ups is the user currently tracking? What deadlines or promises have been made?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}
 
 ## Verification & Troubleshooting
 
