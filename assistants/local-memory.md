@@ -1,6 +1,6 @@
 # Standalone Hindsight Memory Service Guide
 
-`local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `8888`. It provides long-term temporal, semantic, and entity-graph memory for local agents.
+`local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `8888` alongside a dedicated background worker sidecar (`hindsight-worker`) serving a control plane / metrics server on port `8889` (configurable via `HINDSIGHT_API_WORKER_HTTP_PORT`, set to `0` to disable). It provides long-term temporal, semantic, and entity-graph memory for local agents.
 
 - **Control Wrapper**: [assistants/local-memory.sh](assistants/local-memory.sh)
 
@@ -13,6 +13,7 @@ Hindsight functions as an agentic memory hub, coordinating with the other standa
 ```mermaid
 graph TD
     Agent[Agent Client e.g. Hermes / ZeroClaw] -->|Recall / Retain / Reflect| Memory[Local-Memory Port 8888]
+    Worker[Worker Control-Plane Port 8889] -.->|Health / Metrics| Memory
     Memory -->|LLM / Embedding / Reranking Requests| Router[Local-Router Port 51080]
     Router -->|Completions| Chat[Local-Chat Port 50080]
     Router -->|Embeddings| Embed[Local-Embedding Port 50082]

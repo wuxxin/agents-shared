@@ -150,12 +150,16 @@ LTTS_OVERRIDE=(
 # run IMAGE on vulkan/igpu and te on cpu
 LIMG_OVERRIDE=(
     'LIMG_BACKEND="vulkan0,te=cpu"'
-    # limit the Vulkan command buffer batch size to 20 to keep VAE computation from timeout
+    # limit the command buffer batch size to 20 to keep VAE compute from timeout
     'GGML_VK_MAX_NODES_PER_SUBMIT=20'
 )
 LROUT_OVERRIDE=(
 )
 LMEM_OVERRIDE=(
+    # set the actual db uri
+    'HINDSIGHT_API_DATABASE_URL="postgresql://username:password@localhost:5432/dbname"'
+    # Hindsight worker control plane / metrics HTTP port (default: 8889, set to 0 to disable control plane)
+    'HINDSIGHT_API_WORKER_HTTP_PORT="8889"'
 )
 
 EOF

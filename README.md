@@ -33,6 +33,7 @@ For details, see the [scripts/README.md](scripts/README.md).
 | **[Local Speech to Text](#local-speech-to-text)** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **[Local Text to Speech](#local-text-to-speech)** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
 | **[Local Image Generation](#local-image-services)** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
+| **[Local Memory Service](#local-memory-service)** | [8888](http://localhost:8888), [8889](http://localhost:8889) | Hindsight API (8888) & Worker Control Plane / Metrics (8889) |
 | **[Local Router](#local-combined-inference-router)** | [51080](http://localhost:51080) | Combined service router / OpenAI proxy (HTTP) |
 | **[Local Inference Coordinator](#local-inference-coordinator)** | - | Combined service control script |
 | **[Signal Integration](#signal-integration)** | [50889](http://localhost:50889), [50888](http://localhost:50888), 50887 |REST-API:50889, HTTP/JSON-RPC: 50888, TCP/JSON-RPC:50887 |
@@ -78,6 +79,12 @@ For details, see the [scripts/README.md](scripts/README.md).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated generation (unless run in `cpu` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
 - **Features**: Generates images using the `z_image_turbo-Q8_0.gguf` model with options for sampler steps, CFG scale, and backend routing.
 - Documentation: [local-image.md](assistants/local-image.md)
+
+### Local Memory Service
+- **Description**: Manages a persistent Hindsight memory instance served by `hindsight-api` (port 8888) with a dedicated background task worker sidecar `hindsight-worker` serving a control plane / metrics HTTP server on port 8889 (`local-memory.sh`).
+- **Sandboxing**: Enforces `ProtectSystem=strict` with `PrivateDevices=yes` and standard systemd hardening. Restricts filesystem access to the home directory (`BindPaths=%h`).
+- **Features**: Long-term temporal, semantic, and entity-graph memory engine offloading embeddings, LLM reasoning, and reranking to `local-router` (port 51080) and PostgreSQL (`pgvector` + `pgroonga`). Worker control plane port configurable via `HINDSIGHT_API_WORKER_HTTP_PORT` (set to 0 to disable).
+- Documentation: [local-memory.md](assistants/local-memory.md)
 
 ### Local Combined Inference Router
 - **Description**: Manages a persistent FastAPI web application served by `uvicorn` that aggregates all underlying local inference services into a single OpenAI-compatible entrypoint (`local-router.sh`).
