@@ -16,11 +16,11 @@
 ### Python Scripts
 ```bash
 # Lint
-ruff check scripts/*.py
+ruff check scripts/*.py scripts/test/*.py
 # Format
-ruff format scripts/*.py
+ruff format scripts/*.py scripts/test/*.py
 # Type check
-mypy scripts/*.py
+mypy scripts/*.py scripts/test/*.py
 # Run a single test
 pytest tests/test_file.py::test_function -v
 # Run local benchmark in mock mode (does not overwrite production reports)

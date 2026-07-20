@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 # Load hyphenated module using importlib
 spec = importlib.util.spec_from_file_location(
-    "local_router", os.path.join(script_dir, "local-router.py")
+    "local_router", os.path.join(script_dir, "..", "local-router.py")
 )
 assert spec is not None
 local_router = importlib.util.module_from_spec(spec)
@@ -127,6 +127,35 @@ def run_tests():
         assert resp.status_code == 200
         print("Image generation: OK")
 
+        # 8b. Simulate Chat completion post error (400)
+        print("Testing Chat completions post error (400)...")
+        resp = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "error-400",
+                "messages": [{"role": "user", "content": "err"}],
+                "stream": False,
+            },
+        )
+        assert resp.status_code == 400
+        print("Chat completions post error (400): OK")
+
+        # 8c. Simulate Chat completions streaming error (429)
+        print("Testing Chat completions streaming error (429)...")
+        resp = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "error-429",
+                "messages": [{"role": "user", "content": "err"}],
+                "stream": True,
+            },
+        )
+        assert resp.status_code == 429
+        # Read the error chunk to execute generator close
+        for _ in resp.iter_bytes():
+            pass
+        print("Chat completions streaming error (429): OK")
+
         # Give database background writes a small yield
         check_and_save_usage(force=True)
 
@@ -138,15 +167,19 @@ def run_tests():
 
         # Validate totals block
         totals = usage_res.get("totals", {})
-        assert totals.get("calls", 0) == 7, (
-            f"Expected 7 calls, got {totals.get('calls')}"
+        assert totals.get("calls", 0) == 9, (
+            f"Expected 9 calls, got {totals.get('calls')}"
         )
-        assert totals.get("streaming_calls", 0) == 1, (
-            f"Expected 1 streaming call, got {totals.get('streaming_calls')}"
+        assert totals.get("streaming_calls", 0) == 2, (
+            f"Expected 2 streaming calls, got {totals.get('streaming_calls')}"
         )
-        assert totals.get("normal_calls", 0) == 6, (
-            f"Expected 6 normal calls, got {totals.get('normal_calls')}"
+        assert totals.get("calls_post", 0) == 7, (
+            f"Expected 7 calls_post, got {totals.get('calls_post')}"
         )
+
+        # Assert errors are recorded in totals
+        assert totals.get("errors_streaming", {}).get("429") == 1
+        assert totals.get("errors_post", {}).get("400") == 1
 
         # Chat costs/tokens check
         chat_model_key = "chat:qwen3"
@@ -165,6 +198,17 @@ def run_tests():
         assert costs.get("total_cost", 0.0) > 0.0
         print("Usage endpoint JSON structure: OK")
 
+        # 9b. Verify /usage?format=text pre-formatted output
+        print("Testing /usage?format=text output...")
+        resp_text = client.get("/usage?format=text")
+        assert resp_text.status_code == 200
+        assert "SERVICE/MODEL" in resp_text.text
+        assert "GRAND TOTAL" in resp_text.text
+        assert "HTTP Errors Breakdown:" in resp_text.text
+        print("\n--- MOCKED USAGE STATISTICS TABLE ---")
+        print(resp_text.text)
+        print("--------------------------------------\n")
+
         # 10. Verify /metrics (Prometheus) contains our custom metrics
         print("Testing /metrics endpoint...")
         resp = client.get("/metrics")
@@ -174,9 +218,13 @@ def run_tests():
         assert "local_router_calls_total" in metrics_text
         assert "local_router_tokens_total" in metrics_text
         assert "local_router_cost_total" in metrics_text
+        assert "local_router_errors_total" in metrics_text
         # Check label structure
         assert 'service="chat"' in metrics_text
         assert 'model="qwen3"' in metrics_text
+        # Check error label format
+        assert 'code="429"' in metrics_text
+        assert 'call_type="streaming"' in metrics_text
         print("Prometheus metrics endpoint: OK")
 
     # 11. Verify usage.json serialization to disk on shutdown
@@ -195,7 +243,7 @@ def run_tests():
         assert "qwen3" in day_usage["chat"]
         assert day_usage["chat"]["qwen3"]["calls"] == 2
         assert day_usage["chat"]["qwen3"]["streaming_calls"] == 1
-        assert day_usage["chat"]["qwen3"]["normal_calls"] == 1
+        assert day_usage["chat"]["qwen3"]["calls_post"] == 1
     print("Serialization verify: OK")
 
 

@@ -781,7 +781,7 @@ cmd_test() {
 
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-    local test_script="${script_dir}/../scripts/local-memory-test.py"
+    local test_script="${script_dir}/../scripts/test/local-memory-test.py"
 
     if [[ -f "${test_script}" ]]; then
         "${VENV_DIR}/bin/python" "${test_script}" --host "${LMEM_HOST}" --port "${LMEM_PORT}"
