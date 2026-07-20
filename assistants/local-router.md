@@ -7,6 +7,15 @@ On installation, the Python code is copied from `scripts/local-router.py` to the
 - **Source Code Repository Path**: [scripts/local-router.py](file:///home/wuxxin/agent-shared/code/agents-shared/scripts/local-router.py)
 - **Control Wrapper**: [assistants/local-router.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-router.sh)
 
+## System & Python Dependencies
+
+The following packages must be installed in the Python environment:
+- **fastapi**: Async web framework used to expose endpoints.
+- **uvicorn**: High-performance ASGI server for running the FastAPI app.
+- **httpx**: Async HTTP client for proxying and streaming requests to backends.
+- **tiktoken**: BPE tokenizer used to estimate token counts.
+- **prometheus_client**: Serves cumulative statistics on `/metrics` for Prometheus scraping.
+
 ## Usage
 
 - Install the service and environment configuration:
@@ -130,3 +139,68 @@ If any backend service is down, offline, or returns an error, the router respond
 }
 ```
 This ensures integration clients (like agents or tools) receive clean HTTP errors (`502 Bad Gateway` / `503 Service Unavailable`) instead of failing with connection breaks.
+
+### Usage & Metrics API
+
+The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `normal_calls`), and estimated USD costs.
+
+#### 1. JSON Usage API (`GET /usage` or `/v1/usage`)
+Returns cumulative counts grouped by service/model, service total, and grand total.
+- **Query Parameter**: `?range=today|all|7d|30d|90d` (defaults to `all`).
+- **Response Format**:
+```json
+{
+  "models": {
+    "chat:qwen3": {
+      "calls": 12,
+      "streaming_calls": 8,
+      "normal_calls": 4,
+      "input": 1200,
+      "cached_input": 500,
+      "cached_write": 200,
+      "output": 800,
+      "total_tokens": 2700,
+      "cache_pct": 29.41,
+      "costs": {
+        "cached_input_cost": 0.000075,
+        "input_cost": 0.0018,
+        "cached_write_cost": 0.0003,
+        "output_cost": 0.0072,
+        "total_cost": 0.009375
+      }
+    }
+  },
+  "services": { ... },
+  "totals": { ... }
+}
+```
+
+#### 2. Prometheus Endpoint (`GET /metrics` or `/v1/metrics`)
+Exposes cumulative metrics formatted for Prometheus scrapers:
+- `local_router_calls_total{service="...", model="..."}`: Total calls routed.
+- `local_router_tokens_total{service="...", model="...", type="..."}`: Total tokens processed (`type` can be `input`, `cached_input`, `cached_write`, `output`, `total`).
+- `local_router_cost_total{service="...", model="...", type="..."}`: Cumulative estimated USD cost (`type` matches the token types).
+
+### CLI Usage Reporting
+
+You can inspect the aggregated usage directly from the command line:
+```bash
+./local-router.sh usage [today|all|7d|30d|90d]
+```
+This queries the running API and displays a beautifully aligned ASCII text table containing all call counts, token allocations, cache percentages, and cost calculations.
+
+### Context Caching & Pricing Concepts
+
+Context caching optimizes processing costs for repetitive large prompts (e.g., chat histories, long instructions, code bases). The pricing registry defines four core pricing fields:
+
+- **`prompt`**: Billed for processing normal, uncached prompt segments (often called regular input).
+- **`completion`**: Billed for generating assistant/output tokens.
+- **`input_cache_write`**: Billed when a reusable prompt prefix is compiled and stored in the model's KV cache. In standard providers, this is typically billed at the standard `prompt` token rate.
+- **`input_cache_read`**: A heavily discounted rate (typically 10-20% of standard `prompt` cost) charged when subsequent queries successfully reference and reuse the already cached KV prefix.
+
+#### How It Is Counted:
+1. When a query is routed, the router extracts the token allocation from the engine response (or estimates it via `tiktoken` as a fallback).
+2. If the engine reports cache hits (`cached_tokens` / `cache_read_input_tokens`), the router records them under `cached_input`.
+3. The remaining input tokens are recorded under `input` (uncached prompt tokens).
+4. Estimated costs are computed dynamically by multiplying each token classification by its registry price.
+

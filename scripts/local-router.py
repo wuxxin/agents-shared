@@ -8,11 +8,24 @@ import os
 import re
 import socket
 import asyncio
+import json
+import datetime
+import threading
+import atexit
+import signal
+import sys
 from contextlib import asynccontextmanager
 from typing import Any
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse, JSONResponse
+import tiktoken
+from prometheus_client import (
+    CollectorRegistry,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
 
 
 # Global client for connection pooling
@@ -21,6 +34,44 @@ client: httpx.AsyncClient = None  # type: ignore[assignment]
 # Global model inventory
 model_inventory_list: list[dict] = []
 model_to_service: dict[str, str] = {}
+
+# Check for mock backends mode
+LROUT_MOCK_BACKENDS = os.environ.get("LROUT_MOCK_BACKENDS", "") in (
+    "1",
+    "true",
+    "TRUE",
+    "yes",
+)
+
+# --- Usage tracking state ---
+usage_data_memory: dict[str, dict[str, dict[str, dict[str, int]]]] = {}
+last_written_total_tokens: int = 0
+usage_lock = threading.Lock()
+save_task: asyncio.Task = None  # type: ignore[assignment]
+
+# --- Prometheus setup ---
+metrics_registry = CollectorRegistry()
+
+calls_gauge = Gauge(
+    "local_router_calls_total",
+    "Cumulative count of calls routed through local-router",
+    ["service", "model"],
+    registry=metrics_registry,
+)
+
+tokens_gauge = Gauge(
+    "local_router_tokens_total",
+    "Cumulative count of tokens processed",
+    ["service", "model", "type"],
+    registry=metrics_registry,
+)
+
+cost_gauge = Gauge(
+    "local_router_cost_total",
+    "Cumulative estimated cost of routed calls in USD",
+    ["service", "model", "type"],
+    registry=metrics_registry,
+)
 
 PRICING_REGISTRY: dict[str, dict[str, str]] = {
     "chat": {
@@ -158,6 +209,63 @@ async def check_service(name: str, url: str) -> list[dict] | None:
 async def build_inventory_and_wait():
     global model_inventory_list, model_to_service
     import sys
+
+    if LROUT_MOCK_BACKENDS:
+        print("Starting in MOCK BACKENDS mode...")
+        model_inventory_list = [
+            {
+                "id": "qwen3",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
+            {
+                "id": "qwen3-thinking",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
+            {
+                "id": "qwen3-embedding",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["embedding"],
+            },
+            {
+                "id": "qwen3-reranker",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["rerank"],
+            },
+            {
+                "id": "whisper-1",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["stt"],
+            },
+            {
+                "id": "qwen3-tts",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["tts"],
+            },
+            {
+                "id": "z-image-turbo",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["image"],
+            },
+        ]
+        model_to_service = {
+            "qwen3": "chat",
+            "qwen3-thinking": "chat",
+            "qwen3-embedding": "embedding",
+            "qwen3-reranker": "rerank",
+            "whisper-1": "stt",
+            "qwen3-tts": "tts",
+            "z-image-turbo": "image",
+        }
+        return
 
     enabled_services = get_enabled_services()
     print(f"Startup synchronization: checking enabled services: {enabled_services}")
@@ -302,14 +410,392 @@ def resolve_target_service(model_name: str) -> str:
     return "chat"
 
 
+# --- Usage Tracking helper functions ---
+
+
+def get_token_count(text: str) -> int:
+    """Helper to count tokens in a string using tiktoken (cl100k_base)."""
+    if not text:
+        return 0
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
+    except Exception:
+        return len(text.split())
+
+
+def add_usage_record(
+    service: str,
+    model: str,
+    uncached_input: int,
+    cached_input: int,
+    cached_write: int,
+    output: int,
+    is_streaming: bool,
+):
+    today = datetime.date.today().isoformat()
+    with usage_lock:
+        if today not in usage_data_memory:
+            usage_data_memory[today] = {}
+        if service not in usage_data_memory[today]:
+            usage_data_memory[today][service] = {}
+        if model not in usage_data_memory[today][service]:
+            usage_data_memory[today][service][model] = {
+                "calls": 0,
+                "streaming_calls": 0,
+                "normal_calls": 0,
+                "input": 0,
+                "cached_input": 0,
+                "cached_write": 0,
+                "output": 0,
+            }
+
+        entry = usage_data_memory[today][service][model]
+        entry["calls"] += 1
+        if is_streaming:
+            entry["streaming_calls"] += 1
+        else:
+            entry["normal_calls"] += 1
+        entry["input"] += uncached_input
+        entry["cached_input"] += cached_input
+        entry["cached_write"] += cached_write
+        entry["output"] += output
+
+
+def get_usage_file_path() -> str:
+    user_dir = get_systemd_user_dir()
+    return os.path.join(user_dir, "local-router-usage.json")
+
+
+def load_usage_data():
+    global usage_data_memory, last_written_total_tokens
+    path = get_usage_file_path()
+    usage_data_memory = {}
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data_list = json.load(f)
+                if isinstance(data_list, list):
+                    for entry in data_list:
+                        date = entry.get("date")
+                        if date:
+                            usage_data_memory[date] = entry.get("usage", {})
+        except Exception as e:
+            print(f"Warning: Failed to load usage file {path}: {e}")
+
+    today = datetime.date.today().isoformat()
+    last_written_total_tokens = get_total_tokens_for_day(today)
+
+
+def get_total_tokens_for_day(day: str) -> int:
+    total = 0
+    if day in usage_data_memory:
+        for service, models in usage_data_memory[day].items():
+            for model, counts in models.items():
+                total += counts.get("input", 0)
+                total += counts.get("cached_input", 0)
+                total += counts.get("cached_write", 0)
+                total += counts.get("output", 0)
+    return total
+
+
+def check_and_save_usage(force=False):
+    global last_written_total_tokens
+    today = datetime.date.today().isoformat()
+    current_tokens = get_total_tokens_for_day(today)
+
+    if force or current_tokens != last_written_total_tokens:
+        path = get_usage_file_path()
+        data_list = []
+        with usage_lock:
+            for date, usage in usage_data_memory.items():
+                data_list.append({"date": date, "usage": usage})
+
+        try:
+            temp_path = path + ".tmp"
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(data_list, f, indent=2)
+            os.replace(temp_path, path)
+            last_written_total_tokens = current_tokens
+        except Exception as e:
+            print(f"Error saving usage to {path}: {e}")
+
+
+async def periodic_save_task():
+    while True:
+        await asyncio.sleep(600)  # 10 minutes
+        try:
+            check_and_save_usage()
+        except Exception as e:
+            print(f"Error in periodic save: {e}")
+
+
+def get_cumulative_metrics(
+    day_filter: str | None = None, range_filter: str | None = None
+) -> dict[str, Any]:
+    models_acc: dict[str, Any] = {}
+    services_acc: dict[str, Any] = {}
+    totals_acc: dict[str, Any] = {
+        "calls": 0,
+        "streaming_calls": 0,
+        "normal_calls": 0,
+        "input": 0,
+        "cached_input": 0,
+        "cached_write": 0,
+        "output": 0,
+        "total_tokens": 0,
+        "cache_pct": 0.0,
+        "costs": {
+            "cached_input_cost": 0.0,
+            "input_cost": 0.0,
+            "cached_write_cost": 0.0,
+            "output_cost": 0.0,
+            "total_cost": 0.0,
+        },
+    }
+
+    today = datetime.date.today()
+    days_to_process = []
+
+    with usage_lock:
+        if day_filter:
+            days_to_process = [day_filter]
+        elif range_filter:
+            if range_filter == "today":
+                days_to_process = [today.isoformat()]
+            elif range_filter == "7d":
+                days_to_process = [
+                    (today - datetime.timedelta(days=i)).isoformat() for i in range(7)
+                ]
+            elif range_filter == "30d":
+                days_to_process = [
+                    (today - datetime.timedelta(days=i)).isoformat() for i in range(30)
+                ]
+            elif range_filter == "90d":
+                days_to_process = [
+                    (today - datetime.timedelta(days=i)).isoformat() for i in range(90)
+                ]
+            else:
+                days_to_process = list(usage_data_memory.keys())
+        else:
+            days_to_process = list(usage_data_memory.keys())
+
+        for day in days_to_process:
+            day_data = usage_data_memory.get(day, {})
+            for service, models in day_data.items():
+                if service not in services_acc:
+                    services_acc[service] = {
+                        "calls": 0,
+                        "streaming_calls": 0,
+                        "normal_calls": 0,
+                        "input": 0,
+                        "cached_input": 0,
+                        "cached_write": 0,
+                        "output": 0,
+                        "total_tokens": 0,
+                        "cache_pct": 0.0,
+                        "costs": {
+                            "cached_input_cost": 0.0,
+                            "input_cost": 0.0,
+                            "cached_write_cost": 0.0,
+                            "output_cost": 0.0,
+                            "total_cost": 0.0,
+                        },
+                    }
+
+                pricing = PRICING_REGISTRY.get(service, {})
+                cost_prompt = float(pricing.get("prompt", "0.0"))
+                cost_completion = float(pricing.get("completion", "0.0"))
+                cost_cache_read = float(pricing.get("input_cache_read", "0.0"))
+                cost_cache_write = float(pricing.get("input_cache_write", "0.0"))
+
+                for model, counts in models.items():
+                    model_key = f"{service}:{model}"
+                    if model_key not in models_acc:
+                        models_acc[model_key] = {
+                            "calls": 0,
+                            "streaming_calls": 0,
+                            "normal_calls": 0,
+                            "input": 0,
+                            "cached_input": 0,
+                            "cached_write": 0,
+                            "output": 0,
+                            "total_tokens": 0,
+                            "cache_pct": 0.0,
+                            "costs": {
+                                "cached_input_cost": 0.0,
+                                "input_cost": 0.0,
+                                "cached_write_cost": 0.0,
+                                "output_cost": 0.0,
+                                "total_cost": 0.0,
+                            },
+                        }
+
+                    calls = counts.get("calls", 0)
+                    str_calls = counts.get("streaming_calls", 0)
+                    norm_calls = counts.get("normal_calls", 0)
+                    if str_calls == 0 and norm_calls == 0 and calls > 0:
+                        norm_calls = calls
+
+                    inp = counts.get("input", 0)
+                    c_inp = counts.get("cached_input", 0)
+                    c_wr = counts.get("cached_write", 0)
+                    out = counts.get("output", 0)
+                    tot = inp + c_inp + c_wr + out
+
+                    c_inp_cost = c_inp * cost_cache_read
+                    inp_cost = inp * cost_prompt
+                    c_wr_cost = c_wr * cost_cache_write
+                    out_cost = out * cost_completion
+                    tot_cost = c_inp_cost + inp_cost + c_wr_cost + out_cost
+
+                    # Model update
+                    m_entry = models_acc[model_key]
+                    m_entry["calls"] += calls
+                    m_entry["streaming_calls"] += str_calls
+                    m_entry["normal_calls"] += norm_calls
+                    m_entry["input"] += inp
+                    m_entry["cached_input"] += c_inp
+                    m_entry["cached_write"] += c_wr
+                    m_entry["output"] += out
+                    m_entry["total_tokens"] += tot
+                    m_entry["costs"]["cached_input_cost"] += c_inp_cost
+                    m_entry["costs"]["input_cost"] += inp_cost
+                    m_entry["costs"]["cached_write_cost"] += c_wr_cost
+                    m_entry["costs"]["output_cost"] += out_cost
+                    m_entry["costs"]["total_cost"] += tot_cost
+
+                    # Service update
+                    s_entry = services_acc[service]
+                    s_entry["calls"] += calls
+                    s_entry["streaming_calls"] += str_calls
+                    s_entry["normal_calls"] += norm_calls
+                    s_entry["input"] += inp
+                    s_entry["cached_input"] += c_inp
+                    s_entry["cached_write"] += c_wr
+                    s_entry["output"] += out
+                    s_entry["total_tokens"] += tot
+                    s_entry["costs"]["cached_input_cost"] += c_inp_cost
+                    s_entry["costs"]["input_cost"] += inp_cost
+                    s_entry["costs"]["cached_write_cost"] += c_wr_cost
+                    s_entry["costs"]["output_cost"] += out_cost
+                    s_entry["costs"]["total_cost"] += tot_cost
+
+                    # Grand totals update
+                    totals_acc["calls"] += calls
+                    totals_acc["streaming_calls"] += str_calls
+                    totals_acc["normal_calls"] += norm_calls
+                    totals_acc["input"] += inp
+                    totals_acc["cached_input"] += c_inp
+                    totals_acc["cached_write"] += c_wr
+                    totals_acc["output"] += out
+                    totals_acc["total_tokens"] += tot
+                    totals_acc["costs"]["cached_input_cost"] += c_inp_cost
+                    totals_acc["costs"]["input_cost"] += inp_cost
+                    totals_acc["costs"]["cached_write_cost"] += c_wr_cost
+                    totals_acc["costs"]["output_cost"] += out_cost
+                    totals_acc["costs"]["total_cost"] += tot_cost
+
+    for entry in models_acc.values():
+        total_inp = entry["cached_input"] + entry["input"]
+        entry["cache_pct"] = (
+            (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
+        )
+
+    for entry in services_acc.values():
+        total_inp = entry["cached_input"] + entry["input"]
+        entry["cache_pct"] = (
+            (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
+        )
+
+    total_inp = totals_acc["cached_input"] + totals_acc["input"]
+    totals_acc["cache_pct"] = (
+        (totals_acc["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
+    )
+
+    return {"models": models_acc, "services": services_acc, "totals": totals_acc}
+
+
+def update_prometheus_metrics():
+    metrics = get_cumulative_metrics()
+    for key, val in metrics["models"].items():
+        service, model = key.split(":", 1)
+        calls_gauge.labels(service=service, model=model).set(val["calls"])
+
+        tokens_gauge.labels(service=service, model=model, type="input").set(
+            val["input"]
+        )
+        tokens_gauge.labels(service=service, model=model, type="cached_input").set(
+            val["cached_input"]
+        )
+        tokens_gauge.labels(service=service, model=model, type="cached_write").set(
+            val["cached_write"]
+        )
+        tokens_gauge.labels(service=service, model=model, type="output").set(
+            val["output"]
+        )
+        tokens_gauge.labels(service=service, model=model, type="total").set(
+            val["total_tokens"]
+        )
+
+        cost_gauge.labels(service=service, model=model, type="input").set(
+            val["costs"]["input_cost"]
+        )
+        cost_gauge.labels(service=service, model=model, type="cached_input").set(
+            val["costs"]["cached_input_cost"]
+        )
+        cost_gauge.labels(service=service, model=model, type="cached_write").set(
+            val["costs"]["cached_write_cost"]
+        )
+        cost_gauge.labels(service=service, model=model, type="output").set(
+            val["costs"]["output_cost"]
+        )
+        cost_gauge.labels(service=service, model=model, type="total").set(
+            val["costs"]["total_cost"]
+        )
+
+
+def save_on_exit():
+    check_and_save_usage(force=True)
+
+
+# Register exit handlers
+atexit.register(save_on_exit)
+
+
+def handle_exit_signal(signum, frame):
+    save_on_exit()
+    sys.exit(0)
+
+
+# Register signals (ignore errors if in non-main threads or during testing)
+try:
+    signal.signal(signal.SIGTERM, handle_exit_signal)
+    signal.signal(signal.SIGINT, handle_exit_signal)
+except Exception:
+    pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global client
+    global client, save_task
+    # Load usage
+    load_usage_data()
     # Set long timeouts for inference queries (e.g. 10m for long generations/transcriptions)
     client = httpx.AsyncClient(timeout=600.0)
     # Build model inventory and wait for all services to become available
     await build_inventory_and_wait()
+    # Start periodic save task
+    save_task = asyncio.create_task(periodic_save_task())
     yield
+    # Cleanup
+    save_task.cancel()
+    try:
+        await save_task
+    except asyncio.CancelledError:
+        pass
+    save_on_exit()
     await client.aclose()
 
 
@@ -407,11 +893,291 @@ def resolve_config() -> dict:
     }
 
 
+async def handle_mock_backend(
+    service: str, model: str, request: Request, request_content: bytes
+) -> Response:
+    is_streaming = False
+    if request_content:
+        try:
+            req_json = json.loads(request_content)
+            is_streaming = req_json.get("stream", False)
+        except Exception:
+            pass
+
+    service = service or "chat"
+    model = model or "qwen3"
+
+    if service == "chat":
+        if is_streaming:
+
+            async def sse_gen():
+                yield b'data: {"choices": [{"delta": {"content": "Mock"}, "index": 0}]}\n\n'
+                await asyncio.sleep(0.01)
+                yield b'data: {"choices": [{"delta": {"content": " response"}, "index": 0}]}\n\n'
+                await asyncio.sleep(0.01)
+                usage_data = {
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 50,
+                        "prompt_tokens_details": {"cached_tokens": 20},
+                    },
+                }
+                yield f"data: {json.dumps(usage_data)}\n\n".encode("utf-8")
+                yield b"data: [DONE]\n\n"
+
+            return StreamingResponse(sse_gen(), media_type="text/event-stream")
+        else:
+            return JSONResponse(
+                {
+                    "choices": [
+                        {"message": {"role": "assistant", "content": "Mock response"}}
+                    ],
+                    "usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 50,
+                        "prompt_tokens_details": {"cached_tokens": 20},
+                    },
+                }
+            )
+    elif service == "embedding":
+        return JSONResponse(
+            {
+                "data": [{"embedding": [0.1] * 128, "index": 0}],
+                "usage": {"prompt_tokens": 10, "total_tokens": 10},
+            }
+        )
+    elif service == "rerank":
+        return JSONResponse(
+            {
+                "results": [
+                    {"index": 0, "relevance_score": 0.95},
+                    {"index": 1, "relevance_score": 0.12},
+                ],
+                "usage": {"prompt_tokens": 15, "total_tokens": 15},
+            }
+        )
+    elif service == "tts":
+        return Response(content=b"MOCK_AUDIO_DATA_MP3_BYTES", media_type="audio/mpeg")
+    elif service == "stt":
+        return JSONResponse({"text": "Mock transcribed text."})
+    elif service == "image":
+        return JSONResponse(
+            {"data": [{"url": "http://127.0.0.1:51080/mock_image.png"}]}
+        )
+
+    return JSONResponse({"error": "Unsupported mock service"}, status_code=400)
+
+
+async def process_response_usage(
+    service: str,
+    model: str,
+    is_sse: bool,
+    response_body: bytes,
+    request_body: bytes | None,
+    is_streaming: bool,
+):
+    estimated_input_tokens = 0
+    request_prompt = ""
+    if request_body:
+        try:
+            req_data = json.loads(request_body)
+            if "messages" in req_data:
+                request_prompt = "\n".join(
+                    [
+                        m.get("content", "")
+                        for m in req_data["messages"]
+                        if isinstance(m, dict)
+                    ]
+                )
+            elif "prompt" in req_data:
+                if isinstance(req_data["prompt"], list):
+                    request_prompt = "\n".join(req_data["prompt"])
+                else:
+                    request_prompt = str(req_data["prompt"])
+            elif "input" in req_data:
+                if isinstance(req_data["input"], list):
+                    request_prompt = "\n".join(req_data["input"])
+                else:
+                    request_prompt = str(req_data["input"])
+            elif "query" in req_data:
+                request_prompt = str(req_data["query"])
+                if "documents" in req_data:
+                    request_prompt += "\n" + "\n".join(req_data["documents"])
+            estimated_input_tokens = get_token_count(request_prompt)
+        except Exception:
+            pass
+
+    prompt_tokens = 0
+    completion_tokens = 0
+    cached_input = 0
+    cached_write = 0
+
+    if is_sse:
+        lines = response_body.decode("utf-8", errors="ignore").split("\n")
+        generated_text = ""
+        found_usage = False
+        for line in lines:
+            line = line.strip()
+            if line.startswith("data:"):
+                data_str = line[5:].strip()
+                if data_str == "[DONE]":
+                    continue
+                try:
+                    data_json = json.loads(data_str)
+                    usage = data_json.get("usage")
+                    if usage:
+                        prompt_tokens = usage.get("prompt_tokens", 0)
+                        completion_tokens = usage.get("completion_tokens", 0)
+                        details = usage.get("prompt_tokens_details", {})
+                        cached_input = details.get("cached_tokens", 0) or usage.get(
+                            "cache_read_input_tokens", 0
+                        )
+                        cached_write = details.get(
+                            "cache_creation_input_tokens", 0
+                        ) or usage.get("cache_creation_input_tokens", 0)
+                        found_usage = True
+
+                    choices = data_json.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        if "content" in delta:
+                            generated_text += delta["content"]
+                except Exception:
+                    pass
+        if not found_usage:
+            prompt_tokens = estimated_input_tokens
+            completion_tokens = get_token_count(generated_text)
+    else:
+        try:
+            resp_data = json.loads(response_body)
+            usage = resp_data.get("usage")
+            if usage:
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+                details = usage.get("prompt_tokens_details", {})
+                cached_input = details.get("cached_tokens", 0) or usage.get(
+                    "cache_read_input_tokens", 0
+                )
+                cached_write = details.get(
+                    "cache_creation_input_tokens", 0
+                ) or usage.get("cache_creation_input_tokens", 0)
+            else:
+                if service == "embedding":
+                    prompt_tokens = estimated_input_tokens
+                    completion_tokens = 0
+                elif service == "rerank":
+                    prompt_tokens = estimated_input_tokens
+                    completion_tokens = 0
+                elif service == "tts":
+                    prompt_tokens = estimated_input_tokens
+                    words = len(request_prompt.split())
+                    duration = words / 2.5
+                    completion_tokens = int(duration * 283)
+                elif service == "stt":
+                    prompt_tokens = 0
+                    transcribed = resp_data.get("text", "")
+                    completion_tokens = get_token_count(transcribed)
+                elif service == "image":
+                    prompt_tokens = estimated_input_tokens
+                    n = 1
+                    try:
+                        if request_body:
+                            n = int(json.loads(request_body).get("n", 1))
+                    except Exception:
+                        pass
+                    completion_tokens = n * 1117
+                else:
+                    prompt_tokens = estimated_input_tokens
+                    completion_tokens = 0
+        except Exception:
+            prompt_tokens = estimated_input_tokens
+            completion_tokens = 0
+
+    uncached_input = max(0, prompt_tokens - cached_input)
+
+    add_usage_record(
+        service=service or "unknown",
+        model=model or "unknown",
+        uncached_input=uncached_input,
+        cached_input=cached_input,
+        cached_write=cached_write,
+        output=completion_tokens,
+        is_streaming=is_streaming,
+    )
+
+
 async def proxy_request(
-    target_url: str, request: Request, content: bytes = None
+    target_url: str,
+    request: Request,
+    content: bytes | None = None,
+    service: str | None = None,
+    model: str | None = None,
 ) -> Response:
     """Asynchronously streams request to target and forwards the response back."""
     body = content if content is not None else await request.body()
+
+    if LROUT_MOCK_BACKENDS:
+        mock_resp = await handle_mock_backend(service or "", model or "", request, body)
+        is_sse = (
+            isinstance(mock_resp, StreamingResponse)
+            and mock_resp.media_type == "text/event-stream"
+        )
+        is_streaming = False
+        if body:
+            try:
+                is_streaming = json.loads(body).get("stream", False)
+            except Exception:
+                pass
+
+        if isinstance(mock_resp, JSONResponse):
+            resp_body = (
+                mock_resp.body
+                if isinstance(mock_resp.body, bytes)
+                else bytes(mock_resp.body)
+            )
+            await process_response_usage(
+                service or "", model or "", is_sse, resp_body, body, is_streaming
+            )
+        elif isinstance(mock_resp, Response) and not isinstance(
+            mock_resp, StreamingResponse
+        ):
+            resp_body = (
+                mock_resp.body
+                if isinstance(mock_resp.body, bytes)
+                else bytes(mock_resp.body)
+            )
+            await process_response_usage(
+                service or "", model or "", is_sse, resp_body, body, is_streaming
+            )
+        elif isinstance(mock_resp, StreamingResponse):
+            original_chunks = []
+
+            async def mock_generator():
+                async for chunk in mock_resp.body_iterator:
+                    yield chunk
+                    original_chunks.append(chunk)
+                try:
+                    full_body = b"".join(original_chunks)
+                    await process_response_usage(
+                        service or "",
+                        model or "",
+                        is_sse,
+                        full_body,
+                        body,
+                        is_streaming,
+                    )
+                except Exception as e:
+                    print(f"Error processing mock usage: {e}")
+
+            return StreamingResponse(
+                mock_generator(),
+                status_code=mock_resp.status_code,
+                headers=dict(mock_resp.headers),
+                media_type=mock_resp.media_type,
+            )
+        return mock_resp
+
     headers = {
         k: v
         for k, v in request.headers.items()
@@ -430,12 +1196,36 @@ async def proxy_request(
 
         response = await client.send(req, stream=True)
 
+        is_sse = response.headers.get("content-type", "").startswith(
+            "text/event-stream"
+        )
+        is_streaming = False
+        if body:
+            try:
+                is_streaming = json.loads(body).get("stream", False)
+            except Exception:
+                pass
+
         async def response_generator():
+            body_accumulator = []
             try:
                 async for chunk in response.aiter_bytes():
                     yield chunk
+                    body_accumulator.append(chunk)
             finally:
                 await response.aclose()
+                try:
+                    full_body = b"".join(body_accumulator)
+                    await process_response_usage(
+                        service or "",
+                        model or "",
+                        is_sse,
+                        full_body,
+                        body,
+                        is_streaming,
+                    )
+                except Exception as e:
+                    print(f"Error processing usage: {e}")
 
         # Strip content-length and transfer-encoding headers to let FastAPI handle chunking correctly
         resp_headers = {
@@ -485,6 +1275,35 @@ async def proxy_request(
         )
 
 
+# --- Usage & Metrics Routes ---
+
+
+@app.get("/usage")
+@app.get("/v1/usage")
+async def route_usage(day: str | None = None, range: str | None = None):
+    try:
+        metrics = get_cumulative_metrics(day_filter=day, range_filter=range)
+        return metrics
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/metrics")
+@app.get("/v1/metrics")
+async def route_metrics():
+    try:
+        update_prometheus_metrics()
+        return Response(
+            content=generate_latest(metrics_registry), media_type=CONTENT_TYPE_LATEST
+        )
+    except Exception as e:
+        return Response(
+            content=f"Error generating metrics: {e}",
+            status_code=500,
+            media_type="text/plain",
+        )
+
+
 # --- Routes Mapping ---
 
 
@@ -492,11 +1311,11 @@ async def proxy_request(
 async def route_chat(request: Request):
     config = resolve_config()
     body = await request.body()
+    model = "qwen3"
     try:
-        import json
-
         data = json.loads(body)
-        if data.get("model") == "qwen3-thinking":
+        model = data.get("model", "qwen3")
+        if model == "qwen3-thinking":
             data["model"] = "qwen3"
             kwargs = data.get("chat_template_kwargs") or {}
             kwargs["enable_thinking"] = True
@@ -505,43 +1324,118 @@ async def route_chat(request: Request):
     except Exception:
         pass
     return await proxy_request(
-        f"{config['chat']}/v1/chat/completions", request, content=body
+        f"{config['chat']}/v1/chat/completions",
+        request,
+        content=body,
+        service="chat",
+        model=model,
     )
 
 
 @app.post("/v1/embeddings")
 async def route_embedding(request: Request):
     config = resolve_config()
-    return await proxy_request(f"{config['embedding']}/v1/embeddings", request)
+    model = "qwen3-embedding"
+    body = None
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        model = data.get("model", "qwen3-embedding")
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['embedding']}/v1/embeddings",
+        request,
+        content=body,
+        service="embedding",
+        model=model,
+    )
 
 
 @app.post("/v1/rerank")
 @app.post("/rerank")
 async def route_rerank(request: Request):
     config = resolve_config()
-    return await proxy_request(f"{config['rerank']}/v1/rerank", request)
+    model = "qwen3-reranker"
+    body = None
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        model = data.get("model", "qwen3-reranker")
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['rerank']}/v1/rerank",
+        request,
+        content=body,
+        service="rerank",
+        model=model,
+    )
 
 
 @app.post("/v1/audio/transcriptions")
 async def route_stt(request: Request):
     config = resolve_config()
-    # Resolve optional custom endpoint path for stt if defined in env
     user_dir = get_systemd_user_dir()
     stt_env = parse_env_file(os.path.join(user_dir, "local-speech-to-text.env"))
     inf_path = stt_env.get("LSTT_INFERENCE_PATH", "/v1/audio/transcriptions")
-    return await proxy_request(f"{config['stt']}{inf_path}", request)
+    model = "whisper-1"
+    body_bytes = b""
+    try:
+        body_bytes = await request.body()
+        form = await request.form()
+        model_form = form.get("model")
+        if isinstance(model_form, str):
+            model = model_form
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['stt']}{inf_path}",
+        request,
+        content=body_bytes,
+        service="stt",
+        model=model,
+    )
 
 
 @app.post("/v1/audio/speech")
 async def route_tts(request: Request):
     config = resolve_config()
-    return await proxy_request(f"{config['tts']}/v1/audio/speech", request)
+    model = "qwen3-tts"
+    body = None
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        model = data.get("model", "qwen3-tts")
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['tts']}/v1/audio/speech",
+        request,
+        content=body,
+        service="tts",
+        model=model,
+    )
 
 
 @app.post("/v1/images/generations")
 async def route_image(request: Request):
     config = resolve_config()
-    return await proxy_request(f"{config['image']}/v1/images/generations", request)
+    model = "z-image-turbo"
+    body = None
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        model = data.get("model", "z-image-turbo")
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['image']}/v1/images/generations",
+        request,
+        content=body,
+        service="image",
+        model=model,
+    )
 
 
 @app.post("/v1/completions")
@@ -550,14 +1444,35 @@ async def route_completions(request: Request):
     """Routes completions / completion requests to the chat service."""
     config = resolve_config()
     path = request.url.path
-    return await proxy_request(f"{config['chat']}{path}", request)
+    model = "qwen3"
+    body = None
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        model = data.get("model", "qwen3")
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['chat']}{path}", request, content=body, service="chat", model=model
+    )
 
 
 @app.post("/embedding")
 async def route_native_embedding(request: Request):
     """Routes native llama.cpp /embedding requests to the embedding service."""
     config = resolve_config()
-    return await proxy_request(f"{config['embedding']}/embedding", request)
+    body = None
+    try:
+        body = await request.body()
+    except Exception:
+        pass
+    return await proxy_request(
+        f"{config['embedding']}/embedding",
+        request,
+        content=body,
+        service="embedding",
+        model="qwen3-embedding",
+    )
 
 
 @app.get("/props")
@@ -573,36 +1488,42 @@ async def route_props(request: Request):
 @app.post("/v1/tokenize")
 async def route_tokenize(request: Request):
     """Routes tokenization requests to the matching model service backend."""
+    body_bytes = None
+    model_name = ""
     try:
-        body = await request.json()
+        body_bytes = await request.body()
+        body = json.loads(body_bytes)
         model_name = body.get("model", "")
     except Exception:
-        model_name = ""
+        pass
 
     config = resolve_config()
     target_svc = resolve_target_service(model_name)
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(f"{target_url}{path}", request)
+    return await proxy_request(f"{target_url}{path}", request, content=body_bytes)
 
 
 @app.post("/detokenize")
 @app.post("/v1/detokenize")
 async def route_detokenize(request: Request):
     """Routes detokenization requests to the matching model service backend."""
+    body_bytes = None
+    model_name = ""
     try:
-        body = await request.json()
+        body_bytes = await request.body()
+        body = json.loads(body_bytes)
         model_name = body.get("model", "")
     except Exception:
-        model_name = ""
+        pass
 
     config = resolve_config()
     target_svc = resolve_target_service(model_name)
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(f"{target_url}{path}", request)
+    return await proxy_request(f"{target_url}{path}", request, content=body_bytes)
 
 
 @app.get("/health")

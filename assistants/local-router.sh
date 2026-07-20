@@ -259,6 +259,10 @@ cmd_install() {
         echo "Env file written."
     fi
 
+    if [[ -f "${SYSTEMD_USER_DIR}/local-router-usage.json" ]]; then
+        echo "[local-router] Preserving local-router-usage.json (not overwritten)"
+    fi
+
     # Write service file
     echo "Writing service file: ${SERVICE_FILE}"
     write_service_file
@@ -302,6 +306,10 @@ cmd_uninstall() {
     if [[ -f "${SYSTEMD_USER_DIR}/local-router.py" ]]; then
         rm -f "${SYSTEMD_USER_DIR}/local-router.py"
         echo "Removed local-router.py from ${SYSTEMD_USER_DIR}."
+    fi
+
+    if [[ -f "${SYSTEMD_USER_DIR}/local-router-usage.json" ]]; then
+        echo "[local-router] Preserving local-router-usage.json (not deleted)"
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
@@ -426,6 +434,57 @@ cmd_test() {
     echo "Combined router validation: Success."
 }
 
+cmd_usage() {
+    load_env
+    local range="${1:-today}"
+    if [[ "$range" != "today" && "$range" != "all" && "$range" != "7d" && "$range" != "30d" && "$range" != "90d" ]]; then
+        echo "Error: Invalid range '$range'. Supported values: today, all, 7d, 30d, 90d" >&2
+        return 1
+    fi
+
+    echo "=== Fetching local-router usage (range: $range) ==="
+    local resp
+    if ! resp=$(curl -s -f "http://${LROUT_HOST}:${LROUT_PORT}/usage?range=${range}"); then
+        echo "Error: Failed to fetch usage from router at http://${LROUT_HOST}:${LROUT_PORT}/usage. Is the service running?" >&2
+        return 1
+    fi
+
+    # shellcheck disable=SC2016
+    echo "${resp}" | python3 -c '
+import sys, json
+
+try:
+    data = json.load(sys.stdin)
+except Exception as e:
+    print(f"Error parsing JSON response: {e}")
+    sys.exit(1)
+
+models = data.get("models", {})
+services = data.get("services", {})
+totals = data.get("totals", {})
+
+# Print formatted table
+print("-" * 123)
+print(f"| {\"SERVICE/MODEL\":<30} | {\"CALLS\":<6} | {\"STREAM\":<6} | {\"NORMAL\":<6} | {\"INPUT\":<10} | {\"CACHED IN\":<10} | {\"CACHED WR\":<10} | {\"OUTPUT\":<10} | {\"CACHE %\":<8} | {\"EST COST\":<9} |")
+print("-" * 123)
+
+for model_key, stats in sorted(models.items()):
+    cost = stats.get("costs", {}).get("total_cost", 0.0)
+    print(f"| {model_key:<30} | {stats.get(\"calls\", 0):<6} | {stats.get(\"streaming_calls\", 0):<6} | {stats.get(\"normal_calls\", 0):<6} | {stats.get(\"input\", 0):<10} | {stats.get(\"cached_input\", 0):<10} | {stats.get(\"cached_write\", 0):<10} | {stats.get(\"output\", 0):<10} | {stats.get(\"cache_pct\", 0.0):<8.2f} | ${cost:<8.4f} |")
+
+print("-" * 123)
+
+for svc_name, stats in sorted(services.items()):
+    cost = stats.get("costs", {}).get("total_cost", 0.0)
+    print(f"| {f\"Service {svc_name.upper()} Total\":<30} | {stats.get(\"calls\", 0):<6} | {stats.get(\"streaming_calls\", 0):<6} | {stats.get(\"normal_calls\", 0):<6} | {stats.get(\"input\", 0):<10} | {stats.get(\"cached_input\", 0):<10} | {stats.get(\"cached_write\", 0):<10} | {stats.get(\"output\", 0):<10} | {stats.get(\"cache_pct\", 0.0):<8.2f} | ${cost:<8.4f} |")
+
+print("-" * 123)
+total_cost = totals.get("costs", {}).get("total_cost", 0.0)
+print(f"| {\"GRAND TOTAL\":<30} | {totals.get(\"calls\", 0):<6} | {totals.get(\"streaming_calls\", 0):<6} | {totals.get(\"normal_calls\", 0):<6} | {totals.get(\"input\", 0):<10} | {totals.get(\"cached_input\", 0):<10} | {totals.get(\"cached_write\", 0):<10} | {totals.get(\"output\", 0):<10} | {totals.get(\"cache_pct\", 0.0):<8.2f} | ${total_cost:<8.4f} |")
+print("-" * 123)
+'
+}
+
 usage() {
     cat <<EOF
 Usage: $0 <command> [args...]
@@ -442,6 +501,7 @@ Commands:
   edit      - Edit the .env file and restart the service upon exit
   exec      - Run uvicorn as a transient systemd user service
   test      - Run validation tests for the combined router
+  usage [today|all|7d|30d|90d] - Print a formatted table of token usage (defaults to today)
 EOF
 }
 
@@ -467,6 +527,7 @@ main() {
     edit) cmd_edit ;;
     exec) cmd_exec "$@" ;;
     test) cmd_test "$@" ;;
+    usage) cmd_usage "$@" ;;
     *)
         echo "Unknown command: $COMMAND"
         usage
