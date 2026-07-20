@@ -32,6 +32,8 @@ The following packages must be installed in the Python environment:
   - `./local-router.sh edit`
 - Run API validation tests:
   - `./local-router.sh test`
+- Inspect the aggregated usage:
+  - `./local-router.sh usage [today|all|7d|30d|90d]`
 - Run uvicorn as a transient systemd user service:
   - `./local-router.sh exec [--env KEY=VALUE]* [-- uvicorn-args...]`
 
@@ -49,16 +51,17 @@ LROUT_DEFAULT_MODEL="qwen3"
 ```
 
 ### Route Map (Port 51080)
-
-| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3 | 50080 | LLM completions (uses default template settings) |
-| `POST /v1/chat/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen3-thinking | 50080 | LLM completions (forces thinking/CoT ON) |
-| `POST /v1/completions` | `http://{LCHAT_HOST}:{LCHAT_PORT}` | Local-Chat | qwen-coder-fim | 50080 | FIM code completion |
-| `POST /v1/embeddings` | Dynamic (based on `LMBD_ENABLED`) | Local-Embedding | qwen3-embedding | 50082 / 50080 | Embeddings |
-| `POST /v1/rerank` or `/rerank` | `http://{LRR_HOST}:{LRR_PORT}` | Local-Rerank | qwen3-reranker | 50086 | Text document ranking |
-| `POST /v1/audio/transcriptions` | `http://{LSTT_HOST}:{LSTT_PORT}` | Local-Speech-To-Text | whisper-1 | 50090 | Whisper transcription |
-| `POST /v1/audio/speech` | `http://{LTTS_HOST}:{LTTS_PORT}` | Local-Text-To-Speech | qwen3-tts | 50095 | Speech synthesis |
-| `POST /v1/images/generations` | `http://{LIMG_HOST}:{LIMG_PORT}` | Local-Image | z-image-turbo | 50100 | Stable Diffusion image generation |
-| `GET /v1/models` | Cached Model Inventory | - | - | - | Returns cached model inventory built on startup |
+| Route |  Service | Default Model | Target Port | Description  |
+| :--- | :---: | :---: | :---: | :---: |
+| `POST /v1/chat/completions` |  Local-Chat | qwen3 | 50080 | LLM completions (uses default template settings) |
+| `POST /v1/chat/completions` |  Local-Chat | qwen3-thinking | 50080 | LLM completions (forces thinking/CoT ON) |
+| `POST /v1/completions` | Local-Chat | qwen-coder-fim | 50080 | FIM code completion |
+| `POST /v1/embeddings` | Local-Chat or Embedding | qwen3-embedding | 50082 or 50080 | Embeddings |
+| `POST /v1/rerank` or `/rerank` |  Local-Rerank | qwen3-reranker | 50086 | Text document ranking |
+| `POST /v1/audio/transcriptions` | Local-Speech-To-Text | whisper-1 | 50090 | Whisper transcription |
+| `POST /v1/audio/speech` |  Local-Text-To-Speech | qwen3-tts | 50095 | Speech synthesis |
+| `POST /v1/images/generations` | Local-Image | z-image-turbo | 50100 | Stable Diffusion image generation |
+| `GET /v1/models` | Cached Model Inventory | - | - | Returns cached model inventory built on startup |
 
 ### Special Model Aliases & Parameter Rewriting
 
@@ -139,26 +142,6 @@ If any backend service is down, offline, or returns an error, the router respond
 }
 ```
 This ensures integration clients (like agents or tools) receive clean HTTP errors (`502 Bad Gateway` / `503 Service Unavailable`) instead of failing with connection breaks.
-
-### Web Dashboard UI (`GET /routing/ui` or `/ui`)
-
-The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:51080/routing/ui` (or `/ui`).
-
-![Local Router Dashboard - KPI Cards & Visualization](../assets/local-router-ui-1.png)
-
-![Local Router Dashboard - Daily Averages & Breakdown Tables](../assets/local-router-ui-2.png)
-
-![Local Router Dashboard - Detailed Models Breakdown Table](../assets/local-router-ui-3.png)
-
-- **Origin Interaction**: Queries the router's JSON usage API (`/usage?range=...`) dynamically relative to its origin (`window.location.origin`).
-- **Theme Support**: Auto-detects system browser preference (`dark` / `light`) with an explicit header theme selector (`Auto`, `Dark`, `Light`).
-- **Features**:
-  - **KPI Cards Grid**: Real-time summary for Total Requests, Total Tokens, Total Input Tokens, Cache Hit Rate %, Total Output Tokens, Estimated USD Cost, and HTTP Errors (responsive 4 → 3 → 2 → 1 grid layout).
-  - **Time-range Selector**: Switch between `1D`, `7D`, `30D`, `90D`, and `All` time windows.
-  - **Day-per-Day Chart.js Visualization**: Interactive time-series stacked bar/line chart (Uncached Input, Cached Input, Output Tokens, Total Calls, Estimated Cost). Selected legend dataset visibilities survive refreshes.
-  - **Average Usage per Day (p.D.) Table**: Displays daily averages across `1d`, `7d`, `30d`, `90d`, and `All`.
-  - **Breakdown Tables**: Separate structured tables for Clients / Agents Breakdown and Services Breakdown (`AGENT/SERVICE`, `CALLS P/S`, `TOKEN IN`, `% CACHED`, `TOKEN OUT`, `COST`).
-  - **Searchable Models Breakdown Table**: Detailed breakdown by `AGENT:MODEL:SERVICE` (`Calls P/S`, `Cached In`, `Uncached In`, `% Cache`, `Output`, `Total`, `Est.Cost($)`, `Errors P/S`) with sticky column sorting and live search filtering.
 
 ### Client Resolution & User-Agent Detection
 
@@ -243,4 +226,25 @@ Context caching optimizes processing costs for repetitive large prompts (e.g., c
 2. If the engine reports cache hits (`cached_tokens` / `cache_read_input_tokens`), the router records them under `cached_input`.
 3. The remaining input tokens are recorded under `input` (uncached prompt tokens).
 4. Estimated costs are computed dynamically by multiplying each token classification by its registry price.
+
+
+### Web Dashboard UI (`GET /routing/ui` or `/ui`)
+
+The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:51080/routing/ui` (or `/ui`).
+
+![Local Router Dashboard - KPI Cards & Visualization](../assets/local-router-ui-1.png)
+
+![Local Router Dashboard - Daily Averages & Breakdown Tables](../assets/local-router-ui-2.png)
+
+![Local Router Dashboard - Detailed Models Breakdown Table](../assets/local-router-ui-3.png)
+
+- **Origin Interaction**: Queries the router's JSON usage API (`/usage?range=...`) dynamically relative to its origin (`window.location.origin`).
+- **Theme Support**: Auto-detects system browser preference (`dark` / `light`) with an explicit header theme selector (`Auto`, `Dark`, `Light`).
+- **Features**:
+  - **KPI Cards Grid**: Real-time summary for Total Requests, Total Tokens, Total Input Tokens, Cache Hit Rate %, Total Output Tokens, Estimated USD Cost, and HTTP Errors (responsive 4 → 3 → 2 → 1 grid layout).
+  - **Time-range Selector**: Switch between `1D`, `7D`, `30D`, `90D`, and `All` time windows.
+  - **Day-per-Day Chart.js Visualization**: Interactive time-series stacked bar/line chart (Uncached Input, Cached Input, Output Tokens, Total Calls, Estimated Cost). Selected legend dataset visibilities survive refreshes.
+  - **Average Usage per Day (p.D.) Table**: Displays daily averages across `1d`, `7d`, `30d`, `90d`, and `All`.
+  - **Breakdown Tables**: Separate structured tables for Clients / Agents Breakdown and Services Breakdown (`AGENT/SERVICE`, `CALLS P/S`, `TOKEN IN`, `% CACHED`, `TOKEN OUT`, `COST`).
+  - **Searchable Models Breakdown Table**: Detailed breakdown by `AGENT:MODEL:SERVICE` (`Calls P/S`, `Cached In`, `Uncached In`, `% Cache`, `Output`, `Total`, `Est.Cost($)`, `Errors P/S`) with sticky column sorting and live search filtering.
 
