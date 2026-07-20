@@ -43,6 +43,42 @@ LROUT_MOCK_BACKENDS = os.environ.get("LROUT_MOCK_BACKENDS", "") in (
     "yes",
 )
 
+# --- Client User-Agent pattern detection ---
+KNOWN_CLIENTS: list[str] = [
+    "hermes",
+    "hindsight",
+    "curl",
+    "nanobot",
+    "librefang",
+    "zed",
+    "nanoclaw",
+    "picoclaw",
+    "ironclaw",
+    "zeroclaw",
+]
+
+CLIENT_UA_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(name, re.IGNORECASE), name) for name in KNOWN_CLIENTS
+]
+
+
+def resolve_client_id(user_agent: str, custom_header: str | None = None) -> str:
+    """Resolve client identifier from custom headers or User-Agent string."""
+    if custom_header:
+        clean_custom = custom_header.strip().lower()
+        if clean_custom:
+            return clean_custom
+
+    if not user_agent:
+        return "unknown"
+
+    for pattern, client_id in CLIENT_UA_PATTERNS:
+        if pattern.search(user_agent):
+            return client_id
+
+    return "unknown"
+
+
 # --- Usage tracking state ---
 STATIC_ERRORS_TEMPLATE = {
     "400": 0,
@@ -58,7 +94,7 @@ STATIC_ERRORS_TEMPLATE = {
     "OTHER": 0,
 }
 
-usage_data_memory: dict[str, dict[str, dict[str, dict[str, Any]]]] = {}
+usage_data_memory: dict[str, dict[str, dict[str, dict[str, dict[str, Any]]]]] = {}
 last_written_total_tokens: int = 0
 usage_lock = threading.Lock()
 save_task: asyncio.Task = None  # type: ignore[assignment]
@@ -69,28 +105,28 @@ metrics_registry = CollectorRegistry()
 calls_gauge = Gauge(
     "local_router_calls_total",
     "Cumulative count of calls routed through local-router",
-    ["service", "model"],
+    ["agent", "service", "model"],
     registry=metrics_registry,
 )
 
 tokens_gauge = Gauge(
     "local_router_tokens_total",
     "Cumulative count of tokens processed",
-    ["service", "model", "type"],
+    ["agent", "service", "model", "type"],
     registry=metrics_registry,
 )
 
 cost_gauge = Gauge(
     "local_router_cost_total",
     "Cumulative estimated cost of routed calls in USD",
-    ["service", "model", "type"],
+    ["agent", "service", "model", "type"],
     registry=metrics_registry,
 )
 
 errors_gauge = Gauge(
     "local_router_errors_total",
     "Cumulative count of HTTP errors routed by service, model, call type, and HTTP code",
-    ["service", "model", "call_type", "code"],
+    ["agent", "service", "model", "call_type", "code"],
     registry=metrics_registry,
 )
 
@@ -446,6 +482,7 @@ def get_token_count(text: str) -> int:
 
 
 def add_usage_record(
+    agent: str,
     service: str,
     model: str,
     uncached_input: int,
@@ -455,14 +492,19 @@ def add_usage_record(
     is_streaming: bool,
     status_code: int = 200,
 ):
+    agent = agent or "unknown"
+    service = service or "unknown"
+    model = model or "unknown"
     today = datetime.date.today().isoformat()
     with usage_lock:
         if today not in usage_data_memory:
             usage_data_memory[today] = {}
-        if service not in usage_data_memory[today]:
-            usage_data_memory[today][service] = {}
-        if model not in usage_data_memory[today][service]:
-            usage_data_memory[today][service][model] = {
+        if agent not in usage_data_memory[today]:
+            usage_data_memory[today][agent] = {}
+        if service not in usage_data_memory[today][agent]:
+            usage_data_memory[today][agent][service] = {}
+        if model not in usage_data_memory[today][agent][service]:
+            usage_data_memory[today][agent][service][model] = {
                 "calls": 0,
                 "streaming_calls": 0,
                 "calls_post": 0,
@@ -474,7 +516,7 @@ def add_usage_record(
                 "errors_post": dict(STATIC_ERRORS_TEMPLATE),
             }
 
-        entry = usage_data_memory[today][service][model]
+        entry = usage_data_memory[today][agent][service][model]
 
         # Backward compatibility check for loaded data:
         if "calls_post" not in entry:
@@ -523,7 +565,23 @@ def load_usage_data():
                     for entry in data_list:
                         date = entry.get("date")
                         if date:
-                            usage_data_memory[date] = entry.get("usage", {})
+                            raw_usage = entry.get("usage", {})
+                            migrated_day_data: dict[str, dict[str, dict[str, Any]]] = {}
+                            for top_key, subdict in raw_usage.items():
+                                if not isinstance(subdict, dict):
+                                    continue
+                                sample_val = (
+                                    next(iter(subdict.values()), {}) if subdict else {}
+                                )
+                                if isinstance(sample_val, dict) and (
+                                    "calls" in sample_val or "input" in sample_val
+                                ):
+                                    if "unknown" not in migrated_day_data:
+                                        migrated_day_data["unknown"] = {}
+                                    migrated_day_data["unknown"][top_key] = subdict
+                                else:
+                                    migrated_day_data[top_key] = subdict
+                            usage_data_memory[date] = migrated_day_data
         except Exception as e:
             print(f"Warning: Failed to load usage file {path}: {e}")
 
@@ -534,12 +592,18 @@ def load_usage_data():
 def get_total_tokens_for_day(day: str) -> int:
     total = 0
     if day in usage_data_memory:
-        for service, models in usage_data_memory[day].items():
-            for model, counts in models.items():
-                total += counts.get("input", 0)
-                total += counts.get("cached_input", 0)
-                total += counts.get("cached_write", 0)
-                total += counts.get("output", 0)
+        for _agent, services_map in usage_data_memory[day].items():
+            if not isinstance(services_map, dict):
+                continue
+            for _service, models_map in services_map.items():
+                if not isinstance(models_map, dict):
+                    continue
+                for _model, counts in models_map.items():
+                    if isinstance(counts, dict):
+                        total += counts.get("input", 0)
+                        total += counts.get("cached_input", 0)
+                        total += counts.get("cached_write", 0)
+                        total += counts.get("output", 0)
     return total
 
 
@@ -579,6 +643,7 @@ def get_cumulative_metrics(
     day_filter: str | None = None, range_filter: str | None = None
 ) -> dict[str, Any]:
     models_acc: dict[str, Any] = {}
+    agents_acc: dict[str, Any] = {}
     services_acc: dict[str, Any] = {}
     totals_acc: dict[str, Any] = {
         "calls": 0,
@@ -629,9 +694,11 @@ def get_cumulative_metrics(
 
         for day in days_to_process:
             day_data = usage_data_memory.get(day, {})
-            for service, models in day_data.items():
-                if service not in services_acc:
-                    services_acc[service] = {
+            for agent, services_map in day_data.items():
+                if not isinstance(services_map, dict):
+                    continue
+                if agent not in agents_acc:
+                    agents_acc[agent] = {
                         "calls": 0,
                         "streaming_calls": 0,
                         "calls_post": 0,
@@ -652,16 +719,11 @@ def get_cumulative_metrics(
                         "errors_post": dict(STATIC_ERRORS_TEMPLATE),
                     }
 
-                pricing = PRICING_REGISTRY.get(service, {})
-                cost_prompt = float(pricing.get("prompt", "0.0"))
-                cost_completion = float(pricing.get("completion", "0.0"))
-                cost_cache_read = float(pricing.get("input_cache_read", "0.0"))
-                cost_cache_write = float(pricing.get("input_cache_write", "0.0"))
-
-                for model, counts in models.items():
-                    model_key = f"{service}:{model}"
-                    if model_key not in models_acc:
-                        models_acc[model_key] = {
+                for service, models_map in services_map.items():
+                    if not isinstance(models_map, dict):
+                        continue
+                    if service not in services_acc:
+                        services_acc[service] = {
                             "calls": 0,
                             "streaming_calls": 0,
                             "calls_post": 0,
@@ -682,86 +744,94 @@ def get_cumulative_metrics(
                             "errors_post": dict(STATIC_ERRORS_TEMPLATE),
                         }
 
-                    calls = counts.get("calls", 0)
-                    str_calls = counts.get("streaming_calls", 0)
-                    norm_calls = counts.get("calls_post", counts.get("normal_calls", 0))
-                    if str_calls == 0 and norm_calls == 0 and calls > 0:
-                        norm_calls = calls
+                    pricing = PRICING_REGISTRY.get(service, {})
+                    cost_prompt = float(pricing.get("prompt", "0.0"))
+                    cost_completion = float(pricing.get("completion", "0.0"))
+                    cost_cache_read = float(pricing.get("input_cache_read", "0.0"))
+                    cost_cache_write = float(pricing.get("input_cache_write", "0.0"))
 
-                    inp = counts.get("input", 0)
-                    c_inp = counts.get("cached_input", 0)
-                    c_wr = counts.get("cached_write", 0)
-                    out = counts.get("output", 0)
-                    tot = inp + c_inp + c_wr + out
+                    for model, counts in models_map.items():
+                        if not isinstance(counts, dict):
+                            continue
+                        model_key = f"{agent}:{model}:{service}"
+                        if model_key not in models_acc:
+                            models_acc[model_key] = {
+                                "calls": 0,
+                                "streaming_calls": 0,
+                                "calls_post": 0,
+                                "input": 0,
+                                "cached_input": 0,
+                                "cached_write": 0,
+                                "output": 0,
+                                "total_tokens": 0,
+                                "cache_pct": 0.0,
+                                "costs": {
+                                    "cached_input_cost": 0.0,
+                                    "input_cost": 0.0,
+                                    "cached_write_cost": 0.0,
+                                    "output_cost": 0.0,
+                                    "total_cost": 0.0,
+                                },
+                                "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
+                                "errors_post": dict(STATIC_ERRORS_TEMPLATE),
+                            }
 
-                    c_inp_cost = c_inp * cost_cache_read
-                    inp_cost = inp * cost_prompt
-                    c_wr_cost = c_wr * cost_cache_write
-                    out_cost = out * cost_completion
-                    tot_cost = c_inp_cost + inp_cost + c_wr_cost + out_cost
+                        calls = counts.get("calls", 0)
+                        str_calls = counts.get("streaming_calls", 0)
+                        norm_calls = counts.get(
+                            "calls_post", counts.get("normal_calls", 0)
+                        )
+                        if str_calls == 0 and norm_calls == 0 and calls > 0:
+                            norm_calls = calls
 
-                    # Model update
-                    m_entry = models_acc[model_key]
-                    m_entry["calls"] += calls
-                    m_entry["streaming_calls"] += str_calls
-                    m_entry["calls_post"] += norm_calls
-                    m_entry["input"] += inp
-                    m_entry["cached_input"] += c_inp
-                    m_entry["cached_write"] += c_wr
-                    m_entry["output"] += out
-                    m_entry["total_tokens"] += tot
-                    m_entry["costs"]["cached_input_cost"] += c_inp_cost
-                    m_entry["costs"]["input_cost"] += inp_cost
-                    m_entry["costs"]["cached_write_cost"] += c_wr_cost
-                    m_entry["costs"]["output_cost"] += out_cost
-                    m_entry["costs"]["total_cost"] += tot_cost
+                        inp = counts.get("input", 0)
+                        c_inp = counts.get("cached_input", 0)
+                        c_wr = counts.get("cached_write", 0)
+                        out = counts.get("output", 0)
+                        tot = inp + c_inp + c_wr + out
 
-                    # Service update
-                    s_entry = services_acc[service]
-                    s_entry["calls"] += calls
-                    s_entry["streaming_calls"] += str_calls
-                    s_entry["calls_post"] += norm_calls
-                    s_entry["input"] += inp
-                    s_entry["cached_input"] += c_inp
-                    s_entry["cached_write"] += c_wr
-                    s_entry["output"] += out
-                    s_entry["total_tokens"] += tot
-                    s_entry["costs"]["cached_input_cost"] += c_inp_cost
-                    s_entry["costs"]["input_cost"] += inp_cost
-                    s_entry["costs"]["cached_write_cost"] += c_wr_cost
-                    s_entry["costs"]["output_cost"] += out_cost
-                    s_entry["costs"]["total_cost"] += tot_cost
+                        c_inp_cost = c_inp * cost_cache_read
+                        inp_cost = inp * cost_prompt
+                        c_wr_cost = c_wr * cost_cache_write
+                        out_cost = out * cost_completion
+                        tot_cost = c_inp_cost + inp_cost + c_wr_cost + out_cost
 
-                    # Grand totals update
-                    totals_acc["calls"] += calls
-                    totals_acc["streaming_calls"] += str_calls
-                    totals_acc["calls_post"] += norm_calls
-                    totals_acc["input"] += inp
-                    totals_acc["cached_input"] += c_inp
-                    totals_acc["cached_write"] += c_wr
-                    totals_acc["output"] += out
-                    totals_acc["total_tokens"] += tot
-                    totals_acc["costs"]["cached_input_cost"] += c_inp_cost
-                    totals_acc["costs"]["input_cost"] += inp_cost
-                    totals_acc["costs"]["cached_write_cost"] += c_wr_cost
-                    totals_acc["costs"]["output_cost"] += out_cost
-                    totals_acc["costs"]["total_cost"] += tot_cost
+                        def accum(target: dict[str, Any]):
+                            target["calls"] += calls
+                            target["streaming_calls"] += str_calls
+                            target["calls_post"] += norm_calls
+                            target["input"] += inp
+                            target["cached_input"] += c_inp
+                            target["cached_write"] += c_wr
+                            target["output"] += out
+                            target["total_tokens"] += tot
+                            target["costs"]["cached_input_cost"] += c_inp_cost
+                            target["costs"]["input_cost"] += inp_cost
+                            target["costs"]["cached_write_cost"] += c_wr_cost
+                            target["costs"]["output_cost"] += out_cost
+                            target["costs"]["total_cost"] += tot_cost
+                            for code in STATIC_ERRORS_TEMPLATE:
+                                err_str_val = counts.get("errors_streaming", {}).get(
+                                    code, 0
+                                )
+                                err_post_val = counts.get("errors_post", {}).get(
+                                    code, 0
+                                )
+                                target["errors_streaming"][code] += err_str_val
+                                target["errors_post"][code] += err_post_val
 
-                    # Errors update
-                    for code in STATIC_ERRORS_TEMPLATE:
-                        err_str_val = counts.get("errors_streaming", {}).get(code, 0)
-                        err_post_val = counts.get("errors_post", {}).get(code, 0)
-
-                        m_entry["errors_streaming"][code] += err_str_val
-                        m_entry["errors_post"][code] += err_post_val
-
-                        s_entry["errors_streaming"][code] += err_str_val
-                        s_entry["errors_post"][code] += err_post_val
-
-                        totals_acc["errors_streaming"][code] += err_str_val
-                        totals_acc["errors_post"][code] += err_post_val
+                        accum(models_acc[model_key])
+                        accum(agents_acc[agent])
+                        accum(services_acc[service])
+                        accum(totals_acc)
 
     for entry in models_acc.values():
+        total_inp = entry["cached_input"] + entry["input"]
+        entry["cache_pct"] = (
+            (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
+        )
+
+    for entry in agents_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
         entry["cache_pct"] = (
             (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
@@ -778,68 +848,77 @@ def get_cumulative_metrics(
         (totals_acc["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
     )
 
-    return {"models": models_acc, "services": services_acc, "totals": totals_acc}
+    return {
+        "models": models_acc,
+        "agents": agents_acc,
+        "services": services_acc,
+        "totals": totals_acc,
+    }
 
 
 def update_prometheus_metrics():
     metrics = get_cumulative_metrics()
     for key, val in metrics["models"].items():
-        service, model = key.split(":", 1)
-        calls_gauge.labels(service=service, model=model).set(val["calls"])
+        agent, model, service = key.split(":", 2)
+        calls_gauge.labels(agent=agent, service=service, model=model).set(val["calls"])
 
-        tokens_gauge.labels(service=service, model=model, type="input").set(
-            val["input"]
-        )
-        tokens_gauge.labels(service=service, model=model, type="cached_input").set(
-            val["cached_input"]
-        )
-        tokens_gauge.labels(service=service, model=model, type="cached_write").set(
-            val["cached_write"]
-        )
-        tokens_gauge.labels(service=service, model=model, type="output").set(
-            val["output"]
-        )
-        tokens_gauge.labels(service=service, model=model, type="total").set(
-            val["total_tokens"]
-        )
+        tokens_gauge.labels(
+            agent=agent, service=service, model=model, type="input"
+        ).set(val["input"])
+        tokens_gauge.labels(
+            agent=agent, service=service, model=model, type="cached_input"
+        ).set(val["cached_input"])
+        tokens_gauge.labels(
+            agent=agent, service=service, model=model, type="cached_write"
+        ).set(val["cached_write"])
+        tokens_gauge.labels(
+            agent=agent, service=service, model=model, type="output"
+        ).set(val["output"])
+        tokens_gauge.labels(
+            agent=agent, service=service, model=model, type="total"
+        ).set(val["total_tokens"])
 
-        cost_gauge.labels(service=service, model=model, type="input").set(
+        cost_gauge.labels(agent=agent, service=service, model=model, type="input").set(
             val["costs"]["input_cost"]
         )
-        cost_gauge.labels(service=service, model=model, type="cached_input").set(
-            val["costs"]["cached_input_cost"]
-        )
-        cost_gauge.labels(service=service, model=model, type="cached_write").set(
-            val["costs"]["cached_write_cost"]
-        )
-        cost_gauge.labels(service=service, model=model, type="output").set(
+        cost_gauge.labels(
+            agent=agent, service=service, model=model, type="cached_input"
+        ).set(val["costs"]["cached_input_cost"])
+        cost_gauge.labels(
+            agent=agent, service=service, model=model, type="cached_write"
+        ).set(val["costs"]["cached_write_cost"])
+        cost_gauge.labels(agent=agent, service=service, model=model, type="output").set(
             val["costs"]["output_cost"]
         )
-        cost_gauge.labels(service=service, model=model, type="total").set(
+        cost_gauge.labels(agent=agent, service=service, model=model, type="total").set(
             val["costs"]["total_cost"]
         )
 
         # Update errors
         for code in STATIC_ERRORS_TEMPLATE:
             errors_gauge.labels(
-                service=service, model=model, call_type="streaming", code=code
+                agent=agent,
+                service=service,
+                model=model,
+                call_type="streaming",
+                code=code,
             ).set(val["errors_streaming"].get(code, 0))
             errors_gauge.labels(
-                service=service, model=model, call_type="post", code=code
+                agent=agent, service=service, model=model, call_type="post", code=code
             ).set(val["errors_post"].get(code, 0))
 
 
 def format_usage_table(data: dict[str, Any]) -> str:
     models = data.get("models", {})
+    agents = data.get("agents", {})
     services = data.get("services", {})
     totals = data.get("totals", {})
 
     lines = []
-    # Print formatted table
     width = 153
     lines.append("-" * width)
     lines.append(
-        f"| {'SERVICE/MODEL':<30} | {'CALLS':<6} | {'STREAM':<6} | {'POST':<6} | {'INPUT':<10} | {'CACHED IN':<10} | {'CACHED WR':<10} | {'OUTPUT':<10} | {'CACHE %':<8} | {'EST COST':<9} | {'ERRORS (STR / POST)':<18} |"
+        f"| {'AGENT:MODEL:SERVICE':<30} | {'CALLS':<6} | {'STREAM':<6} | {'POST':<6} | {'INPUT':<10} | {'CACHED IN':<10} | {'CACHED WR':<10} | {'OUTPUT':<10} | {'CACHE %':<8} | {'EST COST':<9} | {'ERRORS (STR / POST)':<18} |"
     )
     lines.append("-" * width)
 
@@ -853,6 +932,15 @@ def format_usage_table(data: dict[str, Any]) -> str:
         errs_str = get_errors_str(stats)
         lines.append(
             f"| {model_key:<30} | {stats.get('calls', 0):<6} | {stats.get('streaming_calls', 0):<6} | {stats.get('calls_post', 0):<6} | {stats.get('input', 0):<10} | {stats.get('cached_input', 0):<10} | {stats.get('cached_write', 0):<10} | {stats.get('output', 0):<10} | {stats.get('cache_pct', 0.0):<8.2f} | ${cost:<8.4f} | {errs_str:<18} |"
+        )
+
+    lines.append("-" * width)
+
+    for agent_name, stats in sorted(agents.items()):
+        cost = stats.get("costs", {}).get("total_cost", 0.0)
+        errs_str = get_errors_str(stats)
+        lines.append(
+            f"| {f'Agent {agent_name.upper()} Total':<30} | {stats.get('calls', 0):<6} | {stats.get('streaming_calls', 0):<6} | {stats.get('calls_post', 0):<6} | {stats.get('input', 0):<10} | {stats.get('cached_input', 0):<10} | {stats.get('cached_write', 0):<10} | {stats.get('output', 0):<10} | {stats.get('cache_pct', 0.0):<8.2f} | ${cost:<8.4f} | {errs_str:<18} |"
         )
 
     lines.append("-" * width)
@@ -873,7 +961,11 @@ def format_usage_table(data: dict[str, Any]) -> str:
     lines.append("-" * width)
 
     has_errors = False
-    for name, stats in [("GRAND TOTAL", totals)] + list(sorted(models.items())):
+    for name, stats in (
+        [("GRAND TOTAL", totals)]
+        + list(sorted((f"Agent {k.upper()}", v) for k, v in agents.items()))
+        + list(sorted(models.items()))
+    ):
         str_err_codes = {
             k: v for k, v in stats.get("errors_streaming", {}).items() if v > 0
         }
@@ -1131,6 +1223,7 @@ async def handle_mock_backend(
 
 
 async def process_response_usage(
+    agent: str,
     service: str,
     model: str,
     is_sse: bool,
@@ -1259,6 +1352,7 @@ async def process_response_usage(
     uncached_input = max(0, prompt_tokens - cached_input)
 
     add_usage_record(
+        agent=agent or "unknown",
         service=service or "unknown",
         model=model or "unknown",
         uncached_input=uncached_input,
@@ -1276,6 +1370,7 @@ async def proxy_request(
     content: bytes | None = None,
     service: str | None = None,
     model: str | None = None,
+    agent: str | None = None,
 ) -> Response:
     """Asynchronously streams request to target and forwards the response back."""
     body = content if content is not None else await request.body()
@@ -1300,6 +1395,7 @@ async def proxy_request(
                 else bytes(mock_resp.body)
             )
             await process_response_usage(
+                agent or "unknown",
                 service or "",
                 model or "",
                 is_sse,
@@ -1317,6 +1413,7 @@ async def proxy_request(
                 else bytes(mock_resp.body)
             )
             await process_response_usage(
+                agent or "unknown",
                 service or "",
                 model or "",
                 is_sse,
@@ -1335,6 +1432,7 @@ async def proxy_request(
                 try:
                     full_body = b"".join(original_chunks)
                     await process_response_usage(
+                        agent or "unknown",
                         service or "",
                         model or "",
                         is_sse,
@@ -1393,6 +1491,7 @@ async def proxy_request(
                 try:
                     full_body = b"".join(body_accumulator)
                     await process_response_usage(
+                        agent or "unknown",
                         service or "",
                         model or "",
                         is_sse,
@@ -1421,6 +1520,7 @@ async def proxy_request(
     except httpx.HTTPStatusError as exc:
         try:
             await process_response_usage(
+                agent=agent or "unknown",
                 service=service or "",
                 model=model or "",
                 is_sse=False,
@@ -1444,6 +1544,7 @@ async def proxy_request(
         # Gracefully handle backend downtime
         try:
             await process_response_usage(
+                agent=agent or "unknown",
                 service=service or "",
                 model=model or "",
                 is_sse=False,
@@ -1467,6 +1568,7 @@ async def proxy_request(
     except Exception as exc:
         try:
             await process_response_usage(
+                agent=agent or "unknown",
                 service=service or "",
                 model=model or "",
                 is_sse=False,
@@ -1526,10 +1628,22 @@ async def route_metrics():
 # --- Routes Mapping ---
 
 
+def extract_request_agent(request: Request) -> str:
+    ua = request.headers.get("user-agent", "")
+    custom = (
+        request.headers.get("x-client-id")
+        or request.headers.get("x-agent-id")
+        or request.headers.get("x-client")
+        or request.headers.get("x-agent")
+    )
+    return resolve_client_id(ua, custom)
+
+
 @app.post("/v1/chat/completions")
 async def route_chat(request: Request):
     config = resolve_config()
     body = await request.body()
+    agent = extract_request_agent(request)
     model = "qwen3"
     try:
         data = json.loads(body)
@@ -1548,12 +1662,14 @@ async def route_chat(request: Request):
         content=body,
         service="chat",
         model=model,
+        agent=agent,
     )
 
 
 @app.post("/v1/embeddings")
 async def route_embedding(request: Request):
     config = resolve_config()
+    agent = extract_request_agent(request)
     model = "qwen3-embedding"
     body = None
     try:
@@ -1568,6 +1684,7 @@ async def route_embedding(request: Request):
         content=body,
         service="embedding",
         model=model,
+        agent=agent,
     )
 
 
@@ -1575,6 +1692,7 @@ async def route_embedding(request: Request):
 @app.post("/rerank")
 async def route_rerank(request: Request):
     config = resolve_config()
+    agent = extract_request_agent(request)
     model = "qwen3-reranker"
     body = None
     try:
@@ -1589,6 +1707,7 @@ async def route_rerank(request: Request):
         content=body,
         service="rerank",
         model=model,
+        agent=agent,
     )
 
 
@@ -1598,6 +1717,7 @@ async def route_stt(request: Request):
     user_dir = get_systemd_user_dir()
     stt_env = parse_env_file(os.path.join(user_dir, "local-speech-to-text.env"))
     inf_path = stt_env.get("LSTT_INFERENCE_PATH", "/v1/audio/transcriptions")
+    agent = extract_request_agent(request)
     model = "whisper-1"
     body_bytes = b""
     try:
@@ -1614,12 +1734,14 @@ async def route_stt(request: Request):
         content=body_bytes,
         service="stt",
         model=model,
+        agent=agent,
     )
 
 
 @app.post("/v1/audio/speech")
 async def route_tts(request: Request):
     config = resolve_config()
+    agent = extract_request_agent(request)
     model = "qwen3-tts"
     body = None
     try:
@@ -1634,12 +1756,14 @@ async def route_tts(request: Request):
         content=body,
         service="tts",
         model=model,
+        agent=agent,
     )
 
 
 @app.post("/v1/images/generations")
 async def route_image(request: Request):
     config = resolve_config()
+    agent = extract_request_agent(request)
     model = "z-image-turbo"
     body = None
     try:
@@ -1654,6 +1778,7 @@ async def route_image(request: Request):
         content=body,
         service="image",
         model=model,
+        agent=agent,
     )
 
 
@@ -1662,6 +1787,7 @@ async def route_image(request: Request):
 async def route_completions(request: Request):
     """Routes completions / completion requests to the chat service."""
     config = resolve_config()
+    agent = extract_request_agent(request)
     path = request.url.path
     model = "qwen3"
     body = None
@@ -1672,7 +1798,12 @@ async def route_completions(request: Request):
     except Exception:
         pass
     return await proxy_request(
-        f"{config['chat']}{path}", request, content=body, service="chat", model=model
+        f"{config['chat']}{path}",
+        request,
+        content=body,
+        service="chat",
+        model=model,
+        agent=agent,
     )
 
 
@@ -1680,6 +1811,7 @@ async def route_completions(request: Request):
 async def route_native_embedding(request: Request):
     """Routes native llama.cpp /embedding requests to the embedding service."""
     config = resolve_config()
+    agent = extract_request_agent(request)
     body = None
     try:
         body = await request.body()
@@ -1691,6 +1823,7 @@ async def route_native_embedding(request: Request):
         content=body,
         service="embedding",
         model="qwen3-embedding",
+        agent=agent,
     )
 
 
@@ -1699,8 +1832,9 @@ async def route_native_embedding(request: Request):
 async def route_props(request: Request):
     """Routes properties query to the chat service as default fallback."""
     config = resolve_config()
+    agent = extract_request_agent(request)
     path = request.url.path
-    return await proxy_request(f"{config['chat']}{path}", request)
+    return await proxy_request(f"{config['chat']}{path}", request, agent=agent)
 
 
 @app.post("/tokenize")
@@ -1709,6 +1843,7 @@ async def route_tokenize(request: Request):
     """Routes tokenization requests to the matching model service backend."""
     body_bytes = None
     model_name = ""
+    agent = extract_request_agent(request)
     try:
         body_bytes = await request.body()
         body = json.loads(body_bytes)
@@ -1721,7 +1856,9 @@ async def route_tokenize(request: Request):
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(f"{target_url}{path}", request, content=body_bytes)
+    return await proxy_request(
+        f"{target_url}{path}", request, content=body_bytes, agent=agent
+    )
 
 
 @app.post("/detokenize")
@@ -1730,6 +1867,7 @@ async def route_detokenize(request: Request):
     """Routes detokenization requests to the matching model service backend."""
     body_bytes = None
     model_name = ""
+    agent = extract_request_agent(request)
     try:
         body_bytes = await request.body()
         body = json.loads(body_bytes)
@@ -1742,7 +1880,9 @@ async def route_detokenize(request: Request):
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(f"{target_url}{path}", request, content=body_bytes)
+    return await proxy_request(
+        f"{target_url}{path}", request, content=body_bytes, agent=agent
+    )
 
 
 @app.get("/health")

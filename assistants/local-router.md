@@ -140,12 +140,19 @@ If any backend service is down, offline, or returns an error, the router respond
 ```
 This ensures integration clients (like agents or tools) receive clean HTTP errors (`502 Bad Gateway` / `503 Service Unavailable`) instead of failing with connection breaks.
 
+### Client Resolution & User-Agent Detection
+
+The router automatically detects the caller's agent identity from the incoming request:
+- **`User-Agent` Header**: Pattern matched against regex rules for known agents (`hermes`, `hindsight`, `curl`, `nanobot`, `librefang`, `zed`, etc.).
+- **Custom Headers (`X-Client-ID` / `X-Agent-ID` / `X-Client` / `X-Agent`)**: Explicit custom header override.
+- **Fallback**: Unmapped or missing headers are classified as `unknown`.
+
 ### Usage & Metrics API
 
-The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `calls_post`), HTTP error codes, and estimated USD costs.
+The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `calls_post`), HTTP error codes, and estimated USD costs by `agent:model:service`.
 
 #### 1. JSON Usage API (`GET /usage` or `/v1/usage`)
-Returns cumulative counts grouped by service/model, service total, and grand total.
+Returns cumulative counts grouped by `agent:model:service`, agent totals, service totals, and grand total.
 - **Query Parameters**:
   - `?range=today|all|7d|30d|90d` (defaults to `all`).
   - `?day=YYYY-MM-DD` (optional specific date filter).
@@ -154,7 +161,7 @@ Returns cumulative counts grouped by service/model, service total, and grand tot
 ```json
 {
   "models": {
-    "chat:qwen3": {
+    "hermes:qwen3:chat": {
       "calls": 12,
       "streaming_calls": 8,
       "calls_post": 4,
@@ -181,6 +188,7 @@ Returns cumulative counts grouped by service/model, service total, and grand tot
       }
     }
   },
+  "agents": { ... },
   "services": { ... },
   "totals": { ... }
 }
@@ -188,10 +196,10 @@ Returns cumulative counts grouped by service/model, service total, and grand tot
 
 #### 2. Prometheus Endpoint (`GET /metrics` or `/v1/metrics`)
 Exposes cumulative metrics formatted for Prometheus scrapers:
-- `local_router_calls_total{service="...", model="..."}`: Total calls routed.
-- `local_router_tokens_total{service="...", model="...", type="..."}`: Total tokens processed (`type` can be `input`, `cached_input`, `cached_write`, `output`, `total`).
-- `local_router_cost_total{service="...", model="...", type="..."}`: Cumulative estimated USD cost (`type` matches the token types).
-- `local_router_errors_total{service="...", model="...", call_type="streaming|post", code="..."}`: Cumulative count of HTTP errors grouped by status code and call type.
+- `local_router_calls_total{agent="...", service="...", model="..."}`: Total calls routed.
+- `local_router_tokens_total{agent="...", service="...", model="...", type="..."}`: Total tokens processed (`type` can be `input`, `cached_input`, `cached_write`, `output`, `total`).
+- `local_router_cost_total{agent="...", service="...", model="...", type="..."}`: Cumulative estimated USD cost (`type` matches the token types).
+- `local_router_errors_total{agent="...", service="...", model="...", call_type="streaming|post", code="..."}`: Cumulative count of HTTP errors grouped by agent, service, model, status code, and call type.
 
 ### CLI Usage Reporting
 

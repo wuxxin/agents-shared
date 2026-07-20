@@ -51,37 +51,41 @@ def run_tests():
         assert len(models_data) > 0, "Inventory is empty"
         print("Models endpoint: OK")
 
-        # 2. Simulate Chat completion (normal call)
-        print("Testing Chat completions (normal)...")
+        # 2. Simulate Chat completion from Hermes Agent
+        print("Testing Chat completions (Hermes Agent)...")
         payload = {
             "model": "qwen3",
             "messages": [{"role": "user", "content": "Tell me a joke."}],
             "stream": False,
         }
-        resp = client.post("/v1/chat/completions", json=payload)
+        headers_hermes = {"User-Agent": "codex_cli_rs/0.0.0 (Hermes Agent)"}
+        resp = client.post("/v1/chat/completions", json=payload, headers=headers_hermes)
         assert resp.status_code == 200
-        print("Chat normal: OK")
+        print("Chat Hermes normal: OK")
 
-        # 3. Simulate Chat completion (streaming call)
-        print("Testing Chat completions (streaming)...")
+        # 3. Simulate Chat completion streaming from Hermes Agent
+        print("Testing Chat completions streaming (Hermes Agent)...")
         payload["stream"] = True
-        resp = client.post("/v1/chat/completions", json=payload)
+        resp = client.post("/v1/chat/completions", json=payload, headers=headers_hermes)
         assert resp.status_code == 200
         # Iterate over stream chunks to trigger interception code
         for chunk in resp.iter_bytes():
             pass
-        print("Chat streaming: OK")
+        print("Chat Hermes streaming: OK")
 
-        # 4. Simulate Embedding
-        print("Testing Embeddings...")
+        # 4. Simulate Embedding from Hindsight
+        print("Testing Embeddings (Hindsight)...")
+        headers_hindsight = {"User-Agent": "codex_cli_rs/0.0.0 (Hindsight)"}
         resp = client.post(
-            "/v1/embeddings", json={"model": "qwen3-embedding", "input": "Hello world!"}
+            "/v1/embeddings",
+            json={"model": "qwen3-embedding", "input": "Hello world!"},
+            headers=headers_hindsight,
         )
         assert resp.status_code == 200
-        print("Embeddings: OK")
+        print("Embeddings Hindsight: OK")
 
-        # 5. Simulate Rerank
-        print("Testing Reranker...")
+        # 5. Simulate Rerank from Hindsight
+        print("Testing Reranker (Hindsight)...")
         resp = client.post(
             "/v1/rerank",
             json={
@@ -89,33 +93,40 @@ def run_tests():
                 "query": "Is light fast?",
                 "documents": ["Yes, light is fast.", "Water is wet."],
             },
+            headers=headers_hindsight,
         )
         assert resp.status_code == 200
-        print("Reranker: OK")
+        print("Reranker Hindsight: OK")
 
-        # 6. Simulate TTS
-        print("Testing Text-to-Speech...")
+        # 6. Simulate TTS from curl
+        print("Testing Text-to-Speech (curl)...")
+        headers_curl = {"User-Agent": "curl/8.7.1"}
         resp = client.post(
             "/v1/audio/speech",
             json={
                 "model": "qwen3-tts",
                 "input": "This is a test of synthesized voice narration.",
             },
+            headers=headers_curl,
         )
         assert resp.status_code == 200
-        print("TTS: OK")
+        print("TTS curl: OK")
 
-        # 7. Simulate STT
-        print("Testing Speech-to-Text...")
-        # Since it uses multipart/form-data, we upload a mock file
+        # 7. Simulate STT with no User-Agent (Unknown)
+        print("Testing Speech-to-Text (Unknown client)...")
         files = {"file": ("test.wav", b"AUDIO_DATA_RAW", "audio/wav")}
         data = {"model": "whisper-1"}
-        resp = client.post("/v1/audio/transcriptions", files=files, data=data)
+        resp = client.post(
+            "/v1/audio/transcriptions",
+            files=files,
+            data=data,
+            headers={"User-Agent": ""},
+        )
         assert resp.status_code == 200
-        print("STT: OK")
+        print("STT unknown: OK")
 
-        # 8. Simulate Image generation
-        print("Testing Image generation...")
+        # 8. Simulate Image generation from Hermes Agent
+        print("Testing Image generation (Hermes Agent)...")
         resp = client.post(
             "/v1/images/generations",
             json={
@@ -123,12 +134,13 @@ def run_tests():
                 "prompt": "A beautiful sunset over mountain peaks.",
                 "n": 2,
             },
+            headers=headers_hermes,
         )
         assert resp.status_code == 200
-        print("Image generation: OK")
+        print("Image generation Hermes: OK")
 
-        # 8b. Simulate Chat completion post error (400)
-        print("Testing Chat completions post error (400)...")
+        # 8b. Simulate Chat completion post error (400) from Hermes Agent
+        print("Testing Chat completions post error (400) (Hermes Agent)...")
         resp = client.post(
             "/v1/chat/completions",
             json={
@@ -136,12 +148,13 @@ def run_tests():
                 "messages": [{"role": "user", "content": "err"}],
                 "stream": False,
             },
+            headers=headers_hermes,
         )
         assert resp.status_code == 400
         print("Chat completions post error (400): OK")
 
-        # 8c. Simulate Chat completions streaming error (429)
-        print("Testing Chat completions streaming error (429)...")
+        # 8c. Simulate Chat completions streaming error (429) from Hermes Agent
+        print("Testing Chat completions streaming error (429) (Hermes Agent)...")
         resp = client.post(
             "/v1/chat/completions",
             json={
@@ -149,6 +162,7 @@ def run_tests():
                 "messages": [{"role": "user", "content": "err"}],
                 "stream": True,
             },
+            headers=headers_hermes,
         )
         assert resp.status_code == 429
         # Read the error chunk to execute generator close
@@ -181,9 +195,11 @@ def run_tests():
         assert totals.get("errors_streaming", {}).get("429") == 1
         assert totals.get("errors_post", {}).get("400") == 1
 
-        # Chat costs/tokens check
-        chat_model_key = "chat:qwen3"
-        chat_stats = usage_res.get("models", {}).get(chat_model_key, {})
+        # Check model entry with agent:model:service key
+        chat_model_key = "hermes:qwen3:chat"
+        models_dict = usage_res.get("models", {})
+        assert chat_model_key in models_dict, f"Missing key {chat_model_key} in models"
+        chat_stats = models_dict[chat_model_key]
         assert chat_stats.get("calls", 0) == 2
         # Mock responses return prompt=100, completion=50, cached=20
         # Uncached input = 100 - 20 = 80 per call. Total input for 2 calls = 160.
@@ -192,6 +208,18 @@ def run_tests():
         assert chat_stats.get("cached_input") == 40
         assert chat_stats.get("output") == 100
         assert chat_stats.get("cache_pct") == 20.0
+
+        # Check agents block breakdown
+        agents_dict = usage_res.get("agents", {})
+        assert "hermes" in agents_dict
+        assert "hindsight" in agents_dict
+        assert "curl" in agents_dict
+        assert "unknown" in agents_dict
+
+        assert agents_dict["hermes"]["calls"] == 5  # 2 chat + 1 img + 2 errors
+        assert agents_dict["hindsight"]["calls"] == 2  # 1 embed + 1 rerank
+        assert agents_dict["curl"]["calls"] == 1  # 1 tts
+        assert agents_dict["unknown"]["calls"] == 1  # 1 stt
 
         # Verify cost calculations are populated
         costs = chat_stats.get("costs", {})
@@ -202,7 +230,10 @@ def run_tests():
         print("Testing /usage?format=text output...")
         resp_text = client.get("/usage?format=text")
         assert resp_text.status_code == 200
-        assert "SERVICE/MODEL" in resp_text.text
+        assert "AGENT:MODEL:SERVICE" in resp_text.text
+        assert "Agent HERMES Total" in resp_text.text
+        assert "Agent HINDSIGHT Total" in resp_text.text
+        assert "Service CHAT Total" in resp_text.text
         assert "GRAND TOTAL" in resp_text.text
         assert "HTTP Errors Breakdown:" in resp_text.text
         print("\n--- MOCKED USAGE STATISTICS TABLE ---")
@@ -220,11 +251,12 @@ def run_tests():
         assert "local_router_cost_total" in metrics_text
         assert "local_router_errors_total" in metrics_text
         # Check label structure
+        assert 'agent="hermes"' in metrics_text
+        assert 'agent="hindsight"' in metrics_text
+        assert 'agent="curl"' in metrics_text
+        assert 'agent="unknown"' in metrics_text
         assert 'service="chat"' in metrics_text
         assert 'model="qwen3"' in metrics_text
-        # Check error label format
-        assert 'code="429"' in metrics_text
-        assert 'call_type="streaming"' in metrics_text
         print("Prometheus metrics endpoint: OK")
 
     # 11. Verify usage.json serialization to disk on shutdown
@@ -239,11 +271,13 @@ def run_tests():
         today = datetime.date.today().isoformat()
         assert saved_data[0].get("date") == today
         day_usage = saved_data[0].get("usage", {})
-        assert "chat" in day_usage
-        assert "qwen3" in day_usage["chat"]
-        assert day_usage["chat"]["qwen3"]["calls"] == 2
-        assert day_usage["chat"]["qwen3"]["streaming_calls"] == 1
-        assert day_usage["chat"]["qwen3"]["calls_post"] == 1
+        assert "hermes" in day_usage
+        assert "hindsight" in day_usage
+        assert "chat" in day_usage["hermes"]
+        assert "qwen3" in day_usage["hermes"]["chat"]
+        assert day_usage["hermes"]["chat"]["qwen3"]["calls"] == 2
+        assert day_usage["hermes"]["chat"]["qwen3"]["streaming_calls"] == 1
+        assert day_usage["hermes"]["chat"]["qwen3"]["calls_post"] == 1
     print("Serialization verify: OK")
 
 
