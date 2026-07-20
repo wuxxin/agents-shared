@@ -232,8 +232,43 @@ cmd_uninstall() {
     echo "Uninstallation complete. Configuration in ${ENV_FILE} is preserved."
 }
 
-cmd_status() {
+match_subservice_index() {
+    local query="$1"
+    local query_lower
+    query_lower="$(echo "$query" | tr '[:upper:]' '[:lower:]')"
+
     local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local aliases=("chat" "embedding" "rerank" "stt" "tts" "image" "router" "memory")
+
+    for i in "${!services[@]}"; do
+        local svc="${services[$i]}"
+        local pref="${prefixes[$i]}"
+        local alias="${aliases[$i]}"
+        local pref_lower
+        pref_lower="$(echo "$pref" | tr '[:upper:]' '[:lower:]')"
+
+        if [[ "$query_lower" == "$svc" || "$query_lower" == "$pref_lower" || "$query_lower" == "$alias" ]]; then
+            echo "$i"
+            return 0
+        fi
+    done
+    return 1
+}
+
+cmd_status() {
+    local target_service="${1:-}"
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+
+    if [ -n "$target_service" ]; then
+        local idx
+        if ! idx="$(match_subservice_index "$target_service")"; then
+            echo "Error: Unknown subservice '$target_service'."
+            echo "Valid subservices: ${services[*]}"
+            exit 1
+        fi
+        services=("${services[$idx]}")
+    fi
 
     for svc in "${services[@]}"; do
         echo "● ${svc}.service"
@@ -264,12 +299,41 @@ cmd_edit() {
 }
 
 cmd_start() {
+    local target_service="${1:-}"
     load_env
 
     local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
+
+    if [ -n "$target_service" ]; then
+        local idx
+        if ! idx="$(match_subservice_index "$target_service")"; then
+            echo "Error: Unknown subservice '$target_service'."
+            echo "Valid subservices: ${services[*]}"
+            exit 1
+        fi
+
+        local svc="${services[$idx]}"
+        local pref="${prefixes[$idx]}"
+
+        local enabled_var="${pref}_ENABLED"
+        local is_enabled=0
+        eval "is_enabled=\${$enabled_var:-0}"
+
+        if [ "$is_enabled" = "1" ]; then
+            echo "Starting enabled service: ${svc}..."
+            local target_env_file="${SYSTEMD_USER_DIR}/${svc}.env"
+            apply_service_overrides "$pref" "$target_env_file"
+
+            "${script_dir}/${svc}.sh" enable
+            "${script_dir}/${svc}.sh" start
+        else
+            echo "Service ${svc} is disabled in configuration (${enabled_var}=0)."
+        fi
+        return 0
+    fi
 
     for i in "${!services[@]}"; do
         local svc="${services[$i]}"
@@ -291,12 +355,39 @@ cmd_start() {
 }
 
 cmd_stop() {
+    local target_service="${1:-}"
     load_env
 
     local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
+
+    if [ -n "$target_service" ]; then
+        local idx
+        if ! idx="$(match_subservice_index "$target_service")"; then
+            echo "Error: Unknown subservice '$target_service'."
+            echo "Valid subservices: ${services[*]}"
+            exit 1
+        fi
+
+        local svc="${services[$idx]}"
+        local pref="${prefixes[$idx]}"
+
+        local enabled_var="${pref}_ENABLED"
+        local is_enabled=0
+        eval "is_enabled=\${$enabled_var:-0}"
+
+        if [ "$is_enabled" = "1" ]; then
+            echo "Stopping enabled service: ${svc}..."
+            "${script_dir}/${svc}.sh" stop || true
+        else
+            echo "Stopping and disabling service: ${svc}..."
+            "${script_dir}/${svc}.sh" stop || true
+            "${script_dir}/${svc}.sh" disable || true
+        fi
+        return 0
+    fi
 
     for i in "${!services[@]}"; do
         local svc="${services[$i]}"
@@ -318,12 +409,44 @@ cmd_stop() {
 }
 
 cmd_restart() {
+    local target_service="${1:-}"
     load_env
 
     local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
+
+    if [ -n "$target_service" ]; then
+        local idx
+        if ! idx="$(match_subservice_index "$target_service")"; then
+            echo "Error: Unknown subservice '$target_service'."
+            echo "Valid subservices: ${services[*]}"
+            exit 1
+        fi
+
+        local svc="${services[$idx]}"
+        local pref="${prefixes[$idx]}"
+
+        local enabled_var="${pref}_ENABLED"
+        local is_enabled=0
+        eval "is_enabled=\${$enabled_var:-0}"
+
+        local target_env_file="${SYSTEMD_USER_DIR}/${svc}.env"
+
+        if [ "$is_enabled" = "1" ]; then
+            echo "Restarting single enabled subservice: ${svc}..."
+            apply_service_overrides "$pref" "$target_env_file"
+
+            "${script_dir}/${svc}.sh" enable
+            "${script_dir}/${svc}.sh" restart
+        else
+            echo "Subservice ${svc} is disabled in configuration (${enabled_var}=0). Stopping and disabling..."
+            "${script_dir}/${svc}.sh" stop || true
+            "${script_dir}/${svc}.sh" disable || true
+        fi
+        return 0
+    fi
 
     # 1. Stop and disable all services that are NOT enabled
     for i in "${!services[@]}"; do
@@ -394,10 +517,10 @@ Usage: $0 <command> [args...]
 Commands:
   install [--new-config] - Setup coordinator config and install all services
   uninstall             - Uninstall all services
-  start                 - Start all enabled services and apply overrides
-  stop                  - Stop enabled services, stop and disable disabled ones
-  restart               - Stop/disable disabled services, start/enable enabled ones
-  status                - View status of all services
+  start [subservice]    - Start all (or target subservice) enabled services and apply overrides
+  stop [subservice]     - Stop enabled services, stop and disable disabled ones (or target subservice)
+  restart [subservice]  - Apply overrides and restart enabled services (or single target subservice)
+  status [subservice]   - View status of all services (or target subservice)
   logs [args...]        - View combined logs of all services
   edit                  - Edit coordinator configuration and restart services
   test [args...]        - Run validation tests/benchmarks for all enabled services
@@ -416,10 +539,10 @@ main() {
     case "$COMMAND" in
     install) cmd_install "$@" ;;
     uninstall) cmd_uninstall ;;
-    start) cmd_start ;;
-    stop) cmd_stop ;;
-    restart) cmd_restart ;;
-    status) cmd_status ;;
+    start) cmd_start "$@" ;;
+    stop) cmd_stop "$@" ;;
+    restart) cmd_restart "$@" ;;
+    status) cmd_status "$@" ;;
     logs) cmd_logs "$@" ;;
     edit) cmd_edit ;;
     test) cmd_test "$@" ;;
