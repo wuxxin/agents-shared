@@ -1,6 +1,6 @@
 # Standalone Hindsight Memory Service Guide
 
-`local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `8888` alongside a dedicated background worker sidecar (`hindsight-worker`) serving a control plane / metrics server on port `8889` (configurable via `HINDSIGHT_API_WORKER_HTTP_PORT`, set to `0` to disable). It provides long-term temporal, semantic, and entity-graph memory for local agents.
+`local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `8888` alongside a dedicated task worker sidecar (`hindsight-worker`) serving a control plane / metrics server on port `8889` and a Next.js Control Plane Web UI sidecar (`hindsight-control-plane`) on port `8890`. It provides long-term temporal, semantic, and entity-graph memory for local agents.
 
 - **Control Wrapper**: [assistants/local-memory.sh](assistants/local-memory.sh)
 
@@ -12,13 +12,14 @@ Hindsight functions as an agentic memory hub, coordinating with the other standa
 
 ```mermaid
 graph TD
-    Agent[Agent Client e.g. Hermes / ZeroClaw] -->|Recall / Retain / Reflect| Memory[Local-Memory Port 8888]
+    Agent[Agent Client] -->|Recall / Retain / Reflect| Memory[Local-Memory Port 8888]
     Worker[Worker Control-Plane Port 8889] -.->|Health / Metrics| Memory
+    ControlUI[Control UI Port 8890] -->|Web Management Dashboard| Memory
     Memory -->|LLM / Embedding / Reranking Requests| Router[Local-Router Port 51080]
     Router -->|Completions| Chat[Local-Chat Port 50080]
     Router -->|Embeddings| Embed[Local-Embedding Port 50082]
     Router -->|Rerank| Rerank[Local-Rerank Port 50086]
-    Memory -->|Semantic & Vector Storage| Postgres[(PostgreSQL Port 5432)]
+    Memory -->|Semantic, Vector and FTS Storage| Postgres[(PostgreSQL Port 5432)]
 ```
 
 In `local_external` mode, the Hindsight service itself remains lightweight: it offloads vector calculations to PostgreSQL via `pgvector` and `pgroonga`, and redirects machine-learning queries to the router, avoiding loading heavy model weights (like PyTorch or HuggingFace transformers) within its own Python virtual environment.
@@ -27,20 +28,19 @@ In `local_external` mode, the Hindsight service itself remains lightweight: it o
 
 ## Installation & Arch Linux Dependencies
 
-Hindsight requires PostgreSQL with the `pgvector` and `pgroonga` extensionsn and `nltk-data` (NLTK Corpora, grammars a.o.) installed.
+Hindsight requires PostgreSQL with the `pgvector` and `pgroonga` extensions and `nltk-data` (NLTK Corpora, grammars a.o.) installed. Node.js is required for the Control Plane Web UI sidecar.
 
 On Arch Linux, these must be installed via Pacman / AUR.
 
 ### 1. Install System and AUR Packages
 
-Run the following commands to install PostgreSQL and its required vector and full-text search extensions:
+Run the following commands to install PostgreSQL, pgvector, pgroonga, and Node.js:
 
 ```bash
-# Install PostgreSQL and the vector extension, NLTK Corpora from Arch extra repos
-sudo pacman -S postgresql pgvector nltk-data
-
-# Install the Groonga full-text search extension from AUR
-yay -S pgroonga
+# Install PostgreSQL, pgvector, pgroonga, and Node.js
+sudo pacman -S postgresql pgvector pgroonga nodejs npm
+# Install NLTK Corpora from Arch extra repos
+sudo pacman -S nltk-data
 ```
 
 ### 2. Configure PostgreSQL User and Database
@@ -95,11 +95,12 @@ Install the virtual environment and default configuration files:
 This subcommand:
 1. Recreates a clean Python virtual environment at `~/.local/sandbox/local-memory/venv` using `uv`.
 2. Bypasses Python 3.14+ package compilation and runtime ABI compatibility issues (like with `litellm`) by creating the virtual environment using `uv`-managed Python 3.12 (`--python 3.12`).
-3. Installs `hindsight-client` and `hindsight-api-slim` (which avoids downloading gigabytes of machine learning libraries).
-4. Creates a default service configuration file at `~/.config/systemd/user/local-memory.env`.
-5. Writes and registers `local-memory.service` in systemd.
+3. Installs `hindsight-client` and `hindsight-api-slim` into the virtual environment.
+4. Installs `@vectorize-io/hindsight-control-plane` via `npm` into `~/.local/sandbox/local-memory/control-plane`.
+5. Creates a default service configuration file at `~/.config/systemd/user/local-memory.env` with `worker` and `controlui` sidecars enabled by default.
+6. Writes and registers `local-memory.service` in systemd.
 
-To uninstall and clean up (which completely removes the virtual environment):
+To uninstall and clean up (which completely removes the sandbox directory):
 ```bash
 ./local-memory.sh uninstall
 ```
@@ -118,9 +119,11 @@ LMEM_PORT="8888"
 LMEM_HOST="127.0.0.1"
 LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
 LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
-LMEM_SIDECARS="worker"
+LMEM_SIDECARS="worker controlui"
 LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
 LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
+LMEM_SIDECAR_CONTROLUI_CMD="%h/.local/sandbox/local-memory/control-plane/node_modules/.bin/hindsight-control-plane"
+LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:8888"
 
 # Hindsight daemon configuration
 HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"

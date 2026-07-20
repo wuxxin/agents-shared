@@ -33,7 +33,7 @@ For details, see the [scripts/README.md](scripts/README.md).
 | **[Local Speech to Text](#local-speech-to-text)** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **[Local Text to Speech](#local-text-to-speech)** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
 | **[Local Image Generation](#local-image-services)** | [50100](http://localhost:50100) | sd-server serving Image Generation API (HTTP) |
-| **[Local Memory Service](#local-memory-service)** | [8888](http://localhost:8888), [8889](http://localhost:8889) | Hindsight API (8888) & Worker Control Plane / Metrics (8889) |
+| **[Local Memory Service](#local-memory-service)** | [8888](http://localhost:8888), [8889](http://localhost:8889), [8890](http://localhost:8890) | Hindsight API (8888), Worker Control Plane (8889) & Control UI (8890) |
 | **[Local Router](#local-combined-inference-router)** | [51080](http://localhost:51080) | Combined service router / OpenAI proxy (HTTP) |
 | **[Local Inference Coordinator](#local-inference-coordinator)** | - | Combined service control script |
 | **[Signal Integration](#signal-integration)** | [50889](http://localhost:50889), [50888](http://localhost:50888), 50887 |REST-API:50889, HTTP/JSON-RPC: 50888, TCP/JSON-RPC:50887 |

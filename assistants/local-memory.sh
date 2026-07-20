@@ -20,9 +20,11 @@ DEFAULT_LMEM_PORT=8888
 DEFAULT_LMEM_HOST=127.0.0.1
 DEFAULT_LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
 DEFAULT_LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
-DEFAULT_LMEM_SIDECARS="worker"
+DEFAULT_LMEM_SIDECARS="worker controlui"
 DEFAULT_LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
 DEFAULT_LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
+DEFAULT_LMEM_SIDECAR_CONTROLUI_CMD="%h/.local/sandbox/local-memory/control-plane/node_modules/.bin/hindsight-control-plane"
+DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:8888"
 
 DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
 DEFAULT_HINDSIGHT_API_WORKER_ENABLED="false"
@@ -65,6 +67,8 @@ load_env() {
     local env_lmem_sidecars="${LMEM_SIDECARS:-}"
     local env_lmem_sidecar_worker_cmd="${LMEM_SIDECAR_WORKER_CMD:-}"
     local env_lmem_sidecar_worker_args="${LMEM_SIDECAR_WORKER_ARGS:-}"
+    local env_lmem_sidecar_controlui_cmd="${LMEM_SIDECAR_CONTROLUI_CMD:-}"
+    local env_lmem_sidecar_controlui_args="${LMEM_SIDECAR_CONTROLUI_ARGS:-}"
 
     local env_hindsight_api_run_migrations_on_startup="${HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP:-}"
     local env_hindsight_api_worker_enabled="${HINDSIGHT_API_WORKER_ENABLED:-}"
@@ -100,6 +104,8 @@ load_env() {
     export LMEM_SIDECARS="${DEFAULT_LMEM_SIDECARS}"
     export LMEM_SIDECAR_WORKER_CMD="${DEFAULT_LMEM_SIDECAR_WORKER_CMD}"
     export LMEM_SIDECAR_WORKER_ARGS="${DEFAULT_LMEM_SIDECAR_WORKER_ARGS}"
+    export LMEM_SIDECAR_CONTROLUI_CMD="${DEFAULT_LMEM_SIDECAR_CONTROLUI_CMD}"
+    export LMEM_SIDECAR_CONTROLUI_ARGS="${DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS}"
 
     export HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="${DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP}"
     export HINDSIGHT_API_WORKER_ENABLED="${DEFAULT_HINDSIGHT_API_WORKER_ENABLED}"
@@ -145,6 +151,8 @@ load_env() {
     if [[ -n "$env_lmem_sidecars" ]]; then export LMEM_SIDECARS="$env_lmem_sidecars"; fi
     if [[ -n "$env_lmem_sidecar_worker_cmd" ]]; then export LMEM_SIDECAR_WORKER_CMD="$env_lmem_sidecar_worker_cmd"; fi
     if [[ -n "$env_lmem_sidecar_worker_args" ]]; then export LMEM_SIDECAR_WORKER_ARGS="$env_lmem_sidecar_worker_args"; fi
+    if [[ -n "$env_lmem_sidecar_controlui_cmd" ]]; then export LMEM_SIDECAR_CONTROLUI_CMD="$env_lmem_sidecar_controlui_cmd"; fi
+    if [[ -n "$env_lmem_sidecar_controlui_args" ]]; then export LMEM_SIDECAR_CONTROLUI_ARGS="$env_lmem_sidecar_controlui_args"; fi
 
     if [[ -n "$env_hindsight_api_run_migrations_on_startup" ]]; then export HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="$env_hindsight_api_run_migrations_on_startup"; fi
     if [[ -n "$env_hindsight_api_worker_enabled" ]]; then export HINDSIGHT_API_WORKER_ENABLED="$env_hindsight_api_worker_enabled"; fi
@@ -407,6 +415,8 @@ LMEM_SERVICE_ARGS="${DEFAULT_LMEM_SERVICE_ARGS}"
 LMEM_SIDECARS="${DEFAULT_LMEM_SIDECARS}"
 LMEM_SIDECAR_WORKER_CMD="${DEFAULT_LMEM_SIDECAR_WORKER_CMD}"
 LMEM_SIDECAR_WORKER_ARGS="${DEFAULT_LMEM_SIDECAR_WORKER_ARGS}"
+LMEM_SIDECAR_CONTROLUI_CMD="${DEFAULT_LMEM_SIDECAR_CONTROLUI_CMD}"
+LMEM_SIDECAR_CONTROLUI_ARGS="${DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS}"
 
 # https://hindsight.vectorize.io/developer/configuration
 
@@ -480,6 +490,8 @@ require_uv() {
 cmd_install() {
     local no_start=false
     local new_config=false
+    local script_dir
+    script_dir="$(dirname "$0")"
     while [ $# -gt 0 ]; do
         case "$1" in
         --no-start) no_start=true ;;
@@ -503,6 +515,41 @@ cmd_install() {
     # fix limitation for litellm different.
     echo "Installing Hindsight packages into venv..."
     uv pip install --python "${VENV_DIR}" hindsight-client hindsight-api-slim
+
+    if command -v npm &>/dev/null; then
+        echo "Installing Hindsight Control Plane Web UI into ${LMEM_HOME}/control-plane..."
+        local cp_dir="${LMEM_HOME}/control-plane"
+        if [[ -d "${cp_dir}" ]]; then
+            echo "Cleaning up existing Control Plane Web UI..."
+            rm -rf "${cp_dir}"
+        fi
+        mkdir -p "${cp_dir}"
+
+        echo "Downloading @vectorize-io/hindsight-control-plane from npm..."
+        npm install --prefix "${cp_dir}" @vectorize-io/hindsight-control-plane
+
+        echo "Applying i18n redirect patch to Control Plane UI..."
+        node -e '
+            const fs = require("fs");
+            const path = require("path");
+            const base = process.argv[1];
+            const chunksDir = path.join(base, "node_modules/@vectorize-io/hindsight-control-plane/standalone/.next/server/edge/chunks");
+            if (fs.existsSync(chunksDir)) {
+                const files = fs.readdirSync(chunksDir);
+                for (const file of files) {
+                    if (file.endsWith(".js")) {
+                        const filePath = path.join(chunksDir, file);
+                        let code = fs.readFileSync(filePath, "utf8");
+                        if (code.includes("if(\"never\"===b)v=p(")) {
+                            code = code.replace("if(\"never\"===b)v=p(", "if(\"never\"===b)v=u(");
+                            fs.writeFileSync(filePath, code);
+                            console.log("Patched 307 redirect loop in " + file);
+                        }
+                    }
+                }
+            }
+        ' "${cp_dir}"
+    fi
 
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
@@ -557,10 +604,10 @@ cmd_uninstall() {
         echo "Removed service file."
     fi
 
-    # Remove virtual environment
-    if [[ -d "${VENV_DIR}" ]]; then
-        echo "Removing virtual environment at ${VENV_DIR}..."
-        rm -rf "${VENV_DIR}"
+    # Remove virtual environment & control-plane directory
+    if [[ -d "${LMEM_HOME}" ]]; then
+        echo "Removing local-memory sandbox directory at ${LMEM_HOME}..."
+        rm -rf "${LMEM_HOME}"
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
