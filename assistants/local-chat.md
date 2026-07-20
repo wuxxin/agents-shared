@@ -30,6 +30,9 @@ Tail service stdout/stderr logs:
 Edit service environment configuration and auto-restart:
   - `./local-chat.sh edit`
 
+Display service file, environment configuration, preset configuration, launcher script, and transient exec command:
+  - `./local-chat.sh cat`
+
 Run API validation tests:
   - `./local-chat.sh test`
 

@@ -1100,6 +1100,44 @@ cmd_test() {
     fi
 }
 
+cmd_cat() {
+    load_env
+    echo "=== Service File: ${SERVICE_FILE} ==="
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        cat "${SERVICE_FILE}"
+    else
+        echo "(Service file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Environment File: ${ENV_FILE} ==="
+    if [[ -f "${ENV_FILE}" ]]; then
+        cat "${ENV_FILE}"
+    else
+        echo "(Environment file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    local preset_path="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
+    echo "=== Preset File: ${preset_path} ==="
+    if [[ -f "${preset_path}" ]]; then
+        cat "${preset_path}"
+    else
+        echo "(Preset file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    local launcher_path="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
+    echo "=== Launcher Script: ${launcher_path} ==="
+    if [[ -f "${launcher_path}" ]]; then
+        cat "${launcher_path}"
+    else
+        echo "(Launcher script does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Transient Execution Command (exec) ==="
+    local args
+    get_llama_args args
+    echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"
+}
+
 usage() {
     cat <<EOF
 Usage: $0 <command> [args...]
@@ -1117,6 +1155,7 @@ Commands:
   exec      - Run llama-server as a transient systemd user service
   run       - Run a command inside the llama-server environment
   shell     - Spawn an interactive shell in the llama-server environment
+  cat       - Print service file, environment configuration, preset, launcher script, and transient exec command
   test [--benchmark [--skip-prefill] [--skip-all-chat] [--skip-distractor] [--skip-image] [--skip-embedding] [--skip_completion] [--repeat XX] ]
     - Run validation tests or benchmarks
 EOF
@@ -1146,6 +1185,7 @@ main() {
     exec) cmd_exec "$@" ;;
     run) cmd_run "$@" ;;
     shell) cmd_shell "$@" ;;
+    cat) cmd_cat ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"
