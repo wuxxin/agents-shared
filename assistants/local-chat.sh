@@ -29,6 +29,9 @@ load_env() {
     local env_lcomp_enabled="${LCOMP_ENABLED:-}"
     local env_lchat_chat_template_file="${LCHAT_CHAT_TEMPLATE_FILE:-}"
     local env_lchat_chat_template_kwargs="${LCHAT_CHAT_TEMPLATE_KWARGS:-}"
+    local env_lchat_extra_args="${LCHAT_EXTRA_ARGS:-}"
+    local env_lmbd_extra_args="${LMBD_EXTRA_ARGS:-}"
+    local env_lcomp_extra_args="${LCOMP_EXTRA_ARGS:-}"
 
     # Default parameters for server/chat section
     LCHAT_PORT=50080
@@ -72,6 +75,7 @@ load_env() {
     LCOMP_THREADS=""
     LCOMP_CACHE_TYPE_K=q4_0
     LCOMP_CACHE_TYPE_V=q4_0
+    LCOMP_EXTRA_ARGS=""
 
     # Embedding port mirror
     LMBD_MIRROR_PORT=50082
@@ -124,6 +128,9 @@ load_env() {
     # Resolve template overrides
     LCHAT_CHAT_TEMPLATE_FILE="${env_lchat_chat_template_file:-${LCHAT_CHAT_TEMPLATE_FILE}}"
     LCHAT_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_CHAT_TEMPLATE_KWARGS}}"
+    LCHAT_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_EXTRA_ARGS}}"
+    LMBD_EXTRA_ARGS="${env_lmbd_extra_args:-${LMBD_EXTRA_ARGS}}"
+    LCOMP_EXTRA_ARGS="${env_lcomp_extra_args:-${LCOMP_EXTRA_ARGS}}"
 
     # Compute default portmirror sidecar CMD if not explicitly set by user
     if [[ -z "${LCHAT_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
@@ -306,6 +313,40 @@ get_llama_args() {
     fi
 }
 
+append_extra_args_to_preset() {
+    local extra_args="$1"
+    if [[ -z "$extra_args" ]]; then
+        return
+    fi
+
+    local tokens=()
+    eval "tokens=(${extra_args})"
+
+    local i=0
+    while [ $i -lt ${#tokens[@]} ]; do
+        local token="${tokens[$i]}"
+        if [[ "$token" =~ = ]]; then
+            local k="${token%%=*}"
+            local v="${token#*=}"
+            k="${k#--}"
+            echo "${k} = ${v}"
+            i=$((i + 1))
+        elif [[ "$token" =~ ^-- ]]; then
+            local k="${token#--}"
+            local next_idx=$((i + 1))
+            if [ $next_idx -lt ${#tokens[@]} ] && [[ ! "${tokens[$next_idx]}" =~ ^-- ]]; then
+                echo "${k} = ${tokens[$next_idx]}"
+                i=$((i + 2))
+            else
+                echo "${k} = true"
+                i=$((i + 1))
+            fi
+        else
+            i=$((i + 1))
+        fi
+    done
+}
+
 generate_preset_file() {
     local alias="${LCHAT_ALIAS:-qwen3}"
     local m_ngl="${LCHAT_N_GPU_LAYERS:-999}"
@@ -363,6 +404,9 @@ EOF
         if [[ -n "${LMBD_CACHE_TYPE_V:-}" ]]; then
             echo "cache-type-v = ${LMBD_CACHE_TYPE_V}"
         fi
+        if [[ -n "${LMBD_EXTRA_ARGS:-}" ]]; then
+            append_extra_args_to_preset "${LMBD_EXTRA_ARGS}"
+        fi
     fi
 
     if [ "${LCOMP_ENABLED}" = "true" ]; then
@@ -383,6 +427,9 @@ EOF
         fi
         if [[ -n "${LCOMP_CACHE_TYPE_V:-}" ]]; then
             echo "cache-type-v = ${LCOMP_CACHE_TYPE_V}"
+        fi
+        if [[ -n "${LCOMP_EXTRA_ARGS:-}" ]]; then
+            append_extra_args_to_preset "${LCOMP_EXTRA_ARGS}"
         fi
     fi
 }
@@ -649,6 +696,9 @@ LCOMP_PARALLEL=2
 # KV cache type (default: q4_0 for completions)
 LCOMP_CACHE_TYPE_K=q4_0
 LCOMP_CACHE_TYPE_V=q4_0
+
+# Extra arguments for completions (optional)
+LCOMP_EXTRA_ARGS=""
 
 
 EOF

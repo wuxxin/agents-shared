@@ -145,6 +145,7 @@ When completions mode is enabled (default via `LCOMP_ENABLED=true`), the service
 | `LCOMP_PARALLEL` | `2` | Concurrent completion slots |
 | `LCOMP_CACHE_TYPE_K` | `q4_0` | Key cache format |
 | `LCOMP_CACHE_TYPE_V` | `q4_0` | Value cache format |
+| `LCOMP_EXTRA_ARGS` | `""` | Extra arguments / preset settings for completion model |
 
 #### Architecture (Qwen2.5-Coder-1.5B)
 
@@ -177,6 +178,7 @@ When combined mode is enabled (default via `LMBD_ENABLED=true`), the service als
 | `LMBD_N_CTX` | `4096` | Max context length per parallel slot |
 | `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
 | `LMBD_UBATCH_SIZE` | `512` | Max hardware batch size |
+| `LMBD_EXTRA_ARGS` | `--flash-attn on` | Extra arguments / preset settings for embedding model |
 
 #### Architecture (Qwen3-Embedding-0.6B)
 

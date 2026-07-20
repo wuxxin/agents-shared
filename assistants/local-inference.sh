@@ -122,7 +122,11 @@ LMEM_ENABLED=1
 # run CHAT on vulkan/dgpu
 LCHAT_OVERRIDE=(
     'LCHAT_DEVICE="Vulkan1"'
+    # disable Vulkan MMVQ activation quantization
     'GGML_VK_DISABLE_MMVQ=1'
+    # Unified Cache: If enabled, cparams.n_ctx_seq is set equal to cparams.n_ctx,
+    #   allowing slots to dynamically share a single unified KV buffer up to the full total context capacity.
+    'LCHAT_EXTRA_ARGS="--kv-unified"'
     # Disable combined embedding on port 50080
     'LCHAT_EMBEDDING_ENABLED=false'
     # Enable code completion service model
