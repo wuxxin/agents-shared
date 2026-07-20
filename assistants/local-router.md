@@ -142,11 +142,14 @@ This ensures integration clients (like agents or tools) receive clean HTTP error
 
 ### Usage & Metrics API
 
-The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `normal_calls`), and estimated USD costs.
+The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `calls_post`), HTTP error codes, and estimated USD costs.
 
 #### 1. JSON Usage API (`GET /usage` or `/v1/usage`)
 Returns cumulative counts grouped by service/model, service total, and grand total.
-- **Query Parameter**: `?range=today|all|7d|30d|90d` (defaults to `all`).
+- **Query Parameters**:
+  - `?range=today|all|7d|30d|90d` (defaults to `all`).
+  - `?day=YYYY-MM-DD` (optional specific date filter).
+  - `?format=json|text` (defaults to `json`. If set to `text`, returns a pre-formatted ASCII table and HTTP error breakdown).
 - **Response Format**:
 ```json
 {
@@ -154,7 +157,7 @@ Returns cumulative counts grouped by service/model, service total, and grand tot
     "chat:qwen3": {
       "calls": 12,
       "streaming_calls": 8,
-      "normal_calls": 4,
+      "calls_post": 4,
       "input": 1200,
       "cached_input": 500,
       "cached_write": 200,
@@ -167,6 +170,14 @@ Returns cumulative counts grouped by service/model, service total, and grand tot
         "cached_write_cost": 0.0003,
         "output_cost": 0.0072,
         "total_cost": 0.009375
+      },
+      "errors_streaming": {
+        "400": 0, "401": 0, "403": 0, "404": 0, "408": 0,
+        "429": 1, "500": 0, "502": 0, "503": 0, "504": 0, "OTHER": 0
+      },
+      "errors_post": {
+        "400": 0, "401": 0, "403": 0, "404": 0, "408": 0,
+        "429": 0, "500": 0, "502": 0, "503": 0, "504": 0, "OTHER": 0
       }
     }
   },
@@ -180,6 +191,7 @@ Exposes cumulative metrics formatted for Prometheus scrapers:
 - `local_router_calls_total{service="...", model="..."}`: Total calls routed.
 - `local_router_tokens_total{service="...", model="...", type="..."}`: Total tokens processed (`type` can be `input`, `cached_input`, `cached_write`, `output`, `total`).
 - `local_router_cost_total{service="...", model="...", type="..."}`: Cumulative estimated USD cost (`type` matches the token types).
+- `local_router_errors_total{service="...", model="...", call_type="streaming|post", code="..."}`: Cumulative count of HTTP errors grouped by status code and call type.
 
 ### CLI Usage Reporting
 
@@ -187,7 +199,7 @@ You can inspect the aggregated usage directly from the command line:
 ```bash
 ./local-router.sh usage [today|all|7d|30d|90d]
 ```
-This queries the running API and displays a beautifully aligned ASCII text table containing all call counts, token allocations, cache percentages, and cost calculations.
+This queries the running API (`/usage?format=text`) and displays an aligned ASCII text table containing all call counts, token allocations, cache percentages, cost calculations, and an HTTP Errors Breakdown section.
 
 ### Context Caching & Pricing Concepts
 

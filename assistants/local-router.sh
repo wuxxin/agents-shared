@@ -443,46 +443,10 @@ cmd_usage() {
     fi
 
     echo "=== Fetching local-router usage (range: $range) ==="
-    local resp
-    if ! resp=$(curl -s -f "http://${LROUT_HOST}:${LROUT_PORT}/usage?range=${range}"); then
+    if ! curl -s -f "http://${LROUT_HOST}:${LROUT_PORT}/usage?range=${range}&format=text"; then
         echo "Error: Failed to fetch usage from router at http://${LROUT_HOST}:${LROUT_PORT}/usage. Is the service running?" >&2
         return 1
     fi
-
-    # shellcheck disable=SC2016
-    echo "${resp}" | python3 -c '
-import sys, json
-
-try:
-    data = json.load(sys.stdin)
-except Exception as e:
-    print(f"Error parsing JSON response: {e}")
-    sys.exit(1)
-
-models = data.get("models", {})
-services = data.get("services", {})
-totals = data.get("totals", {})
-
-# Print formatted table
-print("-" * 123)
-print(f"| {\"SERVICE/MODEL\":<30} | {\"CALLS\":<6} | {\"STREAM\":<6} | {\"NORMAL\":<6} | {\"INPUT\":<10} | {\"CACHED IN\":<10} | {\"CACHED WR\":<10} | {\"OUTPUT\":<10} | {\"CACHE %\":<8} | {\"EST COST\":<9} |")
-print("-" * 123)
-
-for model_key, stats in sorted(models.items()):
-    cost = stats.get("costs", {}).get("total_cost", 0.0)
-    print(f"| {model_key:<30} | {stats.get(\"calls\", 0):<6} | {stats.get(\"streaming_calls\", 0):<6} | {stats.get(\"normal_calls\", 0):<6} | {stats.get(\"input\", 0):<10} | {stats.get(\"cached_input\", 0):<10} | {stats.get(\"cached_write\", 0):<10} | {stats.get(\"output\", 0):<10} | {stats.get(\"cache_pct\", 0.0):<8.2f} | ${cost:<8.4f} |")
-
-print("-" * 123)
-
-for svc_name, stats in sorted(services.items()):
-    cost = stats.get("costs", {}).get("total_cost", 0.0)
-    print(f"| {f\"Service {svc_name.upper()} Total\":<30} | {stats.get(\"calls\", 0):<6} | {stats.get(\"streaming_calls\", 0):<6} | {stats.get(\"normal_calls\", 0):<6} | {stats.get(\"input\", 0):<10} | {stats.get(\"cached_input\", 0):<10} | {stats.get(\"cached_write\", 0):<10} | {stats.get(\"output\", 0):<10} | {stats.get(\"cache_pct\", 0.0):<8.2f} | ${cost:<8.4f} |")
-
-print("-" * 123)
-total_cost = totals.get("costs", {}).get("total_cost", 0.0)
-print(f"| {\"GRAND TOTAL\":<30} | {totals.get(\"calls\", 0):<6} | {totals.get(\"streaming_calls\", 0):<6} | {totals.get(\"normal_calls\", 0):<6} | {totals.get(\"input\", 0):<10} | {totals.get(\"cached_input\", 0):<10} | {totals.get(\"cached_write\", 0):<10} | {totals.get(\"output\", 0):<10} | {totals.get(\"cache_pct\", 0.0):<8.2f} | ${total_cost:<8.4f} |")
-print("-" * 123)
-'
 }
 
 usage() {

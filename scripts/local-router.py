@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 import httpx
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
 import tiktoken
 from prometheus_client import (
     CollectorRegistry,
@@ -44,7 +44,21 @@ LROUT_MOCK_BACKENDS = os.environ.get("LROUT_MOCK_BACKENDS", "") in (
 )
 
 # --- Usage tracking state ---
-usage_data_memory: dict[str, dict[str, dict[str, dict[str, int]]]] = {}
+STATIC_ERRORS_TEMPLATE = {
+    "400": 0,
+    "401": 0,
+    "403": 0,
+    "404": 0,
+    "408": 0,
+    "429": 0,
+    "500": 0,
+    "502": 0,
+    "503": 0,
+    "504": 0,
+    "OTHER": 0,
+}
+
+usage_data_memory: dict[str, dict[str, dict[str, dict[str, Any]]]] = {}
 last_written_total_tokens: int = 0
 usage_lock = threading.Lock()
 save_task: asyncio.Task = None  # type: ignore[assignment]
@@ -70,6 +84,13 @@ cost_gauge = Gauge(
     "local_router_cost_total",
     "Cumulative estimated cost of routed calls in USD",
     ["service", "model", "type"],
+    registry=metrics_registry,
+)
+
+errors_gauge = Gauge(
+    "local_router_errors_total",
+    "Cumulative count of HTTP errors routed by service, model, call type, and HTTP code",
+    ["service", "model", "call_type", "code"],
     registry=metrics_registry,
 )
 
@@ -432,6 +453,7 @@ def add_usage_record(
     cached_write: int,
     output: int,
     is_streaming: bool,
+    status_code: int = 200,
 ):
     today = datetime.date.today().isoformat()
     with usage_lock:
@@ -443,23 +465,45 @@ def add_usage_record(
             usage_data_memory[today][service][model] = {
                 "calls": 0,
                 "streaming_calls": 0,
-                "normal_calls": 0,
+                "calls_post": 0,
                 "input": 0,
                 "cached_input": 0,
                 "cached_write": 0,
                 "output": 0,
+                "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
+                "errors_post": dict(STATIC_ERRORS_TEMPLATE),
             }
 
         entry = usage_data_memory[today][service][model]
+
+        # Backward compatibility check for loaded data:
+        if "calls_post" not in entry:
+            entry["calls_post"] = entry.pop("normal_calls", 0)
+        if "errors_streaming" not in entry:
+            entry["errors_streaming"] = dict(STATIC_ERRORS_TEMPLATE)
+        if "errors_post" not in entry:
+            entry["errors_post"] = dict(STATIC_ERRORS_TEMPLATE)
+
         entry["calls"] += 1
         if is_streaming:
             entry["streaming_calls"] += 1
         else:
-            entry["normal_calls"] += 1
+            entry["calls_post"] += 1
+
         entry["input"] += uncached_input
         entry["cached_input"] += cached_input
         entry["cached_write"] += cached_write
         entry["output"] += output
+
+        if status_code >= 400:
+            code_str = str(status_code)
+            error_dict = (
+                entry["errors_streaming"] if is_streaming else entry["errors_post"]
+            )
+            if code_str in error_dict:
+                error_dict[code_str] += 1
+            else:
+                error_dict["OTHER"] += 1
 
 
 def get_usage_file_path() -> str:
@@ -539,7 +583,7 @@ def get_cumulative_metrics(
     totals_acc: dict[str, Any] = {
         "calls": 0,
         "streaming_calls": 0,
-        "normal_calls": 0,
+        "calls_post": 0,
         "input": 0,
         "cached_input": 0,
         "cached_write": 0,
@@ -553,6 +597,8 @@ def get_cumulative_metrics(
             "output_cost": 0.0,
             "total_cost": 0.0,
         },
+        "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
+        "errors_post": dict(STATIC_ERRORS_TEMPLATE),
     }
 
     today = datetime.date.today()
@@ -588,7 +634,7 @@ def get_cumulative_metrics(
                     services_acc[service] = {
                         "calls": 0,
                         "streaming_calls": 0,
-                        "normal_calls": 0,
+                        "calls_post": 0,
                         "input": 0,
                         "cached_input": 0,
                         "cached_write": 0,
@@ -602,6 +648,8 @@ def get_cumulative_metrics(
                             "output_cost": 0.0,
                             "total_cost": 0.0,
                         },
+                        "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
+                        "errors_post": dict(STATIC_ERRORS_TEMPLATE),
                     }
 
                 pricing = PRICING_REGISTRY.get(service, {})
@@ -616,7 +664,7 @@ def get_cumulative_metrics(
                         models_acc[model_key] = {
                             "calls": 0,
                             "streaming_calls": 0,
-                            "normal_calls": 0,
+                            "calls_post": 0,
                             "input": 0,
                             "cached_input": 0,
                             "cached_write": 0,
@@ -630,11 +678,13 @@ def get_cumulative_metrics(
                                 "output_cost": 0.0,
                                 "total_cost": 0.0,
                             },
+                            "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
+                            "errors_post": dict(STATIC_ERRORS_TEMPLATE),
                         }
 
                     calls = counts.get("calls", 0)
                     str_calls = counts.get("streaming_calls", 0)
-                    norm_calls = counts.get("normal_calls", 0)
+                    norm_calls = counts.get("calls_post", counts.get("normal_calls", 0))
                     if str_calls == 0 and norm_calls == 0 and calls > 0:
                         norm_calls = calls
 
@@ -654,7 +704,7 @@ def get_cumulative_metrics(
                     m_entry = models_acc[model_key]
                     m_entry["calls"] += calls
                     m_entry["streaming_calls"] += str_calls
-                    m_entry["normal_calls"] += norm_calls
+                    m_entry["calls_post"] += norm_calls
                     m_entry["input"] += inp
                     m_entry["cached_input"] += c_inp
                     m_entry["cached_write"] += c_wr
@@ -670,7 +720,7 @@ def get_cumulative_metrics(
                     s_entry = services_acc[service]
                     s_entry["calls"] += calls
                     s_entry["streaming_calls"] += str_calls
-                    s_entry["normal_calls"] += norm_calls
+                    s_entry["calls_post"] += norm_calls
                     s_entry["input"] += inp
                     s_entry["cached_input"] += c_inp
                     s_entry["cached_write"] += c_wr
@@ -685,7 +735,7 @@ def get_cumulative_metrics(
                     # Grand totals update
                     totals_acc["calls"] += calls
                     totals_acc["streaming_calls"] += str_calls
-                    totals_acc["normal_calls"] += norm_calls
+                    totals_acc["calls_post"] += norm_calls
                     totals_acc["input"] += inp
                     totals_acc["cached_input"] += c_inp
                     totals_acc["cached_write"] += c_wr
@@ -696,6 +746,20 @@ def get_cumulative_metrics(
                     totals_acc["costs"]["cached_write_cost"] += c_wr_cost
                     totals_acc["costs"]["output_cost"] += out_cost
                     totals_acc["costs"]["total_cost"] += tot_cost
+
+                    # Errors update
+                    for code in STATIC_ERRORS_TEMPLATE:
+                        err_str_val = counts.get("errors_streaming", {}).get(code, 0)
+                        err_post_val = counts.get("errors_post", {}).get(code, 0)
+
+                        m_entry["errors_streaming"][code] += err_str_val
+                        m_entry["errors_post"][code] += err_post_val
+
+                        s_entry["errors_streaming"][code] += err_str_val
+                        s_entry["errors_post"][code] += err_post_val
+
+                        totals_acc["errors_streaming"][code] += err_str_val
+                        totals_acc["errors_post"][code] += err_post_val
 
     for entry in models_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
@@ -754,6 +818,85 @@ def update_prometheus_metrics():
         cost_gauge.labels(service=service, model=model, type="total").set(
             val["costs"]["total_cost"]
         )
+
+        # Update errors
+        for code in STATIC_ERRORS_TEMPLATE:
+            errors_gauge.labels(
+                service=service, model=model, call_type="streaming", code=code
+            ).set(val["errors_streaming"].get(code, 0))
+            errors_gauge.labels(
+                service=service, model=model, call_type="post", code=code
+            ).set(val["errors_post"].get(code, 0))
+
+
+def format_usage_table(data: dict[str, Any]) -> str:
+    models = data.get("models", {})
+    services = data.get("services", {})
+    totals = data.get("totals", {})
+
+    lines = []
+    # Print formatted table
+    width = 153
+    lines.append("-" * width)
+    lines.append(
+        f"| {'SERVICE/MODEL':<30} | {'CALLS':<6} | {'STREAM':<6} | {'POST':<6} | {'INPUT':<10} | {'CACHED IN':<10} | {'CACHED WR':<10} | {'OUTPUT':<10} | {'CACHE %':<8} | {'EST COST':<9} | {'ERRORS (STR / POST)':<18} |"
+    )
+    lines.append("-" * width)
+
+    def get_errors_str(stats: dict[str, Any]) -> str:
+        str_errs = sum(stats.get("errors_streaming", {}).values())
+        post_errs = sum(stats.get("errors_post", {}).values())
+        return f"{str_errs} / {post_errs}"
+
+    for model_key, stats in sorted(models.items()):
+        cost = stats.get("costs", {}).get("total_cost", 0.0)
+        errs_str = get_errors_str(stats)
+        lines.append(
+            f"| {model_key:<30} | {stats.get('calls', 0):<6} | {stats.get('streaming_calls', 0):<6} | {stats.get('calls_post', 0):<6} | {stats.get('input', 0):<10} | {stats.get('cached_input', 0):<10} | {stats.get('cached_write', 0):<10} | {stats.get('output', 0):<10} | {stats.get('cache_pct', 0.0):<8.2f} | ${cost:<8.4f} | {errs_str:<18} |"
+        )
+
+    lines.append("-" * width)
+
+    for svc_name, stats in sorted(services.items()):
+        cost = stats.get("costs", {}).get("total_cost", 0.0)
+        errs_str = get_errors_str(stats)
+        lines.append(
+            f"| {f'Service {svc_name.upper()} Total':<30} | {stats.get('calls', 0):<6} | {stats.get('streaming_calls', 0):<6} | {stats.get('calls_post', 0):<6} | {stats.get('input', 0):<10} | {stats.get('cached_input', 0):<10} | {stats.get('cached_write', 0):<10} | {stats.get('output', 0):<10} | {stats.get('cache_pct', 0.0):<8.2f} | ${cost:<8.4f} | {errs_str:<18} |"
+        )
+
+    lines.append("-" * width)
+    total_cost = totals.get("costs", {}).get("total_cost", 0.0)
+    total_errs_str = get_errors_str(totals)
+    lines.append(
+        f"| {'GRAND TOTAL':<30} | {totals.get('calls', 0):<6} | {totals.get('streaming_calls', 0):<6} | {totals.get('calls_post', 0):<6} | {totals.get('input', 0):<10} | {totals.get('cached_input', 0):<10} | {totals.get('cached_write', 0):<10} | {totals.get('output', 0):<10} | {totals.get('cache_pct', 0.0):<8.2f} | ${total_cost:<8.4f} | {total_errs_str:<18} |"
+    )
+    lines.append("-" * width)
+
+    has_errors = False
+    for name, stats in [("GRAND TOTAL", totals)] + list(sorted(models.items())):
+        str_err_codes = {
+            k: v for k, v in stats.get("errors_streaming", {}).items() if v > 0
+        }
+        post_err_codes = {
+            k: v for k, v in stats.get("errors_post", {}).items() if v > 0
+        }
+        if str_err_codes or post_err_codes:
+            if not has_errors:
+                lines.append("\nHTTP Errors Breakdown:")
+                has_errors = True
+            lines.append(f"  {name}:")
+            if str_err_codes:
+                lines.append(
+                    "    Streaming errors: "
+                    + ", ".join(f"{k}:{v}" for k, v in sorted(str_err_codes.items()))
+                )
+            if post_err_codes:
+                lines.append(
+                    "    Post errors:      "
+                    + ", ".join(f"{k}:{v}" for k, v in sorted(post_err_codes.items()))
+                )
+
+    return "\n".join(lines) + "\n"
 
 
 def save_on_exit():
@@ -907,6 +1050,24 @@ async def handle_mock_backend(
     service = service or "chat"
     model = model or "qwen3"
 
+    if "error-" in model:
+        try:
+            code = int(model.split("error-")[-1])
+            if is_streaming:
+
+                async def err_sse_gen():
+                    yield f'data: {{"error": {{"message": "Mocked {code}", "code": {code}}}}}\n\n'.encode(
+                        "utf-8"
+                    )
+                    yield b"data: [DONE]\n\n"
+
+                return StreamingResponse(
+                    err_sse_gen(), status_code=code, media_type="text/event-stream"
+                )
+            return JSONResponse({"error": f"Mocked {code}"}, status_code=code)
+        except Exception:
+            pass
+
     if service == "chat":
         if is_streaming:
 
@@ -976,6 +1137,7 @@ async def process_response_usage(
     response_body: bytes,
     request_body: bytes | None,
     is_streaming: bool,
+    status_code: int = 200,
 ):
     estimated_input_tokens = 0
     request_prompt = ""
@@ -1104,6 +1266,7 @@ async def process_response_usage(
         cached_write=cached_write,
         output=completion_tokens,
         is_streaming=is_streaming,
+        status_code=status_code,
     )
 
 
@@ -1137,7 +1300,13 @@ async def proxy_request(
                 else bytes(mock_resp.body)
             )
             await process_response_usage(
-                service or "", model or "", is_sse, resp_body, body, is_streaming
+                service or "",
+                model or "",
+                is_sse,
+                resp_body,
+                body,
+                is_streaming,
+                status_code=mock_resp.status_code,
             )
         elif isinstance(mock_resp, Response) and not isinstance(
             mock_resp, StreamingResponse
@@ -1148,7 +1317,13 @@ async def proxy_request(
                 else bytes(mock_resp.body)
             )
             await process_response_usage(
-                service or "", model or "", is_sse, resp_body, body, is_streaming
+                service or "",
+                model or "",
+                is_sse,
+                resp_body,
+                body,
+                is_streaming,
+                status_code=mock_resp.status_code,
             )
         elif isinstance(mock_resp, StreamingResponse):
             original_chunks = []
@@ -1166,6 +1341,7 @@ async def proxy_request(
                         full_body,
                         body,
                         is_streaming,
+                        status_code=mock_resp.status_code,
                     )
                 except Exception as e:
                     print(f"Error processing mock usage: {e}")
@@ -1223,6 +1399,7 @@ async def proxy_request(
                         full_body,
                         body,
                         is_streaming,
+                        status_code=response.status_code,
                     )
                 except Exception as e:
                     print(f"Error processing usage: {e}")
@@ -1242,6 +1419,18 @@ async def proxy_request(
         )
 
     except httpx.HTTPStatusError as exc:
+        try:
+            await process_response_usage(
+                service=service or "",
+                model=model or "",
+                is_sse=False,
+                response_body=b"",
+                request_body=body,
+                is_streaming=is_streaming,
+                status_code=exc.response.status_code,
+            )
+        except Exception:
+            pass
         return JSONResponse(
             status_code=exc.response.status_code,
             content={
@@ -1253,6 +1442,18 @@ async def proxy_request(
         )
     except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
         # Gracefully handle backend downtime
+        try:
+            await process_response_usage(
+                service=service or "",
+                model=model or "",
+                is_sse=False,
+                response_body=b"",
+                request_body=body,
+                is_streaming=is_streaming,
+                status_code=502,
+            )
+        except Exception:
+            pass
         return JSONResponse(
             status_code=502,
             content={
@@ -1264,6 +1465,18 @@ async def proxy_request(
             },
         )
     except Exception as exc:
+        try:
+            await process_response_usage(
+                service=service or "",
+                model=model or "",
+                is_sse=False,
+                response_body=b"",
+                request_body=body,
+                is_streaming=is_streaming,
+                status_code=500,
+            )
+        except Exception:
+            pass
         return JSONResponse(
             status_code=500,
             content={
@@ -1280,11 +1493,17 @@ async def proxy_request(
 
 @app.get("/usage")
 @app.get("/v1/usage")
-async def route_usage(day: str | None = None, range: str | None = None):
+async def route_usage(
+    day: str | None = None, range: str | None = None, format: str = "json"
+):
     try:
         metrics = get_cumulative_metrics(day_filter=day, range_filter=range)
+        if format == "text":
+            return PlainTextResponse(format_usage_table(metrics))
         return metrics
     except Exception as e:
+        if format == "text":
+            return PlainTextResponse(f"Error: {e}", status_code=500)
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 

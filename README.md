@@ -89,7 +89,7 @@ For details, see the [scripts/README.md](scripts/README.md).
 ### Local Combined Inference Router
 - **Description**: Manages a persistent FastAPI web application served by `uvicorn` that aggregates all underlying local inference services into a single OpenAI-compatible entrypoint (`local-router.sh`).
 - **Sandboxing**: Enforces `ProtectSystem=strict` with `PrivateDevices=yes` (no GPU access required). Restricts filesystem access to the home directory (`BindPaths=%h`) and standard system directories read-only.
-- **Features**: OpenAI-compatible routing for chat completions, embeddings, reranking, transcription, speech, and image generation. Startup synchronization checking, default model fallback routing, and graceful OpenAI-format gateway error propagation.
+- **Features**: OpenAI-compatible routing for chat completions, embeddings, reranking, transcription, speech, and image generation. Comprehensive token usage tracking, estimated cost calculation, static HTTP error code logging (`errors_streaming` / `errors_post`), pre-formatted ASCII table reporting (`/usage?format=text`), scrapable Prometheus metrics (`/metrics`), startup synchronization checking, default model fallback routing, and graceful OpenAI-format gateway error propagation.
 - Documentation: [local-router.md](assistants/local-router.md)
 
 ### Local Inference Coordinator
