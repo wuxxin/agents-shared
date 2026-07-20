@@ -51,17 +51,55 @@ LROUT_DEFAULT_MODEL="qwen3"
 ```
 
 ### Route Map (Port 51080)
-| Route |  Service | Default Model | Target Port | Description  |
+
+| Route | Service | Default Model | Target Port | Description |
 | :--- | :---: | :---: | :---: | :---: |
-| `POST /v1/chat/completions` |  Local-Chat | qwen3 | 50080 | LLM completions (uses default template settings) |
-| `POST /v1/chat/completions` |  Local-Chat | qwen3-thinking | 50080 | LLM completions (forces thinking/CoT ON) |
-| `POST /v1/completions` | Local-Chat | qwen-coder-fim | 50080 | FIM code completion |
-| `POST /v1/embeddings` | Local-Chat or Embedding | qwen3-embedding | 50082 or 50080 | Embeddings |
-| `POST /v1/rerank` or `/rerank` |  Local-Rerank | qwen3-reranker | 50086 | Text document ranking |
-| `POST /v1/audio/transcriptions` | Local-Speech-To-Text | whisper-1 | 50090 | Whisper transcription |
-| `POST /v1/audio/speech` |  Local-Text-To-Speech | qwen3-tts | 50095 | Speech synthesis |
-| `POST /v1/images/generations` | Local-Image | z-image-turbo | 50100 | Stable Diffusion image generation |
-| `GET /v1/models` | Cached Model Inventory | - | - | Returns cached model inventory built on startup |
+| `GET /health` or `/healthz` | Health Aggregator | - | - | Aggregated health check and connection test for all backends |
+| `GET /props` or `/v1/props` | Local-Chat | - | 50080 | Engine model properties query (proxied to chat service) |
+| `GET /v1/models` | Cached Model Inventory | - | - | Model list and OpenAI-compatible pricing objects |
+| `GET /usage` or `/v1/usage` | Usage API | - | - | Cumulative token, call, cost, and error metrics (JSON or text) |
+| `GET /metrics` or `/v1/metrics` | Prometheus Metrics | - | - | Prometheus metric scrapable endpoint |
+| `GET /routing/ui` or `/ui` | Web Dashboard | - | - | Standalone single-page Web Dashboard SPA |
+| `POST /tokenize` or `/v1/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (routes to model's service backend) |
+| `POST /detokenize` or `/v1/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (routes to model's service backend) |
+| `POST /v1/chat/completions` | Local-Chat | `qwen3` | 50080 | LLM completions (uses default template settings) |
+| `POST /v1/chat/completions` | Local-Chat | `qwen3-thinking` | 50080 | LLM completions (forces thinking/CoT reasoning ON) |
+| `POST /v1/completions` or `/completion` | Local-Chat | `qwen-coder-fim` | 50080 | Text & FIM code completions |
+| `POST /v1/embeddings` or `/embedding` | Local-Chat or Embedding | `qwen3-embedding` | 50082 or 50080 | Vector text embeddings |
+| `POST /v1/rerank` or `/rerank` | Local-Rerank | `qwen3-reranker` | 50086 | Text document ranking & scoring |
+| `POST /v1/audio/transcriptions` | Local-Speech-To-Text | `whisper-1` | 50090 | Whisper speech transcription |
+| `POST /v1/audio/speech` | Local-Text-To-Speech | `qwen3-tts` | 50095 | Speech synthesis |
+| `POST /v1/images/generations` | Local-Image | `z-image-turbo` | 50100 | Image generation |
+| `/{path:path}` | Catch-all | - | - | Graceful 404 handler for unmapped proxy paths |
+
+### Health Check Endpoint (`GET /health` or `/healthz`)
+
+The router exposes an aggregated status check endpoint. It tests TCP connections to all configured local backend service ports with a 0.5-second timeout and returns an aggregated status payload:
+```json
+{
+  "status": "ok",
+  "backends": {
+    "chat": "online",
+    "embedding": "online",
+    "rerank": "online",
+    "stt": "online",
+    "tts": "online",
+    "image": "online"
+  }
+}
+```
+If a backend service is stopped or unreachable, its status is marked as `"offline"`.
+
+### Properties Endpoint (`GET /props` or `/v1/props`)
+
+Queries engine properties (e.g. `llama-server` runtime parameters, context limit, build flags). The router proxies this request directly to the default `chat` service (port `50080`).
+
+### Tokenization & Detokenization Endpoints (`POST /tokenize`, `/detokenize`)
+
+Allows callers to tokenize prompt text into raw token IDs or convert token IDs back into text:
+- The router parses the `"model"` property in the JSON body to resolve the target backend service.
+- If no model is specified, it uses `LROUT_DEFAULT_MODEL` to resolve the service (defaulting to `chat` on port `50080`).
+- The payload is forwarded to the corresponding backend server's `/tokenize` or `/detokenize` endpoint.
 
 ### Special Model Aliases & Parameter Rewriting
 
