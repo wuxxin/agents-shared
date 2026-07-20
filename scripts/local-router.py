@@ -18,7 +18,12 @@ from contextlib import asynccontextmanager
 from typing import Any
 import httpx
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import (
+    StreamingResponse,
+    JSONResponse,
+    PlainTextResponse,
+    HTMLResponse,
+)
 import tiktoken
 from prometheus_client import (
     CollectorRegistry,
@@ -642,9 +647,10 @@ async def periodic_save_task():
 def get_cumulative_metrics(
     day_filter: str | None = None, range_filter: str | None = None
 ) -> dict[str, Any]:
-    models_acc: dict[str, Any] = {}
-    agents_acc: dict[str, Any] = {}
-    services_acc: dict[str, Any] = {}
+    models_acc: dict[str, dict[str, Any]] = {}
+    agents_acc: dict[str, dict[str, Any]] = {}
+    services_acc: dict[str, dict[str, Any]] = {}
+    daily_acc: dict[str, dict[str, Any]] = {}
     totals_acc: dict[str, Any] = {
         "calls": 0,
         "streaming_calls": 0,
@@ -673,7 +679,7 @@ def get_cumulative_metrics(
         if day_filter:
             days_to_process = [day_filter]
         elif range_filter:
-            if range_filter == "today":
+            if range_filter == "today" or range_filter == "1d":
                 days_to_process = [today.isoformat()]
             elif range_filter == "7d":
                 days_to_process = [
@@ -692,8 +698,22 @@ def get_cumulative_metrics(
         else:
             days_to_process = list(usage_data_memory.keys())
 
-        for day in days_to_process:
+        for day in sorted(days_to_process):
             day_data = usage_data_memory.get(day, {})
+            if day not in daily_acc:
+                daily_acc[day] = {
+                    "calls": 0,
+                    "streaming_calls": 0,
+                    "calls_post": 0,
+                    "input": 0,
+                    "cached_input": 0,
+                    "cached_write": 0,
+                    "output": 0,
+                    "total_tokens": 0,
+                    "total_cost": 0.0,
+                    "errors_streaming": 0,
+                    "errors_post": 0,
+                }
             for agent, services_map in day_data.items():
                 if not isinstance(services_map, dict):
                     continue
@@ -825,6 +845,24 @@ def get_cumulative_metrics(
                         accum(services_acc[service])
                         accum(totals_acc)
 
+                        daily_target = daily_acc[day]
+                        daily_target["calls"] += calls
+                        daily_target["streaming_calls"] += str_calls
+                        daily_target["calls_post"] += norm_calls
+                        daily_target["input"] += inp
+                        daily_target["cached_input"] += c_inp
+                        daily_target["cached_write"] += c_wr
+                        daily_target["output"] += out
+                        daily_target["total_tokens"] += tot
+                        daily_target["total_cost"] += tot_cost
+                        for code in STATIC_ERRORS_TEMPLATE:
+                            daily_target["errors_streaming"] += counts.get(
+                                "errors_streaming", {}
+                            ).get(code, 0)
+                            daily_target["errors_post"] += counts.get(
+                                "errors_post", {}
+                            ).get(code, 0)
+
     for entry in models_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
         entry["cache_pct"] = (
@@ -853,6 +891,7 @@ def get_cumulative_metrics(
         "agents": agents_acc,
         "services": services_acc,
         "totals": totals_acc,
+        "daily": daily_acc,
     }
 
 
@@ -1625,6 +1664,21 @@ async def route_metrics():
         )
 
 
+@app.get("/routing/ui", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
+async def route_ui():
+    ui_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "local-router-ui.html"
+    )
+    if not os.path.exists(ui_path):
+        return HTMLResponse(
+            "<h1>Error: local-router-ui.html not found</h1>", status_code=404
+        )
+    with open(ui_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content)
+
+
 # --- Routes Mapping ---
 
 
@@ -1636,7 +1690,16 @@ def extract_request_agent(request: Request) -> str:
         or request.headers.get("x-client")
         or request.headers.get("x-agent")
     )
-    return resolve_client_id(ua, custom)
+    agent = resolve_client_id(ua, custom)
+    if agent == "unknown":
+        client_host = request.client.host if request.client else "unknown"
+        path = request.url.path
+        method = request.method
+        print(
+            f"[UNMAPPED CLIENT] Path: {method} {path} | User-Agent: '{ua or '<missing>'}' | Custom Header: '{custom or '<none>'}' | IP: {client_host}",
+            file=sys.stderr,
+        )
+    return agent
 
 
 @app.post("/v1/chat/completions")

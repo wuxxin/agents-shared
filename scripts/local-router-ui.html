@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Inference Router Dashboard</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --bg-surface: #111827;
+      --card-bg: rgba(17, 24, 39, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --row-bg: rgba(0, 0, 0, 0.25);
+      --accent-primary: #6366f1;
+      --accent-purple: #8b5cf6;
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --glass-blur: blur(14px);
+      --radius: 12px;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      --chart-grid: rgba(255, 255, 255, 0.05);
+    }
+
+    html.theme-light {
+      --bg: #f8fafc;
+      --bg-surface: #ffffff;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --card-border: rgba(226, 232, 240, 0.8);
+      --row-bg: rgba(241, 245, 249, 0.8);
+      --accent-primary: #4f46e5;
+      --accent-purple: #7c3aed;
+      --accent-cyan: #0891b2;
+      --accent-green: #059669;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #64748b;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+      --chart-grid: rgba(0, 0, 0, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(6, 182, 212, 0.06) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Header Styling */
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+      background: var(--card-bg);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+
+    .brand-title h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-title p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    /* Controls Styling */
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .range-selector {
+      display: flex;
+      background: var(--row-bg);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+
+    .btn-range {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-range:hover {
+      color: var(--text-main);
+    }
+
+    .btn-range.active {
+      background: var(--accent-primary);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--row-bg);
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    select, input {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select option {
+      background-color: var(--bg-surface);
+      color: var(--text-main);
+    }
+
+    .btn-refresh {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: var(--accent-primary);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-refresh:hover {
+      background: var(--accent-primary);
+      color: #fff;
+    }
+
+    /* KPI Summary Cards Grid (4 -> 3 -> 2 -> 1 per row) */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 1200px) {
+      .kpi-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 550px) {
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .kpi-card {
+      background: var(--card-bg);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--card-accent, var(--accent-primary)), transparent);
+    }
+
+    .kpi-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .kpi-value {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .kpi-subtext {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      line-height: 1.3;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 16px;
+      background: var(--accent-primary);
+      border-radius: 2px;
+    }
+
+    /* Chart Section */
+    .chart-container {
+      background: var(--card-bg);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chart-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 340px;
+      width: 100%;
+    }
+
+    /* Breakdown Section (Agents & Services Tables) */
+    .breakdown-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 1280px) {
+      .breakdown-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .breakdown-card {
+      background: var(--card-bg);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-x: auto;
+    }
+
+    /* Table Styling for Breakdown Grids & Main Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    th {
+      padding: 10px 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      transition: background-color 0.2s ease;
+    }
+
+    th:hover {
+      color: var(--text-main);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    th.sort-active {
+      color: var(--accent-primary);
+      background: rgba(99, 102, 241, 0.12);
+      border-bottom: 2px solid var(--accent-primary);
+    }
+
+    .sort-indicator {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 0.75rem;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+    }
+
+    tr:hover td {
+      background: rgba(99, 102, 241, 0.04);
+    }
+
+    .text-cell {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+    }
+
+    .badge-error {
+      color: var(--accent-rose);
+      font-weight: 700;
+    }
+    .badge-success {
+      color: var(--accent-green);
+      font-weight: 600;
+    }
+
+    /* Detailed Table Section */
+    .table-container {
+      background: var(--card-bg);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-x: auto;
+    }
+
+    .table-header-tools {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--row-bg);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      width: 260px;
+    }
+
+    .search-box input {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-logo">AG</div>
+        <div class="brand-title">
+          <h1>Local Inference Router</h1>
+          <p><span class="status-dot"></span> <span id="routerOrigin">http://localhost:51080</span></p>
+        </div>
+      </div>
+      <div class="controls-bar">
+        <div class="range-selector">
+          <button class="btn-range" onclick="setRange('1d')">1D</button>
+          <button class="btn-range active" onclick="setRange('7d')">7D</button>
+          <button class="btn-range" onclick="setRange('30d')">30D</button>
+          <button class="btn-range" onclick="setRange('90d')">90D</button>
+          <button class="btn-range" onclick="setRange('all')">All</button>
+        </div>
+        <div class="control-group">
+          <span>Theme:</span>
+          <select id="themeSelect" onchange="setTheme(this.value)">
+            <option value="system">Auto (System)</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span>Auto-Refresh:</span>
+          <select id="refreshInterval" onchange="updateRefreshTimer()">
+            <option value="0">Off</option>
+            <option value="5000" selected>5s</option>
+            <option value="10000">10s</option>
+            <option value="30000">30s</option>
+          </select>
+        </div>
+        <button class="btn-refresh" onclick="fetchData()">🔄 Refresh</button>
+      </div>
+    </header>
+
+    <!-- KPI Summary Grid (7 Cards) -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--card-accent: var(--accent-primary);">
+        <div class="kpi-title">Total Requests</div>
+        <div class="kpi-value" id="kpiCalls">0</div>
+        <div class="kpi-subtext" id="kpiCallsSub">Post: 0 | Stream: 0</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-purple);">
+        <div class="kpi-title">Total Tokens</div>
+        <div class="kpi-value" id="kpiTokens">0</div>
+        <div class="kpi-subtext" id="kpiTokensSub">Input: 0% | Output: 0%</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-cyan);">
+        <div class="kpi-title">Total Input Tokens</div>
+        <div class="kpi-value" id="kpiInputTokens">0</div>
+        <div class="kpi-subtext" id="kpiInputSub">Cached: 0 | Unique: 0</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-green);">
+        <div class="kpi-title">Cache Hit Rate</div>
+        <div class="kpi-value" id="kpiCachePct">0.00%</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: #3b82f6;">
+        <div class="kpi-title">Total Output Tokens</div>
+        <div class="kpi-value" id="kpiOutputTokens">0</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-amber);">
+        <div class="kpi-title">Estimated Cost (USD)</div>
+        <div class="kpi-value" id="kpiCost">$0.0000</div>
+        <div class="kpi-subtext" id="kpiCostSub">Input: $0.0000 | Cache: $0.0000 | Output: $0.0000</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-rose);">
+        <div class="kpi-title">HTTP Errors</div>
+        <div class="kpi-value" id="kpiErrors">0</div>
+        <div class="kpi-subtext" id="kpiErrorsSub">Post: 0 | Stream: 0</div>
+      </div>
+    </div>
+
+    <!-- Day-per-Day Visualization Chart -->
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="section-title" style="margin: 0;">Day-per-Day Usage Visualization</div>
+        <div class="range-selector">
+          <button class="btn-range active" id="btnChartTokens" onclick="setChartMetric('tokens')">Tokens & Calls</button>
+          <button class="btn-range" id="btnChartCost" onclick="setChartMetric('cost')">Cost ($ USD)</button>
+        </div>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="dailyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Average Usage per Day (p.D.) Table -->
+    <div class="breakdown-card">
+      <div class="section-title" style="margin:0;">Average Usage per Day (p.D.)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>TIMEFRAME</th>
+            <th>CALLS (P/S)</th>
+            <th>TOKEN IN</th>
+            <th>% CACHED</th>
+            <th>TOKEN OUT</th>
+            <th>COST</th>
+          </tr>
+        </thead>
+        <tbody id="pdTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Breakdown Section (Agents & Services Tables) -->
+    <div class="breakdown-section">
+      <div class="breakdown-card">
+        <div class="section-title" style="margin:0;">Clients / Agents Breakdown</div>
+        <table>
+          <thead>
+            <tr>
+              <th>AGENT</th>
+              <th>CALLS (P/S)</th>
+              <th>TOKEN IN</th>
+              <th>% CACHED</th>
+              <th>TOKEN OUT</th>
+              <th>COST</th>
+            </tr>
+          </thead>
+          <tbody id="agentsTableBody"></tbody>
+        </table>
+      </div>
+      <div class="breakdown-card">
+        <div class="section-title" style="margin:0;">Services Breakdown</div>
+        <table>
+          <thead>
+            <tr>
+              <th>SERVICE</th>
+              <th>CALLS (P/S)</th>
+              <th>TOKEN IN</th>
+              <th>% CACHED</th>
+              <th>TOKEN OUT</th>
+              <th>COST</th>
+            </tr>
+          </thead>
+          <tbody id="servicesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detailed Models Table -->
+    <div class="table-container">
+      <div class="table-header-tools">
+        <div class="section-title" style="margin:0;">Models Breakdown (AGENT:MODEL:SERVICE)</div>
+        <div class="search-box">
+          <span>🔍</span>
+          <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Filter model, agent, or service...">
+        </div>
+      </div>
+      <table id="modelsTable">
+        <thead>
+          <tr>
+            <th onclick="handleHeaderClick(0)">AGENT:MODEL:SERVICE <span class="sort-indicator" id="sort-ind-0"></span></th>
+            <th onclick="handleHeaderClick(1)">Calls (P/S) <span class="sort-indicator" id="sort-ind-1"></span></th>
+            <th onclick="handleHeaderClick(2)">Cached In <span class="sort-indicator" id="sort-ind-2"></span></th>
+            <th onclick="handleHeaderClick(3)">Uncached In <span class="sort-indicator" id="sort-ind-3"></span></th>
+            <th onclick="handleHeaderClick(4)">% Cache <span class="sort-indicator" id="sort-ind-4"></span></th>
+            <th onclick="handleHeaderClick(5)">Output <span class="sort-indicator" id="sort-ind-5"></span></th>
+            <th onclick="handleHeaderClick(6)">Total <span class="sort-indicator" id="sort-ind-6"></span></th>
+            <th onclick="handleHeaderClick(7)">Est.Cost($) <span class="sort-indicator" id="sort-ind-7"></span></th>
+            <th onclick="handleHeaderClick(8)">Errors (P/S) <span class="sort-indicator" id="sort-ind-8"></span></th>
+          </tr>
+        </thead>
+        <tbody id="modelsTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let currentRange = localStorage.getItem('router_ui_range') || '7d';
+    let chartMetric = localStorage.getItem('router_ui_chart_metric') || 'tokens';
+    let chartInstance = null;
+    let timerId = null;
+    let cachedUsageData = null;
+
+    // Sorting state (sticky across refreshes)
+    let currentSortCol = parseInt(localStorage.getItem('router_ui_sort_col') || '0', 10);
+    let currentSortDir = localStorage.getItem('router_ui_sort_dir') || 'asc';
+
+    // Theme state
+    let currentTheme = localStorage.getItem('router_ui_theme') || 'system';
+
+    document.getElementById('routerOrigin').innerText = window.location.origin;
+
+    function fmtNum(n) {
+      if (n === undefined || n === null || isNaN(n)) return '0';
+      return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+
+    function applyTheme() {
+      const htmlEl = document.documentElement;
+      let effectiveTheme = currentTheme;
+      if (effectiveTheme === 'system') {
+        effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      if (effectiveTheme === 'light') {
+        htmlEl.classList.add('theme-light');
+      } else {
+        htmlEl.classList.remove('theme-light');
+      }
+      document.getElementById('themeSelect').value = currentTheme;
+      if (cachedUsageData) {
+        renderChart(cachedUsageData.daily || {});
+      }
+    }
+
+    function setTheme(theme) {
+      currentTheme = theme;
+      localStorage.setItem('router_ui_theme', theme);
+      applyTheme();
+    }
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (currentTheme === 'system') applyTheme();
+    });
+
+    function setRange(range) {
+      currentRange = range;
+      localStorage.setItem('router_ui_range', range);
+      document.querySelectorAll('.range-selector button').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.innerText.toLowerCase() === range.toLowerCase()) {
+          btn.classList.add('active');
+        }
+      });
+      fetchData();
+    }
+
+    function setChartMetric(metric) {
+      chartMetric = metric;
+      localStorage.setItem('router_ui_chart_metric', metric);
+      document.getElementById('btnChartTokens').classList.toggle('active', metric === 'tokens');
+      document.getElementById('btnChartCost').classList.toggle('active', metric === 'cost');
+      if (cachedUsageData) {
+        renderChart(cachedUsageData.daily || {});
+      }
+    }
+
+    function updateRefreshTimer() {
+      if (timerId) clearInterval(timerId);
+      const val = parseInt(document.getElementById('refreshInterval').value, 10);
+      if (val > 0) {
+        timerId = setInterval(fetchData, val);
+      }
+    }
+
+    async function fetchData() {
+      try {
+        const origin = window.location.origin;
+        const data = await fetch(`${origin}/usage?range=${currentRange}`).then(r => r.json());
+        cachedUsageData = data;
+
+        const [r1d, r7d, r30d, r90d, rAll] = await Promise.all([
+          fetch(`${origin}/usage?range=1d`).then(r => r.json()),
+          fetch(`${origin}/usage?range=7d`).then(r => r.json()),
+          fetch(`${origin}/usage?range=30d`).then(r => r.json()),
+          fetch(`${origin}/usage?range=90d`).then(r => r.json()),
+          fetch(`${origin}/usage?range=all`).then(r => r.json())
+        ]);
+
+        renderKPIs(data.totals || {});
+        renderDailyAverages(r1d, r7d, r30d, r90d, rAll);
+        renderChart(data.daily || {});
+        renderAgents(data.agents || {});
+        renderServices(data.services || {});
+        renderTable(data.models || {});
+      } catch (err) {
+        console.error("Failed to fetch router usage statistics:", err);
+      }
+    }
+
+    function renderKPIs(totals) {
+      const calls = totals.calls || 0;
+      const strCalls = totals.streaming_calls || 0;
+      const postCalls = totals.calls_post || 0;
+      document.getElementById('kpiCalls').innerText = fmtNum(calls);
+      document.getElementById('kpiCallsSub').innerText = `Post: ${fmtNum(postCalls)} | Stream: ${fmtNum(strCalls)}`;
+
+      const totalTokens = totals.total_tokens || 0;
+      const input = totals.input || 0;
+      const cachedIn = totals.cached_input || 0;
+      const output = totals.output || 0;
+      const totalInput = input + cachedIn;
+
+      const inputPct = totalTokens > 0 ? ((totalInput / totalTokens) * 100).toFixed(1) : "0.0";
+      const outputPct = totalTokens > 0 ? ((output / totalTokens) * 100).toFixed(1) : "0.0";
+
+      document.getElementById('kpiTokens').innerText = fmtNum(totalTokens);
+      document.getElementById('kpiTokensSub').innerText = `Input: ${inputPct}% | Output: ${outputPct}%`;
+
+      document.getElementById('kpiInputTokens').innerText = fmtNum(totalInput);
+      document.getElementById('kpiInputSub').innerText = `Cached: ${fmtNum(cachedIn)} | Unique: ${fmtNum(input)}`;
+
+      const cachePct = totals.cache_pct || 0;
+      document.getElementById('kpiCachePct').innerText = `${cachePct.toFixed(2)}%`;
+
+      document.getElementById('kpiOutputTokens').innerText = fmtNum(output);
+
+      const costs = totals.costs || {};
+      const totalCost = costs.total_cost || 0;
+      const cInpCost = costs.cached_input_cost || 0;
+      const inpCost = costs.input_cost || 0;
+      const outCost = costs.output_cost || 0;
+
+      document.getElementById('kpiCost').innerText = `$${totalCost.toFixed(4)}`;
+      document.getElementById('kpiCostSub').innerText = `Input: $${inpCost.toFixed(4)} | Cache: $${cInpCost.toFixed(4)} | Output: $${outCost.toFixed(4)}`;
+
+      let totalErr = 0, strErr = 0, postErr = 0;
+      Object.values(totals.errors_streaming || {}).forEach(v => { strErr += v; totalErr += v; });
+      Object.values(totals.errors_post || {}).forEach(v => { postErr += v; totalErr += v; });
+
+      document.getElementById('kpiErrors').innerText = fmtNum(totalErr);
+      document.getElementById('kpiErrorsSub').innerText = `Post: ${postErr} | Stream: ${strErr}`;
+    }
+
+    function calcPD(data, daysCount) {
+      const totals = data.totals || {};
+      const actualDays = Math.max(1, daysCount);
+      const totalIn = (totals.input || 0) + (totals.cached_input || 0);
+      return {
+        callsPost: Math.round((totals.calls_post || 0) / actualDays),
+        callsStream: Math.round((totals.streaming_calls || 0) / actualDays),
+        input: Math.round(totalIn / actualDays),
+        cachePct: (totals.cache_pct || 0).toFixed(1),
+        output: Math.round((totals.output || 0) / actualDays),
+        cost: ((totals.costs?.total_cost || 0) / actualDays).toFixed(4)
+      };
+    }
+
+    function renderDailyAverages(r1d, r7d, r30d, r90d, rAll) {
+      const tbody = document.getElementById('pdTableBody');
+      tbody.innerHTML = '';
+
+      const allDays = Math.max(1, Object.keys(rAll.daily || {}).length || 1);
+      const rowsConfig = [
+        { label: '1d', data: r1d, days: 1 },
+        { label: '7d', data: r7d, days: 7 },
+        { label: '30d', data: r30d, days: 30 },
+        { label: '90d', data: r90d, days: 90 },
+        { label: 'All', data: rAll, days: allDays }
+      ];
+
+      rowsConfig.forEach(cfg => {
+        const pd = calcPD(cfg.data, cfg.days);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-cell" style="color: var(--accent-cyan);">${cfg.label}</td>
+          <td>${fmtNum(pd.callsPost)} / ${fmtNum(pd.callsStream)}</td>
+          <td>${fmtNum(pd.input)}</td>
+          <td style="color: var(--accent-green);">${pd.cachePct}%</td>
+          <td>${fmtNum(pd.output)}</td>
+          <td style="color: var(--accent-cyan);">$${pd.cost}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function handleLegendClick(e, legendItem, legend) {
+      const index = legendItem.datasetIndex;
+      const ci = legend.chart;
+      if (ci.isDatasetVisible(index)) {
+        ci.hide(index);
+        legendItem.hidden = true;
+      } else {
+        ci.show(index);
+        legendItem.hidden = false;
+      }
+      const visState = JSON.parse(localStorage.getItem('router_ui_chart_vis') || '{}');
+      ci.data.datasets.forEach((ds, i) => {
+        visState[ds.label] = ci.isDatasetVisible(i);
+      });
+      localStorage.setItem('router_ui_chart_vis', JSON.stringify(visState));
+    }
+
+    function renderChart(dailyData) {
+      const ctx = document.getElementById('dailyChart').getContext('2d');
+      const dates = Object.keys(dailyData).sort();
+
+      const uncachedInput = dates.map(d => dailyData[d].input || 0);
+      const cachedInput = dates.map(d => dailyData[d].cached_input || 0);
+      const outputTokens = dates.map(d => dailyData[d].output || 0);
+      const calls = dates.map(d => dailyData[d].calls || 0);
+      const costs = dates.map(d => dailyData[d].total_cost || 0);
+
+      const isLight = document.documentElement.classList.contains('theme-light');
+      const textColor = isLight ? '#475569' : '#9ca3af';
+      const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
+
+      const savedVis = JSON.parse(localStorage.getItem('router_ui_chart_vis') || '{}');
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      if (chartMetric === 'tokens') {
+        const datasets = [
+          {
+            label: 'Uncached Input',
+            data: uncachedInput,
+            backgroundColor: '#6366f1',
+            stack: 'tokens'
+          },
+          {
+            label: 'Cached Input',
+            data: cachedInput,
+            backgroundColor: '#10b981',
+            stack: 'tokens'
+          },
+          {
+            label: 'Output Tokens',
+            data: outputTokens,
+            backgroundColor: '#8b5cf6',
+            stack: 'tokens'
+          },
+          {
+            label: 'Total Calls',
+            data: calls,
+            type: 'line',
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            yAxisID: 'y1',
+            tension: 0.3
+          }
+        ];
+
+        datasets.forEach(ds => {
+          if (savedVis[ds.label] !== undefined) {
+            ds.hidden = !savedVis[ds.label];
+          }
+        });
+
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: dates,
+            datasets: datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: textColor, font: { family: 'Inter' } },
+                onClick: handleLegendClick
+              }
+            },
+            scales: {
+              x: { grid: { color: gridColor }, ticks: { color: textColor } },
+              y: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor }, title: { display: true, text: 'Tokens', color: textColor } },
+              y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#06b6d4' }, title: { display: true, text: 'Calls', color: '#06b6d4' } }
+            }
+          }
+        });
+      } else {
+        const datasets = [{
+          label: 'Estimated Cost ($ USD)',
+          data: costs,
+          borderColor: '#06b6d4',
+          backgroundColor: 'rgba(6, 182, 212, 0.15)',
+          fill: true,
+          tension: 0.3
+        }];
+
+        datasets.forEach(ds => {
+          if (savedVis[ds.label] !== undefined) {
+            ds.hidden = !savedVis[ds.label];
+          }
+        });
+
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: dates,
+            datasets: datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: textColor, font: { family: 'Inter' } },
+                onClick: handleLegendClick
+              }
+            },
+            scales: {
+              x: { grid: { color: gridColor }, ticks: { color: textColor } },
+              y: { grid: { color: gridColor }, ticks: { color: textColor }, title: { display: true, text: 'USD ($)', color: textColor } }
+            }
+          }
+        });
+      }
+    }
+
+    function renderAgents(agentsData) {
+      const tbody = document.getElementById('agentsTableBody');
+      tbody.innerHTML = '';
+      const sortedKeys = Object.keys(agentsData).sort((a,b) => agentsData[b].calls - agentsData[a].calls);
+
+      if (sortedKeys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color: var(--text-dim);">No agent activity recorded in this range.</td></tr>';
+        return;
+      }
+
+      sortedKeys.forEach(agent => {
+        const item = agentsData[agent];
+        const totIn = (item.input || 0) + (item.cached_input || 0);
+        const cachePct = (item.cache_pct || 0).toFixed(1);
+        const postCalls = item.calls_post || 0;
+        const strCalls = item.streaming_calls || 0;
+        const totalCost = (item.costs?.total_cost || 0).toFixed(4);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-cell" style="color: var(--text-main);">${agent.toUpperCase()}</td>
+          <td>${fmtNum(postCalls)} / ${fmtNum(strCalls)}</td>
+          <td>${fmtNum(totIn)}</td>
+          <td style="color: var(--accent-green);">${cachePct}%</td>
+          <td>${fmtNum(item.output || 0)}</td>
+          <td style="color: var(--accent-cyan);">$${totalCost}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderServices(servicesData) {
+      const tbody = document.getElementById('servicesTableBody');
+      tbody.innerHTML = '';
+      const sortedKeys = Object.keys(servicesData).sort((a,b) => servicesData[b].calls - servicesData[a].calls);
+
+      if (sortedKeys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color: var(--text-dim);">No service activity recorded in this range.</td></tr>';
+        return;
+      }
+
+      sortedKeys.forEach(service => {
+        const item = servicesData[service];
+        const totIn = (item.input || 0) + (item.cached_input || 0);
+        const cachePct = (item.cache_pct || 0).toFixed(1);
+        const postCalls = item.calls_post || 0;
+        const strCalls = item.streaming_calls || 0;
+        const totalCost = (item.costs?.total_cost || 0).toFixed(4);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-cell" style="color: var(--accent-purple);">${service.toUpperCase()}</td>
+          <td>${fmtNum(postCalls)} / ${fmtNum(strCalls)}</td>
+          <td>${fmtNum(totIn)}</td>
+          <td style="color: var(--accent-green);">${cachePct}%</td>
+          <td>${fmtNum(item.output || 0)}</td>
+          <td style="color: var(--accent-cyan);">$${totalCost}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderTable(modelsData) {
+      const tbody = document.getElementById('modelsTableBody');
+      tbody.innerHTML = '';
+      const keys = Object.keys(modelsData);
+
+      keys.forEach(key => {
+        const item = modelsData[key];
+        let strErr = 0, postErr = 0;
+        Object.values(item.errors_streaming || {}).forEach(v => strErr += v);
+        Object.values(item.errors_post || {}).forEach(v => postErr += v);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-cell" style="color: var(--text-main);">${key}</td>
+          <td>${fmtNum(item.calls_post || 0)} / ${fmtNum(item.streaming_calls || 0)}</td>
+          <td>${fmtNum(item.cached_input || 0)}</td>
+          <td>${fmtNum(item.input || 0)}</td>
+          <td style="color: var(--accent-green);">${(item.cache_pct || 0).toFixed(2)}%</td>
+          <td>${fmtNum(item.output || 0)}</td>
+          <td>${fmtNum(item.total_tokens || 0)}</td>
+          <td style="color: var(--accent-cyan);">$${(item.costs?.total_cost || 0).toFixed(4)}</td>
+          <td><span class="${(strErr + postErr) > 0 ? 'badge-error' : 'badge-success'}">${postErr} / ${strErr}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Retain sticky sorting after table render
+      applyTableSort();
+      filterTable();
+    }
+
+    function handleHeaderClick(colIndex) {
+      if (currentSortCol === colIndex) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortCol = colIndex;
+        currentSortDir = 'desc';
+      }
+      localStorage.setItem('router_ui_sort_col', currentSortCol);
+      localStorage.setItem('router_ui_sort_dir', currentSortDir);
+      applyTableSort();
+    }
+
+    function applyTableSort() {
+      const table = document.getElementById('modelsTable');
+      const ths = table.querySelectorAll('th');
+      
+      // Update th headers UI indicator
+      ths.forEach((th, idx) => {
+        const ind = document.getElementById(`sort-ind-${idx}`);
+        if (idx === currentSortCol) {
+          th.classList.add('sort-active');
+          if (ind) ind.innerText = currentSortDir === 'asc' ? '▲' : '▼';
+        } else {
+          th.classList.remove('sort-active');
+          if (ind) ind.innerText = '';
+        }
+      });
+
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      
+      const isAsc = currentSortDir === 'asc';
+
+      rows.sort((a, b) => {
+        if (!a.children[currentSortCol] || !b.children[currentSortCol]) return 0;
+        let valA = a.children[currentSortCol].innerText.trim();
+        let valB = b.children[currentSortCol].innerText.trim();
+
+        // Strip formatting symbols and spaces
+        valA = valA.replace(/[\$,%\s]/g, '');
+        valB = valB.replace(/[\$,%\s]/g, '');
+
+        // Handle composite numeric columns like "Post / Str"
+        if (valA.includes('/')) valA = valA.split('/')[0].trim();
+        if (valB.includes('/')) valB = valB.split('/')[0].trim();
+
+        const numA = parseFloat(valA);
+        const numB = parseFloat(valB);
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return isAsc ? numA - numB : numB - numA;
+        }
+        return isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+
+      tbody.innerHTML = '';
+      rows.forEach(r => tbody.appendChild(r));
+    }
+
+    function filterTable() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const rows = document.querySelectorAll('#modelsTableBody tr');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+      });
+    }
+
+    // Initial setup
+    applyTheme();
+    fetchData();
+    updateRefreshTimer();
+  </script>
+</body>
+</html>

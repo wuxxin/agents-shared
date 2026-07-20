@@ -140,12 +140,32 @@ If any backend service is down, offline, or returns an error, the router respond
 ```
 This ensures integration clients (like agents or tools) receive clean HTTP errors (`502 Bad Gateway` / `503 Service Unavailable`) instead of failing with connection breaks.
 
+### Web Dashboard UI (`GET /routing/ui` or `/ui`)
+
+The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:51080/routing/ui` (or `/ui`).
+
+![Local Router Dashboard - KPI Cards & Visualization](../assets/local-router-ui-1.png)
+
+![Local Router Dashboard - Daily Averages & Breakdown Tables](../assets/local-router-ui-2.png)
+
+![Local Router Dashboard - Detailed Models Breakdown Table](../assets/local-router-ui-3.png)
+
+- **Origin Interaction**: Queries the router's JSON usage API (`/usage?range=...`) dynamically relative to its origin (`window.location.origin`).
+- **Theme Support**: Auto-detects system browser preference (`dark` / `light`) with an explicit header theme selector (`Auto`, `Dark`, `Light`).
+- **Features**:
+  - **KPI Cards Grid**: Real-time summary for Total Requests, Total Tokens, Total Input Tokens, Cache Hit Rate %, Total Output Tokens, Estimated USD Cost, and HTTP Errors (responsive 4 → 3 → 2 → 1 grid layout).
+  - **Time-range Selector**: Switch between `1D`, `7D`, `30D`, `90D`, and `All` time windows.
+  - **Day-per-Day Chart.js Visualization**: Interactive time-series stacked bar/line chart (Uncached Input, Cached Input, Output Tokens, Total Calls, Estimated Cost). Selected legend dataset visibilities survive refreshes.
+  - **Average Usage per Day (p.D.) Table**: Displays daily averages across `1d`, `7d`, `30d`, `90d`, and `All`.
+  - **Breakdown Tables**: Separate structured tables for Clients / Agents Breakdown and Services Breakdown (`AGENT/SERVICE`, `CALLS P/S`, `TOKEN IN`, `% CACHED`, `TOKEN OUT`, `COST`).
+  - **Searchable Models Breakdown Table**: Detailed breakdown by `AGENT:MODEL:SERVICE` (`Calls P/S`, `Cached In`, `Uncached In`, `% Cache`, `Output`, `Total`, `Est.Cost($)`, `Errors P/S`) with sticky column sorting and live search filtering.
+
 ### Client Resolution & User-Agent Detection
 
 The router automatically detects the caller's agent identity from the incoming request:
-- **`User-Agent` Header**: Pattern matched against regex rules for known agents (`hermes`, `hindsight`, `curl`, `nanobot`, `librefang`, `zed`, etc.).
+- **`User-Agent` Header**: Pattern matched against regex rules for known agents (`hermes`, `hindsight`, `curl`, `nanobot`, `librefang`, `zed`, `nanoclaw`, `picoclaw`, `ironclaw`, `zeroclaw`, etc.).
 - **Custom Headers (`X-Client-ID` / `X-Agent-ID` / `X-Client` / `X-Agent`)**: Explicit custom header override.
-- **Fallback**: Unmapped or missing headers are classified as `unknown`.
+- **Fallback**: Unmapped or missing headers are classified as `unknown` and logged to `sys.stderr`.
 
 ### Usage & Metrics API
 

@@ -51,6 +51,16 @@ def run_tests():
         assert len(models_data) > 0, "Inventory is empty"
         print("Models endpoint: OK")
 
+        # 1b. Verify /routing/ui and /ui HTML endpoints
+        print("Testing /routing/ui and /ui endpoints...")
+        resp_ui = client.get("/routing/ui")
+        assert resp_ui.status_code == 200
+        assert "Local Inference Router Dashboard" in resp_ui.text
+        resp_ui2 = client.get("/ui")
+        assert resp_ui2.status_code == 200
+        assert "Local Inference Router Dashboard" in resp_ui2.text
+        print("UI endpoints (/routing/ui, /ui): OK")
+
         # 2. Simulate Chat completion from Hermes Agent
         print("Testing Chat completions (Hermes Agent)...")
         payload = {

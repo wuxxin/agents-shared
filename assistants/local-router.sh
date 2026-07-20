@@ -232,22 +232,31 @@ cmd_install() {
     echo "Installing ${SERVICE_NAME} systemd user service..."
 
     # Resolve source python file location
+    # Resolve source python and html file locations
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
     local source_py="${script_dir}/../scripts/local-router.py"
+    local source_html="${script_dir}/../scripts/local-router-ui.html"
 
     if [[ ! -f "${source_py}" ]]; then
         echo "Error: Source Python file not found at ${source_py}" >&2
         exit 1
     fi
 
+    if [[ ! -f "${source_html}" ]]; then
+        echo "Error: Source HTML file not found at ${source_html}" >&2
+        exit 1
+    fi
+
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
 
-    # Copy local-router.py to systemd config directory
-    echo "Copying local-router.py to ${SYSTEMD_USER_DIR}..."
+    # Copy local-router.py and local-router-ui.html to systemd config directory
+    echo "Copying local-router.py and local-router-ui.html to ${SYSTEMD_USER_DIR}..."
     cp "${source_py}" "${SYSTEMD_USER_DIR}/local-router.py"
     chmod 644 "${SYSTEMD_USER_DIR}/local-router.py"
+    cp "${source_html}" "${SYSTEMD_USER_DIR}/local-router-ui.html"
+    chmod 644 "${SYSTEMD_USER_DIR}/local-router-ui.html"
 
     # Write default env file if it doesn't exist
     if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" != "true" ]; then
@@ -306,6 +315,11 @@ cmd_uninstall() {
     if [[ -f "${SYSTEMD_USER_DIR}/local-router.py" ]]; then
         rm -f "${SYSTEMD_USER_DIR}/local-router.py"
         echo "Removed local-router.py from ${SYSTEMD_USER_DIR}."
+    fi
+
+    if [[ -f "${SYSTEMD_USER_DIR}/local-router-ui.html" ]]; then
+        rm -f "${SYSTEMD_USER_DIR}/local-router-ui.html"
+        echo "Removed local-router-ui.html from ${SYSTEMD_USER_DIR}."
     fi
 
     if [[ -f "${SYSTEMD_USER_DIR}/local-router-usage.json" ]]; then
