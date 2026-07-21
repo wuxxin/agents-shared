@@ -29,6 +29,7 @@ load_env() {
     local env_lcomp_enabled="${LCOMP_ENABLED:-}"
     local env_lchat_chat_template_file="${LCHAT_CHAT_TEMPLATE_FILE:-}"
     local env_lchat_chat_template_kwargs="${LCHAT_CHAT_TEMPLATE_KWARGS:-}"
+    local env_lchat_mtp="${LCHAT_MTP:-}"
     local env_lchat_extra_args="${LCHAT_EXTRA_ARGS:-}"
     local env_lmbd_extra_args="${LMBD_EXTRA_ARGS:-}"
     local env_lcomp_extra_args="${LCOMP_EXTRA_ARGS:-}"
@@ -46,7 +47,8 @@ load_env() {
     LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
     LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
-    LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+    LCHAT_MTP=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf
+    LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 2"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
     LCHAT_EXTRA_ARGS=""
@@ -133,6 +135,7 @@ load_env() {
     # Resolve template overrides
     LCHAT_CHAT_TEMPLATE_FILE="${env_lchat_chat_template_file:-${LCHAT_CHAT_TEMPLATE_FILE}}"
     LCHAT_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_CHAT_TEMPLATE_KWARGS}}"
+    LCHAT_MTP="${env_lchat_mtp:-${LCHAT_MTP}}"
     LCHAT_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_EXTRA_ARGS}}"
     LMBD_EXTRA_ARGS="${env_lmbd_extra_args:-${LMBD_EXTRA_ARGS}}"
     LCOMP_EXTRA_ARGS="${env_lcomp_extra_args:-${LCOMP_EXTRA_ARGS}}"
@@ -303,6 +306,15 @@ get_llama_args() {
 
     if [[ -n "${LCHAT_DEVICE:-}" ]]; then
         out_args+=(--device "${LCHAT_DEVICE}")
+    fi
+
+    if [[ -n "${LCHAT_MTP:-}" ]]; then
+        if [[ ! -f "${LCHAT_MTP}" ]]; then
+            echo "Error: MTP draft model file not found at ${LCHAT_MTP}." >&2
+            echo "Run 'scripts/local-download.sh <target_dir> --llm' to download required models." >&2
+            exit 1
+        fi
+        out_args+=(--model-draft "${LCHAT_MTP}")
     fi
 
     if [[ -n "${LCHAT_SPECULATIVE:-}" ]]; then
@@ -616,8 +628,14 @@ LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.
 # Default '{"enable_thinking": false}' turns off chain-of-thought/thinking by default.
 LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
 
-# Speculative Decoding config (default: "--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4")
-LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# MTP draft model file path for hardware-accelerated speculative decoding (default: Qwen3.6-35B-A3B-MTP-ONLY.gguf)
+LCHAT_MTP=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf
+
+# Speculative Decoding config (default: MTP speculative decoding with 2 draft tokens)
+# To disable MTP and use CPU N-Gram speculative decoding instead:
+#   1. Clear LCHAT_MTP: LCHAT_MTP=""
+#   2. Set LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 2"
 
 # KV cache type (default: q4_0)
 LCHAT_CACHE_TYPE_K=q4_0

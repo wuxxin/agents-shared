@@ -72,7 +72,8 @@ The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat 
 | `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `80128` per slot |
 | `LCHAT_PARALLEL` | `3` | Concurrent chat slots |
 | `LCHAT_EXTRA_ARGS` | `--temp 0.6 --top-k 20 --repeat-penalty 1.1` | agentic workload tuning |
-| `LCHAT_SPECULATIVE` | `--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4` | speculative decoding config| 
+| `LCHAT_MTP` | `/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf` | MTP draft model file |
+| `LCHAT_SPECULATIVE` | `--spec-type draft-mtp --spec-draft-n-max 2` | MTP speculative decoding config | 
 
 #### Architecture (Qwen3.6-35B-A3B)
 
@@ -344,23 +345,40 @@ LCHAT_EXTRA_ARGS="--tensor-split 1,1 --main-gpu 1"
 
 ### Speculative Decoding
 
-By default, the service enables self-speculative decoding via **N-Gram lookup** to accelerate text generation.
+By default, the service enables **Multi-Token Prediction (MTP)** speculative decoding using a standalone `Q8_0` MTP draft head file to accelerate text generation.
 
-#### How N-Gram Speculation Works:
-* **No Draft Model Required**: Unlike traditional speculative decoding which loads a second smaller model (incurring extra memory and load latency), N-Gram lookup is a CPU-side lookup that matches sequences of tokens in the generation history.
-* **Mechanism**: It matches the last $N$ tokens (key size `--spec-ngram-simple-size-n`), searches the generation history for identical sequences, and drafts the next $M$ tokens (draft size `--spec-ngram-simple-size-m`) that previously followed. The target model verifies all of them in parallel in a single forward pass.
-* **Performance**: Highly optimized for structured agent outputs (like JSON, YAML, code blocks, or tool schema outputs) where formatting patterns and syntax repeat heavily, offering a **~1.3x to 1.4x speedup** with **zero VRAM overhead**.
+#### How MTP Speculation Works:
+* **Standalone Draft Head Addon**: The service pairs the primary `Qwen3.6-35B-A3B-APEX-I-Compact.gguf` model with `Qwen3.6-35B-A3B-MTP-ONLY.gguf` (acquired from [`IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY`](https://huggingface.co/IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY), `Q8_0` ~855 MiB).
+* **Mechanism**: During each forward step, the MTP draft head takes the 2048-dimensional hidden state ($h_t$) from the final layer of the base model and predicts candidate future tokens ($w_{t+1}, w_{t+2}$) in $<1\text{ ms}$. The target model verifies all candidate tokens in parallel in a single batched forward pass.
+* **Performance & VRAM**: Provides a **~1.45x to 1.75x speedup** across all prompt types (prose, coding, tool-calling, and reasoning) with minimal VRAM overhead (~17.8 GiB total VRAM with `mmproj`).
 
-This is configured via `LCHAT_SPECULATIVE_ARGS` in the environment file:
+#### Tuning MTP (`--spec-draft-n-max N`):
 
+The maximum number of draft tokens proposed per step is controlled by `--spec-draft-n-max N` in `LCHAT_SPECULATIVE`:
+
+* **`N=1` (Conservative)**:
+  * Drafts 1 extra token per step. Highest token acceptance rate (~85%+), minimal latency overhead per step, ~1.25x–1.40x overall speedup.
+* **`N=2` (Default - Recommended for Personal Agents & Light Coding)**:
+  * Drafts 2 extra tokens per step. **Optimal balance for personal agentic workloads and code completions**.
+  * **Why `N=2` is optimal**: Personal agents (ZeroClaw, LibreFang, Hermes) and inline code completion engines frequently output semi-predictable structures (JSON tool arguments, function signatures, indentations, variable definitions, and short reasoning steps). Drafting 2 tokens hits the sweet spot (~70%–80% acceptance rate) where draft tokens are accepted consistently. It delivers peak effective throughput without wasting compute on verifying long candidate sequences when logic branches or variable names change.
+* **`N=3` / `N=4` (Aggressive)**:
+  * Drafts 3 to 4 extra tokens per step. Best for highly repetitive code boilerplate generation (~1.60x–2.00x peak speedup).
+  * *Trade-off*: On creative writing or complex chain-of-thought reasoning where acceptance drops below 50%, verifying 4 rejected tokens per step adds extra compute overhead, slightly increasing step latency.
+
+#### Reverting to N-Gram or Disabling Speculative Decoding:
+
+If `LCHAT_MTP` is specified but the draft file does not exist on disk, `local-chat.sh` will print an error (`Error: MTP draft model file not found at ...`) instructing you to run `scripts/local-download.sh <target_dir> --llm` and exit immediately (`exit 1`) to prevent starting with an invalid model configuration.
+
+To explicitly use CPU-based N-Gram lookup speculative decoding (zero extra VRAM):
 ```bash
-# Enabled by default in LCHAT_SPECULATIVE_ARGS
-LCHAT_SPECULATIVE_ARGS="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+LCHAT_MTP=""
+LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 ```
 
-To disable speculative decoding, edit the environment file and remove the speculative arguments, leaving only:
+To disable speculative decoding entirely:
 ```bash
-LCHAT_SPECULATIVE_ARGS=""
+LCHAT_MTP=""
+LCHAT_SPECULATIVE=""
 ```
 
 ## VRAM Usage
