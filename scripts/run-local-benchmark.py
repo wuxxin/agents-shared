@@ -2310,7 +2310,8 @@ def main() -> None:
                     continue
                 run_configs.append((cfg, dev))
                 if (
-                    not is_combi
+                    False
+                    and not is_combi
                     and "chat" in target_services
                     and "embedding" in target_services
                 ):
@@ -2319,7 +2320,8 @@ def main() -> None:
             for dev in vulkan_devices_resolved:
                 run_configs.append((cfg, dev))
                 if (
-                    not is_combi
+                    False
+                    and not is_combi
                     and "chat" in target_services
                     and "embedding" in target_services
                 ):
@@ -2327,7 +2329,8 @@ def main() -> None:
         else:
             run_configs.append((cfg, None))
             if (
-                not is_combi
+                False
+                and not is_combi
                 and "chat" in target_services
                 and "embedding" in target_services
             ):

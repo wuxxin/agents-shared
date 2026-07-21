@@ -51,7 +51,7 @@ load_env() {
     LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
     LCHAT_MTP=""
-    LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 2"
+    LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
     LCHAT_EXTRA_ARGS=""
@@ -397,6 +397,8 @@ EOF
     fi
     if [[ -n "${LCHAT_CHAT_TEMPLATE_FILE:-}" ]]; then
         echo "chat-template-file = ${LCHAT_CHAT_TEMPLATE_FILE}"
+    else
+        echo "jinja = on"
     fi
     if [[ -n "${LCHAT_CHAT_TEMPLATE_KWARGS:-}" ]]; then
         echo "chat-template-kwargs = ${LCHAT_CHAT_TEMPLATE_KWARGS}"
@@ -638,7 +640,7 @@ LCHAT_MTP=""
 # To disable MTP and use CPU N-Gram speculative decoding instead:
 #   1. Clear LCHAT_MTP: LCHAT_MTP=""
 #   2. Set LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
-LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 2"
+LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
 
 # KV cache type (default: q4_0)
 LCHAT_CACHE_TYPE_K=q4_0

@@ -313,10 +313,11 @@ def run_llm_chat(
     generated_text = ""
     if not skip_chat:
         tprint("\n===================================================")
-        tprint("=== PHASE 2: Chat Generation (300-word summary) ===")
+        tprint("=== PHASE 2: Chat Generation (300-word summary + json string) ===")
         tprint("===================================================")
         prompt_p2 = (
-            context_content + "\n\nTask: Summarize the text above in exactly 300 words."
+            context_content
+            + "\n\nTask: Summarize the text above in exactly 300 words. Then write a json string listing each skill with parameter calling."
         )
 
         for r in range(repeats):
@@ -326,7 +327,7 @@ def run_llm_chat(
                 "stream": True,
                 "stream_options": {"include_usage": True},
                 "temperature": 0.0,
-                "max_tokens": 600,
+                "max_tokens": 1024,
             }
 
             display_label = f"[Run {r + 1}/{repeats}]"
