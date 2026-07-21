@@ -56,7 +56,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 The local service runs **`Qwen3-Reranker-0.6B`** in `Q4_K_M` GGUF quantization format. 
 
 Key specifications:
-  - **Context Size (`LRR_N_CTX`):** `8192`
+  - **Context Size (`LRR_N_CTX`):** `16384` (µ-Batch Size `LRR_N_UBATCH`: `16384`)
   - **Pooling:** `rank`
   - **Capabilities**: Primarily used to rank relevance scores of search results for hybrid retrieval and memory systems.
 

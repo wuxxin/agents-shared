@@ -25,8 +25,8 @@ load_env() {
     LMBD_HOST=127.0.0.1
     LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
     LMBD_ALIAS=qwen3-embedding
-    LMBD_N_CTX=8192
-    LMBD_N_UBATCH=512
+    LMBD_N_CTX=16384
+    LMBD_N_UBATCH=16384
     LMBD_N_GPU_LAYERS=999
     LMBD_THREADS=4
     LMBD_PARALLEL=2
@@ -39,6 +39,11 @@ load_env() {
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+    fi
+
+    # Support LMBD_UBATCH_SIZE as alias for LMBD_N_UBATCH
+    if [[ -n "${LMBD_UBATCH_SIZE:-}" ]]; then
+        LMBD_N_UBATCH="${LMBD_UBATCH_SIZE}"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -250,12 +255,12 @@ LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q
 # Model alias used by client integrations (default: qwen3-embedding)
 LMBD_ALIAS=qwen3-embedding
 
-# Context size (default: 8192)
-# Note: Batch size is also set to LMBD_N_CTS
-LMBD_N_CTX=8192
+# Context size (default: 16384)
+# Note: Batch size is also set to LMBD_N_CTX
+LMBD_N_CTX=16384
 
-# micro-batch size (default: 512)
-LMBD_N_UBATCH=512
+# micro-batch size (default: 16384, matching context size for long prompt embeddings)
+LMBD_N_UBATCH=16384
 
 # Number of layers to offload to GPU (all=999)
 LMBD_N_GPU_LAYERS=999

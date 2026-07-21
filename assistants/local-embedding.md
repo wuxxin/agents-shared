@@ -87,9 +87,9 @@ The local service runs **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF quantization fo
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
-| `LMBD_N_CTX` | `8192` | Max context length per parallel slot |
-| Batch Size | `8192` | Same as LMBD_N_CTX |
-| µ-Batch Size | `512` | max hardware batch size |
+| `LMBD_N_CTX` | `16384` | Max context length per parallel slot |
+| Batch Size | `16384` | Same as LMBD_N_CTX |
+| µ-Batch Size | `16384` | max hardware batch size (matches LMBD_N_CTX) |
 | `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
 | Pooling | `mean` | Pooling mode passed to `--pooling` |
 

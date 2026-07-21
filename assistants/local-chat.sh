@@ -55,11 +55,11 @@ load_env() {
     LMBD_ENABLED=true
     LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
     LMBD_ALIAS=qwen3-embedding
-    LMBD_CTX_SIZE=8192
+    LMBD_CTX_SIZE=16384
     LMBD_PARALLEL=2
     LMBD_N_GPU_LAYERS=""
     LMBD_THREADS=""
-    LMBD_UBATCH_SIZE=512
+    LMBD_UBATCH_SIZE=16384
     LMBD_CACHE_TYPE_K=q8_0
     LMBD_CACHE_TYPE_V=q8_0
     # shellcheck disable=SC2034
@@ -89,6 +89,11 @@ load_env() {
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+    fi
+
+    # Support LMBD_N_UBATCH as alias for LMBD_UBATCH_SIZE
+    if [[ -n "${LMBD_N_UBATCH:-}" ]]; then
+        LMBD_UBATCH_SIZE="${LMBD_N_UBATCH}"
     fi
 
     # Resolve overrides
@@ -659,14 +664,14 @@ LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q
 # Model alias used by client integrations (default: qwen3-embedding)
 LMBD_ALIAS=qwen3-embedding
 
-# Context size (default: 8192)
-LMBD_CTX_SIZE=8192
+# Context size (default: 16384)
+LMBD_CTX_SIZE=16384
 
 # Parallel request slots (default: 2)
 LMBD_PARALLEL=2
 
-# micro-batch size (default: 512)
-LMBD_UBATCH_SIZE=512
+# micro-batch size (default: 16384, matching context size for long prompt embeddings)
+LMBD_UBATCH_SIZE=16384
 
 # KV cache type (default: q8_0)
 LMBD_CACHE_TYPE_K=q8_0

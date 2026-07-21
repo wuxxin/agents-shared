@@ -175,9 +175,9 @@ When combined mode is enabled (default via `LMBD_ENABLED=true`), the service als
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
-| `LMBD_N_CTX` | `4096` | Max context length per parallel slot |
+| `LMBD_CTX_SIZE` | `16384` | Max context length per parallel slot |
 | `LMBD_PARALLEL` | `2` | Concurrent embedding slots |
-| `LMBD_UBATCH_SIZE` | `512` | Max hardware batch size |
+| `LMBD_UBATCH_SIZE` | `16384` | Max hardware batch size (matches LMBD_CTX_SIZE) |
 | `LMBD_EXTRA_ARGS` | `--flash-attn on` | Extra arguments / preset settings for embedding model |
 
 #### Architecture (Qwen3-Embedding-0.6B)

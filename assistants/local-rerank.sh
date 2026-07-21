@@ -25,8 +25,8 @@ load_env() {
     LRR_HOST=127.0.0.1
     LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
     LRR_ALIAS=qwen3-reranker
-    LRR_N_CTX=8192
-    LRR_N_UBATCH=512
+    LRR_N_CTX=16384
+    LRR_N_UBATCH=16384
     LRR_N_GPU_LAYERS=99
     LRR_THREADS=8
     LRR_PARALLEL=2
@@ -39,6 +39,11 @@ load_env() {
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+    fi
+
+    # Support LRR_UBATCH_SIZE as alias for LRR_N_UBATCH
+    if [[ -n "${LRR_UBATCH_SIZE:-}" ]]; then
+        LRR_N_UBATCH="${LRR_UBATCH_SIZE}"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -250,9 +255,9 @@ LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K
 # Model alias used by client integrations (default: qwen3-reranker)
 LRR_ALIAS=qwen3-reranker
 
-# Context size (default: 8192), micro batch size (default: 512)
-LRR_N_CTX=8192
-LRR_N_UBATCH=512
+# Context size (default: 16384), micro batch size (default: 16384, matching context size for long prompt reranking)
+LRR_N_CTX=16384
+LRR_N_UBATCH=16384
 
 # Number of layers to offload to GPU (all=99)
 LRR_N_GPU_LAYERS=99
