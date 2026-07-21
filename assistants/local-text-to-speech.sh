@@ -699,7 +699,30 @@ usage() {
     echo "  exec      - Run qwen3-tts-server as a transient systemd user service"
     echo "  run       - Run a command inside the qwen3-tts-server environment"
     echo "  shell     - Spawn an interactive shell in the qwen3-tts-server environment"
+    echo "  cat       - Print service file, environment configuration, and transient exec command"
     echo "  test [--play] [--benchmark] - Run synthesis and validation tests or benchmark"
+}
+
+cmd_cat() {
+    load_env
+    echo "=== Service File: ${SERVICE_FILE} ==="
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        cat "${SERVICE_FILE}"
+    else
+        echo "(Service file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Environment File: ${ENV_FILE} ==="
+    if [[ -f "${ENV_FILE}" ]]; then
+        cat "${ENV_FILE}"
+    else
+        echo "(Environment file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Transient Execution Command (exec) ==="
+    local args
+    get_tts_args args
+    echo "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server} ${args[*]}"
 }
 
 main() {
@@ -725,6 +748,7 @@ main() {
     exec) cmd_exec "$@" ;;
     run) cmd_run "$@" ;;
     shell) cmd_shell "$@" ;;
+    cat) cmd_cat ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"

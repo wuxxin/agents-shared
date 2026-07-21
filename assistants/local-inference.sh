@@ -515,6 +515,55 @@ cmd_test() {
     done
 }
 
+cmd_cat() {
+    local target_service="${1:-}"
+    load_env
+
+    echo "=== Environment File: ${ENV_FILE} ==="
+    if [[ -f "${ENV_FILE}" ]]; then
+        cat "${ENV_FILE}"
+    else
+        echo "(Environment file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+
+    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local script_dir
+    script_dir="$(dirname "$0")"
+
+    if [ -n "$target_service" ]; then
+        local idx
+        if ! idx="$(match_subservice_index "$target_service")"; then
+            echo "Error: Unknown subservice '$target_service'."
+            echo "Valid subservices: ${services[*]}"
+            exit 1
+        fi
+        services=("${services[$idx]}")
+        prefixes=("${prefixes[$idx]}")
+    fi
+
+    for i in "${!services[@]}"; do
+        local svc="${services[$i]}"
+        local pref="${prefixes[$i]}"
+
+        local enabled_var="${pref}_ENABLED"
+        local is_enabled=0
+        eval "is_enabled=\${$enabled_var:-0}"
+
+        if [ "$is_enabled" = "1" ] || [ -n "$target_service" ]; then
+            echo "=== Subservice Configuration: ${svc} ==="
+            local target_env_file="${SYSTEMD_USER_DIR}/${svc}.env"
+            apply_service_overrides "$pref" "$target_env_file"
+
+            if [[ -x "${script_dir}/${svc}.sh" ]]; then
+                "${script_dir}/${svc}.sh" cat || true
+            fi
+            echo ""
+        fi
+    done
+}
+
 usage() {
     cat <<EOF
 Usage: $0 <command> [args...]
@@ -527,6 +576,7 @@ Commands:
   status [subservice]   - View status of all services (or target subservice)
   logs [args...]        - View combined logs of all services
   edit                  - Edit coordinator configuration and restart services
+  cat [subservice]      - Print wrapper environment configuration and configuration of enabled services (or target subservice)
   test [args...]        - Run validation tests/benchmarks for all enabled services
 EOF
 }
@@ -549,6 +599,7 @@ main() {
     status) cmd_status "$@" ;;
     logs) cmd_logs "$@" ;;
     edit) cmd_edit ;;
+    cat) cmd_cat "$@" ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"

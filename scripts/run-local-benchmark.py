@@ -1184,7 +1184,10 @@ def run_benchmark(
 
 # Regex Parsers / JSON Block Extraction
 
-def extract_json_block(output: str, required_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
+
+def extract_json_block(
+    output: str, required_key: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """Find and load the valid JSON block containing required_key in output."""
     idx = 0
     while True:
@@ -2618,8 +2621,6 @@ def main() -> None:
                         str(fraction),
                         "--format",
                         "json",
-                        "--skip-embedding",
-                        "--skip-completion",
                     ]
                     if args.use_router and run_cfg == "running":
                         test_args.extend(["--url", router_url])
@@ -3199,7 +3200,6 @@ def main() -> None:
                         "--format",
                         "json",
                         "--skip-chat",
-                        "--skip-completion",
                     ]
                     if run_cfg.startswith("cpu"):
                         test_args.extend(["--fraction-chunks", "0.1"])
@@ -3580,8 +3580,6 @@ def main() -> None:
                         str(repeats_scaled),
                         "--format",
                         "json",
-                        "--skip-chat",
-                        "--skip-embedding",
                     ]
                     if args.use_router and run_cfg == "running":
                         test_args.extend(["--url", router_url])

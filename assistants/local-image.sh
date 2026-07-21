@@ -568,9 +568,32 @@ Commands:
   exec      - Run sd-server as a transient systemd user service
   run       - Run a command inside the sd-server environment
   shell     - Spawn an interactive shell in the sd-server environment
+  cat       - Print service file, environment configuration, and transient exec command
   test [--benchmark] [--repeat XX]
     - Run validation tests or image generation benchmark
 EOF
+}
+
+cmd_cat() {
+    load_env
+    echo "=== Service File: ${SERVICE_FILE} ==="
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        cat "${SERVICE_FILE}"
+    else
+        echo "(Service file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Environment File: ${ENV_FILE} ==="
+    if [[ -f "${ENV_FILE}" ]]; then
+        cat "${ENV_FILE}"
+    else
+        echo "(Environment file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Transient Execution Command (exec) ==="
+    local args
+    get_sd_args args
+    echo "${SD_SERVER_BIN:-sd-server} ${args[*]}"
 }
 
 main() {
@@ -596,6 +619,7 @@ main() {
     exec) cmd_exec "$@" ;;
     run) cmd_run "$@" ;;
     shell) cmd_shell "$@" ;;
+    cat) cmd_cat ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"

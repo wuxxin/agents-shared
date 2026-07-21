@@ -40,14 +40,17 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
+    if [[ ! -f "$LCHAT_MODEL" && -f "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf" ]]; then
+        LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+    fi
     LCHAT_ALIAS=qwen3
     LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=3
     LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
     LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
-    LCHAT_MTP=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf
+    LCHAT_MTP=""
     LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 2"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
@@ -606,8 +609,8 @@ LCHAT_N_GPU_LAYERS=999
 
 # ### CHAT / VISION MODEL SETTINGS
 
-# Path to the chat model file
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+# Path to the chat model file (built-in MTP model)
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
 
 # Model alias used by client integrations (default: qwen3)
 LCHAT_ALIAS=qwen3
@@ -628,8 +631,8 @@ LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.
 # Default '{"enable_thinking": false}' turns off chain-of-thought/thinking by default.
 LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
 
-# MTP draft model file path for hardware-accelerated speculative decoding (default: Qwen3.6-35B-A3B-MTP-ONLY.gguf)
-LCHAT_MTP=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf
+# Separate MTP draft model file path (leave empty when using built-in MTP model)
+LCHAT_MTP=""
 
 # Speculative Decoding config (default: MTP speculative decoding with 2 draft tokens)
 # To disable MTP and use CPU N-Gram speculative decoding instead:

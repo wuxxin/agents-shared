@@ -276,6 +276,18 @@ if [[ "$download_llm" == true ]]; then
         "vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf" \
         "https://huggingface.co/IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY/resolve/main/am17an-Qwen3.6-35BA3B-MTP-only.gguf" \
         "${target_dir}/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf"
+
+    # 1f. Build merged MTP model with postfix -mtp
+    mtp_target_path="${target_dir}/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf"
+    if [[ -s "$mtp_target_path" ]]; then
+        echo "Merged MTP model already exists: $mtp_target_path (Skipping)"
+    else
+        echo "Building merged MTP model: $mtp_target_path..."
+        python3 "$(dirname "$0")/download-helper.py" merge-mtp \
+            "${target_dir}/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf" \
+            "${target_dir}/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf" \
+            "$mtp_target_path"
+    fi
 fi
 
 # 2. Embedding
@@ -398,7 +410,7 @@ fi
 
 if [[ "$download_benchmark" == true ]]; then
     echo "=== Building Benchmark Context ==="
-    python3 "$(dirname "$0")/download_skills_context.py" --output "${target_dir}/benchmark-context.md"
+    python3 "$(dirname "$0")/download-helper.py" benchmark-context --output "${target_dir}/benchmark-context.md"
 fi
 
 echo "=== All requested model downloads/conversions completed. ==="

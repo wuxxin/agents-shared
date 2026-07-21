@@ -535,8 +535,8 @@ cmd_test() {
             context_file="/tmp/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
-            echo "benchmark-context.md not found. Generating it via download_skills_context.py..."
-            python3 "$(dirname "$0")/../scripts/download_skills_context.py" --output "$context_file" || true
+            echo "benchmark-context.md not found. Generating it via download-helper.py..."
+            python3 "$(dirname "$0")/../scripts/download-helper.py" benchmark-context --output "$context_file" || true
         fi
 
         local repeat_arg=()
@@ -612,7 +612,30 @@ usage() {
     echo "  exec      - Run llama-server as a transient systemd user service"
     echo "  run       - Run a command inside the llama-server environment"
     echo "  shell     - Spawn an interactive shell in the llama-server environment"
+    echo "  cat       - Print service file, environment configuration, and transient exec command"
     echo "  test [--benchmark] - Run validation tests or rerank benchmark"
+}
+
+cmd_cat() {
+    load_env
+    echo "=== Service File: ${SERVICE_FILE} ==="
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        cat "${SERVICE_FILE}"
+    else
+        echo "(Service file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Environment File: ${ENV_FILE} ==="
+    if [[ -f "${ENV_FILE}" ]]; then
+        cat "${ENV_FILE}"
+    else
+        echo "(Environment file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Transient Execution Command (exec) ==="
+    local args
+    get_llama_args args
+    echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"
 }
 
 main() {
@@ -639,6 +662,7 @@ main() {
     exec) cmd_exec "$@" ;;
     run) cmd_run "$@" ;;
     shell) cmd_shell "$@" ;;
+    cat) cmd_cat ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"

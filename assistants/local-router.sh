@@ -478,9 +478,32 @@ Commands:
   logs      - Tail the systemd service logs
   edit      - Edit the .env file and restart the service upon exit
   exec      - Run uvicorn as a transient systemd user service
+  cat       - Print service file, environment configuration, and transient exec command
   test      - Run validation tests for the combined router
   usage [today|all|7d|30d|90d] - Print a formatted table of token usage (defaults to today)
 EOF
+}
+
+cmd_cat() {
+    load_env
+    echo "=== Service File: ${SERVICE_FILE} ==="
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        cat "${SERVICE_FILE}"
+    else
+        echo "(Service file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Environment File: ${ENV_FILE} ==="
+    if [[ -f "${ENV_FILE}" ]]; then
+        cat "${ENV_FILE}"
+    else
+        echo "(Environment file does not exist. Run 'install' to create it.)"
+    fi
+    echo ""
+    echo "=== Transient Execution Command (exec) ==="
+    local args
+    get_router_args args
+    echo "/usr/bin/uvicorn ${args[*]}"
 }
 
 main() {
@@ -504,6 +527,7 @@ main() {
     logs) cmd_logs "$@" ;;
     edit) cmd_edit ;;
     exec) cmd_exec "$@" ;;
+    cat) cmd_cat ;;
     test) cmd_test "$@" ;;
     usage) cmd_usage "$@" ;;
     *)

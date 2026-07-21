@@ -1,6 +1,7 @@
 # Helper Utilities
 
 - **[local-download.sh](local-download.sh)**: Intelligent downloader for local AI models (LLMs, Embeddings, Reranker, Whisper STT) featuring caching, Hugging Face Hub downloads, and automated GGUF quantization.
+- **[download-helper.py](download-helper.py)**: Python helper utility supporting model MTP tensor merging (`merge-mtp`) and agent skills context generation (`benchmark-context`).
 - **[sandbox-ctl](sandbox-ctl)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
 - **[antigravity-launcher.sh](antigravity-launcher.sh)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
 - **[run-local-benchmark.py](run-local-benchmark.py)**: Automate running and recording local service benchmarks (chat, completion, embedding, rerank, STT, TTS, image) across configurations.
@@ -15,6 +16,18 @@ An intelligent Bash utility to download local AI models (LLM, Embeddings, Rerank
 
 ```bash
 ./scripts/local-download.sh <target_model_dir> --all
+```
+
+## `download-helper.py`
+
+Unified Python helper script executed by `local-download.sh` and assistant control scripts. Provides subcommands for MTP model tensor merging (`merge-mtp`) and agent skills context generation (`benchmark-context`).
+
+```bash
+# Merge MTP auxiliary head tensors into base GGUF model:
+python3 scripts/download-helper.py merge-mtp <base_model.gguf> <mtp_tensors.gguf> <output_model_mtp.gguf>
+
+# Download skills and build benchmark context file:
+python3 scripts/download-helper.py benchmark-context --output <output_file.md>
 ```
 
 ## `sandbox-ctl`
