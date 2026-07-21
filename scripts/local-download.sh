@@ -270,6 +270,12 @@ if [[ "$download_llm" == true ]]; then
         "vision-text/test_image.jpg" \
         "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/960px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg" \
         "${target_dir}/vision-text/test_image.jpg"
+
+    # 1e. MTP Draft Head Model (Q8_0 ~855 MiB)
+    acquire_file \
+        "vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf" \
+        "https://huggingface.co/IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY/resolve/main/am17an-Qwen3.6-35BA3B-MTP-only.gguf" \
+        "${target_dir}/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf"
 fi
 
 # 2. Embedding
