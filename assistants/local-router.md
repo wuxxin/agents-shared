@@ -1,6 +1,6 @@
-# Combined Local Inference Router Service Guide
+# Local Inference Router Service
 
-`local-router.sh` manages the local combined services router systemd user service (`local-router.service`), running a FastAPI web application served by `uvicorn` on port `51080`. It aggregates all underlying local inference services into a single OpenAI-compatible entrypoint.
+`local-router.sh` manages the local services router systemd user service (`local-router.service`), running a FastAPI web application served by `uvicorn` on port `51080`. It aggregates all underlying local inference services into a single OpenAI-compatible entrypoint with additional features.
 
 On installation, the Python code is copied from `scripts/local-router.py` to the systemd user directory (`~/.config/systemd/user/local-router.py`), and is served directly from there.
 
@@ -55,13 +55,13 @@ LROUT_DEFAULT_MODEL="qwen3"
 | Route | Service | Default Model | Target Port | Description |
 | :--- | :---: | :---: | :---: | :---: |
 | `GET /health` or `/healthz` | Health Aggregator | - | - | Aggregated health check and connection test for all backends |
-| `GET /props` or `/v1/props` | Local-Chat | - | 50080 | Engine model properties query (proxied to chat service) |
 | `GET /v1/models` | Cached Model Inventory | - | - | Model list and OpenAI-compatible pricing objects |
-| `GET /usage` or `/v1/usage` | Usage API | - | - | Cumulative token, call, cost, and error metrics (JSON or text) |
-| `GET /metrics` or `/v1/metrics` | Prometheus Metrics | - | - | Prometheus metric scrapable endpoint |
+| `GET /v1/usage` or `/usage` | Usage API | - | - | Cumulative token, call, cost, and error metrics (JSON or text) |
+| `GET /v1/metrics` or `/metrics` | Prometheus Metrics | - | - | Prometheus metric scrapable endpoint |
 | `GET /routing/ui` or `/ui` | Web Dashboard | - | - | Standalone single-page Web Dashboard SPA |
-| `POST /tokenize` or `/v1/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (routes to model's service backend) |
-| `POST /detokenize` or `/v1/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (routes to model's service backend) |
+| `GET /v1/props` or `/props` | Local-Chat | - | 50080 | Engine model properties query (proxied to chat service) |
+| `POST /v1/tokenize` or `/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (routes to model's service backend) |
+| `POST /v1/detokenize` or `/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (routes to model's service backend) |
 | `POST /v1/chat/completions` | Local-Chat | `qwen3` | 50080 | LLM completions (uses default template settings) |
 | `POST /v1/chat/completions` | Local-Chat | `qwen3-thinking` | 50080 | LLM completions (forces thinking/CoT reasoning ON) |
 | `POST /v1/completions` or `/completion` | Local-Chat | `qwen-coder-fim` | 50080 | Text & FIM code completions |
