@@ -89,6 +89,10 @@ Hermes defaults to connecting to local hardware-accelerated services rather than
 | **Local Text-to-Speech (TTS)** | `50095` | `http://localhost:50095/v1` | `qwen3-tts` |
 | **Local Image Gen** | `50100` | `http://localhost:50100/v1` |
 
+### Local Router Client Identification Headers
+
+Hermes includes identification headers (`X-Client-ID: hermes` and `X-Agent-ID: hermes`) in `default_headers` / `extra_headers` inside `config.yaml` so that inference calls routed through `local-router` (port 51080) are attributed to `hermes` in Prometheus metrics and token usage tracking.
+
 ### Provider Cost Structure
 For tracking token usage and cost guardrails, local model costs (matching the `openai/qwen3` rates in `zeroclaw-ctl`) are:
 - **Input Tokens**: $1.50 per Million tokens

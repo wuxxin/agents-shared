@@ -181,12 +181,12 @@ If any backend service is down, offline, or returns an error, the router respond
 ```
 This ensures integration clients (like agents or tools) receive clean HTTP errors (`502 Bad Gateway` / `503 Service Unavailable`) instead of failing with connection breaks.
 
-### Client Resolution & User-Agent Detection
+### Client Resolution & Header Detection
 
-The router automatically detects the caller's agent identity from the incoming request:
-- **`User-Agent` Header**: Pattern matched against regex rules for known agents (`hermes`, `hindsight`, `curl`, `nanobot`, `librefang`, `zed`, `nanoclaw`, `picoclaw`, `ironclaw`, `zeroclaw`, etc.).
-- **Custom Headers (`X-Client-ID` / `X-Agent-ID` / `X-Client` / `X-Agent`)**: Explicit custom header override.
-- **Fallback**: Unmapped or missing headers are classified as `unknown` and logged to `sys.stderr`.
+The router automatically detects and normalizes the caller's agent identity from incoming HTTP headers:
+- **Custom Headers (`X-Client-ID` / `X-Agent-ID` / `X-Client` / `X-Agent`)**: Explicit custom client identification headers. Values are sanitized (stripping quotes and special characters) and converted to lowercase.
+- **`User-Agent` Header**: Pattern matched using word-boundary rules against known agents (`hermes`, `hindsight`, `curl`, `nanobot`, `librefang`, `zed`, `nanoclaw`, `picoclaw`, `ironclaw`, `zeroclaw`, etc.).
+- **Fallback**: Unmapped or missing headers are classified as `unknown` and logged to `sys.stderr` for operator diagnostics.
 
 ### Usage & Metrics API
 

@@ -665,6 +665,10 @@ model:
   default: ${DEFAULT_CHAT_MODEL}-thinking
   context_length: $DEFAULT_CHAT_CTX
   supports_vision: true
+  default_headers:
+    X-Client-ID: hermes
+    X-Agent-ID: hermes
+    User-Agent: hermes
 agent:
   max_turns: 150
   reasoning_effort: low
@@ -694,6 +698,10 @@ custom_providers:
     base_url: $DEFAULT_ROUTER_BASE_URL
     api_key: $DEFAULT_ROUTER_KEY
     model: $DEFAULT_CHAT_MODEL
+    extra_headers:
+      X-Client-ID: hermes
+      X-Agent-ID: hermes
+      User-Agent: hermes
     models:
       ${DEFAULT_CHAT_MODEL}:
         context_length: $DEFAULT_CHAT_CTX

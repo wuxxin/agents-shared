@@ -48,7 +48,15 @@ LROUT_MOCK_BACKENDS = os.environ.get("LROUT_MOCK_BACKENDS", "") in (
     "yes",
 )
 
-# --- Client User-Agent pattern detection ---
+# --- Client Identification Headers & Pattern Detection ---
+
+CLIENT_IDENTIFICATION_HEADERS: tuple[str, ...] = (
+    "x-client-id",
+    "x-agent-id",
+    "x-client",
+    "x-agent",
+)
+
 KNOWN_CLIENTS: list[str] = [
     "hermes",
     "hindsight",
@@ -63,16 +71,26 @@ KNOWN_CLIENTS: list[str] = [
 ]
 
 CLIENT_UA_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(name, re.IGNORECASE), name) for name in KNOWN_CLIENTS
+    (re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE), name) for name in KNOWN_CLIENTS
 ]
 
 
+def sanitize_client_identifier(raw: str | None) -> str | None:
+    """Sanitize raw header value by stripping quotes, whitespace, and special characters."""
+    if not raw:
+        return None
+    val = raw.strip().strip("'\"").strip()
+    if not val:
+        return None
+    clean = re.sub(r"[^\w\.-]", "", val).strip().lower()
+    return clean if clean else None
+
+
 def resolve_client_id(user_agent: str, custom_header: str | None = None) -> str:
-    """Resolve client identifier from custom headers or User-Agent string."""
-    if custom_header:
-        clean_custom = custom_header.strip().lower()
-        if clean_custom:
-            return clean_custom
+    """Resolve client identifier strictly from custom HTTP headers or User-Agent string."""
+    clean_custom = sanitize_client_identifier(custom_header)
+    if clean_custom:
+        return clean_custom
 
     if not user_agent:
         return "unknown"
@@ -80,6 +98,10 @@ def resolve_client_id(user_agent: str, custom_header: str | None = None) -> str:
     for pattern, client_id in CLIENT_UA_PATTERNS:
         if pattern.search(user_agent):
             return client_id
+
+    clean_ua = sanitize_client_identifier(user_agent)
+    if clean_ua and clean_ua in KNOWN_CLIENTS:
+        return clean_ua
 
     return "unknown"
 
@@ -1683,13 +1705,15 @@ async def route_ui():
 
 
 def extract_request_agent(request: Request) -> str:
+    """Extract and normalize client identifier strictly from request HTTP headers."""
+    custom: str | None = None
+    for header_name in CLIENT_IDENTIFICATION_HEADERS:
+        val = request.headers.get(header_name)
+        if val:
+            custom = val
+            break
+
     ua = request.headers.get("user-agent", "")
-    custom = (
-        request.headers.get("x-client-id")
-        or request.headers.get("x-agent-id")
-        or request.headers.get("x-client")
-        or request.headers.get("x-agent")
-    )
     agent = resolve_client_id(ua, custom)
     if agent == "unknown":
         client_host = request.client.host if request.client else "unknown"
