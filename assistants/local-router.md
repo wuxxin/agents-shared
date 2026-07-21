@@ -181,12 +181,12 @@ If any backend service is down, offline, or returns an error, the router respond
 ```
 This ensures integration clients (like agents or tools) receive clean HTTP errors (`502 Bad Gateway` / `503 Service Unavailable`) instead of failing with connection breaks.
 
-### Client Resolution & Header Detection
+### Client Resolution & Identification
 
-The router automatically detects and normalizes the caller's agent identity from incoming HTTP headers:
-- **Custom Headers (`X-Client-ID` / `X-Agent-ID` / `X-Client` / `X-Agent`)**: Explicit custom client identification headers. Values are sanitized (stripping quotes and special characters) and converted to lowercase.
-- **`User-Agent` Header**: Pattern matched using word-boundary rules against known agents (`hermes`, `hindsight`, `curl`, `nanobot`, `librefang`, `zed`, `nanoclaw`, `picoclaw`, `ironclaw`, `zeroclaw`, etc.).
-- **Fallback**: Unmapped or missing headers are classified as `unknown` and logged to `sys.stderr` for operator diagnostics.
+The router automatically detects and normalizes the caller's agent identity strictly from incoming requests:
+1. **Custom HTTP Headers (`X-Client-ID` / `X-Agent-ID` / `X-Client` / `X-Agent`)**: Explicit custom client identification headers. Header values are sanitized (stripping quotes, whitespace, and special characters) and converted to lowercase.
+2. **Request Body Payload (`client_id` / `agent_id` / `extra_body.client_id`)**: For services (like Hindsight via `HINDSIGHT_API_LLM_EXTRA_BODY`) where provider SDKs embed custom parameters in the JSON request body rather than HTTP headers.
+3. **Fallback**: Unmapped or missing identifiers are classified as `unknown` and logged to `sys.stderr` for operator diagnostics.
 
 ### Usage & Metrics API
 

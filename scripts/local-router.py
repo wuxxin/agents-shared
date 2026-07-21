@@ -15,7 +15,7 @@ import atexit
 import signal
 import sys
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Mapping
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import (
@@ -48,7 +48,7 @@ LROUT_MOCK_BACKENDS = os.environ.get("LROUT_MOCK_BACKENDS", "") in (
     "yes",
 )
 
-# --- Client Identification Headers & Pattern Detection ---
+# --- Client Identification Headers ---
 
 CLIENT_IDENTIFICATION_HEADERS: tuple[str, ...] = (
     "x-client-id",
@@ -57,26 +57,9 @@ CLIENT_IDENTIFICATION_HEADERS: tuple[str, ...] = (
     "x-agent",
 )
 
-KNOWN_CLIENTS: list[str] = [
-    "hermes",
-    "hindsight",
-    "curl",
-    "nanobot",
-    "librefang",
-    "zed",
-    "nanoclaw",
-    "picoclaw",
-    "ironclaw",
-    "zeroclaw",
-]
-
-CLIENT_UA_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE), name) for name in KNOWN_CLIENTS
-]
-
 
 def sanitize_client_identifier(raw: str | None) -> str | None:
-    """Sanitize raw header value by stripping quotes, whitespace, and special characters."""
+    """Sanitize raw client identifier by stripping quotes, whitespace, and special characters."""
     if not raw:
         return None
     val = raw.strip().strip("'\"").strip()
@@ -86,24 +69,10 @@ def sanitize_client_identifier(raw: str | None) -> str | None:
     return clean if clean else None
 
 
-def resolve_client_id(user_agent: str, custom_header: str | None = None) -> str:
-    """Resolve client identifier strictly from custom HTTP headers or User-Agent string."""
-    clean_custom = sanitize_client_identifier(custom_header)
-    if clean_custom:
-        return clean_custom
-
-    if not user_agent:
-        return "unknown"
-
-    for pattern, client_id in CLIENT_UA_PATTERNS:
-        if pattern.search(user_agent):
-            return client_id
-
-    clean_ua = sanitize_client_identifier(user_agent)
-    if clean_ua and clean_ua in KNOWN_CLIENTS:
-        return clean_ua
-
-    return "unknown"
+def resolve_client_id(custom_identifier: str | None = None) -> str:
+    """Resolve client identifier strictly from custom HTTP header or body parameter."""
+    clean_custom = sanitize_client_identifier(custom_identifier)
+    return clean_custom if clean_custom else "unknown"
 
 
 # --- Usage tracking state ---
@@ -1704,8 +1673,10 @@ async def route_ui():
 # --- Routes Mapping ---
 
 
-def extract_request_agent(request: Request) -> str:
-    """Extract and normalize client identifier strictly from request HTTP headers."""
+def extract_request_agent(
+    request: Request, body_data: Mapping[str, Any] | None = None
+) -> str:
+    """Extract and normalize client identifier strictly from request HTTP headers or JSON body payload."""
     custom: str | None = None
     for header_name in CLIENT_IDENTIFICATION_HEADERS:
         val = request.headers.get(header_name)
@@ -1713,14 +1684,34 @@ def extract_request_agent(request: Request) -> str:
             custom = val
             break
 
-    ua = request.headers.get("user-agent", "")
-    agent = resolve_client_id(ua, custom)
+    if not custom and isinstance(body_data, Mapping):
+        c_val = (
+            body_data.get("client_id")
+            or body_data.get("agent_id")
+            or body_data.get("client")
+            or body_data.get("agent")
+        )
+        if isinstance(c_val, str):
+            custom = c_val
+        elif isinstance(body_data.get("extra_body"), Mapping):
+            eb = body_data["extra_body"]
+            eb_val = (
+                eb.get("client_id")
+                or eb.get("agent_id")
+                or eb.get("client")
+                or eb.get("agent")
+            )
+            if isinstance(eb_val, str):
+                custom = eb_val
+
+    agent = resolve_client_id(custom)
     if agent == "unknown":
         client_host = request.client.host if request.client else "unknown"
         path = request.url.path
         method = request.method
+        ua = request.headers.get("user-agent", "")
         print(
-            f"[UNMAPPED CLIENT] Path: {method} {path} | User-Agent: '{ua or '<missing>'}' | Custom Header: '{custom or '<none>'}' | IP: {client_host}",
+            f"[UNMAPPED CLIENT] Path: {method} {path} | User-Agent: '{ua or '<missing>'}' | Custom Identifier: '{custom or '<none>'}' | IP: {client_host}",
             file=sys.stderr,
         )
     return agent
@@ -1730,7 +1721,7 @@ def extract_request_agent(request: Request) -> str:
 async def route_chat(request: Request):
     config = resolve_config()
     body = await request.body()
-    agent = extract_request_agent(request)
+    data: dict[str, Any] | None = None
     model = "qwen3"
     try:
         data = json.loads(body)
@@ -1743,6 +1734,7 @@ async def route_chat(request: Request):
             body = json.dumps(data).encode("utf-8")
     except Exception:
         pass
+    agent = extract_request_agent(request, data)
     return await proxy_request(
         f"{config['chat']}/v1/chat/completions",
         request,
@@ -1756,15 +1748,16 @@ async def route_chat(request: Request):
 @app.post("/v1/embeddings")
 async def route_embedding(request: Request):
     config = resolve_config()
-    agent = extract_request_agent(request)
     model = "qwen3-embedding"
     body = None
+    data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
         model = data.get("model", "qwen3-embedding")
     except Exception:
         pass
+    agent = extract_request_agent(request, data)
     return await proxy_request(
         f"{config['embedding']}/v1/embeddings",
         request,
@@ -1779,15 +1772,16 @@ async def route_embedding(request: Request):
 @app.post("/rerank")
 async def route_rerank(request: Request):
     config = resolve_config()
-    agent = extract_request_agent(request)
     model = "qwen3-reranker"
     body = None
+    data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
         model = data.get("model", "qwen3-reranker")
     except Exception:
         pass
+    agent = extract_request_agent(request, data)
     return await proxy_request(
         f"{config['rerank']}/v1/rerank",
         request,
@@ -1828,15 +1822,16 @@ async def route_stt(request: Request):
 @app.post("/v1/audio/speech")
 async def route_tts(request: Request):
     config = resolve_config()
-    agent = extract_request_agent(request)
     model = "qwen3-tts"
     body = None
+    data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
         model = data.get("model", "qwen3-tts")
     except Exception:
         pass
+    agent = extract_request_agent(request, data)
     return await proxy_request(
         f"{config['tts']}/v1/audio/speech",
         request,
@@ -1850,15 +1845,16 @@ async def route_tts(request: Request):
 @app.post("/v1/images/generations")
 async def route_image(request: Request):
     config = resolve_config()
-    agent = extract_request_agent(request)
     model = "z-image-turbo"
     body = None
+    data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
         model = data.get("model", "z-image-turbo")
     except Exception:
         pass
+    agent = extract_request_agent(request, data)
     return await proxy_request(
         f"{config['image']}/v1/images/generations",
         request,
@@ -1874,16 +1870,17 @@ async def route_image(request: Request):
 async def route_completions(request: Request):
     """Routes completions / completion requests to the chat service."""
     config = resolve_config()
-    agent = extract_request_agent(request)
     path = request.url.path
     model = "qwen3"
     body = None
+    data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
         model = data.get("model", "qwen3")
     except Exception:
         pass
+    agent = extract_request_agent(request, data)
     return await proxy_request(
         f"{config['chat']}{path}",
         request,

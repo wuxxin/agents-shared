@@ -131,8 +131,8 @@ HINDSIGHT_API_WORKER_ENABLED="false"
 HINDSIGHT_API_WORKER_HTTP_PORT="8889"
 HINDSIGHT_API_MCP_ENABLED="true"
 
-# Identification headers for local-router
-HINDSIGHT_API_LLM_DEFAULT_HEADERS='{"X-Client-ID": "hindsight", "X-Agent-ID": "hindsight", "User-Agent": "hindsight"}'
+# Extra body parameters passed to local-router (including client identification)
+HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}, "client_id": "hindsight"}'
 ```
 
 ## Usage Commands

@@ -36,8 +36,7 @@ DEFAULT_HINDSIGHT_API_LLM_PROVIDER=openai
 DEFAULT_HINDSIGHT_API_LLM_API_KEY="unused"
 DEFAULT_HINDSIGHT_API_LLM_BASE_URL="http://localhost:51080/v1"
 DEFAULT_HINDSIGHT_API_LLM_MODEL="qwen3"
-DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}}'
-DEFAULT_HINDSIGHT_API_LLM_DEFAULT_HEADERS='{"X-Client-ID": "hindsight", "X-Agent-ID": "hindsight", "User-Agent": "hindsight"}'
+DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}, "client_id": "hindsight"}'
 
 # hindsight embedding
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
@@ -118,7 +117,6 @@ load_env() {
     export HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_HINDSIGHT_API_LLM_BASE_URL}"
     export HINDSIGHT_API_LLM_MODEL="${DEFAULT_HINDSIGHT_API_LLM_MODEL}"
     export HINDSIGHT_API_LLM_EXTRA_BODY="${DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY}"
-    export HINDSIGHT_API_LLM_DEFAULT_HEADERS="${DEFAULT_HINDSIGHT_API_LLM_DEFAULT_HEADERS}"
 
     export HINDSIGHT_API_EMBEDDINGS_PROVIDER="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER}"
     export HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}"
@@ -437,8 +435,6 @@ HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_HINDSIGHT_API_LLM_BASE_URL}"
 HINDSIGHT_API_LLM_MODEL="${DEFAULT_HINDSIGHT_API_LLM_MODEL}"
 # HINDSIGHT_API_LLM_TIMEOUT(default 120)
 HINDSIGHT_API_LLM_TIMEOUT=180
-# HINDSIGHT_API_LLM_DEFAULT_HEADERS: JSON dict passed as default_headers
-HINDSIGHT_API_LLM_DEFAULT_HEADERS='${DEFAULT_HINDSIGHT_API_LLM_DEFAULT_HEADERS}'
 # HINDSIGHT_API_LLM_EXTRA_BODY: JSON dict of extra request-body params
 # (e.g. temperature, top_p, max_tokens) merged into every LLM call.
 # Each provider merges them in its own native parameter space, so use that provider's field names (e.g. max_tokens for OpenAI/Anthropic vs max_output_tokens for Gemini). Also useful for custom model servers (e.g. vLLM chat_template_kwargs).
