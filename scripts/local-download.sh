@@ -2,6 +2,21 @@
 
 set -euo pipefail
 
+# Wrapper for hf to catch click.exceptions.Exit on python 3.14
+hf() {
+    python3 -c '
+import sys
+import click
+from huggingface_hub.cli.hf import main
+try:
+    sys.exit(main())
+except click.exceptions.Exit as e:
+    sys.exit(e.exit_code)
+except SystemExit as e:
+    sys.exit(e.code)
+' "$@"
+}
+
 # Print help message
 show_help() {
     cat <<EOF
@@ -298,6 +313,15 @@ if [[ "$download_embedding" == true ]]; then
         "embedding/Qwen3-Embedding-0.6B-Q8_0.gguf" \
         "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf" \
         "${target_dir}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
+
+    # Download HF PyTorch/Safetensors weights for TEI (if hf tool is available)
+    echo "Downloading full Hugging Face weights for TEI (Qwen3-Embedding-0.6B)..."
+    mkdir -p "${target_dir}/embedding/Qwen3-Embedding-0.6B"
+    if command -v hf &>/dev/null; then
+        hf download Qwen/Qwen3-Embedding-0.6B --local-dir "${target_dir}/embedding/Qwen3-Embedding-0.6B"
+    else
+        echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
+    fi
 fi
 
 # 3. Reranker
@@ -332,9 +356,18 @@ if [[ "$download_reranker" == true ]]; then
         fi
 
         if [[ "$success" == false ]]; then
-            echo "Error: Failed to acquire a working Qwen3 Reranker." >&2
+            echo "Error: Failed to acquire a working Qwen3 Reranker GGUF." >&2
             exit 1
         fi
+    fi
+
+    # Download HF PyTorch/Safetensors weights for TEI (if hf tool is available)
+    echo "Downloading full Hugging Face weights for TEI (Qwen3-Reranker-0.6B)..."
+    mkdir -p "${target_dir}/reranker/Qwen3-Reranker-0.6B"
+    if command -v hf &>/dev/null; then
+        hf download Qwen/Qwen3-Reranker-0.6B --local-dir "${target_dir}/reranker/Qwen3-Reranker-0.6B"
+    else
+        echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
     fi
 fi
 
