@@ -534,6 +534,12 @@
         <div class="kpi-value" id="kpiOutputTokens">0</div>
       </div>
 
+      <div class="kpi-card" style="--card-accent: #a855f7;">
+        <div class="kpi-title">Processing Time</div>
+        <div class="kpi-value" id="kpiTime">0.0 Minutes</div>
+        <div class="kpi-subtext" id="kpiTimeSub">Post: 0.0 | Stream 0.0</div>
+      </div>
+
       <div class="kpi-card" style="--card-accent: var(--accent-amber);">
         <div class="kpi-title">Estimated Cost (USD)</div>
         <div class="kpi-value" id="kpiCost">$0.0000</div>
@@ -572,6 +578,7 @@
             <th>TOKEN IN</th>
             <th>% CACHED</th>
             <th>TOKEN OUT</th>
+            <th>p.TimeT</th>
             <th>COST</th>
           </tr>
         </thead>
@@ -591,6 +598,7 @@
               <th>TOKEN IN</th>
               <th>% CACHED</th>
               <th>TOKEN OUT</th>
+              <th>p.TimeT</th>
               <th>COST</th>
             </tr>
           </thead>
@@ -607,6 +615,7 @@
               <th>TOKEN IN</th>
               <th>% CACHED</th>
               <th>TOKEN OUT</th>
+              <th>p.TimeT</th>
               <th>COST</th>
             </tr>
           </thead>
@@ -634,8 +643,9 @@
             <th onclick="handleHeaderClick(4)">% Cache <span class="sort-indicator" id="sort-ind-4"></span></th>
             <th onclick="handleHeaderClick(5)">Output <span class="sort-indicator" id="sort-ind-5"></span></th>
             <th onclick="handleHeaderClick(6)">Total <span class="sort-indicator" id="sort-ind-6"></span></th>
-            <th onclick="handleHeaderClick(7)">Est.Cost($) <span class="sort-indicator" id="sort-ind-7"></span></th>
-            <th onclick="handleHeaderClick(8)">Errors (P/S) <span class="sort-indicator" id="sort-ind-8"></span></th>
+            <th onclick="handleHeaderClick(7)">p.TimeT <span class="sort-indicator" id="sort-ind-7"></span></th>
+            <th onclick="handleHeaderClick(8)">Est.Cost($) <span class="sort-indicator" id="sort-ind-8"></span></th>
+            <th onclick="handleHeaderClick(9)">Errors (P/S) <span class="sort-indicator" id="sort-ind-9"></span></th>
           </tr>
         </thead>
         <tbody id="modelsTableBody">
@@ -652,8 +662,12 @@
     let cachedUsageData = null;
 
     // Sorting state (sticky across refreshes)
-    let currentSortCol = parseInt(localStorage.getItem('router_ui_sort_col') || '0', 10);
-    let currentSortDir = localStorage.getItem('router_ui_sort_dir') || 'asc';
+    let currentSortCol = localStorage.getItem('router_ui_sort_col') !== null
+      ? parseInt(localStorage.getItem('router_ui_sort_col'), 10)
+      : 8;
+    let currentSortDir = localStorage.getItem('router_ui_sort_dir') !== null
+      ? localStorage.getItem('router_ui_sort_dir')
+      : 'desc';
 
     // Theme state
     let currentTheme = localStorage.getItem('router_ui_theme') || 'system';
@@ -774,6 +788,12 @@
 
       document.getElementById('kpiOutputTokens').innerText = fmtNum(output);
 
+      const totalTime = (totals.total_duration || 0) / 60.0;
+      const postTime = (totals.duration_post || 0) / 60.0;
+      const streamTime = (totals.duration_streaming || 0) / 60.0;
+      document.getElementById('kpiTime').innerText = `${totalTime.toFixed(1)} Minutes`;
+      document.getElementById('kpiTimeSub').innerText = `Post: ${postTime.toFixed(1)} | Stream ${streamTime.toFixed(1)}`;
+
       const costs = totals.costs || {};
       const totalCost = costs.total_cost || 0;
       const cInpCost = costs.cached_input_cost || 0;
@@ -801,6 +821,7 @@
         input: Math.round(totalIn / actualDays),
         cachePct: (totals.cache_pct || 0).toFixed(1),
         output: Math.round((totals.output || 0) / actualDays),
+        time: ((totals.total_duration || 0) / 60.0 / actualDays).toFixed(1),
         cost: ((totals.costs?.total_cost || 0) / actualDays).toFixed(4)
       };
     }
@@ -827,6 +848,7 @@
           <td>${fmtNum(pd.input)}</td>
           <td style="color: var(--accent-green);">${pd.cachePct}%</td>
           <td>${fmtNum(pd.output)}</td>
+          <td>${pd.time}</td>
           <td style="color: var(--accent-cyan);">$${pd.cost}</td>
         `;
         tbody.appendChild(tr);
@@ -975,7 +997,7 @@
       const sortedKeys = Object.keys(agentsData).sort((a,b) => agentsData[b].calls - agentsData[a].calls);
 
       if (sortedKeys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="color: var(--text-dim);">No agent activity recorded in this range.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--text-dim);">No agent activity recorded in this range.</td></tr>';
         return;
       }
 
@@ -985,6 +1007,7 @@
         const cachePct = (item.cache_pct || 0).toFixed(1);
         const postCalls = item.calls_post || 0;
         const strCalls = item.streaming_calls || 0;
+        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
         const totalCost = (item.costs?.total_cost || 0).toFixed(4);
 
         const tr = document.createElement('tr');
@@ -994,6 +1017,7 @@
           <td>${fmtNum(totIn)}</td>
           <td style="color: var(--accent-green);">${cachePct}%</td>
           <td>${fmtNum(item.output || 0)}</td>
+          <td>${timeMins}</td>
           <td style="color: var(--accent-cyan);">$${totalCost}</td>
         `;
         tbody.appendChild(tr);
@@ -1006,7 +1030,7 @@
       const sortedKeys = Object.keys(servicesData).sort((a,b) => servicesData[b].calls - servicesData[a].calls);
 
       if (sortedKeys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="color: var(--text-dim);">No service activity recorded in this range.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--text-dim);">No service activity recorded in this range.</td></tr>';
         return;
       }
 
@@ -1016,6 +1040,7 @@
         const cachePct = (item.cache_pct || 0).toFixed(1);
         const postCalls = item.calls_post || 0;
         const strCalls = item.streaming_calls || 0;
+        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
         const totalCost = (item.costs?.total_cost || 0).toFixed(4);
 
         const tr = document.createElement('tr');
@@ -1025,6 +1050,7 @@
           <td>${fmtNum(totIn)}</td>
           <td style="color: var(--accent-green);">${cachePct}%</td>
           <td>${fmtNum(item.output || 0)}</td>
+          <td>${timeMins}</td>
           <td style="color: var(--accent-cyan);">$${totalCost}</td>
         `;
         tbody.appendChild(tr);
@@ -1042,6 +1068,8 @@
         Object.values(item.errors_streaming || {}).forEach(v => strErr += v);
         Object.values(item.errors_post || {}).forEach(v => postErr += v);
 
+        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--text-main);">${key}</td>
@@ -1051,6 +1079,7 @@
           <td style="color: var(--accent-green);">${(item.cache_pct || 0).toFixed(2)}%</td>
           <td>${fmtNum(item.output || 0)}</td>
           <td>${fmtNum(item.total_tokens || 0)}</td>
+          <td>${timeMins}</td>
           <td style="color: var(--accent-cyan);">$${(item.costs?.total_cost || 0).toFixed(4)}</td>
           <td><span class="${(strErr + postErr) > 0 ? 'badge-error' : 'badge-success'}">${postErr} / ${strErr}</span></td>
         `;

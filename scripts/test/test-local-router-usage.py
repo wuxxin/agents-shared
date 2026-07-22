@@ -68,7 +68,10 @@ def run_tests():
             "messages": [{"role": "user", "content": "Tell me a joke."}],
             "stream": False,
         }
-        headers_hermes = {"User-Agent": "codex_cli_rs/0.0.0 (Hermes Agent)"}
+        headers_hermes = {
+            "User-Agent": "codex_cli_rs/0.0.0 (Hermes Agent)",
+            "x-client-id": "hermes",
+        }
         resp = client.post("/v1/chat/completions", json=payload, headers=headers_hermes)
         assert resp.status_code == 200
         print("Chat Hermes normal: OK")
@@ -85,7 +88,10 @@ def run_tests():
 
         # 4. Simulate Embedding from Hindsight
         print("Testing Embeddings (Hindsight)...")
-        headers_hindsight = {"User-Agent": "codex_cli_rs/0.0.0 (Hindsight)"}
+        headers_hindsight = {
+            "User-Agent": "codex_cli_rs/0.0.0 (Hindsight)",
+            "x-client-id": "hindsight",
+        }
         resp = client.post(
             "/v1/embeddings",
             json={"model": "qwen3-embedding", "input": "Hello world!"},
@@ -110,7 +116,7 @@ def run_tests():
 
         # 6. Simulate TTS from curl
         print("Testing Text-to-Speech (curl)...")
-        headers_curl = {"User-Agent": "curl/8.7.1"}
+        headers_curl = {"User-Agent": "curl/8.7.1", "x-client-id": "curl"}
         resp = client.post(
             "/v1/audio/speech",
             json={
@@ -260,6 +266,7 @@ def run_tests():
         assert "local_router_tokens_total" in metrics_text
         assert "local_router_cost_total" in metrics_text
         assert "local_router_errors_total" in metrics_text
+        assert "local_router_time_seconds_total" in metrics_text
         # Check label structure
         assert 'agent="hermes"' in metrics_text
         assert 'agent="hindsight"' in metrics_text
@@ -288,6 +295,10 @@ def run_tests():
         assert day_usage["hermes"]["chat"]["qwen3"]["calls"] == 2
         assert day_usage["hermes"]["chat"]["qwen3"]["streaming_calls"] == 1
         assert day_usage["hermes"]["chat"]["qwen3"]["calls_post"] == 1
+        assert "duration_post" in day_usage["hermes"]["chat"]["qwen3"]
+        assert "duration_streaming" in day_usage["hermes"]["chat"]["qwen3"]
+        assert day_usage["hermes"]["chat"]["qwen3"]["duration_post"] >= 0.0
+        assert day_usage["hermes"]["chat"]["qwen3"]["duration_streaming"] >= 0.0
     print("Serialization verify: OK")
 
 
