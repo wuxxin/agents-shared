@@ -251,6 +251,64 @@ POST /v1/default/banks/{bank_id}/import
   ]
 }
 
+## Manually Triggering Consolidation and Mental Model Refreshes
+
+You can manually trigger memory consolidation or force refreshes of specific mental models using direct HTTP API calls.
+
+### 1. Trigger Memory Consolidation
+
+Consolidation processes recent unconsolidated memories (facts) under a scope into observations. It also automatically triggers refreshes for any mental models configured with `"refresh_after_consolidation": true`.
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{}' http://127.0.0.1:8888/v1/default/banks/{bank_id}/consolidate
+```
+
+Response:
+```json
+{
+  "operation_id": "941afba3-4f69-4890-9249-e6f595ea6eaa",
+  "deduplicated": false
+}
+```
+
+### 2. List Bank Mental Models
+
+To get a list of registered mental models and their IDs for a specific bank:
+
+```bash
+curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/mental-models
+```
+
+### 3. Trigger Individual Mental Model Refresh
+
+To force a full re-synthesis and update for a specific mental model:
+
+```bash
+curl -X POST http://127.0.0.1:8888/v1/default/banks/{bank_id}/mental-models/{mental_model_id}/refresh
+```
+
+Response:
+```json
+{
+  "operation_id": "b79a6f29-3cb8-4730-af39-5afdb1de5bb2",
+  "status": "queued"
+}
+```
+
+### 4. Check Operation Status
+
+Track the status of background task operations (e.g. `pending`, `processing`, `completed`):
+
+```bash
+curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/operations/{operation_id}
+```
+
+Or list all operations for a bank:
+
+```bash
+curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/operations
+```
+
 ## Verification & Troubleshooting
 
 You can verify that the service is running and properly initialized:
