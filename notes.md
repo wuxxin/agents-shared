@@ -1,8 +1,4 @@
-system prompt tuning: If you have high confidence to answer without thinking, do so.
-create local-memory provider assistant mental models
-
-...
-
-add opencode llm proxy service sidecar
-add additional gemma26/4 llm to choose.
-add fim warmup on benchmark, fix fim benchmark
++ local-stt and local-tts: we installed python-faster-whisper sherpa-onnx , test and integrate if working good enough as stt and tts
++ local-chat: add additional gemma26/4 llm to choose.
++ local-chat: add fim warmup on benchmark, fix fim benchmark
++ opencode: add opencode llm proxy service sidecar
