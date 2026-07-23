@@ -205,6 +205,9 @@ LROUT_EXTRA_ARGS=""
 # Default model to route requests to if no model parameter is specified in the request (e.g. in /tokenize)
 LROUT_DEFAULT_MODEL="qwen3"
 
+# Logging & Diagnostics verbosity level: 'info' (default), 'verbose', or 'debug'
+LROUT_LOG_LEVEL="verbose"
+
 EOF
 }
 

@@ -84,6 +84,7 @@ STATIC_ERRORS_TEMPLATE = {
     "404": 0,
     "408": 0,
     "429": 0,
+    "499": 0,  # Client canceled / abandoned
     "500": 0,
     "502": 0,
     "503": 0,
@@ -95,6 +96,10 @@ usage_data_memory: dict[str, dict[str, dict[str, dict[str, dict[str, Any]]]]] = 
 last_written_total_tokens: int = 0
 usage_lock = threading.Lock()
 save_task: asyncio.Task = None  # type: ignore[assignment]
+
+global_active_calls_post: int = 0
+global_active_calls_stream: int = 0
+active_calls_lock = threading.Lock()
 
 # --- Prometheus setup ---
 metrics_registry = CollectorRegistry()
@@ -133,6 +138,40 @@ time_gauge = Gauge(
     ["agent", "service", "model", "type"],
     registry=metrics_registry,
 )
+
+calls_active_gauge = Gauge(
+    "local_router_calls_active",
+    "Count of current active requests waiting to return",
+    ["agent", "service", "model"],
+    registry=metrics_registry,
+)
+
+client_cancel_gauge = Gauge(
+    "local_router_client_cancel_total",
+    "Cumulative count of requests canceled or abandoned from client side",
+    ["agent", "service", "model"],
+    registry=metrics_registry,
+)
+
+
+def print_debug_raw(label: str, raw_bytes: bytes | None):
+    if not raw_bytes:
+        print(f"[ROUTER DEBUG] {label}: <empty>", file=sys.stderr)
+        return
+    try:
+        decoded = raw_bytes.decode("utf-8", errors="replace")
+        try:
+            parsed = json.loads(decoded)
+            formatted = json.dumps(parsed, indent=2)
+            print(f"[ROUTER DEBUG] {label} (JSON):\n{formatted}", file=sys.stderr)
+        except Exception:
+            print(f"[ROUTER DEBUG] {label} (TEXT):\n{decoded[:4096]}", file=sys.stderr)
+    except Exception as exc:
+        print(
+            f"[ROUTER DEBUG] {label} (BYTES len={len(raw_bytes)}): {exc}",
+            file=sys.stderr,
+        )
+
 
 PRICING_REGISTRY: dict[str, dict[str, str]] = {
     "chat": {
@@ -242,28 +281,80 @@ async def check_service(name: str, url: str) -> list[dict] | None:
     """
     match = re.search(r"//([^/:]+)(?::(\d+))?", url)
     if not match:
+        if is_verbose():
+            print(
+                f"[ROUTER CHECK] Invalid URL '{url}' for service '{name}'",
+                file=sys.stderr,
+            )
         return None
     host = match.group(1)
     port = int(match.group(2)) if match.group(2) else 80
 
+    if is_verbose():
+        print(f"[ROUTER CHECK] Probing service '{name}' at {url}...", file=sys.stderr)
+
     if name in ("chat", "embedding", "rerank"):
         try:
-            # We query the HTTP endpoint with a short timeout
-            resp = await client.get(f"{url}/v1/models", timeout=1.0)
+            models_url = f"{url}/v1/models"
+            if is_verbose():
+                print(f"[ROUTER CHECK] Attempting GET {models_url}...", file=sys.stderr)
+            resp = await client.get(models_url, timeout=1.0)
+            if is_verbose():
+                print(
+                    f"[ROUTER CHECK] GET {models_url} -> status {resp.status_code}",
+                    file=sys.stderr,
+                )
             if resp.status_code == 200:
                 data = resp.json().get("data", [])
                 return data
-        except Exception:
+            elif resp.status_code == 404:
+                # Some servers (e.g. TEI text-embeddings-router) do not expose /v1/models.
+                # Fallback to probing /health endpoint.
+                health_url = f"{url}/health"
+                if is_verbose():
+                    print(
+                        f"[ROUTER CHECK] GET {models_url} returned 404. Probing fallback GET {health_url}...",
+                        file=sys.stderr,
+                    )
+                hresp = await client.get(health_url, timeout=1.0)
+                if is_verbose():
+                    print(
+                        f"[ROUTER CHECK] GET {health_url} -> status {hresp.status_code}",
+                        file=sys.stderr,
+                    )
+                if hresp.status_code == 200:
+                    return []
+        except Exception as exc:
+            if is_verbose():
+                print(
+                    f"[ROUTER CHECK] Probe error for '{name}' at {url}: {exc}",
+                    file=sys.stderr,
+                )
             pass
         return None
     else:
         # For STT, TTS, Image: check if port is open
         try:
+            if is_verbose():
+                print(
+                    f"[ROUTER CHECK] Opening TCP connection to {host}:{port} for '{name}'...",
+                    file=sys.stderr,
+                )
             reader, writer = await asyncio.open_connection(host, port)
             writer.close()
             await writer.wait_closed()
+            if is_verbose():
+                print(
+                    f"[ROUTER CHECK] TCP connection to {host}:{port} for '{name}' succeeded.",
+                    file=sys.stderr,
+                )
             return []
-        except Exception:
+        except Exception as exc:
+            if is_verbose():
+                print(
+                    f"[ROUTER CHECK] TCP connection to {host}:{port} for '{name}' failed: {exc}",
+                    file=sys.stderr,
+                )
             return None
 
 
@@ -919,6 +1010,13 @@ def get_cumulative_metrics(
         (totals_acc["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
     )
 
+    with active_calls_lock:
+        totals_acc["calls_active_post"] = global_active_calls_post
+        totals_acc["calls_active_stream"] = global_active_calls_stream
+        totals_acc["calls_active"] = (
+            global_active_calls_post + global_active_calls_stream
+        )
+
     return {
         "models": models_acc,
         "agents": agents_acc,
@@ -933,6 +1031,12 @@ def update_prometheus_metrics():
     for key, val in metrics["models"].items():
         agent, model, service = key.split(":", 2)
         calls_gauge.labels(agent=agent, service=service, model=model).set(val["calls"])
+        client_cancel_count = val["errors_streaming"].get("499", 0) + val[
+            "errors_post"
+        ].get("499", 0)
+        client_cancel_gauge.labels(agent=agent, service=service, model=model).set(
+            client_cancel_count
+        )
 
         tokens_gauge.labels(
             agent=agent, service=service, model=model, type="input"
@@ -1163,6 +1267,45 @@ def parse_env_file(filepath: str) -> dict:
         print(f"Warning: Failed to parse env file {filepath}: {exc}")
 
     return env_vars
+
+
+def get_log_config() -> tuple[bool, bool]:
+    """Resolve fused verbose and debug settings from CLI args, environment variables, and local-router.env."""
+    user_dir = get_systemd_user_dir()
+    router_env = parse_env_file(os.path.join(user_dir, "local-router.env"))
+
+    log_level = (
+        os.environ.get("LROUT_LOG_LEVEL") or router_env.get("LROUT_LOG_LEVEL") or ""
+    ).lower()
+
+    env_verbose = (
+        os.environ.get("LROUT_VERBOSE") or router_env.get("LROUT_VERBOSE") or ""
+    ).lower() in ("1", "true", "yes")
+
+    env_debug = (
+        os.environ.get("LROUT_DEBUG") or router_env.get("LROUT_DEBUG") or ""
+    ).lower() in ("1", "true", "yes")
+
+    cli_verbose = "--verbose" in sys.argv
+    cli_debug = "--debug" in sys.argv
+
+    verbose = cli_verbose or env_verbose or log_level in ("verbose", "debug")
+    debug = cli_debug or env_debug or log_level == "debug"
+
+    if debug:
+        verbose = True
+
+    return verbose, debug
+
+
+def is_verbose() -> bool:
+    v, _ = get_log_config()
+    return v
+
+
+def is_debug() -> bool:
+    _, d = get_log_config()
+    return d
 
 
 def resolve_config() -> dict:
@@ -1451,6 +1594,21 @@ async def process_response_usage(
         duration=duration,
     )
 
+    if is_verbose():
+        status_info = (
+            f"status={status_code}"
+            if status_code != 499
+            else "status=499 (CLIENT CANCELED)"
+        )
+        print(
+            f"[ROUTER VERBOSE] client='{agent or 'unknown'}' service='{service or 'unknown'}' model='{model or 'unknown'}' input={uncached_input + cached_input} output={completion_tokens} {status_info} duration={duration:.3f}s",
+            file=sys.stderr,
+        )
+    if is_debug() and response_body:
+        print_debug_raw(
+            f"RESPONSE [{agent}:{service}:{model}] status={status_code}", response_body
+        )
+
 
 async def proxy_request(
     target_url: str,
@@ -1464,6 +1622,12 @@ async def proxy_request(
     body = content if content is not None else await request.body()
     start_time = time.perf_counter()
 
+    agent_id = agent or "unknown"
+    service_id = service or "unknown"
+    model_id = model or "unknown"
+
+    calls_active_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
+
     is_streaming = False
     if body:
         try:
@@ -1471,227 +1635,276 @@ async def proxy_request(
         except Exception:
             pass
 
-    if LROUT_MOCK_BACKENDS:
-        mock_resp = await handle_mock_backend(service or "", model or "", request, body)
-        is_sse = (
-            isinstance(mock_resp, StreamingResponse)
-            and mock_resp.media_type == "text/event-stream"
+    with active_calls_lock:
+        if is_streaming:
+            global_active_calls_stream += 1
+        else:
+            global_active_calls_post += 1
+
+    if is_debug() and body:
+        print_debug_raw(
+            f"REQUEST [{agent_id}:{service_id}:{model_id}] {request.method} {request.url.path}",
+            body,
         )
-
-        if isinstance(mock_resp, JSONResponse):
-            resp_body = (
-                mock_resp.body
-                if isinstance(mock_resp.body, bytes)
-                else bytes(mock_resp.body)
-            )
-            elapsed = time.perf_counter() - start_time
-            await process_response_usage(
-                agent or "unknown",
-                service or "",
-                model or "",
-                is_sse,
-                resp_body,
-                body,
-                is_streaming,
-                status_code=mock_resp.status_code,
-                duration=elapsed,
-            )
-        elif isinstance(mock_resp, Response) and not isinstance(
-            mock_resp, StreamingResponse
-        ):
-            resp_body = (
-                mock_resp.body
-                if isinstance(mock_resp.body, bytes)
-                else bytes(mock_resp.body)
-            )
-            elapsed = time.perf_counter() - start_time
-            await process_response_usage(
-                agent or "unknown",
-                service or "",
-                model or "",
-                is_sse,
-                resp_body,
-                body,
-                is_streaming,
-                status_code=mock_resp.status_code,
-                duration=elapsed,
-            )
-        elif isinstance(mock_resp, StreamingResponse):
-            original_chunks = []
-
-            async def mock_generator():
-                async for chunk in mock_resp.body_iterator:
-                    yield chunk
-                    original_chunks.append(chunk)
-                try:
-                    full_body = b"".join(original_chunks)
-                    elapsed = time.perf_counter() - start_time
-                    await process_response_usage(
-                        agent or "unknown",
-                        service or "",
-                        model or "",
-                        is_sse,
-                        full_body,
-                        body,
-                        is_streaming,
-                        status_code=mock_resp.status_code,
-                        duration=elapsed,
-                    )
-                except Exception as e:
-                    print(f"Error processing mock usage: {e}", file=sys.stderr)
-
-            return StreamingResponse(
-                mock_generator(),
-                status_code=mock_resp.status_code,
-                headers=dict(mock_resp.headers),
-                media_type=mock_resp.media_type,
-            )
-        return mock_resp
-
-    headers = {
-        k: v
-        for k, v in request.headers.items()
-        if k.lower() not in ("host", "content-length")
-    }
 
     try:
-        # Build and send the streaming request
-        req = client.build_request(
-            method=request.method,
-            url=target_url,
-            headers=headers,
-            content=body,
-            params=request.query_params,
-        )
+        if LROUT_MOCK_BACKENDS:
+            mock_resp = await handle_mock_backend(
+                service or "", model or "", request, body
+            )
+            is_sse = (
+                isinstance(mock_resp, StreamingResponse)
+                and mock_resp.media_type == "text/event-stream"
+            )
 
-        response = await client.send(req, stream=True)
+            if isinstance(mock_resp, JSONResponse):
+                resp_body = (
+                    mock_resp.body
+                    if isinstance(mock_resp.body, bytes)
+                    else bytes(mock_resp.body)
+                )
+                elapsed = time.perf_counter() - start_time
+                await process_response_usage(
+                    agent or "unknown",
+                    service or "",
+                    model or "",
+                    is_sse,
+                    resp_body,
+                    body,
+                    is_streaming,
+                    status_code=mock_resp.status_code,
+                    duration=elapsed,
+                )
+            elif isinstance(mock_resp, Response) and not isinstance(
+                mock_resp, StreamingResponse
+            ):
+                resp_body = (
+                    mock_resp.body
+                    if isinstance(mock_resp.body, bytes)
+                    else bytes(mock_resp.body)
+                )
+                elapsed = time.perf_counter() - start_time
+                await process_response_usage(
+                    agent or "unknown",
+                    service or "",
+                    model or "",
+                    is_sse,
+                    resp_body,
+                    body,
+                    is_streaming,
+                    status_code=mock_resp.status_code,
+                    duration=elapsed,
+                )
+            elif isinstance(mock_resp, StreamingResponse):
+                original_chunks = []
 
-        is_sse = response.headers.get("content-type", "").startswith(
-            "text/event-stream"
-        )
+                async def mock_generator():
+                    async for chunk in mock_resp.body_iterator:
+                        yield chunk
+                        original_chunks.append(chunk)
+                    try:
+                        full_body = b"".join(original_chunks)
+                        elapsed = time.perf_counter() - start_time
+                        await process_response_usage(
+                            agent or "unknown",
+                            service or "",
+                            model or "",
+                            is_sse,
+                            full_body,
+                            body,
+                            is_streaming,
+                            status_code=mock_resp.status_code,
+                            duration=elapsed,
+                        )
+                    except Exception as e:
+                        print(f"Error processing mock usage: {e}", file=sys.stderr)
 
-        async def response_generator():
-            body_accumulator = []
-            try:
-                async for chunk in response.aiter_bytes():
-                    yield chunk
-                    body_accumulator.append(chunk)
-            finally:
-                await response.aclose()
-                try:
-                    full_body = b"".join(body_accumulator)
-                    elapsed = time.perf_counter() - start_time
-                    await process_response_usage(
-                        agent or "unknown",
-                        service or "",
-                        model or "",
-                        is_sse,
-                        full_body,
-                        body,
-                        is_streaming,
-                        status_code=response.status_code,
-                        duration=elapsed,
-                    )
-                except Exception as e:
-                    print(f"Error processing usage: {e}", file=sys.stderr)
+                return StreamingResponse(
+                    mock_generator(),
+                    status_code=mock_resp.status_code,
+                    headers=dict(mock_resp.headers),
+                    media_type=mock_resp.media_type,
+                )
+            return mock_resp
 
-        # Strip content-length and transfer-encoding headers to let FastAPI handle chunking correctly
-        resp_headers = {
+        headers = {
             k: v
-            for k, v in response.headers.items()
-            if k.lower() not in ("transfer-encoding", "content-length")
+            for k, v in request.headers.items()
+            if k.lower() not in ("host", "content-length")
         }
 
-        return StreamingResponse(
-            response_generator(),
-            status_code=response.status_code,
-            headers=resp_headers,
-            media_type=response.headers.get("content-type"),
-        )
-
-    except httpx.HTTPStatusError as exc:
-        print(f"HTTPStatusError proxying to {target_url}: {exc}", file=sys.stderr)
-        elapsed = time.perf_counter() - start_time
         try:
-            await process_response_usage(
-                agent=agent or "unknown",
-                service=service or "",
-                model=model or "",
-                is_sse=False,
-                response_body=b"",
-                request_body=body,
-                is_streaming=is_streaming,
+            # Build and send the streaming request
+            req = client.build_request(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                content=body,
+                params=request.query_params,
+            )
+
+            response = await client.send(req, stream=True)
+
+            is_sse = response.headers.get("content-type", "").startswith(
+                "text/event-stream"
+            )
+
+            async def response_generator():
+                body_accumulator = []
+                try:
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
+                        body_accumulator.append(chunk)
+                finally:
+                    await response.aclose()
+                    try:
+                        full_body = b"".join(body_accumulator)
+                        elapsed = time.perf_counter() - start_time
+                        await process_response_usage(
+                            agent or "unknown",
+                            service or "",
+                            model or "",
+                            is_sse,
+                            full_body,
+                            body,
+                            is_streaming,
+                            status_code=response.status_code,
+                            duration=elapsed,
+                        )
+                    except Exception as e:
+                        print(f"Error processing usage: {e}", file=sys.stderr)
+
+            # Strip content-length and transfer-encoding headers to let FastAPI handle chunking correctly
+            resp_headers = {
+                k: v
+                for k, v in response.headers.items()
+                if k.lower() not in ("transfer-encoding", "content-length")
+            }
+
+            return StreamingResponse(
+                response_generator(),
+                status_code=response.status_code,
+                headers=resp_headers,
+                media_type=response.headers.get("content-type"),
+            )
+
+        except httpx.HTTPStatusError as exc:
+            print(f"HTTPStatusError proxying to {target_url}: {exc}", file=sys.stderr)
+            elapsed = time.perf_counter() - start_time
+            try:
+                await process_response_usage(
+                    agent=agent or "unknown",
+                    service=service or "",
+                    model=model or "",
+                    is_sse=False,
+                    response_body=b"",
+                    request_body=body,
+                    is_streaming=is_streaming,
+                    status_code=exc.response.status_code,
+                    duration=elapsed,
+                )
+            except Exception:
+                pass
+            return JSONResponse(
                 status_code=exc.response.status_code,
-                duration=elapsed,
+                content={
+                    "error": {
+                        "message": f"Backend error: {str(exc)}",
+                        "type": "backend_error",
+                    }
+                },
             )
-        except Exception:
-            pass
-        return JSONResponse(
-            status_code=exc.response.status_code,
-            content={
-                "error": {
-                    "message": f"Backend error: {str(exc)}",
-                    "type": "backend_error",
-                }
-            },
-        )
-    except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-        print(f"ConnectionError proxying to {target_url}: {exc}", file=sys.stderr)
-        elapsed = time.perf_counter() - start_time
-        # Gracefully handle backend downtime
-        try:
-            await process_response_usage(
-                agent=agent or "unknown",
-                service=service or "",
-                model=model or "",
-                is_sse=False,
-                response_body=b"",
-                request_body=body,
-                is_streaming=is_streaming,
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            print(f"ConnectionError proxying to {target_url}: {exc}", file=sys.stderr)
+            elapsed = time.perf_counter() - start_time
+            # Gracefully handle backend downtime
+            try:
+                await process_response_usage(
+                    agent=agent or "unknown",
+                    service=service or "",
+                    model=model or "",
+                    is_sse=False,
+                    response_body=b"",
+                    request_body=body,
+                    is_streaming=is_streaming,
+                    status_code=502,
+                    duration=elapsed,
+                )
+            except Exception:
+                pass
+            return JSONResponse(
                 status_code=502,
-                duration=elapsed,
+                content={
+                    "error": {
+                        "message": f"Local service backend ({target_url}) is currently offline or unreachable. {str(exc)}",
+                        "type": "gateway_error",
+                        "code": 502,
+                    }
+                },
             )
-        except Exception:
-            pass
-        return JSONResponse(
-            status_code=502,
-            content={
-                "error": {
-                    "message": f"Local service backend ({target_url}) is currently offline or unreachable. {str(exc)}",
-                    "type": "gateway_error",
-                    "code": 502,
-                }
-            },
-        )
-    except Exception as exc:
-        print(f"Exception proxying to {target_url}: {exc}", file=sys.stderr)
-        import traceback
+        except Exception as exc:
+            print(f"Exception proxying to {target_url}: {exc}", file=sys.stderr)
+            import traceback
 
-        traceback.print_exc(file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            elapsed = time.perf_counter() - start_time
+            try:
+                await process_response_usage(
+                    agent=agent or "unknown",
+                    service=service or "",
+                    model=model or "",
+                    is_sse=False,
+                    response_body=b"",
+                    request_body=body,
+                    is_streaming=is_streaming,
+                    status_code=500,
+                    duration=elapsed,
+                )
+            except Exception:
+                pass
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": {
+                        "message": f"Internal proxy routing error: {str(exc)}",
+                        "type": "proxy_error",
+                    }
+                },
+            )
+    except asyncio.CancelledError:
         elapsed = time.perf_counter() - start_time
+        client_cancel_gauge.labels(
+            agent=agent_id, service=service_id, model=model_id
+        ).inc()
+        if is_verbose():
+            print(
+                f"[ROUTER VERBOSE] client='{agent_id}' path='{request.url.path}' service='{service_id}' model='{model_id}' status=499 (CLIENT CANCELED) duration={elapsed:.3f}s",
+                file=sys.stderr,
+            )
         try:
             await process_response_usage(
-                agent=agent or "unknown",
-                service=service or "",
-                model=model or "",
+                agent=agent_id,
+                service=service_id,
+                model=model_id,
                 is_sse=False,
                 response_body=b"",
                 request_body=body,
                 is_streaming=is_streaming,
-                status_code=500,
+                status_code=499,
                 duration=elapsed,
             )
         except Exception:
             pass
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": {
-                    "message": f"Internal proxy routing error: {str(exc)}",
-                    "type": "proxy_error",
-                }
-            },
-        )
+        raise
+    finally:
+        calls_active_gauge.labels(
+            agent=agent_id, service=service_id, model=model_id
+        ).dec()
+        with active_calls_lock:
+            if is_streaming:
+                global_active_calls_stream = max(0, global_active_calls_stream - 1)
+            else:
+                global_active_calls_post = max(0, global_active_calls_post - 1)
 
 
 # --- Usage & Metrics Routes ---

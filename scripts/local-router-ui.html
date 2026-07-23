@@ -547,9 +547,9 @@
       </div>
 
       <div class="kpi-card" style="--card-accent: var(--accent-rose);">
-        <div class="kpi-title">HTTP Errors</div>
+        <div class="kpi-title">Errors</div>
         <div class="kpi-value" id="kpiErrors">0</div>
-        <div class="kpi-subtext" id="kpiErrorsSub">Post: 0 | Stream: 0</div>
+        <div class="kpi-subtext" id="kpiErrorsSub">Post: 0 | Stream: 0 | Client Cancel p: 0 / s: 0</div>
       </div>
     </div>
 
@@ -765,8 +765,10 @@
       const calls = totals.calls || 0;
       const strCalls = totals.streaming_calls || 0;
       const postCalls = totals.calls_post || 0;
+      const activePost = totals.calls_active_post || 0;
+      const activeStream = totals.calls_active_stream || 0;
       document.getElementById('kpiCalls').innerText = fmtNum(calls);
-      document.getElementById('kpiCallsSub').innerText = `Post: ${fmtNum(postCalls)} | Stream: ${fmtNum(strCalls)}`;
+      document.getElementById('kpiCallsSub').innerText = `Post: ${fmtNum(postCalls)} | Stream: ${fmtNum(strCalls)} | Active p: ${activePost} / s: ${activeStream}`;
 
       const totalTokens = totals.total_tokens || 0;
       const input = totals.input || 0;
@@ -804,11 +806,20 @@
       document.getElementById('kpiCostSub').innerText = `Input: $${inpCost.toFixed(4)} | Cache: $${cInpCost.toFixed(4)} | Output: $${outCost.toFixed(4)}`;
 
       let totalErr = 0, strErr = 0, postErr = 0;
-      Object.values(totals.errors_streaming || {}).forEach(v => { strErr += v; totalErr += v; });
-      Object.values(totals.errors_post || {}).forEach(v => { postErr += v; totalErr += v; });
+      let cancelPost = 0, cancelStream = 0;
+      Object.entries(totals.errors_streaming || {}).forEach(([k, v]) => {
+        strErr += v;
+        totalErr += v;
+        if (k === "499") cancelStream += v;
+      });
+      Object.entries(totals.errors_post || {}).forEach(([k, v]) => {
+        postErr += v;
+        totalErr += v;
+        if (k === "499") cancelPost += v;
+      });
 
       document.getElementById('kpiErrors').innerText = fmtNum(totalErr);
-      document.getElementById('kpiErrorsSub').innerText = `Post: ${postErr} | Stream: ${strErr}`;
+      document.getElementById('kpiErrorsSub').innerText = `Post: ${postErr} | Stream: ${strErr} | Client Cancel p: ${cancelPost} / s: ${cancelStream}`;
     }
 
     function calcPD(data, daysCount) {
@@ -936,6 +947,7 @@
             datasets: datasets
           },
           options: {
+            animation: false,
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -974,6 +986,7 @@
             datasets: datasets
           },
           options: {
+            animation: false,
             responsive: true,
             maintainAspectRatio: false,
             plugins: {

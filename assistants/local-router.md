@@ -48,6 +48,7 @@ LROUT_PORT=51080
 LROUT_HOST=127.0.0.1
 LROUT_EXTRA_ARGS=""
 LROUT_DEFAULT_MODEL="qwen3"
+LROUT_LOG_LEVEL="info"
 ```
 
 ### Route Map (Port 51080)
@@ -238,9 +239,22 @@ Returns cumulative counts grouped by `agent:model:service`, agent totals, servic
 #### 2. Prometheus Endpoint (`GET /metrics` or `/v1/metrics`)
 Exposes cumulative metrics formatted for Prometheus scrapers:
 - `local_router_calls_total{agent="...", service="...", model="..."}`: Total calls routed.
+- `local_router_calls_active{agent="...", service="...", model="..."}`: Count of active in-flight requests currently waiting to return.
+- `local_router_client_cancel_total{agent="...", service="...", model="..."}`: Cumulative count of requests canceled or abandoned by clients (status 499).
 - `local_router_tokens_total{agent="...", service="...", model="...", type="..."}`: Total tokens processed (`type` can be `input`, `cached_input`, `cached_write`, `output`, `total`).
 - `local_router_cost_total{agent="...", service="...", model="...", type="..."}`: Cumulative estimated USD cost (`type` matches the token types).
 - `local_router_errors_total{agent="...", service="...", model="...", call_type="streaming|post", code="..."}`: Cumulative count of HTTP errors grouped by agent, service, model, status code, and call type.
+
+### Diagnostics & Debug Flags (`LROUT_LOG_LEVEL`, `--verbose`, `--debug`)
+
+`scripts/local-router.py` fuses verbosity configuration into a single overrideable hierarchy (checking CLI arguments `--verbose`/`--debug`, process environment variables `LROUT_LOG_LEVEL`/`LROUT_VERBOSE`/`LROUT_DEBUG`, and `~/.config/systemd/user/local-router.env`):
+- **`LROUT_LOG_LEVEL="info"`** (default): Standard silent proxy operation.
+- **`LROUT_LOG_LEVEL="verbose"` / `--verbose` / `LROUT_VERBOSE=1`**:
+  - Prints connection probing details on startup (including fallback probing `/health` if `/v1/models` returns 404, e.g. for TEI embedding engines).
+  - Logs each completed request to `stderr` with caller identity (`client`), path, target service, model ID, input/output token counts, status code (including custom `status=499` for client cancellations), and execution duration.
+- **`LROUT_LOG_LEVEL="debug"` / `--debug` / `LROUT_DEBUG=1`**:
+  - Enables `verbose` logging.
+  - Outputs raw JSON request payloads and raw response/result contents to `stderr` for inspecting payload structures and debugging API incompatibilities.
 
 ### CLI Usage Reporting
 
