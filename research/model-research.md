@@ -471,44 +471,46 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 
 ---
 
-### Embedding Model Architectures: Attention, KV Cache & VRAM Scaling
+### Embedding & Reranking Model Architectures: Attention, KV Cache & VRAM Scaling
 
-The models listed above fall into three distinct backbone architectures. Understanding their attention mechanisms is critical for sizing VRAM, tuning parallelism, and choosing between `llama-server` (GGUF) and TEI serving.
+The models listed above span seven distinct architecture × backend combinations. Understanding their attention mechanisms and TEI backend is critical for sizing VRAM, tuning parallelism, and choosing between `llama-server` (GGUF) and TEI serving.
 
 #### Architecture Comparison
 
-| Property | Causal Decoder (llama-server) | Causal Decoder (TEI) | Bidirectional Encoder (TEI) |
-|:---|:---|:---|:---|
-| **Attention Mask** | Causal (triangular) | Causal (triangular) | Full (bidirectional) |
-| **Token Context** | Left-to-right only | Left-to-right only | Full sequence (all tokens see all tokens) |
-| **Pooling** | Last-token (`[EOS]`) | Last-token (`[EOS]`) | Mean pooling (all token representations) |
-| **KV Cache** | **Required** (pre-allocated per slot) | **Not used** (single forward pass) | **Not used** (incompatible with bidirectional) |
-| **VRAM Scaling** | Weights + KV cache (linear in slots × ctx) | Weights + $O(N^2)$ attention activations | Weights + $O(N^2)$ attention activations |
-| **Example Models** | Qwen3-Embedding GGUF, F2LLM | gte-Qwen2-1.5B, jina-v5-small | pplx-embed-context, bge-m3, jina-v3 |
+| Architecture | Task | TEI Backend | Attention Mask | Input → Output | Pooling / Head | KV Cache | VRAM Scaling | Example Models |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| **Causal Decoder (llama-server)** | Embedding | N/A (GGUF) | Causal (triangular) | Single text → dense vector | Last-token (`[EOS]`) | **Required** (pre-allocated per slot) | Weights + KV cache (linear in slots × ctx) | Qwen3-Embedding GGUF, F2LLM |
+| **Causal Decoder (TEI)** | Embedding | Python (PyTorch) | Causal (triangular) | Single text → dense vector | Last-token (`[EOS]`) | **Not used** (single forward pass) | Weights + $O(N^2)$ activations | gte-Qwen2-1.5B, jina-v5-small |
+| **Bidirectional Encoder (TEI Candle)** | Embedding | Candle (Rust) | Full (bidirectional) | Single text → dense vector | Mean pooling / `[CLS]` | **Not used** (incompatible) | Weights + $O(N^2)$ activations | bge-m3, jina-v3, gte-multilingual-base, snowflake-arctic |
+| **Bidirectional Encoder (TEI Python)** | Embedding | Python (PyTorch) | Full (bidirectional) | Single text → dense vector | Mean pooling | **Not used** (incompatible) | Weights + $O(N^2)$ activations | pplx-embed-context |
+| **Bidirectional Cross-Encoder (TEI Candle)** | Reranking | Candle (Rust) | Full (bidirectional) | Query–document pair → score | `[CLS]` → classifier head | **Not used** (incompatible) | Weights + $O(N^2)$ activations | bge-reranker-v2-m3, jina-reranker-v2 |
+| **Causal Cross-Encoder (TEI Python)** | Reranking | Python (PyTorch) | Causal (triangular) | Query + N docs → N scores | Last-token → MLP projector | **Not used** (single forward pass) | Weights + $O(N^2)$ activations | jina-reranker-v3 |
 
-#### Why No KV Cache for Embedding Inference?
+> **Candle vs Python backend**: The Candle (Rust) backend compiles attention kernels natively and handles standard BERT/XLM-RoBERTa architectures. The Python (PyTorch) backend spawns a gRPC subprocess using `sentence-transformers` and is required for models with custom architectures (Qwen2/Qwen3 backbones, `trust_remote_code=True`). On ROCm, the Python backend uses `python-pytorch-opt-rocm` with native HIP kernels for RDNA3 GPU acceleration.
 
-**KV cache** is an optimization for *autoregressive text generation*, where the model generates tokens one-at-a-time and caches the Key/Value tensors of all previous tokens to avoid recomputing them at each step. For embedding tasks, the model processes the **entire input sequence in a single forward pass** — there are no iterative decoding steps, so there is nothing to cache.
+#### Why No KV Cache for Embedding / Reranking Inference?
+
+**KV cache** is an optimization for *autoregressive text generation*, where the model generates tokens one-at-a-time and caches the Key/Value tensors of all previous tokens to avoid recomputing them at each step. For embedding and reranking tasks, the model processes the **entire input sequence in a single forward pass** — there are no iterative decoding steps, so there is nothing to cache.
 
 - **Causal decoders under `llama-server`**: The server is designed for generation and *always* pre-allocates a KV cache per parallel slot. Even when used purely for embeddings, each slot consumes KV cache memory (e.g., ~112–224 MB per 8K-context slot for a 0.6B model). This is wasted memory but architecturally unavoidable in `llama-server`.
-- **Causal decoders under TEI**: TEI's Python/PyTorch backend runs the model in pure forward-pass mode. No KV cache is allocated. VRAM scales with model weights plus the transient attention activation tensors.
-- **Bidirectional encoders**: KV caching is **fundamentally impossible** because every token attends to every other token — there is no sequential "prefix" whose K/V states remain stable. The full $O(N^2)$ attention matrix is always computed.
+- **Causal decoders / cross-encoders under TEI (Python)**: TEI's Python/PyTorch backend runs the model in pure forward-pass mode. No KV cache is allocated. VRAM scales with model weights plus the transient attention activation tensors. This applies equally to causal embedding models (gte-Qwen2, jina-v5) and the causal cross-encoder reranker (jina-reranker-v3 with LBNL architecture).
+- **Bidirectional encoders / cross-encoders (Candle and Python)**: KV caching is **fundamentally impossible** because every token attends to every other token — there is no sequential "prefix" whose K/V states remain stable. The full $O(N^2)$ attention matrix is always computed. This applies to Candle-served models (bge-m3, bge-reranker-v2-m3) and Python-served models (pplx-embed-context) alike.
 
 #### VRAM Scaling: Attention Activations vs. Context Length
 
-For both TEI serving modes (causal decoder and bidirectional), the dominant variable VRAM cost is the **attention activation memory**, which scales quadratically with sequence length:
+For all TEI serving modes (Candle and Python, causal and bidirectional), the dominant variable VRAM cost is the **attention activation memory**, which scales quadratically with sequence length:
 
 $$\text{Attention VRAM per request} \approx \frac{N^2 \times H \times 2}{1024^2} \text{ MB}$$
 
 where $N$ is the sequence length in tokens, $H$ is the number of attention heads, and the factor of 2 accounts for the Q×K and softmax×V matrices in float16/bfloat16.
 
-Practical estimates for a **0.6B parameter model** (16 heads, bf16 activations, Flash Attention enabled):
+Practical estimates for a **0.6B parameter model** (16 heads, bf16 activations, Flash Attention enabled), default **4 parallel requests @ 8K context**:
 
-| Context Length | Attention VRAM per Request | 4 Parallel Requests | 8 Parallel Requests |
+| Context Length | Per Request | 4 Parallel (default) | 8 Parallel |
 |:---|:---|:---|:---|
 | **512 tokens** | ~8 MB | ~32 MB | ~64 MB |
 | **2K tokens** | ~128 MB | ~512 MB | ~1.0 GB |
-| **8K tokens** | ~256 MB | ~1.0 GB | ~2.0 GB |
+| **8K tokens** | ~256 MB | **~1.0 GB** | ~2.0 GB |
 | **32K tokens** | ~4.0 GB | ~16.0 GB | ~32.0 GB ⚠️ OOM |
 
 > **Note**: Flash Attention reduces *peak* memory from $O(N^2)$ to $O(N)$ by tiling the computation, but the *compute* cost remains $O(N^2)$. The values above represent effective observed VRAM under Flash Attention. Without Flash Attention, memory would be significantly higher.
@@ -517,12 +519,30 @@ Practical estimates for a **0.6B parameter model** (16 heads, bf16 activations, 
 
 Given 24 GB total VRAM, and ~1.2 GB consumed by model weights + ~0.4 GB CUDA overhead:
 
-- **Safe parallel budget**: ~22.4 GB available for attention activations
-- **8K context**: Up to **8 parallel requests** (~2.0 GB activation) — well within budget
-- **32K context**: **1 parallel request** (~4.0 GB) fits comfortably; **2 parallel** (~8.0 GB) is feasible; **4 parallel** (~16.0 GB) is tight; **8 parallel** exceeds VRAM
+- **Default budget (4 × 8K)**: ~1.0 GB activation — well within the ~22.4 GB available
+- **32K context**: **1 parallel** (~4.0 GB) fits comfortably; **2 parallel** (~8.0 GB) is feasible; **4 parallel** (~16.0 GB) is tight; **8 parallel** exceeds VRAM
 - **Mixed workloads** (e.g., 3×8K + 1×32K): ~0.8 + 4.0 GB = ~4.8 GB activations — fits with headroom
 
-These constraints directly informed the hindsight benchmark tuning: the parallel request count was reduced from 8 to 4 (3×8K + 1×32K) to stay within safe VRAM limits for the 0.6B bidirectional model under TEI.
+These constraints directly informed the hindsight benchmark tuning: the parallel request count was set to 4 (3×8K + 1×32K) to stay within safe VRAM limits for the 0.6B model under TEI.
+
+#### Quantization: Weights vs. Activations vs. Embedding Output
+
+There are three distinct levels of quantization relevant to embedding/reranking inference. They target different memory consumers and have different support levels in TEI:
+
+| Quantization Type | What It Reduces | TEI Support | Effect on $O(N^2)$ Activation Memory |
+|:---|:---|:---|:---|
+| **Weight quantization** | Model parameter storage (static) | Candle: GGUF-based quantized models. Python: `--dtype float16` (default bf16/fp16). No INT8 weight-only flag. | **None** — weights are a fixed cost, activations are computed at runtime precision |
+| **Activation quantization** | Intermediate attention tensors (dynamic, $O(N^2)$) | **Not supported** — neither Candle nor Python backend expose INT8/FP8 activation compute paths | **Would halve** $O(N^2)$ memory if available (INT8 = half of fp16) |
+| **Embedding output quantization** | Output vector storage (post-processing) | Models like pplx-embed natively output INT8/binary embeddings; `sentence-transformers` can quantize any output | **None** — post-forward-pass only, does not affect inference VRAM |
+
+**Key findings:**
+
+- **All TEI-served architectures compute activations in float16 or bfloat16.** There is no CLI flag or backend option to run attention in INT8 or FP8 precision. The `--dtype` flag only controls weight loading precision (`float16` vs `float32`), not the compute dtype of the attention matrix.
+- **INT8 activation quantization** (computing Q×K and softmax×V in INT8) would theoretically halve the $O(N^2)$ attention memory cost. Specialized implementations exist (e.g., INT-FlashAttention for NVIDIA Ampere), but they are not integrated into TEI's Candle or Python backends.
+- **FP8 activation quantization** (via FlashAttention-3) exists for NVIDIA Hopper/Ada hardware but is **not available on RDNA3** — the RX 7900 XTX (`gfx1100`) lacks native FP8 tensor core support.
+- **RDNA3 INT8 status**: The hardware has basic INT8 dot-product instructions (`v_dot4_i32_iu8`) but no dedicated INT8 tensor cores. ROCm's Flash Attention implementation (via Composable Kernel) does not currently offer an INT8 compute path.
+
+> **Bottom line**: On the current RX 7900 XTX + TEI stack, all architectures are locked to **bf16/fp16 activations**. The $O(N^2)$ attention memory cost cannot be reduced via precision — the only levers are parallelism (fewer concurrent requests), context length (shorter sequences), or Flash Attention (which reduces peak memory from $O(N^2)$ to $O(N)$ via tiling, already enabled by default).
 
 ---
 
