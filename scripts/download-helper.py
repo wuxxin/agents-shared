@@ -70,9 +70,15 @@ Subcommands:
       --tolerance <N>         Tolerance window around target token count (default: 500)
       --encoding <name>       Tiktoken encoding (default: cl100k_base)
 
+  hindsight-context --output <output_file.txt>
+    Downloads stable German, English, and Code files and compiles them
+    into a single hindsight context file of exactly 131,072 characters
+    (50% German, 30% English, 20% Code).
+
 Examples:
   python3 scripts/download-helper.py merge-mtp base.gguf mtp.gguf merged-mtp.gguf
   python3 scripts/download-helper.py benchmark-context --output /path/to/benchmark-context.md
+  python3 scripts/download-helper.py hindsight-context --output /path/to/hindsight-context.txt
 """
     print(usage_text, file=sys.stderr if exit_code != 0 else sys.stdout)
     sys.exit(exit_code)
@@ -361,6 +367,66 @@ def run_benchmark_context(args: argparse.Namespace) -> None:
 
 
 # ==============================================================================
+# HINDSIGHT CONTEXT LOGIC
+# ==============================================================================
+def download_text(url: str) -> str:
+    import urllib.request
+
+    print(f"Downloading from: {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30.0) as response:
+        return response.read().decode("utf-8", errors="ignore")
+
+
+def run_hindsight_context(output_path: str) -> None:
+    german_url = "https://raw.githubusercontent.com/git/git/master/po/de.po"
+    english_url = "https://raw.githubusercontent.com/python/cpython/main/Doc/tutorial/controlflow.rst"
+    code_url = "https://raw.githubusercontent.com/python/cpython/main/Lib/ast.py"
+
+    print("Building Hindsight benchmark context file...")
+    try:
+        german_text = download_text(german_url)
+        english_text = download_text(english_url)
+        code_text = download_text(code_url)
+    except Exception as e:
+        import sys
+
+        print(f"Error downloading component files: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    target_total = 131072
+    german_len = int(target_total * 0.5)  # 65536
+    english_len = int(target_total * 0.3)  # 39321
+    code_len = target_total - german_len - english_len  # 26215
+
+    # Check if we have enough content
+    if (
+        len(german_text) < german_len
+        or len(english_text) < english_len
+        or len(code_text) < code_len
+    ):
+        import sys
+
+        print(
+            f"Error: Downloaded text lengths (German: {len(german_text)}, English: {len(english_text)}, Code: {len(code_text)}) "
+            f"are shorter than required slices ({german_len}, {english_len}, {code_len}).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    hindsight_content = (
+        german_text[:german_len] + english_text[:english_len] + code_text[:code_len]
+    )
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(hindsight_content)
+
+    print(
+        f"Successfully generated Hindsight context file at: {output_path} (length: {len(hindsight_content)} chars)"
+    )
+
+
+# ==============================================================================
 # MAIN ENTRYPOINT
 # ==============================================================================
 def main() -> None:
@@ -437,6 +503,20 @@ def main() -> None:
         )
         parsed_args = parser.parse_args(sys.argv[2:])
         run_benchmark_context(parsed_args)
+
+    elif subcommand == "hindsight-context":
+        parser = argparse.ArgumentParser(
+            prog="download-helper.py hindsight-context",
+            description="Download and compile a multilingual hindsight context file.",
+        )
+        parser.add_argument(
+            "--output",
+            type=str,
+            required=True,
+            help="Path where the compiled hindsight context file should be written",
+        )
+        parsed_args = parser.parse_args(sys.argv[2:])
+        run_hindsight_context(parsed_args.output)
 
     else:
         print(f"Error: Unknown subcommand '{subcommand}'\n", file=sys.stderr)

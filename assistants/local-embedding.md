@@ -87,6 +87,7 @@ The local service runs **`Qwen3-Embedding-0.6B`** in `Q8_0` GGUF quantization fo
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
+| `LMBD_ALIAS` | `pplx-embedding` | Model alias for client integrations (can be left unset to run without alias) |
 | `LMBD_N_CTX` | `16384` | Max context length per parallel slot |
 | Batch Size | `16384` | Same as LMBD_N_CTX |
 | µ-Batch Size | `16384` | max hardware batch size (matches LMBD_N_CTX) |

@@ -708,11 +708,33 @@ def run_llm_embed(
         tprint(f"  Warning: Failed to query server props for n_ctx: {e}")
 
     tprint("  Tokenizing full context via server...")
-    tokenize_resp = post_json(
-        f"{url}/tokenize",
-        {"model": model, "content": context_content, "add_special": False},
-    )
-    all_tokens: List[int] = tokenize_resp.get("tokens", [])
+    try:
+        tokenize_resp = post_json(
+            f"{url}/tokenize",
+            {"inputs": context_content},
+        )
+    except Exception as e:
+        tprint(f"  Warning: TEI tokenize failed ({e}), trying llama-server format...")
+        tokenize_resp = post_json(
+            f"{url}/tokenize",
+            {"model": model, "content": context_content, "add_special": False},
+        )
+
+    if isinstance(tokenize_resp, list):
+        if len(tokenize_resp) > 0 and isinstance(tokenize_resp[0], list):
+            raw_tokens = tokenize_resp[0]
+        else:
+            raw_tokens = tokenize_resp
+        all_tokens = []
+        for t in raw_tokens:
+            if isinstance(t, int):
+                all_tokens.append(t)
+            elif isinstance(t, dict) and "id" in t:
+                all_tokens.append(t["id"])
+    elif isinstance(tokenize_resp, dict):
+        all_tokens = tokenize_resp.get("tokens", [])
+    else:
+        all_tokens = []
     total_tokens_exact = len(all_tokens)
 
     # Split token array into chunks
@@ -869,6 +891,221 @@ def run_llm_embed(
     tprint(f"\n  Avg Chunk Latency:    {avg_lat:.1f} ms")
     tprint(f"  Avg Chunk p50:        {avg_p50:.1f} ms")
     tprint(f"  Avg Chunk p95:        {avg_p95:.1f} ms")
+    tprint("===================================================\n")
+
+
+def run_llm_embed_hindsight(
+    url: str,
+    model: str,
+    context_file: str,
+    repeats: int,
+    output_format: str = "text",
+) -> None:
+    """Run parallel hindsight embedding benchmark using 4 rounds of 2 concurrent requests.
+
+    Request pattern (sequential rounds, each with 2 parallel requests):
+      Round 1:  8K +  8K = 16K
+      Round 2:  8K + 16K = 24K
+      Round 3: 16K + 16K = 32K
+      Round 4: 16K +  8K = 24K
+      Total:                96K tokens
+    """
+    import concurrent.futures
+
+    if not os.path.exists(context_file):
+        raise FileNotFoundError(f"Hindsight context file not found: {context_file}")
+
+    with open(context_file, "r", encoding="utf-8") as f:
+        context_content = f.read()
+
+    tprint("  Tokenizing full hindsight context via server...")
+    try:
+        tokenize_resp = post_json(
+            f"{url}/tokenize",
+            {"inputs": context_content},
+        )
+    except Exception as e:
+        tprint(f"  Warning: TEI tokenize failed ({e}), trying llama-server format...")
+        tokenize_resp = post_json(
+            f"{url}/tokenize",
+            {"model": model, "content": context_content, "add_special": False},
+        )
+
+    if isinstance(tokenize_resp, list):
+        if len(tokenize_resp) > 0 and isinstance(tokenize_resp[0], list):
+            raw_tokens = tokenize_resp[0]
+        else:
+            raw_tokens = tokenize_resp
+        all_tokens = []
+        for t in raw_tokens:
+            if isinstance(t, int):
+                all_tokens.append(t)
+            elif isinstance(t, dict) and "id" in t:
+                all_tokens.append(t["id"])
+    elif isinstance(tokenize_resp, dict):
+        all_tokens = tokenize_resp.get("tokens", [])
+    else:
+        all_tokens = []
+
+    total_tokens_exact = len(all_tokens)
+    total_context_chars = len(context_content)
+
+    # Define the 4 rounds: each round is a tuple of (size_a, size_b) in tokens
+    rounds_pattern: List[Tuple[int, int]] = [
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+        (8192, 8192),  # Round 1:  8K +  8K = 16K
+    ]
+    total_batch_tokens = sum(a + b for a, b in rounds_pattern)  # 96256 tokens
+    pattern_desc = ", ".join(f"{a // 1024}K+{b // 1024}K" for a, b in rounds_pattern)
+
+    tprint("\n===================================================")
+    tprint("=== HINDSIGHT PARALLEL EMBEDDING BENCHMARK     ===")
+    tprint("===================================================")
+    tprint(f"Context File:      {context_file}")
+    tprint(
+        f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
+    )
+    tprint(f"Rounds Pattern:    {pattern_desc} (2 parallel per round)")
+    tprint(f"Total Tokens:      {total_batch_tokens}")
+    tprint(f"Repeats:           {repeats}\n")
+
+    def get_token_slice(toks: List[int], offset: int, length: int) -> List[int]:
+        """Extract a token slice starting at offset, cycling if needed."""
+        if not toks:
+            return [0] * length
+        n = len(toks)
+        res = []
+        for i in range(length):
+            res.append(toks[(offset + i) % n])
+        return res
+
+    def send_one_request(
+        req_label: str, input_tokens: List[int]
+    ) -> Tuple[str, float, int]:
+        t_req_start = time.perf_counter()
+        payload = {
+            "model": model,
+            "input": input_tokens,
+        }
+        resp = post_json(f"{url}/v1/embeddings", payload)
+        t_req_end = time.perf_counter()
+        latency_ms = (t_req_end - t_req_start) * 1000.0
+        embed_dim = 0
+        if resp.get("data"):
+            embed_dim = len(resp["data"][0].get("embedding", []))
+        return req_label, latency_ms, embed_dim
+
+    run_results = []
+    for r in range(repeats):
+        tprint(f"  [Run {r + 1}/{repeats}] Starting 4 rounds of 2 parallel requests...")
+        t_batch_start = time.perf_counter()
+
+        round_details: List[dict] = []
+        token_offset = 0
+
+        for rd_idx, (size_a, size_b) in enumerate(rounds_pattern):
+            label_a = f"R{rd_idx + 1}a({size_a // 1024}K)"
+            label_b = f"R{rd_idx + 1}b({size_b // 1024}K)"
+            tokens_a = get_token_slice(all_tokens, token_offset, size_a)
+            token_offset += size_a
+            tokens_b = get_token_slice(all_tokens, token_offset, size_b)
+            token_offset += size_b
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(send_one_request, label_a, tokens_a),
+                    executor.submit(send_one_request, label_b, tokens_b),
+                ]
+                results_pair = [f.result() for f in futures]
+
+            for label, lat, dim in results_pair:
+                round_details.append(
+                    {"label": label, "latency_ms": lat, "embed_dim": dim}
+                )
+
+        t_batch_end = time.perf_counter()
+        batch_duration_s = t_batch_end - t_batch_start
+
+        run_speed = (
+            total_batch_tokens / batch_duration_s if batch_duration_s > 0 else 0.0
+        )
+        embed_dim = round_details[0]["embed_dim"]
+        latencies = [d["latency_ms"] for d in round_details]
+        run_info = {
+            "duration_s": batch_duration_s,
+            "speed_tps": run_speed,
+            "details": round_details,
+            "embed_dim": embed_dim,
+        }
+        run_results.append(run_info)
+
+        tprint(
+            f"    Total Wall Time: {batch_duration_s:.2f}s | Speed: {run_speed:.2f} t/s"
+        )
+        for rd_idx, (size_a, size_b) in enumerate(rounds_pattern):
+            d_a = round_details[rd_idx * 2]
+            d_b = round_details[rd_idx * 2 + 1]
+            tprint(
+                f"    Round {rd_idx + 1} ({size_a // 1024}K+{size_b // 1024}K): "
+                f"{d_a['latency_ms']:.1f}ms + {d_b['latency_ms']:.1f}ms"
+            )
+
+    # Compute averages across all repeats
+    avg_duration = sum(r["duration_s"] for r in run_results) / len(run_results)
+    avg_speed = sum(r["speed_tps"] for r in run_results) / len(run_results)
+    n_details = len(rounds_pattern) * 2  # 8 request results per run
+    avg_latencies = [
+        sum(r["details"][i]["latency_ms"] for r in run_results) / len(run_results)
+        for i in range(n_details)
+    ]
+    embed_dim = run_results[0]["embed_dim"]
+
+    # Per-round averages
+    round_avgs = []
+    for rd_idx, (size_a, size_b) in enumerate(rounds_pattern):
+        avg_a = avg_latencies[rd_idx * 2]
+        avg_b = avg_latencies[rd_idx * 2 + 1]
+        round_avgs.append((size_a, size_b, avg_a, avg_b))
+
+    if output_format in ("json", "yaml"):
+        result = {
+            "hindsight_throughput": avg_speed,
+            "hindsight_wall_time_s": avg_duration,
+            "total_tokens": total_batch_tokens,
+            "rounds": [
+                {
+                    "pattern": f"{sa // 1024}K+{sb // 1024}K",
+                    "avg_latency_a_ms": la,
+                    "avg_latency_b_ms": lb,
+                }
+                for sa, sb, la, lb in round_avgs
+            ],
+        }
+        print(json.dumps(result, indent=2))
+        return
+
+    # Final summary report
+    tprint("\n===================================================")
+    tprint("=== HINDSIGHT BENCHMARK RESULTS SUMMARY         ===")
+    tprint("===================================================")
+    tprint(f"Context File:      {context_file}")
+    tprint(f"Embedding Dim:     {embed_dim}")
+    tprint(f"Total Tokens:      {total_batch_tokens}")
+    tprint(f"Repeats:           {repeats}")
+    tprint(f"\n  Avg Wall Time:        {avg_duration:.2f} s")
+    tprint(f"  Avg Throughput:       {avg_speed:.2f} tokens/sec")
+    tprint("\n  Avg Per-Round Latencies (2 parallel each):")
+    for rd_idx, (sa, sb, la, lb) in enumerate(round_avgs):
+        tprint(
+            f"    Round {rd_idx + 1} ({sa // 1024}K+{sb // 1024}K): "
+            f"{la:.1f}ms + {lb:.1f}ms"
+        )
     tprint("===================================================")
 
 
@@ -1558,6 +1795,11 @@ def main() -> None:
         help="Fraction of chunks to use for the Embedding benchmark (between 0.0 and 1.0)",
     )
     parser.add_argument(
+        "--hindsight",
+        action="store_true",
+        help="Run the parallel hindsight test during embedding benchmark",
+    )
+    parser.add_argument(
         "--fraction-context",
         type=float,
         default=1.0,
@@ -1600,14 +1842,23 @@ def main() -> None:
     elif args.mode == "embedding":
         if not args.context:
             parser.error("--context is required in embedding mode")
-        run_llm_embed(
-            args.url,
-            args.model,
-            args.context,
-            repeats,
-            fraction_chunks=args.fraction_chunks,
-            output_format=args.format,
-        )
+        if args.hindsight:
+            run_llm_embed_hindsight(
+                args.url,
+                args.model,
+                args.context,
+                repeats,
+                output_format=args.format,
+            )
+        else:
+            run_llm_embed(
+                args.url,
+                args.model,
+                args.context,
+                repeats,
+                fraction_chunks=args.fraction_chunks,
+                output_format=args.format,
+            )
     elif args.mode == "rerank":
         if not args.context:
             parser.error("--context is required in rerank mode")

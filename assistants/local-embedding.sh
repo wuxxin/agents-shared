@@ -20,18 +20,29 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # Load environment
 
 load_env() {
-    # Default parameters
+    # General parameters
     LMBD_PORT=50082
     LMBD_HOST=127.0.0.1
-    LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-    LMBD_ALIAS=qwen3-embedding
-    LMBD_N_CTX=16384
-    LMBD_N_UBATCH=16384
-    LMBD_N_GPU_LAYERS=999
-    LMBD_THREADS=4
-    LMBD_PARALLEL=2
-    LMBD_DEVICE=""
-    LMBD_EXTRA_ARGS="--flash-attn on"
+    LMBD_ENGINE=tei
+
+    # llama-server parameters (default to conservative/existing settings for VRAM safety)
+    LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    LMBD_LLAMA_N_CTX=16384
+    LMBD_LLAMA_N_UBATCH=16384
+    LMBD_LLAMA_N_GPU_LAYERS=999
+    LMBD_LLAMA_THREADS=4
+    LMBD_LLAMA_PARALLEL=2
+    LMBD_LLAMA_DEVICE=""
+    LMBD_LLAMA_EXTRA_ARGS="--flash-attn on"
+
+    # TEI parameters (defaults to pplx-embed model, 2 parallel, 32k max tokens)
+    LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
+    LMBD_ALIAS=pplx-embedding
+    LMBD_TEI_POOLING="mean"
+    LMBD_TEI_MAX_CONCURRENT=2
+    LMBD_TEI_MAX_BATCH_TOKENS=16384
+    LMBD_TEI_EXTRA_ARGS=""
+    LMBD_TEI_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -41,9 +52,55 @@ load_env() {
         set -u
     fi
 
-    # Support LMBD_UBATCH_SIZE as alias for LMBD_N_UBATCH
-    if [[ -n "${LMBD_UBATCH_SIZE:-}" ]]; then
-        LMBD_N_UBATCH="${LMBD_UBATCH_SIZE}"
+    # Auto-detect engine if not set (legacy configuration support)
+    if [[ -z "${LMBD_ENGINE:-}" ]]; then
+        if [[ "${LMBD_MODEL:-}" =~ \.gguf$ ]]; then
+            LMBD_ENGINE=llama
+        else
+            LMBD_ENGINE=tei
+        fi
+    fi
+
+    # Map generic variables based on selected engine for backward compatibility
+    if [[ "${LMBD_ENGINE}" == "tei" ]]; then
+        LMBD_MODEL="${LMBD_TEI_MODEL:-${LMBD_MODEL:-}}"
+        LMBD_ALIAS="${LMBD_ALIAS:-}"
+    else
+        LMBD_MODEL="${LMBD_LLAMA_MODEL:-${LMBD_MODEL:-}}"
+        LMBD_ALIAS="${LMBD_ALIAS:-}"
+
+        # Keep existing mapping for llama parameters
+        if [[ -n "${LMBD_UBATCH_SIZE:-}" ]]; then
+            LMBD_LLAMA_N_UBATCH="${LMBD_UBATCH_SIZE}"
+        fi
+        LMBD_N_CTX="${LMBD_LLAMA_N_CTX:-16384}"
+        LMBD_N_UBATCH="${LMBD_LLAMA_N_UBATCH:-16384}"
+        LMBD_N_GPU_LAYERS="${LMBD_LLAMA_N_GPU_LAYERS:-999}"
+        LMBD_THREADS="${LMBD_LLAMA_THREADS:-4}"
+        LMBD_PARALLEL="${LMBD_LLAMA_PARALLEL:-2}"
+        LMBD_DEVICE="${LMBD_LLAMA_DEVICE:-}"
+        LMBD_EXTRA_ARGS="${LMBD_LLAMA_EXTRA_ARGS:-}"
+    fi
+
+    # Device selection for TEI
+    local active_device=""
+    if [[ "${LMBD_ENGINE}" == "tei" ]]; then
+        active_device="${LMBD_TEI_DEVICE:-${LMBD_DEVICE:-}}"
+        if [[ -n "${active_device}" ]]; then
+            local dev_lower
+            dev_lower=$(echo "${active_device}" | tr '[:upper:]' '[:lower:]')
+            if [[ "$dev_lower" =~ [0-9]+ ]]; then
+                local dev_idx
+                dev_idx=$(echo "$dev_lower" | grep -o -E '[0-9]+' | head -n 1)
+                export HIP_VISIBLE_DEVICES="${dev_idx}"
+                export CUDA_VISIBLE_DEVICES="${dev_idx}"
+            elif [[ "$dev_lower" == "cpu" || "$dev_lower" == "none" ]]; then
+                export HIP_VISIBLE_DEVICES=""
+                export CUDA_VISIBLE_DEVICES=""
+            fi
+        fi
+        export TRUST_REMOTE_CODE=true
+        export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -166,13 +223,16 @@ get_llama_args() {
         --ctx-size "${LMBD_N_CTX}"
         --batch-size "${LMBD_N_CTX}"
         --ubatch-size "${LMBD_N_UBATCH}"
-        --alias "${LMBD_ALIAS}"
         --threads "${LMBD_THREADS}"
         --parallel "${LMBD_PARALLEL}"
         --n-gpu-layers "${LMBD_N_GPU_LAYERS}"
         --host "${LMBD_HOST}"
         --port "${LMBD_PORT}"
     )
+
+    if [[ -n "${LMBD_ALIAS:-}" ]]; then
+        out_args+=(--alias "${LMBD_ALIAS}")
+    fi
 
     if [[ -n "${LMBD_DEVICE:-}" ]]; then
         out_args+=(--device "${LMBD_DEVICE}")
@@ -182,6 +242,34 @@ get_llama_args() {
         local extra_arr=()
         eval "extra_arr=(${LMBD_EXTRA_ARGS})"
         out_args+=("${extra_arr[@]}")
+    fi
+}
+
+# Helper to get unified arguments for text-embeddings-router
+get_tei_args() {
+    local -n out_tei_args=$1
+    out_tei_args=(
+        --model-id "${LMBD_MODEL}"
+        --port "${LMBD_PORT}"
+        --hostname "${LMBD_HOST}"
+    )
+
+    if [[ -n "${LMBD_TEI_POOLING:-}" ]]; then
+        out_tei_args+=(--pooling "${LMBD_TEI_POOLING}")
+    fi
+
+    if [[ -n "${LMBD_TEI_MAX_CONCURRENT:-}" ]]; then
+        out_tei_args+=(--max-concurrent-requests "${LMBD_TEI_MAX_CONCURRENT}")
+    fi
+
+    if [[ -n "${LMBD_TEI_MAX_BATCH_TOKENS:-}" ]]; then
+        out_tei_args+=(--max-batch-tokens "${LMBD_TEI_MAX_BATCH_TOKENS}")
+    fi
+
+    if [[ -n "${LMBD_TEI_EXTRA_ARGS:-}" ]]; then
+        local extra_arr=()
+        eval "extra_arr=(${LMBD_TEI_EXTRA_ARGS})"
+        out_tei_args+=("${extra_arr[@]}")
     fi
 }
 
@@ -204,14 +292,26 @@ format_exec_start() {
 generate_service_file() {
     load_env
     local args
-    get_llama_args args
     local exec_cmd
-    exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
+    local description
+    local doc_link
+
+    if [[ "${LMBD_ENGINE}" == "tei" ]]; then
+        get_tei_args args
+        exec_cmd=$(format_exec_start "${TEI_ROUTER_BIN:-text-embeddings-router}" "${args[@]}")
+        description="Local Text Embedding Inference Server (TEI)"
+        doc_link="https://github.com/huggingface/text-embeddings-inference"
+    else
+        get_llama_args args
+        exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
+        description="Local Text Embedding Inference Server (llama-server)"
+        doc_link="https://github.com/ggml-org/llama.cpp"
+    fi
 
     cat <<EOF
 [Unit]
-Description=Local Text Embedding Inference Server (llama-server)
-Documentation=https://github.com/ggml-org/llama.cpp
+Description=${description}
+Documentation=${doc_link}
 After=network.target
 
 [Service]
@@ -237,11 +337,15 @@ generate_env_file() {
     cat <<'EOF'
 # local-embedding.env
 
-# Configuration for the local-embedding.service llama-server instance.
-#
-# Edit this file to switch models or tune runtime parameters.
+# Configuration for the local-embedding.service.
+# Edit this file to switch engines, models, or tune runtime parameters.
 # Reload with:  local-embedding.sh restart
 
+# Active inference engine: 'tei' (Text Embeddings Inference) or 'llama' (llama-server)
+LMBD_ENGINE=tei
+
+# Model alias used by client integrations (default: pplx-embedding)
+LMBD_ALIAS=pplx-embedding
 
 # Port to bind the server to (default: 50082)
 LMBD_PORT=50082
@@ -249,44 +353,82 @@ LMBD_PORT=50082
 # Host to bind the server to (127.0.0.1 for local access only)
 LMBD_HOST=127.0.0.1
 
-# Path to the text embedding model file
-LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+# TEI (Text Embeddings Inference) ENGINE SETTINGS
+#
+# Standalone TEI instances run bidirectional/causal encoders with dynamic batching.
+# Because TEI does not use an autoregressive KV cache, VRAM is static and highly
+# optimized, allowing for larger batch sizes and long contexts without pre-allocation.
+# Expected peak load: 8 parallel requests (e.g. 6 requests @ 8k context, 2 @ 32k context).
+#
+# Path to the safetensors model directory
+LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
+
+# Model alias used by client integrations (default: pplx-embedding)
+# LMBD_ALIAS=pplx-embedding
+
+# Pooling method to override model pooling config (default: mean)
+LMBD_TEI_POOLING="mean"
+
+# Max concurrent request slots (default: 2)
+LMBD_TEI_MAX_CONCURRENT=2
+
+# Max total tokens in a dynamic batch (default: 16384, accommodates 2x8k ~512 MiB Activation VRAM (fp16))
+LMBD_TEI_MAX_BATCH_TOKENS=16384
+
+# GPU/CPU backend device index or name (e.g. ROCm0, ROCm1, Vulkan0, cpu, none)
+# Maps to HIP_VISIBLE_DEVICES / CUDA_VISIBLE_DEVICES internally for TEI
+# LMBD_TEI_DEVICE="ROCm0"
+
+# Extra arguments to pass to text-embeddings-router
+# LMBD_TEI_EXTRA_ARGS=""
+
+# Trust remote code to run custom models (e.g. Perplexity pplx-embed-context)
+TRUST_REMOTE_CODE=true
+
+# Python search path for custom model patches (bypasses Hugging Face import bugs)
+EOF
+    echo "PYTHONPATH=${SYSTEMD_USER_DIR}"
+    echo ""
+    echo "# PyTorch CUDA memory allocator configuration (prevents VRAM fragmentation/OOM on large contexts)"
+    echo "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+    cat <<'EOF'
+
+
+# LLAMA-SERVER ENGINE SETTINGS
+#
+# llama-server pre-allocates KV cache slots statically at startup.
+# Each slot allocates LMBD_LLAMA_N_CTX tokens. High context + parallel slots
+# will result in large, persistent VRAM consumption on the GPU:
+#   - LMBD_LLAMA_PARALLEL=2, N_CTX=16384 (at q8_0): ~448 MiB KV Cache VRAM
+#   - LMBD_LLAMA_PARALLEL=8, N_CTX=32768 (at q8_0): ~3.5 GiB KV Cache VRAM
+# Keep parallel/context conservative on llama-server to prevent GPU OOM under chat load.
+#
+# Path to the text embedding GGUF model file
+LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
 
 # Model alias used by client integrations (default: qwen3-embedding)
-LMBD_ALIAS=qwen3-embedding
+# LMBD_ALIAS=qwen3-embedding
 
-# Context size (default: 16384)
-# Note: Batch size is also set to LMBD_N_CTX
-LMBD_N_CTX=16384
+# Context size per parallel slot (default: 16384)
+LMBD_LLAMA_N_CTX=16384
 
-# micro-batch size (default: 16384, matching context size for long prompt embeddings)
-LMBD_N_UBATCH=16384
+# Micro-batch size (default: 16384, matching context size)
+LMBD_LLAMA_N_UBATCH=16384
 
 # Number of layers to offload to GPU (all=999)
-LMBD_N_GPU_LAYERS=999
-# To run inference on CPU instead of GPU (none=0)
-# LMBD_N_GPU_LAYERS=0
+LMBD_LLAMA_N_GPU_LAYERS=999
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
-# By default, llama-server automatically selects the best available device.
-# To force a specific backend device, uncomment one of the options below:
-# LMBD_DEVICE="ROCm0"
-# LMBD_DEVICE="Vulkan0"
-# LMBD_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
-# LMBD_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
+# LMBD_LLAMA_DEVICE="ROCm0"
 
 # Number of threads to use (default: 4)
-LMBD_THREADS=4
+LMBD_LLAMA_THREADS=4
 
 # Parallel request slots (default: 2)
-# Note: Each additional slot at default 8192 context size costs:
-#   - ~224 MiB with f16 KV cache (true physical: ~448 MiB)
-#   - ~112 MiB with q8_0 KV cache (true physical: ~224 MiB)
-#   - ~56 MiB with q4_0 KV cache (true physical: ~126 MiB)
-LMBD_PARALLEL=2
+LMBD_LLAMA_PARALLEL=2
 
 # Extra arguments to pass to llama-server
-LMBD_EXTRA_ARGS="--flash-attn on"
+LMBD_LLAMA_EXTRA_ARGS="--flash-attn on"
 
 EOF
 }
@@ -316,6 +458,15 @@ cmd_install() {
 
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
+
+    # Copy TEI gRPC helper monkeypatch to systemd directory next to env and service
+    local root_dir
+    root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+    if [[ -f "${root_dir}/scripts/tei-helper.py" ]]; then
+        echo "Copying TEI helper patch to ${SYSTEMD_USER_DIR}/sitecustomize.py..."
+        cp "${root_dir}/scripts/tei-helper.py" "${SYSTEMD_USER_DIR}/sitecustomize.py"
+        chmod 644 "${SYSTEMD_USER_DIR}/sitecustomize.py"
+    fi
 
     # Write env file only if it doesn't exist (preserve user edits)
     if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
@@ -368,6 +519,11 @@ cmd_uninstall() {
         echo "Removed service file."
     fi
 
+    if [[ -f "${SYSTEMD_USER_DIR}/sitecustomize.py" ]]; then
+        rm -f "${SYSTEMD_USER_DIR}/sitecustomize.py"
+        echo "Removed sitecustomize.py helper patch."
+    fi
+
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
 
@@ -412,18 +568,25 @@ cmd_exec() {
     set -- "${COMMAND_ARGS[@]}"
 
     local args
-    get_llama_args args
+    local bin
+    if [[ "${LMBD_ENGINE}" == "tei" ]]; then
+        get_tei_args args
+        bin="${TEI_ROUTER_BIN:-text-embeddings-router}"
+    else
+        get_llama_args args
+        bin="${LLAMA_SERVER_BIN:-llama-server}"
+    fi
 
     if ! is_systemd_running; then
-        echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
+        echo "Warning: Systemd is not running. Running ${bin} directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec "${LLAMA_SERVER_BIN:-llama-server}" "$@"
+            exec "${bin}" "$@"
         else
-            exec "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
+            exec "${bin}" "${args[@]}"
         fi
     fi
 
-    echo "Starting llama-server as a transient systemd service with args: $*"
+    echo "Starting ${bin} as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -442,14 +605,14 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${bin}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${bin}" "${args[@]}"
     fi
 }
 
 cmd_shell() {
-    echo "Starting interactive shell in the llama-server systemd environment..."
+    echo "Starting interactive shell in the local-embedding systemd environment..."
 
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
@@ -480,7 +643,7 @@ cmd_run() {
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
-    echo "Running command inside the llama-server environment: $*"
+    echo "Running command inside the local-embedding environment: $*"
 
     local opts=(
         --user
@@ -506,17 +669,19 @@ cmd_test() {
 
     local host="${LMBD_HOST:-127.0.0.1}"
     local port="${LMBD_PORT:-50082}"
-    local alias="${LMBD_ALIAS:-qwen3-embedding}"
+    local alias="${LMBD_ALIAS:-${LMBD_MODEL}}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
 
     local benchmark=false
     local repeat=""
+    local hindsight=false
     local extra_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
+        --hindsight) hindsight=true ;;
         --repeat)
             shift
             repeat="$1"
@@ -530,21 +695,40 @@ cmd_test() {
 
     if [ "$benchmark" = "true" ]; then
         local context_file
-        context_file="/data/public/machine-learning/models/benchmark-context.md"
-        if [[ ! -f "$context_file" ]]; then
-            context_file="$(dirname "$(dirname "$LMBD_MODEL")")/benchmark-context.md"
-        fi
-        if [[ ! -f "$context_file" ]]; then
-            context_file="/tmp/benchmark-context.md"
-        fi
-        if [[ ! -f "$context_file" ]]; then
-            echo "benchmark-context.md not found. Generating it via download-helper.py..."
-            python3 "$(dirname "$0")/../scripts/download-helper.py" benchmark-context --output "$context_file" || true
+        if [ "$hindsight" = "true" ]; then
+            context_file="/data/public/machine-learning/models/hindsight-context.txt"
+            if [[ ! -f "$context_file" ]]; then
+                context_file="$(dirname "$(dirname "$LMBD_MODEL")")/hindsight-context.txt"
+            fi
+            if [[ ! -f "$context_file" ]]; then
+                context_file="/tmp/hindsight-context.txt"
+            fi
+            if [[ ! -f "$context_file" ]]; then
+                echo "hindsight-context.txt not found. Generating it via download-helper.py..."
+                python3 "$(dirname "$0")/../scripts/download-helper.py" hindsight-context --output "$context_file" || true
+            fi
+        else
+            context_file="/data/public/machine-learning/models/benchmark-context.md"
+            if [[ ! -f "$context_file" ]]; then
+                context_file="$(dirname "$(dirname "$LMBD_MODEL")")/benchmark-context.md"
+            fi
+            if [[ ! -f "$context_file" ]]; then
+                context_file="/tmp/benchmark-context.md"
+            fi
+            if [[ ! -f "$context_file" ]]; then
+                echo "benchmark-context.md not found. Generating it via download-helper.py..."
+                python3 "$(dirname "$0")/../scripts/download-helper.py" benchmark-context --output "$context_file" || true
+            fi
         fi
 
         local repeat_arg=()
         if [ -n "$repeat" ]; then
             repeat_arg=(--repeat "$repeat")
+        fi
+
+        local hindsight_arg=()
+        if [ "$hindsight" = "true" ]; then
+            hindsight_arg=(--hindsight)
         fi
 
         python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
@@ -553,6 +737,7 @@ cmd_test() {
             --model "${alias}" \
             --context "${context_file}" \
             "${repeat_arg[@]}" \
+            "${hindsight_arg[@]}" \
             "${extra_args[@]}"
         return 0
     fi
@@ -587,9 +772,9 @@ usage() {
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run llama-server as a transient systemd user service"
-    echo "  run       - Run a command inside the llama-server environment"
-    echo "  shell     - Spawn an interactive shell in the llama-server environment"
+    echo "  exec      - Run the active engine server as a transient systemd user service"
+    echo "  run       - Run a command inside the server environment"
+    echo "  shell     - Spawn an interactive shell in the server environment"
     echo "  cat       - Print service file, environment configuration, and transient exec command"
     echo "  test [--benchmark] [--repeat XX] - Run validation tests or embedding benchmark"
     echo "Note: Text embeddings can also be served combined inside the local-chat service."
@@ -613,8 +798,13 @@ cmd_cat() {
     echo ""
     echo "=== Transient Execution Command (exec) ==="
     local args
-    get_llama_args args
-    echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"
+    if [[ "${LMBD_ENGINE}" == "tei" ]]; then
+        get_tei_args args
+        echo "${TEI_ROUTER_BIN:-text-embeddings-router} ${args[*]}"
+    else
+        get_llama_args args
+        echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"
+    fi
 }
 
 main() {

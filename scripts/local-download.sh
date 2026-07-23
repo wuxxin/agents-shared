@@ -322,6 +322,14 @@ if [[ "$download_embedding" == true ]]; then
     else
         echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
     fi
+
+    echo "Downloading full Hugging Face weights for TEI (pplx-embed-context-v1-0.6b)..."
+    mkdir -p "${target_dir}/embedding/pplx-embed-context-v1-0.6b"
+    if command -v hf &>/dev/null; then
+        hf download perplexity-ai/pplx-embed-context-v1-0.6b --local-dir "${target_dir}/embedding/pplx-embed-context-v1-0.6b"
+    else
+        echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
+    fi
 fi
 
 # 3. Reranker
@@ -366,6 +374,14 @@ if [[ "$download_reranker" == true ]]; then
     mkdir -p "${target_dir}/reranker/Qwen3-Reranker-0.6B"
     if command -v hf &>/dev/null; then
         hf download Qwen/Qwen3-Reranker-0.6B --local-dir "${target_dir}/reranker/Qwen3-Reranker-0.6B"
+    else
+        echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
+    fi
+
+    echo "Downloading full Hugging Face weights for TEI (jina-reranker-v3)..."
+    mkdir -p "${target_dir}/reranker/jina-reranker-v3"
+    if command -v hf &>/dev/null; then
+        hf download jinaai/jina-reranker-v3 --local-dir "${target_dir}/reranker/jina-reranker-v3"
     else
         echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
     fi
@@ -444,6 +460,7 @@ fi
 if [[ "$download_benchmark" == true ]]; then
     echo "=== Building Benchmark Context ==="
     python3 "$(dirname "$0")/download-helper.py" benchmark-context --output "${target_dir}/benchmark-context.md"
+    python3 "$(dirname "$0")/download-helper.py" hindsight-context --output "${target_dir}/hindsight-context.txt"
 fi
 
 echo "=== All requested model downloads/conversions completed. ==="
