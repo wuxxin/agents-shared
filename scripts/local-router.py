@@ -1619,6 +1619,7 @@ async def proxy_request(
     agent: str | None = None,
 ) -> Response:
     """Asynchronously streams request to target and forwards the response back."""
+    global global_active_calls_stream, global_active_calls_post
     body = content if content is not None else await request.body()
     start_time = time.perf_counter()
 
