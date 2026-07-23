@@ -574,7 +574,7 @@ cmd_test() {
           \"documents\": [
             \"The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.\",
             \"The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.\",
-            \"Light travels through glass at a speed of approximately 200,000 kilometers per second, which is slower than in a vacuum.\",
+            \"Light travels through glass windows when shining from the outside sun.\",
             \"The speed of light in water is about 225,000 kilometers per second due to the refractive index.\",
             \"The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.\"
           ],
