@@ -62,15 +62,27 @@ shfmt -i 4 -w scripts/*.sh
 
 ## Working with This Repository
 - document all agent software default ports and isolation requirements in `README.md`
-- update documentation whenever any changes are made to scripts, `README.md`  for overall structure and `assistants/*-ctl.md`  for individual agent/service documentation, same for `scripts/`, if any assistant introduces new hardware or namespace isolation requirements, update the "## Sandboxing Architecture" profiles accordingly.
-- always use `scratch/` for temporary files, git checkout of sourcecode for research and other testings.
-- check configuration changes for packages by verifying it with the source code of the package checkedout and updated in `scratch/*-sources`.
+- update documentation whenever any changes are made to scripts,
+  `README.md`  for overall structure and `assistants/*-ctl.md` for individual
+  agent/service documentation, same for `scripts/`, if any assistant introduces
+  new hardware or namespace isolation requirements,
+  update the "## Sandboxing Architecture" profiles accordingly.
+- always use `scratch/` for temporary files, git checkout of sourcecode
+  for research and other testings.
+- check configuration changes for packages by verifying it with the source code
+  of the package checkedout and updated in `scratch/*-sources`.
 - always check with `[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]` if you are bwrapped yourself.
   - if bwrapped, do not use systemd to start/stop or otherwise introspect running systemd services.
   - if bwrapped, expect hat the real $HOME of the $USER eg. ~/.local is not available to you, you have a bwrapped ~/.local 
 - whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, it must be updated if any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
-- When running `run-local-benchmark.py` for testing or validation (e.g., in `--mock` mode), make sure you do not overwrite the production report/JSON files in `assistants/`. when used with the `--mock` flag, the script automatically redirects outputs to `scratch/local-benchmark-mock.*`. If running other custom test scenarios, explicitly supply temporary paths via `--report scratch/test.md --data scratch/test.json`.
-- Discover updates of and new configuration features and schemas, by inspecting configuration source code directories:
+- When running `run-local-benchmark.py` for testing or validation 
+  (e.g., in `--mock` mode), make sure you do not overwrite the production
+  report/JSON files in `assistants/`. when used with the `--mock` flag, 
+  the script automatically redirects outputs to `scratch/local-benchmark-mock.*`.
+  If running other custom test scenarios, explicitly supply temporary paths via
+  `--report scratch/test.md --data scratch/test.json`.
+- Discover updates of and new configuration features and schemas,
+  by inspecting configuration source code directories:
   - ZeroClaw: check crates/zeroclaw-config/src/schema.rs and crates/zeroclaw-memory/
   - IronClaw: check .env.example and FEATURE_PARITY.md
   - Hermes: check hermes_constants.py, agent/context_compressor.py, and acp_adapter/
@@ -79,8 +91,17 @@ shfmt -i 4 -w scripts/*.sh
   - NanoClaw: check .env.example, src/config.ts, and src/env.ts
   - PicoClaw: check .env.example, config/config.example.json, and pkg/config/config.go
 - **Debugging Control Scripts in Sandboxed (bwrapped) Environment**:
-  If the agent environment is bwrapped (systemd socket does not exist), you cannot use systemd commands to start/stop/status/restart services. However, you can still test installation, uninstallation, and transient execution. To debug:
-  1. Test configuration generation with: `./assistants/<name>-ctl install --no-start --new-config`
-  2. Inspect the generated systemd environment file (e.g. `~/.config/systemd/user/<name>-gateway.env`) and verify path specifiers (%h, ~) expand or persist correctly.
-  3. Clean up the sandbox with: `./assistants/<name>-ctl uninstall`
-  4. Test command line routing and fallback transient execution using: `./assistants/<name>-ctl exec --help`
+  If the agent environment is bwrapped (systemd socket does not exist),
+  you cannot use systemd commands to start/stop/status/restart services.
+  However, you can still test installation, uninstallation, transient execution
+  and logs of the real service. To debug:
+  - Test configuration generation with:
+    `./assistants/<name>-ctl install --no-start --new-config`
+  - Inspect the generated systemd environment file,
+    (e.g. `~/.config/systemd/user/<name>-gateway.env`)
+    and verify path specifiers (%h, ~) expand or persist correctly.
+  - Clean up the sandbox install with: `./assistants/<name>-ctl uninstall`
+  - You are bwrapped but you can access `journalctl`,
+    to inspect the logs of the real running services,
+  - Test command line routing and fallback transient execution using:
+    `./assistants/<name>-ctl exec --help`
