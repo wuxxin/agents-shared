@@ -14,7 +14,7 @@ DEFAULT_AGENT_PROFILE_ROOT="%h/.local/sandbox/hermes/.hermes/profiles/${DEFAULT_
 DEFAULT_AGENT_WORKSPACE="${DEFAULT_AGENT_PROFILE_ROOT}/workspace"
 
 # Mounts
-DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.opencode-mem opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
+DEFAULT_AGENT_SANDBOX_MOUNTS="opencode/.cache/opencode opencode/.config/opencode opencode/.local/share/opencode opencode/.local/state/opencode deep-research/.cache/deep-research-profiles deep-research/.config/deep-research-profiles"
 DEFAULT_AGENT_EXTRA_MOUNTS="%h/agent-shared:agent-shared"
 DEFAULT_AGENT_TMPFILES_CLEANUP="false"
 
