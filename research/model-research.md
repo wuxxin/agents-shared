@@ -523,7 +523,7 @@ Given 24 GB total VRAM, and ~1.2 GB consumed by model weights + ~0.4 GB CUDA ove
 - **32K context**: **1 parallel** (~4.0 GB) fits comfortably; **2 parallel** (~8.0 GB) is feasible; **4 parallel** (~16.0 GB) is tight; **8 parallel** exceeds VRAM
 - **Mixed workloads** (e.g., 3×8K + 1×32K): ~0.8 + 4.0 GB = ~4.8 GB activations — fits with headroom
 
-These constraints directly informed the hindsight benchmark tuning: the parallel request count was set to 4 (3×8K + 1×32K) to stay within safe VRAM limits for the 0.6B model under TEI.
+These constraints directly informed the hindsight benchmark tuning: the parallel request pattern was set to 3 rounds of 4 parallel × 8K requests (32K tokens per round, 98K total tokens) to stay within safe VRAM limits for the 0.6B model under TEI.
 
 #### Quantization: Weights vs. Activations vs. Embedding Output
 
