@@ -31,109 +31,88 @@ DEFAULT_HINDSIGHT_API_WORKER_ENABLED="false"
 DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT=8889
 DEFAULT_HINDSIGHT_API_MCP_ENABLED="true"
 
-# hindsight chat
-DEFAULT_HINDSIGHT_API_LLM_PROVIDER=openai
+# hindsight chat / LLM (2 parallel LLM calls available)
+DEFAULT_HINDSIGHT_API_LLM_PROVIDER="openai"
 DEFAULT_HINDSIGHT_API_LLM_API_KEY="unused"
 DEFAULT_HINDSIGHT_API_LLM_BASE_URL="http://localhost:51080/v1"
 DEFAULT_HINDSIGHT_API_LLM_MODEL="qwen3"
 DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}, "client_id": "hindsight"}'
+DEFAULT_HINDSIGHT_API_LLM_TIMEOUT=180
+DEFAULT_HINDSIGHT_API_LLM_MAX_CONCURRENT=2
+DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT="low"
 
-# hindsight embedding
-DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
+# hindsight embedding (2 parallel calls, 8K max context, TEI / pplx-embedding default)
+DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER="openai"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="unused"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="http://localhost:51080/v1"
-DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="qwen3-embedding"
+DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="pplx-embedding"
+DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT=2
 
-# hindsight rerank
-DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER=cohere
+# hindsight rerank (2 parallel calls, 16K max context)
+DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER="cohere"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY="unused"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1/rerank"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="qwen3-reranker"
+DEFAULT_HINDSIGHT_API_RERANKER_MAX_CONCURRENT=2
 
-# hindsight database
-DEFAULT_HINDSIGHT_API_DATABASE_BACKEND=postgresql
-DEFAULT_HINDSIGHT_API_VECTOR_EXTENSION=pgvector
-DEFAULT_HINDSIGHT_API_TEXT_SEARCH_EXTENSION=pgroonga
+# recall scope
+DEFAULT_HINDSIGHT_API_RECALL_INCLUDE_CHUNKS="false"
+DEFAULT_HINDSIGHT_API_RECALL_MAX_TOKENS=1536
+DEFAULT_HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS=500
+
+# reflect scope
+DEFAULT_HINDSIGHT_API_REFLECT_WALL_TIMEOUT=600
+DEFAULT_HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS=65536
+DEFAULT_HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT=2
+DEFAULT_HINDSIGHT_API_REFLECT_LLM_TIMEOUT=300
+
+# retain scope
+DEFAULT_HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT=2
+DEFAULT_HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN="false"
+
+# disposition
+DEFAULT_HINDSIGHT_API_DISPOSITION_SKEPTICISM=3
+DEFAULT_HINDSIGHT_API_DISPOSITION_LITERALISM=3
+DEFAULT_HINDSIGHT_API_DISPOSITION_EMPATHY=4
+
+# consolidation scope
+DEFAULT_HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET="low"
+DEFAULT_HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS=4096
+DEFAULT_HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION=256
+DEFAULT_HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT=1
+DEFAULT_HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE=2
+DEFAULT_HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND=20
+
+# database
+DEFAULT_HINDSIGHT_API_DATABASE_BACKEND="postgresql"
+DEFAULT_HINDSIGHT_API_VECTOR_EXTENSION="pgvector"
+DEFAULT_HINDSIGHT_API_TEXT_SEARCH_EXTENSION="pgroonga"
 DEFAULT_HINDSIGHT_API_DATABASE_URL="postgresql://username:password@localhost:5432/dbname"
 
 # Load environment
 
 load_env() {
-    # Capture environment overrides passed by caller
-    local env_lmem_port="${LMEM_PORT:-}"
-    local env_lmem_host="${LMEM_HOST:-}"
-    local env_lmem_service_cmd="${LMEM_SERVICE_CMD:-}"
-    local env_lmem_service_args="${LMEM_SERVICE_ARGS:-}"
-    local env_lmem_sidecars="${LMEM_SIDECARS:-}"
-    local env_lmem_sidecar_worker_cmd="${LMEM_SIDECAR_WORKER_CMD:-}"
-    local env_lmem_sidecar_worker_args="${LMEM_SIDECAR_WORKER_ARGS:-}"
-    local env_lmem_sidecar_controlui_cmd="${LMEM_SIDECAR_CONTROLUI_CMD:-}"
-    local env_lmem_sidecar_controlui_args="${LMEM_SIDECAR_CONTROLUI_ARGS:-}"
+    # 1. Capture environment overrides passed by caller before defaults/env file are loaded
+    local -A caller_overrides=()
+    local prefix var_name
+    for prefix in LMEM_ HINDSIGHT_; do
+        for var_name in $(compgen -v "${prefix}"); do
+            if [[ "${var_name}" != DEFAULT_* && -n "${!var_name:-}" ]]; then
+                caller_overrides["${var_name}"]="${!var_name}"
+            fi
+        done
+    done
 
-    local env_hindsight_api_run_migrations_on_startup="${HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP:-}"
-    local env_hindsight_api_worker_enabled="${HINDSIGHT_API_WORKER_ENABLED:-}"
-    local env_hindsight_api_worker_http_port="${HINDSIGHT_API_WORKER_HTTP_PORT:-}"
-    local env_hindsight_api_mcp_enabled="${HINDSIGHT_API_MCP_ENABLED:-}"
+    # 2. Programmatically apply defaults from all DEFAULT_LMEM_* and DEFAULT_HINDSIGHT_* constants
+    local def_var target_var
+    for prefix in DEFAULT_LMEM_ DEFAULT_HINDSIGHT_; do
+        for def_var in $(compgen -v "${prefix}"); do
+            target_var="${def_var#DEFAULT_}"
+            export "${target_var}"="${!def_var}"
+        done
+    done
 
-    local env_hindsight_api_llm_provider="${HINDSIGHT_API_LLM_PROVIDER:-}"
-    local env_hindsight_api_llm_api_key="${HINDSIGHT_API_LLM_API_KEY:-}"
-    local env_hindsight_api_llm_base_url="${HINDSIGHT_API_LLM_BASE_URL:-}"
-    local env_hindsight_api_llm_model="${HINDSIGHT_API_LLM_MODEL:-}"
-    local env_hindsight_api_llm_extra_body="${HINDSIGHT_API_LLM_EXTRA_BODY:-}"
-
-    local env_hindsight_api_embeddings_provider="${HINDSIGHT_API_EMBEDDINGS_PROVIDER:-}"
-    local env_hindsight_api_embeddings_openai_api_key="${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:-}"
-    local env_hindsight_api_embeddings_openai_base_url="${HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL:-}"
-    local env_hindsight_api_embeddings_openai_model="${HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL:-}"
-
-    local env_hindsight_api_reranker_provider="${HINDSIGHT_API_RERANKER_PROVIDER:-}"
-    local env_hindsight_api_reranker_cohere_api_key="${HINDSIGHT_API_RERANKER_COHERE_API_KEY:-}"
-    local env_hindsight_api_reranker_cohere_base_url="${HINDSIGHT_API_RERANKER_COHERE_BASE_URL:-}"
-    local env_hindsight_api_reranker_cohere_model="${HINDSIGHT_API_RERANKER_COHERE_MODEL:-}"
-
-    local env_hindsight_api_database_backend="${HINDSIGHT_API_DATABASE_BACKEND:-}"
-    local env_hindsight_api_vector_extension="${HINDSIGHT_API_VECTOR_EXTENSION:-}"
-    local env_hindsight_api_text_search_extension="${HINDSIGHT_API_TEXT_SEARCH_EXTENSION:-}"
-    local env_hindsight_api_database_url="${HINDSIGHT_API_DATABASE_URL:-}"
-
-    # Apply defaults using constants
-    export LMEM_PORT="${DEFAULT_LMEM_PORT}"
-    export LMEM_HOST="${DEFAULT_LMEM_HOST}"
-    export LMEM_SERVICE_CMD="${DEFAULT_LMEM_SERVICE_CMD}"
-    export LMEM_SERVICE_ARGS="${DEFAULT_LMEM_SERVICE_ARGS}"
-    export LMEM_SIDECARS="${DEFAULT_LMEM_SIDECARS}"
-    export LMEM_SIDECAR_WORKER_CMD="${DEFAULT_LMEM_SIDECAR_WORKER_CMD}"
-    export LMEM_SIDECAR_WORKER_ARGS="${DEFAULT_LMEM_SIDECAR_WORKER_ARGS}"
-    export LMEM_SIDECAR_CONTROLUI_CMD="${DEFAULT_LMEM_SIDECAR_CONTROLUI_CMD}"
-    export LMEM_SIDECAR_CONTROLUI_ARGS="${DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS}"
-
-    export HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="${DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP}"
-    export HINDSIGHT_API_WORKER_ENABLED="${DEFAULT_HINDSIGHT_API_WORKER_ENABLED}"
-    export HINDSIGHT_API_WORKER_HTTP_PORT="${DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT}"
-    export HINDSIGHT_API_MCP_ENABLED="${DEFAULT_HINDSIGHT_API_MCP_ENABLED}"
-
-    export HINDSIGHT_API_LLM_PROVIDER="${DEFAULT_HINDSIGHT_API_LLM_PROVIDER}"
-    export HINDSIGHT_API_LLM_API_KEY="${DEFAULT_HINDSIGHT_API_LLM_API_KEY}"
-    export HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_HINDSIGHT_API_LLM_BASE_URL}"
-    export HINDSIGHT_API_LLM_MODEL="${DEFAULT_HINDSIGHT_API_LLM_MODEL}"
-    export HINDSIGHT_API_LLM_EXTRA_BODY="${DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY}"
-
-    export HINDSIGHT_API_EMBEDDINGS_PROVIDER="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER}"
-    export HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}"
-    export HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL}"
-    export HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL}"
-
-    export HINDSIGHT_API_RERANKER_PROVIDER="${DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER}"
-    export HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY}"
-    export HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL}"
-    export HINDSIGHT_API_RERANKER_COHERE_MODEL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL}"
-
-    export HINDSIGHT_API_DATABASE_BACKEND="${DEFAULT_HINDSIGHT_API_DATABASE_BACKEND}"
-    export HINDSIGHT_API_VECTOR_EXTENSION="${DEFAULT_HINDSIGHT_API_VECTOR_EXTENSION}"
-    export HINDSIGHT_API_TEXT_SEARCH_EXTENSION="${DEFAULT_HINDSIGHT_API_TEXT_SEARCH_EXTENSION}"
-    export HINDSIGHT_API_DATABASE_URL="${DEFAULT_HINDSIGHT_API_DATABASE_URL}"
-
-    # Source the env file and automatically export all variables
+    # 3. Source the env file if present (overrides defaults with user settings on disk)
     if [[ -f "$ENV_FILE" ]]; then
         set +u
         set -a
@@ -143,42 +122,11 @@ load_env() {
         set -u
     fi
 
-    # Re-apply captured overrides
-    if [[ -n "$env_lmem_port" ]]; then export LMEM_PORT="$env_lmem_port"; fi
-    if [[ -n "$env_lmem_host" ]]; then export LMEM_HOST="$env_lmem_host"; fi
-    if [[ -n "$env_lmem_service_cmd" ]]; then export LMEM_SERVICE_CMD="$env_lmem_service_cmd"; fi
-    if [[ -n "$env_lmem_service_args" ]]; then export LMEM_SERVICE_ARGS="$env_lmem_service_args"; fi
-    if [[ -n "$env_lmem_sidecars" ]]; then export LMEM_SIDECARS="$env_lmem_sidecars"; fi
-    if [[ -n "$env_lmem_sidecar_worker_cmd" ]]; then export LMEM_SIDECAR_WORKER_CMD="$env_lmem_sidecar_worker_cmd"; fi
-    if [[ -n "$env_lmem_sidecar_worker_args" ]]; then export LMEM_SIDECAR_WORKER_ARGS="$env_lmem_sidecar_worker_args"; fi
-    if [[ -n "$env_lmem_sidecar_controlui_cmd" ]]; then export LMEM_SIDECAR_CONTROLUI_CMD="$env_lmem_sidecar_controlui_cmd"; fi
-    if [[ -n "$env_lmem_sidecar_controlui_args" ]]; then export LMEM_SIDECAR_CONTROLUI_ARGS="$env_lmem_sidecar_controlui_args"; fi
-
-    if [[ -n "$env_hindsight_api_run_migrations_on_startup" ]]; then export HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="$env_hindsight_api_run_migrations_on_startup"; fi
-    if [[ -n "$env_hindsight_api_worker_enabled" ]]; then export HINDSIGHT_API_WORKER_ENABLED="$env_hindsight_api_worker_enabled"; fi
-    if [[ -n "$env_hindsight_api_worker_http_port" ]]; then export HINDSIGHT_API_WORKER_HTTP_PORT="$env_hindsight_api_worker_http_port"; fi
-    if [[ -n "$env_hindsight_api_mcp_enabled" ]]; then export HINDSIGHT_API_MCP_ENABLED="$env_hindsight_api_mcp_enabled"; fi
-
-    if [[ -n "$env_hindsight_api_llm_provider" ]]; then export HINDSIGHT_API_LLM_PROVIDER="$env_hindsight_api_llm_provider"; fi
-    if [[ -n "$env_hindsight_api_llm_api_key" ]]; then export HINDSIGHT_API_LLM_API_KEY="$env_hindsight_api_llm_api_key"; fi
-    if [[ -n "$env_hindsight_api_llm_base_url" ]]; then export HINDSIGHT_API_LLM_BASE_URL="$env_hindsight_api_llm_base_url"; fi
-    if [[ -n "$env_hindsight_api_llm_model" ]]; then export HINDSIGHT_API_LLM_MODEL="$env_hindsight_api_llm_model"; fi
-    if [[ -n "$env_hindsight_api_llm_extra_body" ]]; then export HINDSIGHT_API_LLM_EXTRA_BODY="$env_hindsight_api_llm_extra_body"; fi
-
-    if [[ -n "$env_hindsight_api_embeddings_provider" ]]; then export HINDSIGHT_API_EMBEDDINGS_PROVIDER="$env_hindsight_api_embeddings_provider"; fi
-    if [[ -n "$env_hindsight_api_embeddings_openai_api_key" ]]; then export HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="$env_hindsight_api_embeddings_openai_api_key"; fi
-    if [[ -n "$env_hindsight_api_embeddings_openai_base_url" ]]; then export HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="$env_hindsight_api_embeddings_openai_base_url"; fi
-    if [[ -n "$env_hindsight_api_embeddings_openai_model" ]]; then export HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="$env_hindsight_api_embeddings_openai_model"; fi
-
-    if [[ -n "$env_hindsight_api_reranker_provider" ]]; then export HINDSIGHT_API_RERANKER_PROVIDER="$env_hindsight_api_reranker_provider"; fi
-    if [[ -n "$env_hindsight_api_reranker_cohere_api_key" ]]; then export HINDSIGHT_API_RERANKER_COHERE_API_KEY="$env_hindsight_api_reranker_cohere_api_key"; fi
-    if [[ -n "$env_hindsight_api_reranker_cohere_base_url" ]]; then export HINDSIGHT_API_RERANKER_COHERE_BASE_URL="$env_hindsight_api_reranker_cohere_base_url"; fi
-    if [[ -n "$env_hindsight_api_reranker_cohere_model" ]]; then export HINDSIGHT_API_RERANKER_COHERE_MODEL="$env_hindsight_api_reranker_cohere_model"; fi
-
-    if [[ -n "$env_hindsight_api_database_backend" ]]; then export HINDSIGHT_API_DATABASE_BACKEND="$env_hindsight_api_database_backend"; fi
-    if [[ -n "$env_hindsight_api_vector_extension" ]]; then export HINDSIGHT_API_VECTOR_EXTENSION="$env_hindsight_api_vector_extension"; fi
-    if [[ -n "$env_hindsight_api_text_search_extension" ]]; then export HINDSIGHT_API_TEXT_SEARCH_EXTENSION="$env_hindsight_api_text_search_extension"; fi
-    if [[ -n "$env_hindsight_api_database_url" ]]; then export HINDSIGHT_API_DATABASE_URL="$env_hindsight_api_database_url"; fi
+    # 4. Re-apply captured caller overrides (caller environment takes highest precedence)
+    local key
+    for key in "${!caller_overrides[@]}"; do
+        export "${key}"="${caller_overrides[$key]}"
+    done
 }
 
 # Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
@@ -428,69 +376,67 @@ HINDSIGHT_API_WORKER_ENABLED="${DEFAULT_HINDSIGHT_API_WORKER_ENABLED}"
 HINDSIGHT_API_WORKER_HTTP_PORT="${DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT}"
 HINDSIGHT_API_MCP_ENABLED="${DEFAULT_HINDSIGHT_API_MCP_ENABLED}"
 
-# chat
+# chat / LLM serving (2 parallel LLM calls available)
 HINDSIGHT_API_LLM_PROVIDER="${DEFAULT_HINDSIGHT_API_LLM_PROVIDER}"
 HINDSIGHT_API_LLM_API_KEY="${DEFAULT_HINDSIGHT_API_LLM_API_KEY}"
 HINDSIGHT_API_LLM_BASE_URL="${DEFAULT_HINDSIGHT_API_LLM_BASE_URL}"
 HINDSIGHT_API_LLM_MODEL="${DEFAULT_HINDSIGHT_API_LLM_MODEL}"
-# HINDSIGHT_API_LLM_TIMEOUT(default 120)
-HINDSIGHT_API_LLM_TIMEOUT=180
+# HINDSIGHT_API_LLM_TIMEOUT (default: 120; extended to 180s for local GPU pre-fill)
+HINDSIGHT_API_LLM_TIMEOUT="${DEFAULT_HINDSIGHT_API_LLM_TIMEOUT}"
 # HINDSIGHT_API_LLM_EXTRA_BODY: JSON dict of extra request-body params
-# (e.g. temperature, top_p, max_tokens) merged into every LLM call.
-# Each provider merges them in its own native parameter space, so use that provider's field names (e.g. max_tokens for OpenAI/Anthropic vs max_output_tokens for Gemini). Also useful for custom model servers (e.g. vLLM chat_template_kwargs).
 HINDSIGHT_API_LLM_EXTRA_BODY='${DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY}'
-# HINDSIGHT_API_LLM_MAX_CONCURRENT default 32, assumes cloud provider, scale down to two or one for local-inference
-HINDSIGHT_API_LLM_MAX_CONCURRENT=1
-# HINDSIGHT_API_LLM_REASONING_EFFORT Reasoning effort for providers/models that support it (for example low, medium, high, xhigh)
-HINDSIGHT_API_LLM_REASONING_EFFORT=low
+# HINDSIGHT_API_LLM_MAX_CONCURRENT (default: 32; scaled to 2 parallel LLM calls)
+HINDSIGHT_API_LLM_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_LLM_MAX_CONCURRENT}"
+# HINDSIGHT_API_LLM_REASONING_EFFORT (low, medium, high)
+HINDSIGHT_API_LLM_REASONING_EFFORT="${DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT}"
 
-# embedding
+# text embedding (4 parallel calls, 8K max context)
 HINDSIGHT_API_EMBEDDINGS_PROVIDER="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL}"
+HINDSIGHT_API_RECALL_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT}"
 
-# rerank
+# document rerank (2 parallel calls, 16K max context)
 HINDSIGHT_API_RERANKER_PROVIDER="${DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER}"
 HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY}"
 HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL}"
 HINDSIGHT_API_RERANKER_COHERE_MODEL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL}"
+HINDSIGHT_API_RERANKER_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_RERANKER_MAX_CONCURRENT}"
 
-# recall
-# HINDSIGHT_API_RECALL_INCLUDE_CHUNKS (default true):
-#   if disabled hindsight wont load raw chunks referenced into K/V (reducing its size massive)
-HINDSIGHT_API_RECALL_INCLUDE_CHUNKS=false
-# HINDSIGHT_API_RECALL_MAX_TOKENS (default 2048):
-#   Token budget for facts returned by the internal recall.
-HINDSIGHT_API_RECALL_MAX_TOKENS=1536
-# HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS (default 1000):
-#   Token budget for chunks if include_chunks is true
-HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS=500
+# recall scope tuning
+# HINDSIGHT_API_RECALL_INCLUDE_CHUNKS (default: true; set to false to cut memory payload size in half)
+HINDSIGHT_API_RECALL_INCLUDE_CHUNKS="${DEFAULT_HINDSIGHT_API_RECALL_INCLUDE_CHUNKS}"
+# HINDSIGHT_API_RECALL_MAX_TOKENS (default: 2048; tuned for 8K embedding / 16K reranker)
+HINDSIGHT_API_RECALL_MAX_TOKENS="${DEFAULT_HINDSIGHT_API_RECALL_MAX_TOKENS}"
+# HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS (default: 1000)
+HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS="${DEFAULT_HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS}"
 
-# reflect
-# HINDSIGHT_API_REFLECT_WALL_TIMEOUT (default 300)
-#   Wall-clock timeout in seconds for the entire reflect operation.
-HINDSIGHT_API_REFLECT_WALL_TIMEOUT=600
-# HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS 100000
-HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS=65536
-HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT=1
-HINDSIGHT_API_REFLECT_LLM_TIMEOUT=300
+# reflect scope tuning
+# HINDSIGHT_API_REFLECT_WALL_TIMEOUT (default: 300)
+HINDSIGHT_API_REFLECT_WALL_TIMEOUT="${DEFAULT_HINDSIGHT_API_REFLECT_WALL_TIMEOUT}"
+# HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS (default: 100000)
+HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS="${DEFAULT_HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS}"
+HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT}"
+HINDSIGHT_API_REFLECT_LLM_TIMEOUT="${DEFAULT_HINDSIGHT_API_REFLECT_LLM_TIMEOUT}"
 
-# retain
-HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT=1
+# retain scope tuning
+HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT}"
+HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN="${DEFAULT_HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN}"
 
-# disposition (defaults 3:3:3)
-HINDSIGHT_API_DISPOSITION_SKEPTICISM=3
-HINDSIGHT_API_DISPOSITION_LITERALISM=3
-HINDSIGHT_API_DISPOSITION_EMPATHY=4
+# disposition tuning (defaults 3:3:4)
+HINDSIGHT_API_DISPOSITION_SKEPTICISM="${DEFAULT_HINDSIGHT_API_DISPOSITION_SKEPTICISM}"
+HINDSIGHT_API_DISPOSITION_LITERALISM="${DEFAULT_HINDSIGHT_API_DISPOSITION_LITERALISM}"
+HINDSIGHT_API_DISPOSITION_EMPATHY="${DEFAULT_HINDSIGHT_API_DISPOSITION_EMPATHY}"
 
-# consolidation
-HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET=low
-HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS=4096
-HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION=256
-HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT=1
-HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE=2
-HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND=20
+# consolidation scope tuning
+HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET="${DEFAULT_HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET}"
+HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS="${DEFAULT_HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS}"
+HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION="${DEFAULT_HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION}"
+# Background consolidation capped at 1 to prevent starving interactive reflection/retain LLM passes
+HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT}"
+HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE="${DEFAULT_HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE}"
+HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND="${DEFAULT_HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND}"
 
 
 # database
