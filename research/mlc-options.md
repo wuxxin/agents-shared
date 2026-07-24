@@ -1,8 +1,39 @@
-# MLC-LLM Quantization Options
+# MLC-LLM Options
 
-Reference for all available quantization modes in MLC-LLM v0.20.0.
+Reference for all available modes in MLC-LLM v0.20.0.
 
-## Summary Table
+## Model Architecture Types
+
+Model architecture such as "llama". If not set, it is inferred from `mlc-chat-config.json`. (default: "auto")
+
+choices:
+    auto, llama, llama4, mistral, ministral3, gemma, gemma2, gemma3, gemma3_text,
+    gpt2, mixtral, gpt_neox, gpt_bigcode, phi-msft, phi, phi3, phi3_v,
+    qwen, qwen2, qwen2_moe, qwen3, qwen3-embedding, qwen3_5,
+    qwen3_5_text, qwen3_moe, deepseek_v2, deepseek_v3, stablelm,
+    baichuan, internlm, internlm2, rwkv5, orion, llava, rwkv6, chatglm,
+    eagle, bert, medusa, starcoder2, cohere, minicpm, deepseek, gptj,
+    olmo, olmo2, nemotron, bert-bge
+
+## Conversion Template Types
+
+Conversation template. It depends on how the model is tuned. 
+Use "LM" for vanilla base model (required):
+
+choices:
+    chatml, ministral3_reasoning, phi-4, open_hermes_mistral, qwen3_5,
+    gemma_instruction, aya-23, wizardlm_7b, redpajama_chat,
+    qwen3_5_nothink, stablelm-3b, gorilla-openfunctions-v2,
+    wizard_coder_or_math, olmo, llama-3, qwen2, codellama_instruct,
+    oasst, llava, nemotron, rwkv_world, qwen3, codellama_completion,
+    neural_hermes_mistral, dolly, llama-4, gpt2, gorilla, deepseek_v2,
+    ministral3, gemma3_instruction, llm-jp, deepseek_r1_llama, stablelm,
+    llama-2, deepseek, glm, deepseek_r1_qwen, gpt_bigcode,
+    hermes3_llama-3_1, chatml_nosystem, phi-2, stablelm-2, deepseek_v3,
+    phi-3-vision, hermes2_pro_llama3, LM, llama_default, phi-3, olmo2,
+    tinyllama_v1_0, mistral_default, llama-3_1, orion
+
+## Quantization Types
 
 | Name | Kind | Weight Dtype | Model Dtype | Group Size | Quant Embed | Quant FC | Layout | Notes |
 |------|------|-------------|-------------|-----------|-------------|----------|--------|-------|
