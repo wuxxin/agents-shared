@@ -1,85 +1,57 @@
-Your revised configuration iswell-tuned for a local-inference model engine with a **240k Unified KV Cache** serving **3 parallel sessions**. 
+# Hindsight Configuration & Tuning Guide
 
-By capping the concurrency at `1` for the global, reflect, and consolidation scopes, you guarantee that background memory management (which can be computationally heavy) will queue up in single file. This prevents the LLM from trying to spin up parallel slots that would trigger prompt-swapping, VRAM exhaustion, or lag in your active chat sessions.
+This document provides a consolidated reference for configuring the **Hindsight Memory Service** (`local-memory.sh`) for local inference deployments.
 
-Below is a complete catalog of your configured knobs, alongside a few hidden/advanced knobs you might want to consider adding to your setup to keep local storage clean and prevent memory bloat.
+## Hardware & Backend Capacity Model
 
-### Knob Catalog (Markdown Reference Table)
+The default configuration is tuned for a local inference environment with the following concurrency and context boundaries:
 
-| Knob Name | Default Value | Actual Value | Description | Rationale for Your Setup |
-| :--- | :---: | :---: | :--- | :--- |
-| **`HINDSIGHT_API_LLM_TIMEOUT`** | `120` | `180` | Individual client HTTP request timeout in seconds. | Gives your local hardware up to 3 minutes to handle initial pre-fill and decode before aborting. |
-| **`HINDSIGHT_API_LLM_MAX_CONCURRENT`** | `32` | `1` | Global cap on simultaneous LLM requests sent by Hindsight. | **Critical for Local:** Restricts Hindsight to 1 active pipeline, reserving remaining slots for active user chat sessions. |
-| **`HINDSIGHT_API_LLM_REASONING_EFFORT`** | `medium` | `low` | Reasoning parameter passed to supporting reasoning models. | Minimizes unnecessary "thinking" token overhead to speed up background ingestion/synthesis. |
-| **`HINDSIGHT_API_RECALL_INCLUDE_CHUNKS`** | `true` | `false` | Decides whether raw text chunks are pulled alongside facts. | **Token Saver:** Dropping raw chunks slices the memory-model input payload size in half. |
-| **`HINDSIGHT_API_RECALL_MAX_TOKENS`** | `2048` | `1536` | Token budget allocated to facts gathered by internal recall. | Keeps the memory database context light enough to prevent prompt processing bottlenecks. |
-| **`HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS`** | `1000` | `500` | Token budget for chunks if `include_chunks` is true. | Effectively a dormant backup budget since you have disabled chunks globally. |
-| **`HINDSIGHT_API_REFLECT_WALL_TIMEOUT`** | `300` | `600` | Timeout in seconds for the entire background reflection job. | Prevents Hindsight from giving up on a long-running mental model synthesis task. |
-| **`HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS`** | `100000` | `65536` | Strict cap on total tokens fed to a single reflection. | **Protects VRAM:** Prevents the system from executing 120k–150k token bursts, keeping memory footprints predictable. |
-| **`HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT`** | `32` | `1` | Cap on concurrent LLM tasks specifically for the reflect phase. | Enforces strict serial processing during reflection to maintain local server responsiveness. |
-| **`HINDSIGHT_API_REFLECT_LLM_TIMEOUT`** | `HINDSIGHT_API_LLM_TIMEOUT` | `300` | HTTP request timeout specifically for reflect LLM queries. | Allows slower generation passes up to 5 minutes to complete complex, deeply detailed synthesis. |
-| **`HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT`** | `32` | `1` | Concurrent LLM threads allowed for incoming interaction ingestion. | Ensures background data retention runs silently without interrupting foreground tasks. |
-| **`HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET`** | `medium` | `low` | Token retrieval density used during memory consolidation. | Lowers CPU/GPU memory footprint during consolidation by querying only the highest-scoring records. |
-| **`HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS`** | `4096` | `4096` | Maximum total tokens retrieved when grouping older memories. | Stays at default to allow Hindsight to evaluate a reasonably rich set of facts when merging. |
-| **`HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION`** | `256` | `256` | Target size limit for individual facts when summarizing. | Preserves clear, concise boundaries for facts inside your memory graphs. |
-| **`HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT`** | `32` | `1` | Concurrency cap for background consolidation routines. | Restricts the automatic memory-merging system from running multiple background processes concurrently. |
-| **`HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE`** | `8` | `2` | Number of LLM operations dispatched at once in consolidation. | Shallows the pipeline depth to prevent massive concurrent VRAM pre-fill spikes. |
-| **`HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND`** | `50` | `20` | Max memories evaluated in a single consolidation round. | Prevents background tasks from processing massive document dumps in one heavy sweep. |
+- **Chat/Vision LLM**: **2 parallel LLM calls** available for Hindsight tasks (`HINDSIGHT_API_LLM_MAX_CONCURRENT=2`).
+- **Embedding Model**: **4 parallel embedding calls** available (`HINDSIGHT_API_RECALL_MAX_CONCURRENT=4`), **8,192 (8K) max context window**.
+- **Reranking Model**: **2 parallel rerank calls** available (`HINDSIGHT_API_RERANKER_MAX_CONCURRENT=2`), **16,384 (16K) max context window**.
+
+By setting strict concurrency caps across global, reflection, retention, and consolidation scopes, Hindsight avoids VRAM exhaustion, prompt thrashing, and KV cache eviction on local GPU endpoints while maintaining low-latency background memory indexing.
 
 ---
 
-### Additional Knobs to Consider for Your Setup
+## Knob Catalog (Configuration Reference)
 
-If you want to tighten your local instance even further, there are a few additional, less-publicized knobs in the engine code that can prevent host machine storage inflation and RAM leaks:
-
-#### 1. Disk & Memory Hygiene
-* **`HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN=true`** (Default: `false`)
-  * *Rationale:* Once a file (like a PDF or TXT) has been ingested, parsed, and its memories extracted, Hindsight normally keeps the source file. Setting this to `true` cleans up the source binaries immediately, preventing your local database or directory from swelling with raw document duplicates.
-
-#### 2. Local-Access Security
-* **`HINDSIGHT_API_AUTH_ENABLED=true`** (Default: `false`)
-  * *Rationale:* If your local deployment is accessible on your LAN or running as a multi-user service, you can enforce basic API-key validation.
-* **`HINDSIGHT_API_MCP_AUTH_TOKEN="your_secure_token"`** (Default: `""`)
-  * *Rationale:* If you use Hindsight's MCP (Model Context Protocol) capability locally, this sets an authentication token to secure the MCP socket from unauthorized client tools.Your revised configuration iswell-tuned for a local-inference model engine with a **240k Unified KV Cache** serving **3 parallel sessions**. 
-
-By capping the concurrency at `1` for the global, reflect, and consolidation scopes, you guarantee that background memory management (which can be computationally heavy) will queue up in single file. This prevents the LLM from trying to spin up parallel slots that would trigger prompt-swapping, VRAM exhaustion, or lag in your active chat sessions.
-
-Below is a complete catalog of your configured knobs, alongside a few hidden/advanced knobs you might want to consider adding to your setup to keep local storage clean and prevent memory bloat.
-
-### Knob Catalog (Markdown Reference Table)
-
-| Knob Name | Default Value | Actual Value | Description | Rationale for Your Setup |
+| Knob Name | Default (Cloud) | Local Default | Description | Rationale for Local Setup |
 | :--- | :---: | :---: | :--- | :--- |
-| **`HINDSIGHT_API_LLM_TIMEOUT`** | `120` | `180` | Individual client HTTP request timeout in seconds. | Gives your local hardware up to 3 minutes to handle initial pre-fill and decode before aborting. |
-| **`HINDSIGHT_API_LLM_MAX_CONCURRENT`** | `32` | `1` | Global cap on simultaneous LLM requests sent by Hindsight. | **Critical for Local:** Restricts Hindsight to 1 active pipeline, reserving remaining slots for active user chat sessions. |
-| **`HINDSIGHT_API_LLM_REASONING_EFFORT`** | `medium` | `low` | Reasoning parameter passed to supporting reasoning models. | Minimizes unnecessary "thinking" token overhead to speed up background ingestion/synthesis. |
-| **`HINDSIGHT_API_RECALL_INCLUDE_CHUNKS`** | `true` | `false` | Decides whether raw text chunks are pulled alongside facts. | **Token Saver:** Dropping raw chunks slices the memory-model input payload size in half. |
-| **`HINDSIGHT_API_RECALL_MAX_TOKENS`** | `2048` | `1536` | Token budget allocated to facts gathered by internal recall. | Keeps the memory database context light enough to prevent prompt processing bottlenecks. |
-| **`HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS`** | `1000` | `500` | Token budget for chunks if `include_chunks` is true. | Effectively a dormant backup budget since you have disabled chunks globally. |
-| **`HINDSIGHT_API_REFLECT_WALL_TIMEOUT`** | `300` | `600` | Timeout in seconds for the entire background reflection job. | Prevents Hindsight from giving up on a long-running mental model synthesis task. |
-| **`HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS`** | `100000` | `65536` | Strict cap on total tokens fed to a single reflection. | **Protects VRAM:** Prevents the system from executing 120k–150k token bursts, keeping memory footprints predictable. |
-| **`HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT`** | `32` | `1` | Cap on concurrent LLM tasks specifically for the reflect phase. | Enforces strict serial processing during reflection to maintain local server responsiveness. |
-| **`HINDSIGHT_API_REFLECT_LLM_TIMEOUT`** | `HINDSIGHT_API_LLM_TIMEOUT` | `300` | HTTP request timeout specifically for reflect LLM queries. | Allows slower generation passes up to 5 minutes to complete complex, deeply detailed synthesis. |
-| **`HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT`** | `32` | `1` | Concurrent LLM threads allowed for incoming interaction ingestion. | Ensures background data retention runs silently without interrupting foreground tasks. |
-| **`HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET`** | `medium` | `low` | Token retrieval density used during memory consolidation. | Lowers CPU/GPU memory footprint during consolidation by querying only the highest-scoring records. |
-| **`HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS`** | `4096` | `4096` | Maximum total tokens retrieved when grouping older memories. | Stays at default to allow Hindsight to evaluate a reasonably rich set of facts when merging. |
-| **`HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION`** | `256` | `256` | Target size limit for individual facts when summarizing. | Preserves clear, concise boundaries for facts inside your memory graphs. |
-| **`HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT`** | `32` | `1` | Concurrency cap for background consolidation routines. | Restricts the automatic memory-merging system from running multiple background processes concurrently. |
-| **`HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE`** | `8` | `2` | Number of LLM operations dispatched at once in consolidation. | Shallows the pipeline depth to prevent massive concurrent VRAM pre-fill spikes. |
-| **`HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND`** | `50` | `20` | Max memories evaluated in a single consolidation round. | Prevents background tasks from processing massive document dumps in one heavy sweep. |
+| **`HINDSIGHT_API_LLM_TIMEOUT`** | `120` | `180` | Client HTTP timeout for LLM requests (seconds). | Gives local GPUs up to 3 minutes for initial pre-fill and decode. |
+| **`HINDSIGHT_API_LLM_MAX_CONCURRENT`** | `32` | `2` | Global cap on simultaneous LLM requests. | Matches 2 parallel LLM slots available for memory operations. |
+| **`HINDSIGHT_API_LLM_REASONING_EFFORT`** | `medium` | `low` | Reasoning effort for supporting models (`low`, `medium`, `high`). | Reduces thinking token overhead in background summarization. |
+| **`HINDSIGHT_API_RECALL_MAX_CONCURRENT`** | `32` | `4` | Cap on concurrent embedding requests during recall/retain. | Matches 4 parallel slots supported by 8K embedding model. |
+| **`HINDSIGHT_API_RECALL_INCLUDE_CHUNKS`** | `true` | `false` | Pull raw text chunks alongside facts during recall. | Disabling raw chunks cuts memory payload size by ~50%. |
+| **`HINDSIGHT_API_RECALL_MAX_TOKENS`** | `2048` | `1536` | Token budget for facts returned by internal recall. | Keeps context light; fits comfortably inside 8K embedding / 16K reranker bounds. |
+| **`HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS`** | `1000` | `500` | Token budget for chunks if `include_chunks=true`. | Backup budget kept small to limit VRAM usage if chunks enabled. |
+| **`HINDSIGHT_API_RERANKER_MAX_CONCURRENT`** | `32` | `2` | Cap on concurrent reranking requests. | Matches 2 parallel slots supported by 16K cross-encoder reranker. |
+| **`HINDSIGHT_API_REFLECT_WALL_TIMEOUT`** | `300` | `600` | Overall wall-clock timeout for background reflect job (seconds). | Allows deep multi-step reflection synthesis to finish without aborting. |
+| **`HINDSIGHT_API_REFLECT_MAX_CONTEXT_TOKENS`** | `100000` | `65536` | Strict cap on total tokens fed to a single reflection pass. | Prevents VRAM spikes from massive context bursts. |
+| **`HINDSIGHT_API_REFLECT_LLM_MAX_CONCURRENT`** | `32` | `2` | LLM concurrency cap specifically for reflection phase. | Allows up to 2 parallel reasoning passes during reflection loops. |
+| **`HINDSIGHT_API_REFLECT_LLM_TIMEOUT`** | `120` | `300` | LLM HTTP request timeout during reflection (seconds). | Accommodates multi-step agent reasoning passes. |
+| **`HINDSIGHT_API_RETAIN_LLM_MAX_CONCURRENT`** | `32` | `2` | Concurrent LLM threads for interaction ingestion. | Enables up to 2 parallel retention extraction streams. |
+| **`HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN`** | `false` | `false` | Automatically delete uploaded binary files after parsing. | Prevents storage accumulation when processing raw uploads. |
+| **`HINDSIGHT_API_DISPOSITION_SKEPTICISM`** | `3` | `3` | Memory fact skepticism level (1–5). | Standard balanced fact retention. |
+| **`HINDSIGHT_API_DISPOSITION_LITERALISM`** | `3` | `3` | Memory fact literalness score (1–5). | Standard literal assertion mapping. |
+| **`HINDSIGHT_API_DISPOSITION_EMPATHY`** | `3` | `4` | Memory fact empathy weighting (1–5). | Slightly elevated to capture interpersonal/agent context. |
+| **`HINDSIGHT_API_CONSOLIDATION_RECALL_BUDGET`** | `medium` | `low` | Token retrieval density for memory consolidation. | Reduces CPU/GPU overhead by fetching high-scoring memories only. |
+| **`HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS`** | `4096` | `4096` | Max facts tokens retrieved when grouping memories. | Evaluates a rich set of facts during background merges. |
+| **`HINDSIGHT_API_CONSOLIDATION_SOURCE_FACTS_MAX_TOKENS_PER_OBSERVATION`** | `256` | `256` | Token limit for individual facts when summarizing. | Preserves clear boundaries inside memory graphs. |
+| **`HINDSIGHT_API_CONSOLIDATION_LLM_MAX_CONCURRENT`** | `32` | `1` | Concurrency cap for background consolidation routines. | Enforces serial background consolidation so it doesn't starve the 2 LLM slots. |
+| **`HINDSIGHT_API_CONSOLIDATION_LLM_BATCH_SIZE`** | `8` | `2` | Batch size of LLM operations in consolidation. | Prevents VRAM pre-fill spikes by processing smaller batches. |
+| **`HINDSIGHT_API_CONSOLIDATION_MAX_MEMORIES_PER_ROUND`** | `50` | `20` | Max memories evaluated in one consolidation sweep. | Prevents large document dumps from overwhelming background loops. |
 
 ---
 
-### Additional Knobs to Consider for Your Setup
+## Additional Hygiene & Security Knobs
 
-If you want to tighten your local instance even further, there are a few additional, less-publicized knobs in the engine code that can prevent host machine storage inflation and RAM leaks:
+### 1. Disk & Memory Hygiene
+- **`HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN=false`** (Default: `false`)
+  - Once a file (e.g. PDF/TXT) has been ingested, parsed, and its memories extracted, setting this to `true` immediately cleans up source binary uploads to save local disk space.
 
-#### 1. Disk & Memory Hygiene
-* **`HINDSIGHT_API_FILE_DELETE_AFTER_RETAIN=true`** (Default: `false`)
-  * *Rationale:* Once a file (like a PDF or TXT) has been ingested, parsed, and its memories extracted, Hindsight normally keeps the source file. Setting this to `true` cleans up the source binaries immediately, preventing your local database or directory from swelling with raw document duplicates.
-
-#### 2. Local-Access Security
-* **`HINDSIGHT_API_AUTH_ENABLED=true`** (Default: `false`)
-  * *Rationale:* If your local deployment is accessible on your LAN or running as a multi-user service, you can enforce basic API-key validation.
-* **`HINDSIGHT_API_MCP_AUTH_TOKEN="your_secure_token"`** (Default: `""`)
-  * *Rationale:* If you use Hindsight's MCP (Model Context Protocol) capability locally, this sets an authentication token to secure the MCP socket from unauthorized client tools.
+### 2. Security & MCP Access
+- **`HINDSIGHT_API_AUTH_ENABLED=false`** (Default: `false`)
+  - Enforces API key authentication when Hindsight is exposed on LAN or multi-user networks.
+- **`HINDSIGHT_API_MCP_AUTH_TOKEN=""`** (Default: `""`)
+  - Authentication token securing the Model Context Protocol (MCP) socket from unauthorized client tools.
