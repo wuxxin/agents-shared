@@ -901,14 +901,13 @@ def run_llm_embed_hindsight(
     repeats: int,
     output_format: str = "text",
 ) -> None:
-    """Run parallel hindsight embedding benchmark using 4 rounds of 2 concurrent requests.
+    """Run parallel hindsight embedding benchmark using 3 rounds of 4 concurrent 8K requests.
 
-    Request pattern (sequential rounds, each with 2 parallel requests):
-      Round 1:  8K +  8K = 16K
-      Round 2:  8K + 16K = 24K
-      Round 3: 16K + 16K = 32K
-      Round 4: 16K +  8K = 24K
-      Total:                96K tokens
+    Request pattern (3 sequential rounds, each dispatching 4 parallel 8K requests):
+      Round 1: 4 × 8K = 32,768 tokens
+      Round 2: 4 × 8K = 32,768 tokens
+      Round 3: 4 × 8K = 32,768 tokens
+      Total:   12 × 8K = 98,304 tokens
     """
     import concurrent.futures
 
@@ -950,19 +949,10 @@ def run_llm_embed_hindsight(
     total_tokens_exact = len(all_tokens)
     total_context_chars = len(context_content)
 
-    # Define the 4 rounds: each round is a tuple of (size_a, size_b) in tokens
-    rounds_pattern: List[Tuple[int, int]] = [
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-        (8192, 8192),  # Round 1:  8K +  8K = 16K
-    ]
-    total_batch_tokens = sum(a + b for a, b in rounds_pattern)  # 96256 tokens
-    pattern_desc = ", ".join(f"{a // 1024}K+{b // 1024}K" for a, b in rounds_pattern)
+    num_rounds = 3
+    reqs_per_round = 4
+    token_len_per_req = 8192
+    total_batch_tokens = num_rounds * reqs_per_round * token_len_per_req  # 98304 tokens
 
     tprint("\n===================================================")
     tprint("=== HINDSIGHT PARALLEL EMBEDDING BENCHMARK     ===")
@@ -971,7 +961,9 @@ def run_llm_embed_hindsight(
     tprint(
         f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
     )
-    tprint(f"Rounds Pattern:    {pattern_desc} (2 parallel per round)")
+    tprint(
+        f"Rounds Pattern:    {num_rounds} rounds × {reqs_per_round} parallel 8K requests"
+    )
     tprint(f"Total Tokens:      {total_batch_tokens}")
     tprint(f"Repeats:           {repeats}\n")
 
@@ -986,45 +978,65 @@ def run_llm_embed_hindsight(
         return res
 
     def send_one_request(
-        req_label: str, input_tokens: List[int]
+        req_label: str, input_tokens: List[int], max_retries: int = 15
     ) -> Tuple[str, float, int]:
         t_req_start = time.perf_counter()
         payload = {
             "model": model,
             "input": input_tokens,
         }
-        resp = post_json(f"{url}/v1/embeddings", payload)
+        resp = None
+        for attempt in range(max_retries):
+            try:
+                resp = post_json(f"{url}/v1/embeddings", payload)
+                break
+            except RuntimeError as e:
+                err_msg = str(e)
+                if (
+                    "429" in err_msg
+                    or "Overloaded" in err_msg
+                    or "overloaded" in err_msg
+                ) and attempt < max_retries - 1:
+                    time.sleep(0.1 * (1.3**attempt))
+                    continue
+                raise
+
         t_req_end = time.perf_counter()
         latency_ms = (t_req_end - t_req_start) * 1000.0
         embed_dim = 0
-        if resp.get("data"):
+        if resp and resp.get("data"):
             embed_dim = len(resp["data"][0].get("embedding", []))
         return req_label, latency_ms, embed_dim
 
     run_results = []
     for r in range(repeats):
-        tprint(f"  [Run {r + 1}/{repeats}] Starting 4 rounds of 2 parallel requests...")
+        tprint(
+            f"  [Run {r + 1}/{repeats}] Starting {num_rounds} rounds of {reqs_per_round} parallel 8K requests..."
+        )
         t_batch_start = time.perf_counter()
 
         round_details: List[dict] = []
         token_offset = 0
 
-        for rd_idx, (size_a, size_b) in enumerate(rounds_pattern):
-            label_a = f"R{rd_idx + 1}a({size_a // 1024}K)"
-            label_b = f"R{rd_idx + 1}b({size_b // 1024}K)"
-            tokens_a = get_token_slice(all_tokens, token_offset, size_a)
-            token_offset += size_a
-            tokens_b = get_token_slice(all_tokens, token_offset, size_b)
-            token_offset += size_b
+        for rd_idx in range(num_rounds):
+            round_labels = [f"R{rd_idx + 1}_{i + 1}(8K)" for i in range(reqs_per_round)]
+            round_slices = []
+            for _ in range(reqs_per_round):
+                round_slices.append(
+                    get_token_slice(all_tokens, token_offset, token_len_per_req)
+                )
+                token_offset += token_len_per_req
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=reqs_per_round
+            ) as executor:
                 futures = [
-                    executor.submit(send_one_request, label_a, tokens_a),
-                    executor.submit(send_one_request, label_b, tokens_b),
+                    executor.submit(send_one_request, round_labels[i], round_slices[i])
+                    for i in range(reqs_per_round)
                 ]
-                results_pair = [f.result() for f in futures]
+                results_group = [f.result() for f in futures]
 
-            for label, lat, dim in results_pair:
+            for label, lat, dim in results_group:
                 round_details.append(
                     {"label": label, "latency_ms": lat, "embed_dim": dim}
                 )
@@ -1036,7 +1048,6 @@ def run_llm_embed_hindsight(
             total_batch_tokens / batch_duration_s if batch_duration_s > 0 else 0.0
         )
         embed_dim = round_details[0]["embed_dim"]
-        latencies = [d["latency_ms"] for d in round_details]
         run_info = {
             "duration_s": batch_duration_s,
             "speed_tps": run_speed,
@@ -1048,30 +1059,33 @@ def run_llm_embed_hindsight(
         tprint(
             f"    Total Wall Time: {batch_duration_s:.2f}s | Speed: {run_speed:.2f} t/s"
         )
-        for rd_idx, (size_a, size_b) in enumerate(rounds_pattern):
-            d_a = round_details[rd_idx * 2]
-            d_b = round_details[rd_idx * 2 + 1]
+        for rd_idx in range(num_rounds):
+            group_lats = [
+                round_details[rd_idx * reqs_per_round + i]["latency_ms"]
+                for i in range(reqs_per_round)
+            ]
+            avg_rd_lat = sum(group_lats) / len(group_lats)
+            lats_str = ", ".join(f"{lat:.1f}ms" for lat in group_lats)
             tprint(
-                f"    Round {rd_idx + 1} ({size_a // 1024}K+{size_b // 1024}K): "
-                f"{d_a['latency_ms']:.1f}ms + {d_b['latency_ms']:.1f}ms"
+                f"    Round {rd_idx + 1} (4x8K): Avg {avg_rd_lat:.1f}ms [{lats_str}]"
             )
 
     # Compute averages across all repeats
     avg_duration = sum(r["duration_s"] for r in run_results) / len(run_results)
     avg_speed = sum(r["speed_tps"] for r in run_results) / len(run_results)
-    n_details = len(rounds_pattern) * 2  # 8 request results per run
+    total_reqs = num_rounds * reqs_per_round  # 12 requests
     avg_latencies = [
         sum(r["details"][i]["latency_ms"] for r in run_results) / len(run_results)
-        for i in range(n_details)
+        for i in range(total_reqs)
     ]
     embed_dim = run_results[0]["embed_dim"]
 
     # Per-round averages
     round_avgs = []
-    for rd_idx, (size_a, size_b) in enumerate(rounds_pattern):
-        avg_a = avg_latencies[rd_idx * 2]
-        avg_b = avg_latencies[rd_idx * 2 + 1]
-        round_avgs.append((size_a, size_b, avg_a, avg_b))
+    for rd_idx in range(num_rounds):
+        rd_lats = avg_latencies[rd_idx * reqs_per_round : (rd_idx + 1) * reqs_per_round]
+        rd_avg = sum(rd_lats) / len(rd_lats)
+        round_avgs.append((rd_idx + 1, rd_avg, rd_lats))
 
     if output_format in ("json", "yaml"):
         result = {
@@ -1080,11 +1094,11 @@ def run_llm_embed_hindsight(
             "total_tokens": total_batch_tokens,
             "rounds": [
                 {
-                    "pattern": f"{sa // 1024}K+{sb // 1024}K",
-                    "avg_latency_a_ms": la,
-                    "avg_latency_b_ms": lb,
+                    "round": rd_num,
+                    "avg_latency_ms": rd_avg,
+                    "per_request_latencies_ms": rd_lats,
                 }
-                for sa, sb, la, lb in round_avgs
+                for rd_num, rd_avg, rd_lats in round_avgs
             ],
         }
         print(json.dumps(result, indent=2))
@@ -1100,12 +1114,10 @@ def run_llm_embed_hindsight(
     tprint(f"Repeats:           {repeats}")
     tprint(f"\n  Avg Wall Time:        {avg_duration:.2f} s")
     tprint(f"  Avg Throughput:       {avg_speed:.2f} tokens/sec")
-    tprint("\n  Avg Per-Round Latencies (2 parallel each):")
-    for rd_idx, (sa, sb, la, lb) in enumerate(round_avgs):
-        tprint(
-            f"    Round {rd_idx + 1} ({sa // 1024}K+{sb // 1024}K): "
-            f"{la:.1f}ms + {lb:.1f}ms"
-        )
+    tprint("\n  Avg Per-Round Latencies (4x8K parallel each):")
+    for rd_num, rd_avg, rd_lats in round_avgs:
+        lats_str = ", ".join(f"{lat:.1f}ms" for lat in rd_lats)
+        tprint(f"    Round {rd_num} (4x8K): Avg {rd_avg:.1f}ms [{lats_str}]")
     tprint("===================================================")
 
 

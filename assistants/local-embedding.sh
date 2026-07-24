@@ -35,7 +35,7 @@ load_env() {
     LMBD_LLAMA_DEVICE=""
     LMBD_LLAMA_EXTRA_ARGS="--flash-attn on"
 
-    # TEI parameters (defaults to pplx-embed model, 2 parallel, 32k max tokens)
+    # TEI parameters (defaults to pplx-embed model, 2 parallel, 16k max tokens)
     LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
     LMBD_ALIAS=pplx-embedding
     LMBD_TEI_POOLING="mean"
@@ -358,7 +358,6 @@ LMBD_HOST=127.0.0.1
 # Standalone TEI instances run bidirectional/causal encoders with dynamic batching.
 # Because TEI does not use an autoregressive KV cache, VRAM is static and highly
 # optimized, allowing for larger batch sizes and long contexts without pre-allocation.
-# Expected peak load: 8 parallel requests (e.g. 6 requests @ 8k context, 2 @ 32k context).
 #
 # Path to the safetensors model directory
 LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
@@ -372,12 +371,12 @@ LMBD_TEI_POOLING="mean"
 # Max concurrent request slots (default: 2)
 LMBD_TEI_MAX_CONCURRENT=2
 
-# Max total tokens in a dynamic batch (default: 16384, accommodates 2x8k ~512 MiB Activation VRAM (fp16))
+# Max total tokens in a dynamic batch (default: 16384, accommodates 2x8k ~512 GiB Activation VRAM (fp16))
 LMBD_TEI_MAX_BATCH_TOKENS=16384
 
-# GPU/CPU backend device index or name (e.g. ROCm0, ROCm1, Vulkan0, cpu, none)
+# GPU/CPU backend device index or name (e.g. rocm[:0], rocm:1, vukan[:0], equals to auto if empty)
 # Maps to HIP_VISIBLE_DEVICES / CUDA_VISIBLE_DEVICES internally for TEI
-# LMBD_TEI_DEVICE="ROCm0"
+# LMBD_TEI_DEVICE="rocm:0"
 
 # Extra arguments to pass to text-embeddings-router
 # LMBD_TEI_EXTRA_ARGS=""
