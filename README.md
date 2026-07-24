@@ -28,7 +28,7 @@ For details, see the [scripts/README.md](scripts/README.md).
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
 | **[Local Chat/Vision](#local-chat-services)** | [50080](http://localhost:50080) | Llama-server serving Chat/Vision LLM (embeddings disabled) |
-| **[Local Embedding](#local-embedding-services)** | [50082](http://localhost:50082) | Llama-server serving Text Embeddings |
+| **[Local Embedding](#local-embedding-services)** | [50082](http://localhost:50082) | TEI (`text-embeddings-router`) or `llama-server` serving Text Embeddings |
 | **[Local Reranking](#local-reranking-services)** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
 | **[Local Speech to Text](#local-speech-to-text)** | [50090](http://localhost:50090) | Whisper-server audio transcription API (HTTP) |
 | **[Local Text to Speech](#local-text-to-speech)** | [50095](http://localhost:50095) | Qwen3-tts-server audio synthesis API (HTTP) |
@@ -51,9 +51,9 @@ For details, see the [scripts/README.md](scripts/README.md).
 - Documentation: [local-chat.md](assistants/local-chat.md)
 
 ### Local Embedding Services
-- **Description**: Manages persistent `llama-server` instances for text embeddings (`local-embedding.sh`).
+- **Description**: Manages persistent text embedding servers (`local-embedding.sh`). Supports two backend engines: TEI (`text-embeddings-router` using `pplx-embed-context-v1-0.6b` by default) and `llama-server` (GGUF).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
-- **Features**: Standalone text embedding server (`50082`) running with mean pooling and ROCm GPU offloading.
+- **Features**: Standalone text embedding server (`50082`) with mean pooling, ROCm GPU offloading, dynamic batching, and systemd sitecustomize helper patch.
 - Documentation: [local-embedding.md](assistants/local-embedding.md)
 
 ### Local Reranking Services
