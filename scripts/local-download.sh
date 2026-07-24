@@ -173,6 +173,84 @@ convert_and_quantize_reranker() {
     return 0
 }
 
+hf_to_mlc() {
+    if [ "$#" -lt 3 ]; then
+        echo "Usage: hf_to_mlc <source> <destbasedir> <quant> <modeltype> <template> [devices=\"rocm vulkan\"]" >&2
+        return 1
+    fi
+
+    local source_path="$1"
+    local dest_path="$2"
+    local quant="$3"
+    local model_type="$4"
+    local conv_template="$5"
+    local devices="${6:-rocm vulkan}"
+
+    if [ ! -d "$source_path" ]; then
+        echo "Error: Source directory '$source_path' does not exist." >&2
+        return 1
+    fi
+
+    local model_name
+    model_name=$(basename "$source_path")
+    local mlc_model_dir="${dest_path}/${model_name}-MLC-${quant}"
+    mkdir -p "$mlc_model_dir"
+
+    # Files to verify progress
+    local config_file="${mlc_model_dir}/mlc-chat-config.json"
+    local cache_file="${mlc_model_dir}/ndarray-cache.json"
+
+    # --- Step 1: Generate Config ---
+    echo "Creating config file: $config_file"
+    if [ -f "$config_file" ]; then
+        echo "Skipped: Config already exists." >&2
+    else
+        local cmd_gen_config=(mlc_llm gen_config "$source_path" --quantization "$quant" -o "$mlc_model_dir")
+        cmd_gen_config+=(--model-type "$model_type")
+        cmd_gen_config+=(--conv-template "$conv_template")
+
+        if ! "${cmd_gen_config[@]}"; then
+            echo "Error: gen_config failed." >&2
+            return 1
+        fi
+    fi
+
+    # --- Step 2: Convert Weight ---
+    echo "Converting weights..."
+    if [ -f "$cache_file" ]; then
+        echo "Skipped: Converted weights already exist." >&2
+    else
+        local cmd_convert_weight=(mlc_llm convert_weight "$source_path" --quantization "$quant" -o "$mlc_model_dir")
+        cmd_convert_weight+=(--model-type "$model_type")
+        cmd_convert_weight+=(--device "rocm:0")
+
+        if ! "${cmd_convert_weight[@]}"; then
+            echo "Error: convert_weight failed." >&2
+            return 1
+        fi
+        echo "Created weights: $cache_file"
+    fi
+
+    # --- Step 3: Compile (Evaluated per device) ---
+    for device in $devices; do
+        local lib_output="${mlc_model_dir}/${model_name}-${device}.so"
+
+        echo "Compiling Library for $device..."
+        if [ -f "$lib_output" ]; then
+            echo "Skipped: Library for $device already exists." >&2
+        else
+            local cmd_compile=(mlc_llm compile "$mlc_model_dir" --device "$device" -o "$lib_output")
+            cmd_compile+=(--device "rocm:0")
+
+            if ! "${cmd_compile[@]}"; then
+                echo "Error: Compilation failed for device $device." >&2
+                return 1
+            fi
+            echo "Compiled: $lib_output"
+        fi
+    done
+}
+
 main() {
     # Check arguments
     if [[ $# -lt 1 ]]; then
@@ -315,30 +393,10 @@ main() {
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
 
-        # 1h. Automatically convert and compile Qwen2.5-0.5B-Instruct if MLC tools are available
-        local mlc_out_dir="${target_dir}/text/Qwen2.5-0.5B-Instruct-MLC-q4bf16_1"
-        if [[ -s "${mlc_out_dir}/Qwen2.5-0.5B-Instruct-rocm.so" ]]; then
-            echo "Compiled MLC model library already exists: ${mlc_out_dir}/Qwen2.5-0.5B-Instruct-rocm.so (Skipping)"
-        elif command -v mlc_llm &>/dev/null; then
-            echo "Auto-converting weights for Qwen2.5-0.5B-Instruct to q4bf16_1..."
-            mlc_llm convert_weight \
-                --model-type qwen2 \
-                --quantization q4bf16_1 \
-                --device rocm \
-                -o "${mlc_out_dir}" \
-                "${target_dir}/text/Qwen2.5-0.5B-Instruct"
-
-            echo "Auto-compiling model library for Qwen2.5-0.5B-Instruct with 4-bit weights and 4-bit KV Cache..."
-            mlc_llm compile \
-                --model-type qwen2 \
-                --quantization q4bf16_1 \
-                --kv-cache-dtype int4 \
-                --device rocm \
-                -o "${mlc_out_dir}/Qwen2.5-0.5B-Instruct-rocm.so" \
-                "${target_dir}/text/Qwen2.5-0.5B-Instruct"
-        else
-            echo "Notice: 'mlc_llm' CLI not found. Skipping auto-conversion."
-        fi
+        # 1h. Automatically convert and compile Qwen2.5-0.5B-Instruct
+        local mlc_quant=q4bf16_1
+        local mlc_out_dir="${target_dir}/text"
+        hf_to_mlc "${target_dir}/text/Qwen2.5-0.5B-Instruct" "${mlc_out_dir}" ${mlc_quant} "qwen2" "qwen2"
 
         # 1h. Download full Hugging Face weights for MLC compilation (Qwen3.6-35B-A3B)
         echo "Downloading full Hugging Face weights for MLC (Qwen3.6-35B-A3B)..."
