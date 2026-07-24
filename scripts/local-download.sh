@@ -198,7 +198,7 @@ hf_to_mlc() {
 
     # Files to verify progress
     local config_file="${mlc_model_dir}/mlc-chat-config.json"
-    local cache_file="${mlc_model_dir}/ndarray-cache.json"
+    local cache_file="${mlc_model_dir}/tensor-cache.json"
 
     # --- Step 1: Generate Config ---
     echo "Creating config file: $config_file"
