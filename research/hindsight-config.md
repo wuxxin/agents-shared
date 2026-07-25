@@ -7,7 +7,7 @@ This document provides a consolidated reference for configuring the **Hindsight 
 The default configuration is tuned for a local inference environment with the following concurrency and context boundaries:
 
 - **Chat/Vision LLM**: **2 parallel LLM calls** available for Hindsight tasks (`HINDSIGHT_API_LLM_MAX_CONCURRENT=2`).
-- **Embedding Model**: **4 parallel embedding calls** available (`HINDSIGHT_API_RECALL_MAX_CONCURRENT=4`), **8,192 (8K) max context window**.
+- **Embedding Model**: **2 parallel embedding calls** available (`HINDSIGHT_API_RECALL_MAX_CONCURRENT=2`), **8,192 (8K) max context window**.
 - **Reranking Model**: **2 parallel rerank calls** available (`HINDSIGHT_API_RERANKER_MAX_CONCURRENT=2`), **16,384 (16K) max context window**.
 
 By setting strict concurrency caps across global, reflection, retention, and consolidation scopes, Hindsight avoids VRAM exhaustion, prompt thrashing, and KV cache eviction on local GPU endpoints while maintaining low-latency background memory indexing.
@@ -21,7 +21,7 @@ By setting strict concurrency caps across global, reflection, retention, and con
 | **`HINDSIGHT_API_LLM_TIMEOUT`** | `120` | `180` | Client HTTP timeout for LLM requests (seconds). | Gives local GPUs up to 3 minutes for initial pre-fill and decode. |
 | **`HINDSIGHT_API_LLM_MAX_CONCURRENT`** | `32` | `2` | Global cap on simultaneous LLM requests. | Matches 2 parallel LLM slots available for memory operations. |
 | **`HINDSIGHT_API_LLM_REASONING_EFFORT`** | `medium` | `low` | Reasoning effort for supporting models (`low`, `medium`, `high`). | Reduces thinking token overhead in background summarization. |
-| **`HINDSIGHT_API_RECALL_MAX_CONCURRENT`** | `32` | `4` | Cap on concurrent embedding requests during recall/retain. | Matches 4 parallel slots supported by 8K embedding model. |
+| **`HINDSIGHT_API_RECALL_MAX_CONCURRENT`** | `32` | `2` | Cap on concurrent embedding requests during recall/retain. | Matches 2 parallel slots supported by 8K embedding model. |
 | **`HINDSIGHT_API_RECALL_INCLUDE_CHUNKS`** | `true` | `false` | Pull raw text chunks alongside facts during recall. | Disabling raw chunks cuts memory payload size by ~50%. |
 | **`HINDSIGHT_API_RECALL_MAX_TOKENS`** | `2048` | `1536` | Token budget for facts returned by internal recall. | Keeps context light; fits comfortably inside 8K embedding / 16K reranker bounds. |
 | **`HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS`** | `1000` | `500` | Token budget for chunks if `include_chunks=true`. | Backup budget kept small to limit VRAM usage if chunks enabled. |
