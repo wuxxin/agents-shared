@@ -125,7 +125,7 @@ Median context sizes active across different Hindsight operations:
 Based on Hindsight's retrieval requirements, the best model configurations satisfying specific multilingual benchmarks (MTEB-DE / BEIR), context lengths, and native serving support in Text Embeddings Inference (TEI) are compiled below:
 
 #### Recommended Embedding Candidates
-*Criteria: MTEB German Retrieval > 60, TEI Native.*
+*Criteria: MTEB German Retrieval > 60, TEI Native or Python.*
 
 *Note on VRAM: Because these models are served under TEI in single-forward-pass mode (no autoregressive generation), they do not allocate a KV cache. VRAM scales with model weights plus transient attention activations (quadratic in context length). See [Architecture & KV Cache reference](#embedding-model-architectures-attention-kv-cache--vram-scaling) for detailed scaling analysis.*
 
@@ -133,7 +133,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 1. **[jina-embeddings-v5-text-small](https://huggingface.co/jinaai/jina-embeddings-v5-text-small)** (677M parameters)
    - **MTEB German Retrieval**: ~65.0
    - **Context Window**: 32,768 (32K) tokens
-   - **TEI Native**: Yes (Qwen3 causal decoder backbone)
+   - **TEI Native**: No (Python Qwen3 causal decoder backbone)
    - **License**: CC-BY-NC 4.0
    - **Expected GPU Mem (8 parallel)**: **~1.8 GB VRAM** (Weight baseline: ~1.35 GB; CUDA context and batch activations: ~400 MB).
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~4.5ms | 8x8K batch (65K tkn): ~220ms.
@@ -141,7 +141,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 2. **[gte-Qwen2-1.5B-instruct](https://huggingface.co/Alibaba-NLP/gte-Qwen2-1.5B-instruct)** (1.5B parameters)
    - **MTEB German Retrieval**: ~66.2
    - **Context Window**: 32,768 (32K) tokens
-   - **TEI Native**: Yes (Qwen2 causal decoder backbone)
+   - **TEI Native**: ? (Qwen2 causal decoder backbone)
    - **License**: Apache 2.0 (permissive/commercial-friendly)
    - **Expected GPU Mem (8 parallel)**: **~3.4 GB VRAM** (Weight baseline: ~3.0 GB; CUDA context and batch activations: ~400 MB).
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~9.2ms | 8x8K batch (65K tkn): ~420ms.
@@ -149,7 +149,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 3. **[pplx-embed-context-v1-0.6b](https://huggingface.co/perplexity-ai/pplx-embed-context-v1-0.6b)** (600M parameters)
    - **MTEB German Retrieval**: ~60.7 (MIRACL-DE)
    - **Context Window**: 32,768 (32K) tokens
-   - **TEI Native**: Yes (Bidirectional Qwen3-based encoder backbone)
+   - **TEI Native**: ? (Bidirectional Qwen3-based encoder backbone)
    - **License**: Custom (Perplexity)
    - **Expected GPU Mem (8 parallel)**: **~1.95 GB VRAM** (Weight baseline: ~1.20 GB; CUDA context and batch activations: ~400 MB, activation memory: ~350 MB).
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~3.2ms | 8x8K batch (65K tkn): ~210ms.
@@ -191,12 +191,12 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 
 
 #### Recommended Reranking Candidates
-*Criteria: German Retrieval > 55, Context size $\ge$ 8K tokens, TEI Native.*
+*Criteria: German Retrieval > 55, Context size $\ge$ 8K tokens, TEI Native or Python.*
 
 1. **[jina-reranker-v3](https://huggingface.co/jinaai/jina-reranker-v3)** (600M parameters)
    - **MTEB German Retrieval**: ~63.8
    - **Context Window**: 131,072 (131K) tokens
-   - **TEI Native**: Yes (Qwen3 causal decoder backbone)
+   - **TEI Native**: No (python Qwen3 causal decoder backbone)
    - **License**: CC-BY-NC 4.0
    - **Expected GPU Mem (8 parallel)**: **~1.7 GB VRAM** (Weight baseline: ~1.20 GB; CUDA context and batch activations: ~450 MB).
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~4.8ms | 8x8K batch (65K tkn): ~290ms.
