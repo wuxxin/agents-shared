@@ -489,6 +489,21 @@ main() {
         else
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
+
+        echo "Downloading essential TEI files for ettin-reranker-400m-v1 (~1.6 GB, skipping ONNX/OpenVINO bloat)..."
+        mkdir -p "${target_dir}/reranker/ettin-reranker-400m-v1"
+        python3 -c '
+import sys
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="cross-encoder/ettin-reranker-400m-v1",
+    local_dir=sys.argv[1],
+    ignore_patterns=["onnx/**", "openvino/**"],
+)
+' "${target_dir}/reranker/ettin-reranker-400m-v1" || {
+            echo "Warning: snapshot_download failed. The model repo is ~10.67 GB due to ONNX/OpenVINO exports." >&2
+            echo "  Try: hf download cross-encoder/ettin-reranker-400m-v1 --local-dir ${target_dir}/reranker/ettin-reranker-400m-v1" >&2
+        }
     fi
 
     # 4. Speech-to-Text
