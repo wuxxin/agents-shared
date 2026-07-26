@@ -7,12 +7,12 @@ This document aggregates detailed memory requirements and allocations for local 
 - Local LLM Service ([local-chat.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-chat.sh) / `llama-server`)
 Serves chat and vision.
   - **Model:** `Qwen3.6-35B-A3B-APEX-I-Compact` (LLM: ~17.0 GiB GGUF, mmproj: ~861 MiB)
-- Local Embedding Service ([local-embedding.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-embedding.sh) / `llama-server`)
+- Local Embedding Service ([local-embedding.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-embedding.sh) / `text-embeddings-router`)
 Serves text embeddings.
-  - **Model:** `Qwen3-Embedding-0.6B-Q8_0.gguf` (~568 MiB on disk)
-- Local Rerank Service ([local-rerank.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-rerank.sh) / `llama-server`)
+  - **Model:** `pplx-embed-context-v1-0.6b` (fp16, ~1.2 GB Safetensors, served via TEI, 6×8K parallel slots)
+- Local Rerank Service ([local-rerank.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-rerank.sh) / `text-embeddings-router`)
 Serves document reranking.
-  - **Model:** `Qwen3-Reranker-0.6B.Q4_K_M.gguf` (~450 MiB GGUF)
+  - **Model:** `ettin-reranker-400m-v1` (~0.8 GB Safetensors, served via TEI, 1×8K batch, ModernBERT backbone)
 - Local Speech-to-Text ([local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh) / `whisper-server`)
 Serves audio transcription.
   - **Model:** `ggml-large-v3-turbo-q5_0.bin` (~573.45 MiB GGUF)
@@ -58,9 +58,9 @@ LCHAT_OVERRIDE=(
 LMBD_OVERRIDE=(
     'LMBD_DEVICE="Vulkan1"'
 )
-# run RERANK on cpu
+# run RERANK on vulkan/dgpu (TEI with ModernBertModel detection)
 LRR_OVERRIDE=(
-    'LRR_DEVICE="none"'
+    'LRR_TEI_DEVICE="Vulkan1"'
 )
 # run SPEECH-TO-TEXT on vulkan/igpu
 LSTT_OVERRIDE=(
@@ -86,13 +86,13 @@ LIMG_OVERRIDE=(
 | Service / Component | Device/Backend | VRAM (dGPU Vulkan1) | VRAM (iGPU Vulkan0) | System RAM |
 |---|---|---|---|---|
 | **Chat** | Vulkan1 (dGPU) | **19,142 MiB** | 0 MiB | ~851 MiB |
-| **Embedding** | Vulkan1 (dGPU) | **1,163 MiB** | 0 MiB | ~2,915 MiB |
-| **Rerank** | CPU | 0 MiB | 0 MiB | **~2,711 MiB** |
+| **Embedding** | Vulkan1 (dGPU) | **~2,200 MiB** | 0 MiB | ~400 MiB |
+| **Rerank** | Vulkan1 (dGPU) | **~1,600 MiB** | 0 MiB | ~200 MiB |
 | **Speech-to-Text** | Vulkan0 (iGPU) | 0 MiB | **809 MiB** | ~126 MiB |
 | **Text-to-Speech** | CPU | 0 MiB | 0 MiB | **~2,970 MiB** |
 | **Image** | Vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,812 MiB |
-| **Total** | - | **20,305 MiB** | **7,177 MiB** | **~13,385 MiB** |
+| **Total** | - | **22,942 MiB** | **7,177 MiB** | **~10,944 MiB** |
 
 **Status:**
-- **dGPU (RX 7900 XTX):** **Safe**. Fits within 24,576 MiB usable VRAM. Remaining headroom: **4,271 MiB** free VRAM.
+- **dGPU (RX 7900 XTX):** **Safe**. Fits within 24,576 MiB usable VRAM. Remaining headroom: **~1,634 MiB** free VRAM.
 - **iGPU (Radeon Graphics):** **Safe**. Fits within 16 GiB shared RAM. Remaining headroom: **9,207 MiB** free VRAM.

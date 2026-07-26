@@ -191,24 +191,47 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 
 
 #### Recommended Reranking Candidates
-*Criteria: German Retrieval > 55, Context size $\ge$ 8K tokens, TEI Native or Python.*
+*Criteria: MTEB(eng, v2) Retrieval NDCG@10 rank-ordered, TEI Native or Python.*
 
-1. **[jina-reranker-v3](https://huggingface.co/jinaai/jina-reranker-v3)** (600M parameters)
-   - **MTEB German Retrieval**: ~63.8
-   - **Context Window**: 131,072 (131K) tokens
-   - **TEI Native**: No (python Qwen3 causal decoder backbone)
-   - **License**: CC-BY-NC 4.0
-   - **Expected GPU Mem (8 parallel)**: **~1.7 GB VRAM** (Weight baseline: ~1.20 GB; CUDA context and batch activations: ~450 MB).
-   - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~4.8ms | 8x8K batch (65K tkn): ~290ms.
-   - *Best for*: State-of-the-art listwise ranking of up to 64 documents in one pass.
-2. **[bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3)** (567M parameters)
-   - **MTEB German Retrieval**: ~57.2
+1. **[gte-reranker-modernbert-base](https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base)** (149M parameters)
+   - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5843
    - **Context Window**: 8,192 (8K) tokens
-   - **TEI Native**: Yes (XLM-RoBERTa cross-encoder backbone)
+   - **TEI Native**: Yes (ModernBERT cross-encoder via Candle)
+   - **License**: Apache 2.0
+   - **Expected GPU Mem (8 parallel)**: **~700 MB VRAM** (Weight baseline: ~300 MB; CUDA overhead: ~400 MB; activation memory: minimal under Flash Attention).
+   - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~4.0ms | 8x8K batch (65K tkn): ~250ms.
+   - *Best for*: Highest NDCG@10 among all TEI-compatible models — matches 1.2B NVIDIA nemotron on Hit@1 at 1/8 the size.
+2. **[ibm-granite/granite-embedding-reranker-english-r2](https://huggingface.co/ibm-granite/granite-embedding-reranker-english-r2)** (149M parameters)
+   - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5656
+   - **Context Window**: 8,192 (8K) tokens
+   - **TEI Native**: Yes (ModernBERT cross-encoder via Candle)
+   - **License**: Apache 2.0
+   - **Expected GPU Mem (8 parallel)**: **~700 MB VRAM** (Weight baseline: ~300 MB; CUDA overhead: ~400 MB; activation memory: minimal under Flash Attention).
+   - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~4.0ms | 8x8K batch (65K tkn): ~250ms.
+   - *Best for*: Compliance-sensitive deployments — trained exclusively on permissively-licensed data with full data provenance.
+3. **[bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3)** (567M parameters)
+   - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5526
+   - **Context Window**: 8,192 (8K) tokens
+   - **TEI Native**: Yes (XLM-RoBERTa cross-encoder via Candle)
    - **License**: MIT
-   - **Expected GPU Mem (8 parallel)**: **~1.6 GB VRAM** (Weight baseline: ~1.14 GB; CUDA context and batch activations: ~400 MB).
+   - **Expected GPU Mem (8 parallel)**: **~1.89 GB VRAM** (Weight baseline: ~1.14 GB; CUDA overhead: ~400 MB; activation memory: ~350 MB under Flash Attention).
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~5.5ms | 8x8K batch (65K tkn): ~340ms.
-   - *Best for*: Permissive-license production RAG pipelines.
+   - *Best for*: Permissive-license production RAG pipelines with proven multilingual track record.
+4. **[jina-reranker-v2-base-multilingual](https://huggingface.co/jinaai/jina-reranker-v2-base-multilingual)** (278M parameters)
+   - **Context Window**: 1,024 (1K) tokens (uses sliding window chunking for longer documents)
+   - **TEI Native**: Yes (XLM-RoBERTa cross-encoder backbone)
+   - **License**: CC-BY-NC 4.0
+   - **Expected GPU Mem (8 parallel)**: **~1.01 GB VRAM** (Weight baseline: ~560 MB; CUDA overhead: ~400 MB; activation memory: ~50 MB).
+   - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~2.8ms | 8x1K batch (8K tkn): ~80ms.
+   - *Best for*: Low-latency, low-VRAM multilingual reranking where 1K context is sufficient.
+5. **[jina-reranker-v3](https://huggingface.co/jinaai/jina-reranker-v3)** (600M parameters)
+   - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5940
+   - **Context Window**: 131,072 (131K) tokens
+   - **TEI Native**: No (requires `JinaForRanking` detection patch + model loading fix in ClassificationModel; currently blocked on Python backend model loading)
+   - **License**: CC-BY-NC 4.0
+   - **Expected GPU Mem (8 parallel)**: **~2.05 GB VRAM** (Weight baseline: ~1.20 GB; CUDA overhead: ~400 MB; activation memory: ~450 MB under Flash Attention).
+   - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~4.8ms | 8x8K batch (65K tkn): ~290ms.
+   - *Best for*: Highest raw NDCG@10 (0.5940) with multi-document listwise ranking and 131K context — but requires patching for TEI.
 
 ---
 
@@ -466,8 +489,81 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 - **Output Types**: Relevance scores for each document.
 - **Other features**: LBNL interaction, multi-document batch ranking inside a single forward pass, MLP projector (1024 -> 512 -> 256).
 - **Fits expected hindsight usage of embedding**: Outstanding. Its huge 131K context and ability to evaluate multiple documents concurrently make it an ideal fit for complex hindsight reflections.
-- **TEI Support & Native**: **Yes** (Qwen3 causal decoder backbone, supported in TEI).
+- **TEI Support & Native**: **No** (requires patches — `JinaForRanking` is not detected by TEI's architecture classifier. The `tei-rocm/jina-reranker-v3.patch` adds `"Ranking"` suffix detection but the model's `ClassificationModel` uses `AutoModelForSequenceClassification` which cannot correctly load `JinaForRanking` due to missing `auto_map` entry. Candle `flash_qwen3.rs` explicitly bails on Qwen3 classifiers. Full Python backend support blocked on model loading refactor.)
 - **Retrieval Benchmarks / BEIR Score**: BEIR average of 61.94 nDCG@10, HotpotQA 78.58, FEVER 94.01.
+
+#### Reranking: ettin-reranker-400m-v1 (Active Production Model)
+
+- **URL**: https://huggingface.co/cross-encoder/ettin-reranker-400m-v1
+- **Architecture**: Cross-Encoder (ModernBertForSequenceClassification, ~401M parameters, 22-layer ModernBERT backbone)
+- **Format & Size**: Float16 Safetensors, ~0.8 GB disk size
+- **Total GPU Usage**: Serviced under TEI Candle backend with 1×8K context. No KV cache. Expected VRAM: **~1.6 GB VRAM**
+- **English & German Score**: 	
+  - **MTEB English Retrieval (nDCG@10)**: ~60.91
+  - **German**: Transfer performance expected from ModernBERT multilingual training data
+- **Agentic Use**: Production reranking for Hindsight recall pipeline
+- **Max CTX**: 8,192 (8K) tokens
+- **Output Types**: Relevance score logit via sequence classification head
+- **Other features**: Apache 2.0 license, ModernBERT backbone with Flash Attention 2 support
+- **TEI Support & Native**: **Yes** (ModernBertForSequenceClassification, requires tei-rocm >= pkgrel=6 with ModernBertModel detection patch)
+- **Active Deployment**: Selected for production based on MTEB scores, Apache 2.0 license, and TEI Candle native support. Replaces Qwen3-Reranker-0.6B (llama-server GGUF) in the unified TEI setup.
+
+#### Reranking: Alibaba-NLP/gte-reranker-modernbert-base
+
+- **URL**: https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base
+- **Architecture**: Cross-Encoder (Sequence Classification model based on ModernBERT, with RoPE positional encodings, GeGLU activation, and classifier head).
+- **Format & Size**: Float16/BFloat16 Safetensors, ~300 MB disk size (149M parameters).
+- **Total GPU Usage**: Serviced under TEI with 8 parallel requests @ 8K context (total tokens: 65,536). No KV cache. Expected VRAM: **~700 MB VRAM** (Weight baseline: ~300 MB, CUDA overhead: ~400 MB, linear activation memory under Flash Attention: minimal due to ModernBERT flash_modernbert.rs native support).
+- **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): **~4.0ms** | 8x8K batch (65K tkn): **~250ms** (served via TEI Candle).
+- **English & German Score**: 
+  - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5843
+  - **BEIR nDCG@10 (English)**: ~56.19 (top-20 reranked)
+  - **MTEB German Retrieval (nDCG@10)**: ~56.0
+- **Agentic Use**: Best TEI-compatible reranker under 1B params — matches 1.2B NVIDIA nemotron on Hit@1 (83.00%) in independent benchmarks. ModernBERT backbone with bidirectional cross-attention.
+- **Max CTX**: 8,192 tokens.
+- **Output Types**: Relevance score logit (single-class classifier head).
+- **Other features**: Bidirectional cross-attention, RoPE positional encodings, Flash Attention 2.0 compatible, Apache 2.0 permissive license.
+- **Fits expected hindsight usage of embedding**: Yes, best choice for 8K reranking with TEI — highest NDCG@10 among all TEI-compatible models, 1/4 the size of bge-reranker-v2-m3.
+- **TEI Support & Native**: **Yes** (ModernBERT cross-encoder via Candle `flash_modernbert.rs` / `modernbert.rs`, detected via `ModernBertForSequenceClassification` architecture).
+- **Retrieval Benchmarks / MTEB Score**: MTEB(eng, v2) Retrieval NDCG@10=0.5843, NanoBEIR=0.7017, BEIR(top-20)=56.19.
+
+#### Reranking: ibm-granite/granite-embedding-reranker-english-r2
+
+- **URL**: https://huggingface.co/ibm-granite/granite-embedding-reranker-english-r2
+- **Architecture**: Cross-Encoder (Sequence Classification model based on ModernBERT, with PListMLE ranking loss training, trained exclusively on enterprise-friendly permissive data).
+- **Format & Size**: Float16/BFloat16 Safetensors, ~300 MB disk size (149M parameters).
+- **Total GPU Usage**: Serviced under TEI with 8 parallel requests @ 8K context (total tokens: 65,536). No KV cache. Expected VRAM: **~700 MB VRAM** (Weight baseline: ~300 MB, CUDA overhead: ~400 MB, linear activation memory under Flash Attention: minimal).
+- **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): **~4.0ms** | 8x8K batch (65K tkn): **~250ms** (served via TEI Candle).
+- **English & German Score**: 
+  - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5656
+  - **BEIR Avg (with granite-embedding-english-r2 retriever)**: 55.8
+  - **BEIR Avg (with granite-embedding-small-english-r2 retriever)**: 55.0
+- **Agentic Use**: Enterprise-focused reranker trained exclusively on permissively-licensed data with transparent data provenance. Good for compliance-sensitive deployments.
+- **Max CTX**: 8,192 tokens.
+- **Output Types**: Relevance score logit (single-class classifier head).
+- **Other features**: PListMLE position-aware ranking objective, model merging techniques, enterprise-governance data pipeline, Apache 2.0 permissive license.
+- **Fits expected hindsight usage of embedding**: Yes, suitable for 8K reranking with strict licensing requirements and full data transparency.
+- **TEI Support & Native**: **Yes** (ModernBERT cross-encoder via Candle `flash_modernbert.rs`, detected via `ModernBertForSequenceClassification` architecture).
+- **Retrieval Benchmarks / MTEB Score**: MTEB(eng, v2) Retrieval NDCG@10=0.5656, BEIR=55.8, Miracl(en)=55.2.
+
+#### Reranking: Ettin Reranker Family (cross-encoder/ettin-reranker-*-v1)
+
+- **URL**: https://huggingface.co/collections/cross-encoder/ettin-rerankers (6 models: 17M, 32M, 68M, 150M, 400M, 1B parameters)
+- **Architecture**: Cross-Encoder (Sentence Transformers CrossEncoder on Ettin ModernBERT encoders, with unpadded attention, RoPE, GeGLU, distilled from mxbai-rerank-large-v2 teacher).
+- **Format & Size**: Float16/BFloat16 Safetensors, sizes range from ~35 MB (17M) to ~2 GB (1B).
+- **Total GPU Usage**: Serviced under TEI with Flash Attention 2.0. Expected VRAM: **~435 MB to ~4.5 GB VRAM** depending on size (linear in model parameters, no KV cache).
+- **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): **~1.0ms to ~10ms** | 8x8K batch: varies by model size (throughput 928–7517 pairs/sec on H100).
+- **English & German Score**: 
+  - **MTEB(eng, v2) Retrieval NDCG@10** (6 models, smallest to largest):
+    - 17M: 0.5576 | 32M: 0.5779 | 68M: 0.5915 | 150M: 0.5994 | 400M: 0.6091 | 1B: 0.6114
+  - **NanoBEIR mean NDCG@10**: 17M: 0.6746 → 1B: 0.7237
+- **Agentic Use**: State-of-the-art at every size class up to 1B. The 68M model (0.5915) already beats bge-reranker-v2-m3 (0.5526) at 1/8 the size. The 1B model matches the 1.54B teacher within 0.0001.
+- **Max CTX**: 7,999 tokens (ModernBERT backbone).
+- **Output Types**: Relevance score logit (single-class classifier head via `ModernBertModel` + `id2label`/`classifier_pooling` in config).
+- **Other features**: All Apache 2.0 license, Flash Attention 2.0 optimized, pointwise MSE distillation, 2.3× faster than peer ModernBERT rerankers at same parameter count.
+- **Fits expected hindsight usage of embedding**: Excellent. Best price/performance ratio in open-source reranking: 68M model matches Qwen3-Reranker-0.6B quality with 1/9 the parameters. Requires TEI detection patch for `ModernBertModel` architecture (applied via `tei-rocm/jina-reranker-v3.patch`).
+- **TEI Support & Native**: **Yes (patched)** — requires `ModernBertModel` + `id2label` detection added to TEI router and Python backend. Supported via Candle `flash_modernbert.rs` classification head. Without the patch, TEI treats `ModernBertModel` as an embedding architecture and fails to load the classifier head.
+- **Retrieval Benchmarks / MTEB Score**: See above for per-model NDCG@10. Family beats all MiniLM, BGE, and gte-reranker variants in respective size classes.
 
 ---
 
@@ -483,7 +579,8 @@ The models listed above span seven distinct architecture × backend combinations
 | **Causal Decoder (TEI)** | Embedding | Python (PyTorch) | Causal (triangular) | Single text → dense vector | Last-token (`[EOS]`) | **Not used** (single forward pass) | Weights + $O(N^2)$ activations | gte-Qwen2-1.5B, jina-v5-small |
 | **Bidirectional Encoder (TEI Candle)** | Embedding | Candle (Rust) | Full (bidirectional) | Single text → dense vector | Mean pooling / `[CLS]` | **Not used** (incompatible) | Weights + $O(N^2)$ activations | bge-m3, jina-v3, gte-multilingual-base, snowflake-arctic |
 | **Bidirectional Encoder (TEI Python)** | Embedding | Python (PyTorch) | Full (bidirectional) | Single text → dense vector | Mean pooling | **Not used** (incompatible) | Weights + $O(N^2)$ activations | pplx-embed-context |
-| **Bidirectional Cross-Encoder (TEI Candle)** | Reranking | Candle (Rust) | Full (bidirectional) | Query–document pair → score | `[CLS]` → classifier head | **Not used** (incompatible) | Weights + $O(N^2)$ activations | bge-reranker-v2-m3, jina-reranker-v2 |
+| **Bidirectional Cross-Encoder (TEI Candle)** | Reranking | Candle (Rust) | Full (bidirectional) | Query–document pair → score | `[CLS]` → classifier head | **Not used** (incompatible) | Weights + $O(N^2)$ activations | bge-reranker-v2-m3, jina-reranker-v2, gte-multilingual-reranker-base |
+| **ModernBERT Cross-Encoder (TEI Candle)** | Reranking | Candle (Rust) | Full (bidirectional, alternating global/sliding) | Query–document pair → score | Mean pooling → classifier head | **Not used** (incompatible) | Weights + $O(N^2)$ activations | gte-reranker-modernbert-base, granite-embedding-reranker-english-r2, ettin-reranker-* |
 | **Causal Cross-Encoder (TEI Python)** | Reranking | Python (PyTorch) | Causal (triangular) | Query + N docs → N scores | Last-token → MLP projector | **Not used** (single forward pass) | Weights + $O(N^2)$ activations | jina-reranker-v3 |
 
 > **Candle vs Python backend**: The Candle (Rust) backend compiles attention kernels natively and handles standard BERT/XLM-RoBERTa architectures. The Python (PyTorch) backend spawns a gRPC subprocess using `sentence-transformers` and is required for models with custom architectures (Qwen2/Qwen3 backbones, `trust_remote_code=True`). On ROCm, the Python backend uses `python-pytorch-opt-rocm` with native HIP kernels for RDNA3 GPU acceleration.
