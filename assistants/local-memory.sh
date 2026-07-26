@@ -41,23 +41,23 @@ DEFAULT_HINDSIGHT_API_LLM_TIMEOUT=180
 DEFAULT_HINDSIGHT_API_LLM_MAX_CONCURRENT=2
 DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT="low"
 
-# hindsight embedding (2 parallel calls, 8K max context, TEI / pplx-embedding default)
+# hindsight embedding (6 parallel recall calls, 8K max context, TEI / pplx-embedding)
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER="openai"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="unused"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="http://localhost:51080/v1"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="pplx-embedding"
-# recall scope
-DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT=2
+# recall 4-way parallel search + 2 background (matches 6×8K TEI embedding slots)
+DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT=6
 DEFAULT_HINDSIGHT_API_RECALL_INCLUDE_CHUNKS="false"
 DEFAULT_HINDSIGHT_API_RECALL_MAX_TOKENS=1536
 DEFAULT_HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS=500
 
-# hindsight rerank (2 parallel calls, 16K max context)
+# hindsight rerank (sequential after recall fusion, 8K max context, TEI / ettin-reranker)
 DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER="cohere"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY="unused"
-DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1/rerank"
-DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="qwen3-reranker"
-DEFAULT_HINDSIGHT_API_RERANKER_MAX_CONCURRENT=2
+DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:50086/v1/rerank"
+DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="ettin-reranker"
+DEFAULT_HINDSIGHT_API_RERANKER_MAX_CONCURRENT=1
 
 # reflect scope
 DEFAULT_HINDSIGHT_API_REFLECT_WALL_TIMEOUT=600
@@ -389,14 +389,14 @@ HINDSIGHT_API_LLM_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_LLM_MAX_CONCURRENT}"
 # HINDSIGHT_API_LLM_REASONING_EFFORT (low, medium, high)
 HINDSIGHT_API_LLM_REASONING_EFFORT="${DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT}"
 
-# text embedding (4 parallel calls, 8K max context)
+# text embedding (6 parallel recall calls, 8K max context, TEI / pplx-embedding)
 HINDSIGHT_API_EMBEDDINGS_PROVIDER="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL}"
 HINDSIGHT_API_RECALL_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT}"
 
-# document rerank (2 parallel calls, 16K max context)
+# document rerank (sequential after recall fusion, 8K max context, TEI / ettin-reranker-400m)
 HINDSIGHT_API_RERANKER_PROVIDER="${DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER}"
 HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY}"
 HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL}"
@@ -492,14 +492,17 @@ cmd_install() {
     if command -v npm &>/dev/null; then
         echo "Installing Hindsight Control Plane Web UI into ${LMEM_HOME}/control-plane..."
         local cp_dir="${LMEM_HOME}/control-plane"
-        if [[ -d "${cp_dir}" ]]; then
-            echo "Cleaning up existing Control Plane Web UI..."
-            rm -rf "${cp_dir}"
+
+        # Clear old install (like uv venv does), but keep package.json so npm
+        # reuses its global cache (~/.npm/_cacache) without re-downloading packages
+        if [[ -d "${cp_dir}/node_modules" ]]; then
+            echo "Cleaning up existing node_modules..."
+            rm -rf "${cp_dir}/node_modules"
         fi
         mkdir -p "${cp_dir}"
 
-        echo "Downloading @vectorize-io/hindsight-control-plane from npm..."
-        npm install --prefix "${cp_dir}" @vectorize-io/hindsight-control-plane
+        echo "Installing @vectorize-io/hindsight-control-plane from npm (using cached packages)..."
+        npm install --prefer-offline --prefix "${cp_dir}" @vectorize-io/hindsight-control-plane
 
         echo "Applying i18n redirect patch to Control Plane UI..."
         node -e '
