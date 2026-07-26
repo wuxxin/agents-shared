@@ -1,9 +1,11 @@
 # Local Document Reranking Service Guide
 
-`local-rerank.sh` manages the local `llama-server` systemd user service (`local-rerank.service`), serving the Text Reranker model (`Qwen3-Reranker-0.6B.Q4_K_M.gguf`). It operates with pooling mode set to `rank` to compute relevance scores for query-document pairs.
+> Requires **tei-rocm >= pkgrel=6** (ModernBertModel detection patch). Model downloaded via [local-download.sh](local-download.sh).
 
-- **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
-- **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
+`local-rerank.sh` manages the local `text-embeddings-router` (TEI) systemd user service (`local-rerank.service`), serving the Text Reranker model (`ettin-reranker-400m-v1`). It uses TEI's Candle backend with ModernBertModel detection to compute relevance scores for query-document pairs via cross-encoder classification.
+
+- **Source Code**: [GitHub - huggingface/text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference)
+- **AUR Packages**: `tei-rocm`
 
 ## Usage
 
@@ -53,12 +55,17 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Default Reranking Model
 
-The local service runs **`Qwen3-Reranker-0.6B`** in `Q4_K_M` GGUF quantization format. 
+The local service runs **`cross-encoder/ettin-reranker-400m-v1`** in float16 Safetensors format via TEI's Candle backend.
 
 Key specifications:
-  - **Context Size (`LRR_N_CTX`):** `16384` (µ-Batch Size `LRR_N_UBATCH`: `16384`)
-  - **Pooling:** `rank`
-  - **Capabilities**: Primarily used to rank relevance scores of search results for hybrid retrieval and memory systems.
+  - **Architecture**: ModernBERT (ModernBertForSequenceClassification, ~401M params)
+  - **Context Size**: 8,192 tokens
+  - **MTEB NDCG@10**: 0.6091 (English retrieval)
+  - **License**: Apache 2.0
+  - **TEI Backend**: Candle (Rust native) — requires `tei-rocm >= pkgrel=6` for ModernBertModel detection
+  - **VRAM**: ~1.6 GB (bf16 weights ~0.8 GB + CUDA overhead ~0.4 GB + activations ~0.4 GB)
+  - **Download**: `bash scripts/local-download.sh /data/public/machine-learning/models --reranker`
+  - **Capabilities**: Cross-encoder relevance scoring for hybrid retrieval and memory systems.
 
 ## Service Configuration & Ports
 
@@ -82,40 +89,20 @@ The service stores its configuration in the systemd user configuration directory
 - **Service Unit**: `~/.config/systemd/user/local-rerank.service`
 - **Environment File**: `~/.config/systemd/user/local-rerank.env`
 
-### Switching between GPU and CPU Inference 
+### TEI Device Selection
 
-By default, the service runs the reranker on the CPU, which is highly recommended to conserve VRAM.
-or if VRAM is available, it can offload execution to the GPU using ROCm/HIP acceleration.
-
-To run the service on the CPU or GPU, run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and change the parameter LRR_N_GPU_LAYERS:
+TEI auto-detects the best available backend (ROCm, Vulkan, or CPU). To force a specific device, set `LRR_TEI_DEVICE`:
 
 ```bash
-# For CPU execution
-LRR_N_GPU_LAYERS=0
-# For GPU execution
-LRR_N_GPU_LAYERS=99
+# Auto-detect (default, recommended for dGPU):
+# LRR_TEI_DEVICE=""
+# Force dGPU Vulkan backend:
+# LRR_TEI_DEVICE="Vulkan1"
+# Force CPU execution:
+# LRR_TEI_DEVICE="cpu"
 ```
 
-### Backend Device Selection (Dynamic Backend Loading)
-
-When using a combined backend build (such as `libggml-git-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
-
-You can configure the target device using the `LRR_DEVICE` environment variable. Run `./local-rerank.sh edit` (or edit `~/.config/systemd/user/local-rerank.env` directly) and configure the device:
-
-```bash
-# GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
-# By default, llama-server automatically selects the best available device.
-# To force a specific backend device, uncomment one of the options below:
-# LRR_DEVICE="ROCm0"
-# LRR_DEVICE="Vulkan0"
-# LRR_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
-# LRR_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
-```
-
-To list all available devices on your system, run:
-```bash
-llama-cli --list-devices
-```
+Device mapping is handled via `HIP_VISIBLE_DEVICES` / `CUDA_VISIBLE_DEVICES` internally.
 
 
 ## VRAM Usage
@@ -149,7 +136,7 @@ Alternatively, you can test it manually using `curl`:
 curl -s -X POST http://localhost:50086/v1/rerank \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "qwen3-reranker",
+    "model": "ettin-reranker",
     "query": "What is the speed of light in a vacuum?",
     "documents": [
       "The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.",

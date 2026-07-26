@@ -23,7 +23,7 @@ load_env() {
     # General parameters
     LRR_PORT=50086
     LRR_HOST=127.0.0.1
-    LRR_ENGINE=llama
+    LRR_ENGINE=tei
 
     # llama-server parameters (default to conservative/existing settings for VRAM safety)
     LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
@@ -35,12 +35,12 @@ load_env() {
     LRR_LLAMA_DEVICE=""
     LRR_LLAMA_EXTRA_ARGS="--flash-attn on"
 
-    # TEI parameters (TEI v1.9.3 does not support jina-reranker-v3; keep defaults for future use)
-    LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3
-    LRR_ALIAS=qwen3-reranker
-    LRR_TEI_MAX_CONCURRENT=2
-    LRR_TEI_MAX_BATCH_TOKENS=32768
-    LRR_TEI_EXTRA_ARGS=""
+    # TEI parameters (ettin-reranker-400m-v1 via ModernBertModel detection, requires tei-rocm >= pkgrel=6)
+    LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/ettin-reranker-400m-v1
+    LRR_ALIAS=ettin-reranker
+    LRR_TEI_MAX_CONCURRENT=4 # 4 queue slots — GPU processes 1 at a time; queue absorbs others without VRAM cost
+    LRR_TEI_MAX_BATCH_TOKENS=8192
+    LRR_TEI_EXTRA_ARGS="--dtype bfloat16"
     LRR_TEI_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
@@ -54,7 +54,7 @@ load_env() {
     # Auto-detect engine if not set (legacy configuration support)
     if [[ -z "${LRR_ENGINE:-}" ]]; then
         if [[ "${LRR_MODEL:-}" =~ \.gguf$ ]]; then
-            LRR_ENGINE=llama
+LRR_ENGINE=tei
         else
             LRR_ENGINE=tei
         fi
@@ -336,13 +336,12 @@ generate_env_file() {
 # Reload with:  local-rerank.sh restart
 
 # Active inference engine: 'llama' (llama-server) or 'tei' (Text Embeddings Inference)
-# NOTE: TEI v1.9.3 does not yet support jina-reranker-v3 (see huggingface/text-embeddings-inference#734).
-#       Use llama engine with Qwen3-Reranker GGUF until TEI adds support.
-LRR_ENGINE=llama
+# NOTE: TEI now supports ettin-reranker-400m-v1 via ModernBertModel detection (tei-rocm >= pkgrel=6).
+#       Download: scripts/local-download.sh /data/public/machine-learning/models --reranker
+LRR_ENGINE=tei
 
-# Model alias used by client integrations (default: qwen3-reranker)
-# When switching to TEI in the future, change alias to jina-reranker.
-LRR_ALIAS=qwen3-reranker
+# Model alias for client integrations (default: ettin-reranker)
+LRR_ALIAS=ettin-reranker
 
 # Port to bind the server to (default: 50086)
 LRR_PORT=50086
@@ -360,20 +359,21 @@ LRR_API_PATH=/v1/rerank
 # allocation, allowing efficient parallel reranking request handling.
 #
 # Path to the safetensors model directory
-LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3
+LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/ettin-reranker-400m-v1
 
-# Max concurrent request slots (default: 2)
-LRR_TEI_MAX_CONCURRENT=2
+# Max concurrent request slots (default: 4, GPU processes 1 at a time; queue absorbs the rest without VRAM cost)
+LRR_TEI_MAX_CONCURRENT=4
 
-# Max total tokens in a dynamic batch (default: 32768)
-LRR_TEI_MAX_BATCH_TOKENS=32768
+# Max total tokens in a dynamic batch (default: 8192, 1 × 8K single batch)
+# TEI auto-sizes each batch: with 8K chunks this means ~1 request per forward pass
+LRR_TEI_MAX_BATCH_TOKENS=8192
 
 # GPU/CPU backend device index or name (e.g. rocm[:0], rocm:1, vulkan[:0], equals to auto if empty)
 # Maps to HIP_VISIBLE_DEVICES / CUDA_VISIBLE_DEVICES internally for TEI
 # LRR_TEI_DEVICE="rocm:0"
 
 # Extra arguments to pass to text-embeddings-router
-# LRR_TEI_EXTRA_ARGS=""
+LRR_TEI_EXTRA_ARGS="--dtype bfloat16"
 
 # Trust remote code to run custom models
 TRUST_REMOTE_CODE=true
