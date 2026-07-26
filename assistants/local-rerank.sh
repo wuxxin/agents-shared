@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# local-rerank.sh - Manage local llama-server systemd user service for Text Reranking
+# local-rerank.sh - Manage local TEI/llama-server systemd user service for Text Reranking
 #
 # Usage: local-rerank.sh <command> [args...]
 #
-# Manages a systemd user service (local-rerank.service) that runs llama-server
-# serving the Text Reranker model.
+# Manages a systemd user service (local-rerank.service) that runs either
+# text-embeddings-router (TEI) or llama-server serving the Text Reranker model.
 #
 #
 
@@ -20,18 +20,28 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # Load environment
 
 load_env() {
-    # Default parameters
+    # General parameters
     LRR_PORT=50086
     LRR_HOST=127.0.0.1
-    LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+    LRR_ENGINE=llama
+
+    # llama-server parameters (default to conservative/existing settings for VRAM safety)
+    LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+    LRR_LLAMA_N_CTX=16384
+    LRR_LLAMA_N_UBATCH=16384
+    LRR_LLAMA_N_GPU_LAYERS=99
+    LRR_LLAMA_THREADS=8
+    LRR_LLAMA_PARALLEL=2
+    LRR_LLAMA_DEVICE=""
+    LRR_LLAMA_EXTRA_ARGS="--flash-attn on"
+
+    # TEI parameters (TEI v1.9.3 does not support jina-reranker-v3; keep defaults for future use)
+    LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3
     LRR_ALIAS=qwen3-reranker
-    LRR_N_CTX=16384
-    LRR_N_UBATCH=16384
-    LRR_N_GPU_LAYERS=99
-    LRR_THREADS=8
-    LRR_PARALLEL=2
-    LRR_EXTRA_ARGS="--flash-attn on"
-    LRR_DEVICE=""
+    LRR_TEI_MAX_CONCURRENT=2
+    LRR_TEI_MAX_BATCH_TOKENS=32768
+    LRR_TEI_EXTRA_ARGS=""
+    LRR_TEI_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -41,9 +51,57 @@ load_env() {
         set -u
     fi
 
-    # Support LRR_UBATCH_SIZE as alias for LRR_N_UBATCH
-    if [[ -n "${LRR_UBATCH_SIZE:-}" ]]; then
-        LRR_N_UBATCH="${LRR_UBATCH_SIZE}"
+    # Auto-detect engine if not set (legacy configuration support)
+    if [[ -z "${LRR_ENGINE:-}" ]]; then
+        if [[ "${LRR_MODEL:-}" =~ \.gguf$ ]]; then
+            LRR_ENGINE=llama
+        else
+            LRR_ENGINE=tei
+        fi
+    fi
+
+    # Map generic variables based on selected engine for backward compatibility
+    if [[ "${LRR_ENGINE}" == "tei" ]]; then
+        LRR_MODEL="${LRR_TEI_MODEL:-${LRR_MODEL:-}}"
+        # shellcheck disable=SC2034
+        LRR_API_PATH=/rerank
+    else
+        LRR_MODEL="${LRR_LLAMA_MODEL:-${LRR_MODEL:-}}"
+        # shellcheck disable=SC2034
+        LRR_API_PATH=/v1/rerank
+
+        # Keep existing mapping for llama parameters
+        if [[ -n "${LRR_UBATCH_SIZE:-}" ]]; then
+            LRR_LLAMA_N_UBATCH="${LRR_UBATCH_SIZE}"
+        fi
+        LRR_N_CTX="${LRR_LLAMA_N_CTX:-16384}"
+        LRR_N_UBATCH="${LRR_LLAMA_N_UBATCH:-16384}"
+        LRR_N_GPU_LAYERS="${LRR_LLAMA_N_GPU_LAYERS:-99}"
+        LRR_THREADS="${LRR_LLAMA_THREADS:-8}"
+        LRR_PARALLEL="${LRR_LLAMA_PARALLEL:-2}"
+        LRR_DEVICE="${LRR_LLAMA_DEVICE:-}"
+        LRR_EXTRA_ARGS="${LRR_LLAMA_EXTRA_ARGS:-}"
+    fi
+
+    # Device selection for TEI
+    local active_device=""
+    if [[ "${LRR_ENGINE}" == "tei" ]]; then
+        active_device="${LRR_TEI_DEVICE:-${LRR_DEVICE:-}}"
+        if [[ -n "${active_device}" ]]; then
+            local dev_lower
+            dev_lower=$(echo "${active_device}" | tr '[:upper:]' '[:lower:]')
+            if [[ "$dev_lower" =~ [0-9]+ ]]; then
+                local dev_idx
+                dev_idx=$(echo "$dev_lower" | grep -o -E '[0-9]+' | head -n 1)
+                export HIP_VISIBLE_DEVICES="${dev_idx}"
+                export CUDA_VISIBLE_DEVICES="${dev_idx}"
+            elif [[ "$dev_lower" == "cpu" || "$dev_lower" == "none" ]]; then
+                export HIP_VISIBLE_DEVICES=""
+                export CUDA_VISIBLE_DEVICES=""
+            fi
+        fi
+        export TRUST_REMOTE_CODE=true
+        export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -185,6 +243,30 @@ get_llama_args() {
     fi
 }
 
+# Helper to get unified arguments for text-embeddings-router
+get_tei_args() {
+    local -n out_tei_args=$1
+    out_tei_args=(
+        --model-id "${LRR_MODEL}"
+        --port "${LRR_PORT}"
+        --hostname "${LRR_HOST}"
+    )
+
+    if [[ -n "${LRR_TEI_MAX_CONCURRENT:-}" ]]; then
+        out_tei_args+=(--max-concurrent-requests "${LRR_TEI_MAX_CONCURRENT}")
+    fi
+
+    if [[ -n "${LRR_TEI_MAX_BATCH_TOKENS:-}" ]]; then
+        out_tei_args+=(--max-batch-tokens "${LRR_TEI_MAX_BATCH_TOKENS}")
+    fi
+
+    if [[ -n "${LRR_TEI_EXTRA_ARGS:-}" ]]; then
+        local extra_arr=()
+        eval "extra_arr=(${LRR_TEI_EXTRA_ARGS})"
+        out_tei_args+=("${extra_arr[@]}")
+    fi
+}
+
 # Helper to format array of arguments for systemd ExecStart
 format_exec_start() {
     local binary="$1"
@@ -204,14 +286,26 @@ format_exec_start() {
 generate_service_file() {
     load_env
     local args
-    get_llama_args args
     local exec_cmd
-    exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
+    local description
+    local doc_link
+
+    if [[ "${LRR_ENGINE}" == "tei" ]]; then
+        get_tei_args args
+        exec_cmd=$(format_exec_start "${TEI_ROUTER_BIN:-text-embeddings-router}" "${args[@]}")
+        description="Local Document Reranking Server (TEI)"
+        doc_link="https://github.com/huggingface/text-embeddings-inference"
+    else
+        get_llama_args args
+        exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
+        description="Local Document Reranking Server (llama-server)"
+        doc_link="https://github.com/ggml-org/llama.cpp"
+    fi
 
     cat <<EOF
 [Unit]
-Description=Local Document Reranking Server (llama-server)
-Documentation=https://github.com/ggml-org/llama.cpp
+Description=${description}
+Documentation=${doc_link}
 After=network.target
 
 [Service]
@@ -231,17 +325,24 @@ WantedBy=default.target
 EOF
 }
 
-# Embedded default env file (heredoc written by --install)
+# Embedded default env file (heredoc written by install)
 
 generate_env_file() {
     cat <<'EOF'
 # local-rerank.env
 
-# Configuration for the local-rerank.service llama-server instance.
-#
-# Edit this file to switch models or tune runtime parameters.
+# Configuration for the local-rerank.service.
+# Edit this file to switch engines, models, or tune runtime parameters.
 # Reload with:  local-rerank.sh restart
 
+# Active inference engine: 'llama' (llama-server) or 'tei' (Text Embeddings Inference)
+# NOTE: TEI v1.9.3 does not yet support jina-reranker-v3 (see huggingface/text-embeddings-inference#734).
+#       Use llama engine with Qwen3-Reranker GGUF until TEI adds support.
+LRR_ENGINE=llama
+
+# Model alias used by client integrations (default: qwen3-reranker)
+# When switching to TEI in the future, change alias to jina-reranker.
+LRR_ALIAS=qwen3-reranker
 
 # Port to bind the server to (default: 50086)
 LRR_PORT=50086
@@ -249,37 +350,75 @@ LRR_PORT=50086
 # Host to bind the server to (127.0.0.1 for local access only)
 LRR_HOST=127.0.0.1
 
-# Path to the text reranker model file
-LRR_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+# API path for rerank endpoint (/v1/rerank for llama-server, /rerank for TEI)
+LRR_API_PATH=/v1/rerank
 
-# Model alias used by client integrations (default: qwen3-reranker)
-LRR_ALIAS=qwen3-reranker
+# TEI (Text Embeddings Inference) ENGINE SETTINGS
+#
+# TEI auto-detects reranker model architecture and sets appropriate
+# pooling and tokenization. TEI uses dynamic batching with static VRAM
+# allocation, allowing efficient parallel reranking request handling.
+#
+# Path to the safetensors model directory
+LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3
 
-# Context size (default: 16384), micro batch size (default: 16384, matching context size for long prompt reranking)
-LRR_N_CTX=16384
-LRR_N_UBATCH=16384
+# Max concurrent request slots (default: 2)
+LRR_TEI_MAX_CONCURRENT=2
+
+# Max total tokens in a dynamic batch (default: 32768)
+LRR_TEI_MAX_BATCH_TOKENS=32768
+
+# GPU/CPU backend device index or name (e.g. rocm[:0], rocm:1, vulkan[:0], equals to auto if empty)
+# Maps to HIP_VISIBLE_DEVICES / CUDA_VISIBLE_DEVICES internally for TEI
+# LRR_TEI_DEVICE="rocm:0"
+
+# Extra arguments to pass to text-embeddings-router
+# LRR_TEI_EXTRA_ARGS=""
+
+# Trust remote code to run custom models
+TRUST_REMOTE_CODE=true
+
+# Python search path for custom model patches (bypasses Hugging Face import bugs)
+EOF
+    echo "PYTHONPATH=${SYSTEMD_USER_DIR}"
+    echo ""
+    echo "# PyTorch CUDA memory allocator configuration (prevents VRAM fragmentation/OOM on large contexts)"
+    echo "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+    cat <<'EOF'
+
+
+# LLAMA-SERVER ENGINE SETTINGS
+#
+# llama-server pre-allocates KV cache slots statically at startup.
+# Each slot allocates LRR_LLAMA_N_CTX tokens. High context + parallel slots
+# will result in large, persistent VRAM consumption on the GPU.
+# Keep parallel/context conservative on llama-server to prevent GPU OOM under chat load.
+#
+# Path to the text reranker GGUF model file
+LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+
+# Context size per parallel slot (default: 16384)
+LRR_LLAMA_N_CTX=16384
+
+# Micro-batch size (default: 16384, matching context size)
+LRR_LLAMA_N_UBATCH=16384
 
 # Number of layers to offload to GPU (all=99)
-LRR_N_GPU_LAYERS=99
+LRR_LLAMA_N_GPU_LAYERS=99
 # To run inference on CPU instead of GPU (none=0)
-# LRR_N_GPU_LAYERS=0
+# LRR_LLAMA_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
-# By default, llama-server automatically selects the best available device.
-# To force a specific backend device, uncomment one of the options below:
-# LRR_DEVICE="ROCm0"
-# LRR_DEVICE="Vulkan0"
-# LRR_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
-# LRR_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
+# LRR_LLAMA_DEVICE="ROCm0"
 
-# Number of threads to use
-LRR_THREADS=8
+# Number of threads to use (default: 8)
+LRR_LLAMA_THREADS=8
 
 # Parallel request slots (default: 2)
-LRR_PARALLEL=2
+LRR_LLAMA_PARALLEL=2
 
-# Use Flash Attention if on gpu and available
-LRR_EXTRA_ARGS="--flash-attn on"
+# Extra arguments to pass to llama-server
+LRR_LLAMA_EXTRA_ARGS="--flash-attn on"
 
 EOF
 }
@@ -309,6 +448,18 @@ cmd_install() {
 
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
+
+    # Copy TEI gRPC helper monkeypatch to systemd directory next to env and service
+    local root_dir
+    root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+    if [[ -f "${root_dir}/scripts/tei-helper.py" ]]; then
+        if [[ ! -f "${SYSTEMD_USER_DIR}/sitecustomize.py" ]] ||
+            ! cmp -s "${root_dir}/scripts/tei-helper.py" "${SYSTEMD_USER_DIR}/sitecustomize.py"; then
+            echo "Copying TEI helper patch to ${SYSTEMD_USER_DIR}/sitecustomize.py..."
+            cp "${root_dir}/scripts/tei-helper.py" "${SYSTEMD_USER_DIR}/sitecustomize.py"
+            chmod 644 "${SYSTEMD_USER_DIR}/sitecustomize.py"
+        fi
+    fi
 
     # Write env file only if it doesn't exist (preserve user edits)
     if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
@@ -352,13 +503,18 @@ cmd_install() {
 
 cmd_uninstall() {
     echo "Uninstalling ${SERVICE_NAME} systemd user service..."
-    run_systemctl stop "${SERVICE_NAME}.service"
-    run_systemctl disable "${SERVICE_NAME}.service"
+    run_systemctl stop "${SERVICE_NAME}.service" || true
+    run_systemctl disable "${SERVICE_NAME}.service" || true
 
     if [[ -f "${SERVICE_FILE}" ]]; then
         rm -f "${SERVICE_FILE}"
         run_systemctl daemon-reload
         echo "Removed service file."
+    fi
+
+    if [[ -f "${SYSTEMD_USER_DIR}/sitecustomize.py" ]]; then
+        rm -f "${SYSTEMD_USER_DIR}/sitecustomize.py"
+        echo "Removed sitecustomize.py helper patch."
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
@@ -405,18 +561,25 @@ cmd_exec() {
     set -- "${COMMAND_ARGS[@]}"
 
     local args
-    get_llama_args args
+    local bin
+    if [[ "${LRR_ENGINE}" == "tei" ]]; then
+        get_tei_args args
+        bin="${TEI_ROUTER_BIN:-text-embeddings-router}"
+    else
+        get_llama_args args
+        bin="${LLAMA_SERVER_BIN:-llama-server}"
+    fi
 
     if ! is_systemd_running; then
-        echo "Warning: Systemd is not running. Running llama-server directly in foreground..."
+        echo "Warning: Systemd is not running. Running ${bin} directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec "${LLAMA_SERVER_BIN:-llama-server}" "$@"
+            exec "${bin}" "$@"
         else
-            exec "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
+            exec "${bin}" "${args[@]}"
         fi
     fi
 
-    echo "Starting llama-server as a transient systemd service with args: $*"
+    echo "Starting ${bin} as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -435,14 +598,14 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${bin}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${bin}" "${args[@]}"
     fi
 }
 
 cmd_shell() {
-    echo "Starting interactive shell in the llama-server systemd environment..."
+    echo "Starting interactive shell in the local-rerank systemd environment..."
 
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
@@ -473,7 +636,7 @@ cmd_run() {
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
-    echo "Running command inside the llama-server environment: $*"
+    echo "Running command inside the local-rerank environment: $*"
 
     local opts=(
         --user
@@ -499,7 +662,7 @@ cmd_test() {
 
     local host="${LRR_HOST:-127.0.0.1}"
     local port="${LRR_PORT:-50086}"
-    local alias="${LRR_ALIAS:-qwen3-reranker}"
+    local alias="${LRR_ALIAS:-jina-reranker}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
@@ -609,11 +772,12 @@ usage() {
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run llama-server as a transient systemd user service"
-    echo "  run       - Run a command inside the llama-server environment"
-    echo "  shell     - Spawn an interactive shell in the llama-server environment"
+    echo "  exec      - Run the active engine server as a transient systemd user service"
+    echo "  run       - Run a command inside the server environment"
+    echo "  shell     - Spawn an interactive shell in the server environment"
     echo "  cat       - Print service file, environment configuration, and transient exec command"
-    echo "  test [--benchmark] - Run validation tests or rerank benchmark"
+    echo "  test [--benchmark] [--repeat XX] - Run validation tests or rerank benchmark"
+    echo "Note: Text reranking can also be served combined inside the local-chat service."
 }
 
 cmd_cat() {
@@ -634,8 +798,13 @@ cmd_cat() {
     echo ""
     echo "=== Transient Execution Command (exec) ==="
     local args
-    get_llama_args args
-    echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"
+    if [[ "${LRR_ENGINE}" == "tei" ]]; then
+        get_tei_args args
+        echo "${TEI_ROUTER_BIN:-text-embeddings-router} ${args[*]}"
+    else
+        get_llama_args args
+        echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"
+    fi
 }
 
 main() {
