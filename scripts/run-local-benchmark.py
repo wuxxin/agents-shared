@@ -93,7 +93,7 @@ SERVICES: Dict[str, Dict[str, Any]] = {
         "script": os.path.join(REPO_ROOT, "assistants", "local-rerank.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-rerank.env"),
         "port": 50086,
-        "proc_pattern": "llama-server.*--port 50086",
+        "proc_pattern": "(llama-server|text-embeddings-router).*--port 50086",
     },
     "stt": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-speech-to-text.sh"),
@@ -3850,9 +3850,13 @@ def main() -> None:
 
                     else:
                         baseline_vram = get_gpu_memory_mb(lrr_device)
+                        rr_env = read_env_file(srv["env_file"])
+                        lrr_engine = rr_env.get("LRR_ENGINE", "llama")
+                        lrr_alias = rr_env.get("LRR_ALIAS", "qwen3-reranker")
                         updates = {
                             "LRR_DEVICE": lrr_device,
                             "LRR_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 99,
+                            "LRR_ENGINE": lrr_engine,
                         }
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, lrr_device, hip_devices_resolved
@@ -3896,13 +3900,17 @@ def main() -> None:
                 print("Running reranker benchmark...")
                 if not args.mock:
                     if run_cfg != "running":
-                        print("Warming up reranker model (qwen3-reranker)...")
+                        warmup_endpoint = (
+                            "/rerank" if lrr_engine == "tei" else "/v1/rerank"
+                        )
+                        warmup_field = "texts" if lrr_engine == "tei" else "documents"
+                        print(f"Warming up reranker model ({lrr_alias})...")
                         if not warmup_model(
-                            f"http://127.0.0.1:{target_port}/v1/rerank",
+                            f"http://127.0.0.1:{target_port}{warmup_endpoint}",
                             {
-                                "model": "qwen3-reranker",
+                                "model": lrr_alias,
                                 "query": "ping",
-                                "documents": ["ping"],
+                                warmup_field: ["ping"],
                             },
                         ):
                             print(
@@ -4046,6 +4054,11 @@ def main() -> None:
                     if run_cfg == "running":
                         mock_updates = {}
                     else:
+                        try:
+                            mock_rr_env = read_env_file(srv["env_file"])
+                            mock_lrr_engine = mock_rr_env.get("LRR_ENGINE", "llama")
+                        except Exception:
+                            mock_lrr_engine = "llama"
                         mock_updates = {
                             "LRR_DEVICE": dev
                             if dev
@@ -4065,6 +4078,7 @@ def main() -> None:
                             "LRR_N_GPU_LAYERS": "99"
                             if not run_cfg.startswith("cpu")
                             else "0",
+                            "LRR_ENGINE": mock_lrr_engine,
                         }
                     try:
                         env_dict = read_env_file(srv["env_file"])

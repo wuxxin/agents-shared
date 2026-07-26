@@ -1343,6 +1343,8 @@ def resolve_config() -> dict:
         embed_host, embed_port = chat_host, chat_port
 
     rerank_host, rerank_port = load_addr("local-rerank", "LRR", "127.0.0.1", 50086)
+    rerank_env = parse_env_file(os.path.join(user_dir, "local-rerank.env"))
+    rerank_api_path = rerank_env.get("LRR_API_PATH", "/v1/rerank")
     stt_host, stt_port = load_addr("local-speech-to-text", "LSTT", "127.0.0.1", 50090)
     tts_host, tts_port = load_addr("local-text-to-speech", "LTTS", "127.0.0.1", 50095)
     image_host, image_port = load_addr("local-image", "LIMG", "127.0.0.1", 50100)
@@ -1351,6 +1353,7 @@ def resolve_config() -> dict:
         "chat": f"http://{chat_host}:{chat_port}",
         "embedding": f"http://{embed_host}:{embed_port}",
         "rerank": f"http://{rerank_host}:{rerank_port}",
+        "rerank_api_path": rerank_api_path,
         "stt": f"http://{stt_host}:{stt_port}",
         "tts": f"http://{tts_host}:{tts_port}",
         "image": f"http://{image_host}:{image_port}",
@@ -2073,7 +2076,7 @@ async def route_rerank(request: Request):
         pass
     agent = extract_request_agent(request, data)
     return await proxy_request(
-        f"{config['rerank']}/v1/rerank",
+        f"{config['rerank']}{config['rerank_api_path']}",
         request,
         content=body,
         service="rerank",

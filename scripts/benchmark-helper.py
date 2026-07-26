@@ -1146,10 +1146,14 @@ def run_rerank(
 
     query = "How do I configure Honcho memory recall mode and observation settings?"
 
+    engine = os.environ.get("LRR_ENGINE", "llama")
+    field_name = "texts" if engine == "tei" else "documents"
+    endpoint = "/rerank" if engine == "tei" else "/v1/rerank"
+
     payload = {
         "model": model,
         "query": query,
-        "documents": chunks,
+        field_name: chunks,
         "top_n": 3,
     }
 
@@ -1164,7 +1168,7 @@ def run_rerank(
 
     for r in range(repeats):
         t0 = time.perf_counter()
-        resp = post_json(f"{url}/v1/rerank", payload)
+        resp = post_json(f"{url}{endpoint}", payload)
         t1 = time.perf_counter()
         duration = (t1 - t0) * 1000.0
         docs_per_sec = (len(chunks) / (duration / 1000.0)) if duration > 0 else 0.0
