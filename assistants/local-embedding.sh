@@ -35,13 +35,14 @@ load_env() {
     LMBD_LLAMA_DEVICE=""
     LMBD_LLAMA_EXTRA_ARGS="--flash-attn on"
 
-    # TEI parameters (defaults to pplx-embed model, 2 parallel, 16k max tokens)
+    # Max concurrent request slots (default: 8, 6 for Hindsight recall + 2 headroom for Hermes)
+    # GPU dynamically packs requests up to max-batch-tokens per pass; queue absorbs extras at zero VRAM cost
     LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
     LMBD_ALIAS=pplx-embedding
     LMBD_TEI_POOLING="mean"
-    LMBD_TEI_MAX_CONCURRENT=2
-    LMBD_TEI_MAX_BATCH_TOKENS=16384
-    LMBD_TEI_EXTRA_ARGS=""
+    LMBD_TEI_MAX_CONCURRENT=8
+    LMBD_TEI_MAX_BATCH_TOKENS=49152
+    LMBD_TEI_EXTRA_ARGS="--dtype bfloat16"
     LMBD_TEI_DEVICE=""
 
     # Source the env file to get model paths and settings if it exists
@@ -368,18 +369,20 @@ LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context
 # Pooling method to override model pooling config (default: mean)
 LMBD_TEI_POOLING="mean"
 
-# Max concurrent request slots (default: 2)
-LMBD_TEI_MAX_CONCURRENT=2
+# Max concurrent request slots (default: 8, 6 for Hindsight recall + 2 headroom for Hermes/other agents)
+# GPU dynamically packs requests up to max-batch-tokens per pass; extra slots are queue-only (zero VRAM cost)
+LMBD_TEI_MAX_CONCURRENT=8
 
-# Max total tokens in a dynamic batch (default: 16384, accommodates 2x8k ~512 GiB Activation VRAM (fp16))
-LMBD_TEI_MAX_BATCH_TOKENS=16384
+# Max total tokens in a dynamic batch (default: 49152, ~6 × 8192 for 8K context chunks)
+# TEI auto-sizes each batch: shorter chunks pack more, longer ones pack fewer — always stays within token limit
+LMBD_TEI_MAX_BATCH_TOKENS=49152
 
 # GPU/CPU backend device index or name (e.g. rocm[:0], rocm:1, vukan[:0], equals to auto if empty)
 # Maps to HIP_VISIBLE_DEVICES / CUDA_VISIBLE_DEVICES internally for TEI
 # LMBD_TEI_DEVICE="rocm:0"
 
 # Extra arguments to pass to text-embeddings-router
-# LMBD_TEI_EXTRA_ARGS=""
+LMBD_TEI_EXTRA_ARGS="--dtype bfloat16"
 
 # Trust remote code to run custom models (e.g. Perplexity pplx-embed-context)
 TRUST_REMOTE_CODE=true
