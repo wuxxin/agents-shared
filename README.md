@@ -39,6 +39,14 @@ For details, see the [scripts/README.md](scripts/README.md).
 | **[Signal Integration](#signal-integration)** | [50889](http://localhost:50889), [50888](http://localhost:50888), 50887 |REST-API:50889, HTTP/JSON-RPC: 50888, TCP/JSON-RPC:50887 |
 | **[Syncthing Integration](#syncthing-integration)** | [8384](http://localhost:8384), 22000 | Syncthing Web UI (HTTP) & Sync Protocol (TCP/UDP) |
 
+## System Dependencies
+
+### Agent Tools
+
+### AUR
+
+- `agent-browser camofox-browser-bin python-camoufox`
+
 
 ---
 
