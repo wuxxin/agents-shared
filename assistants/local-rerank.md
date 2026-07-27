@@ -1,11 +1,12 @@
 # Local Document Reranking Service Guide
 
-> Requires **tei-rocm >= pkgrel=6** (ModernBertModel detection patch). Model downloaded via [local-download.sh](local-download.sh).
+> Requires **libggml-git-hip >= 10148** (with `jina-reranker-v3.patch` for projector support). Model downloaded via [local-download.sh](local-download.sh).
 
-`local-rerank.sh` manages the local `text-embeddings-router` (TEI) systemd user service (`local-rerank.service`), serving the Text Reranker model (`ettin-reranker-400m-v1`). It uses TEI's Candle backend with ModernBertModel detection to compute relevance scores for query-document pairs via cross-encoder classification.
+`local-rerank.sh` manages the local `llama-server` systemd user service (`local-rerank.service`), serving the Text Reranker model (`jina-reranker-v3`). It uses LAST-token pooling with a 2-layer MLP projector (ReLU activated) to produce 512-dim embeddings. Clients POST to `/v1/embeddings` and compute cosine similarity client-side for reranking.
 
-- **Source Code**: [GitHub - huggingface/text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference)
-- **AUR Packages**: `tei-rocm`
+- **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
+- **AUR Package**: `libggml-git-hip` → `llama.cpp-git-ggml-hip`
+- **Architecture patch**: `jina-reranker-v3.patch` adds `JinaForRankingModel` converter, `DENSE_2_OUT`/`DENSE_3_OUT` tensor mappings, and ReLU activation support
 
 ## Usage
 
@@ -55,7 +56,31 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Default Reranking Model
 
-The local service runs **`cross-encoder/ettin-reranker-400m-v1`** in float16 Safetensors format via TEI's Candle backend.
+The local service runs **`jinaai/jina-reranker-v3`** in Q4_K_M GGUF format via llama-server.
+
+Key specifications:
+  - **Architecture**: Qwen3-0.6B decoder + 2-layer MLP projector (1024→512→512, ReLU activation)
+  - **Context Size**: 131,072 tokens (served at 16,384 for VRAM efficiency)
+  - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5940
+  - **License**: CC-BY-NC 4.0 (private use only)
+  - **Backend**: llama-server with `--embeddings --pooling last`
+  - **Output**: 512-dim projected embeddings → client-side cosine similarity for reranking
+  - **VRAM**: ~1,039 MB (Q4_K_M weights ~397 MB + CUDA overhead ~400 MB + activations ~242 MB)
+  - **Download**: `bash scripts/local-download.sh /data/public/machine-learning/models --reranker`
+  - **Capabilities**: Multi-document listwise ranking, LBNL causal self-attention interaction over query and documents.
+
+### Serving Architecture
+
+jina-reranker-v3 uses an embedding-based reranking approach:
+1. llama-server loads the GGUF model with `--embeddings --pooling last`
+2. Clients POST query + document pairs to `/v1/embeddings`
+3. The model processes through Qwen3 backbone → LAST-token pooling → MLP projector
+4. Returns 512-dim projected embeddings
+5. Client computes cosine similarity between query and document embeddings for ranking
+
+### Alternative: TEI / ettin-reranker-400m-v1
+
+Set `LRR_ENGINE=tei` in `~/.config/systemd/user/local-rerank.env` to switch back to the TEI engine with `ettin-reranker-400m-v1` (ModernBERT backbone, ~401M params, Apache 2.0 license) via TEI's Candle backend. TEI uses dynamic batching with static VRAM allocation and provides a native `/v1/rerank` endpoint with Cohere-compatible relevance scores — no client-side cosine similarity needed.
 
 Key specifications:
   - **Architecture**: ModernBERT (ModernBertForSequenceClassification, ~401M params)
@@ -65,7 +90,7 @@ Key specifications:
   - **TEI Backend**: Candle (Rust native) — requires `tei-rocm >= pkgrel=6` for ModernBertModel detection
   - **VRAM**: ~1.6 GB (bf16 weights ~0.8 GB + CUDA overhead ~0.4 GB + activations ~0.4 GB)
   - **Download**: `bash scripts/local-download.sh /data/public/machine-learning/models --reranker`
-  - **Capabilities**: Cross-encoder relevance scoring for hybrid retrieval and memory systems.
+  - **Endpoint**: `POST /v1/rerank` — returns relevance scores directly
 
 ## Service Configuration & Ports
 
@@ -74,9 +99,9 @@ Key specifications:
 
 ### Service Endpoints (Port `50086`)
 
-Cohere-compatible /rerank endpoint (Azure AI Foundry, Jina, Voyage, etc.)
+OpenAI-compatible /v1/embeddings endpoint for embedding-based reranking.
 
-- **`POST /v1/rerank`**: Cohere-compatible reranking endpoint (returns relevance scores for query-document pairs).
+- **`POST /v1/embeddings`**: Get 512-dim projected embeddings for query/document texts. Compute cosine similarity client-side for reranking.
 - **`POST /tokenize`**: Converts input text into model-specific integer token IDs.
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /health`**: Returns JSON details regarding slots, queue metrics, and service health.
@@ -89,20 +114,18 @@ The service stores its configuration in the systemd user configuration directory
 - **Service Unit**: `~/.config/systemd/user/local-rerank.service`
 - **Environment File**: `~/.config/systemd/user/local-rerank.env`
 
-### TEI Device Selection
+### llama-server Device Selection
 
-TEI auto-detects the best available backend (ROCm, Vulkan, or CPU). To force a specific device, set `LRR_TEI_DEVICE`:
+llama-server auto-detects the best available backend (ROCm, Vulkan, or CPU). To force a specific device, set `LRR_DEVICE`:
 
 ```bash
 # Auto-detect (default, recommended for dGPU):
-# LRR_TEI_DEVICE=""
+# LRR_DEVICE=""
 # Force dGPU Vulkan backend:
-# LRR_TEI_DEVICE="Vulkan1"
+# LRR_DEVICE="Vulkan1"
 # Force CPU execution:
-# LRR_TEI_DEVICE="cpu"
+# LRR_DEVICE="cpu"
 ```
-
-Device mapping is handled via `HIP_VISIBLE_DEVICES` / `CUDA_VISIBLE_DEVICES` internally.
 
 
 ## VRAM Usage
@@ -131,20 +154,17 @@ To run a document reranking speed benchmark using 10 safe-length document chunks
 
 Alternatively, you can test it manually using `curl`:
 
-### Document Reranking Test
+### Document Reranking Test (Embedding-based Cosine Similarity)
 ```bash
-curl -s -X POST http://localhost:50086/v1/rerank \
+# Embed query
+curl -s -X POST http://localhost:50086/v1/embeddings \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "ettin-reranker",
-    "query": "What is the speed of light in a vacuum?",
-    "documents": [
-      "The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.",
-      "The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.",
-      "Light travels through glass at a speed of approximately 200,000 kilometers per second, which is slower than in a vacuum.",
-      "The speed of light in water is about 225,000 kilometers per second due to the refractive index.",
-      "The Earth orbits the Sun at an average speed of about 29.78 kilometers per second."
-    ],
-    "top_n": 3
-  }'
+  -d '{"model": "jina-reranker-v3", "input": "What is the speed of light in a vacuum?"}'
+
+# Embed document
+curl -s -X POST http://localhost:50086/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"model": "jina-reranker-v3", "input": "The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second."}'
+
+# Compute cosine similarity between the two embeddings client-side
 ```
