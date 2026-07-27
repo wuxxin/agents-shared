@@ -14,8 +14,8 @@ The following table statement is **TRUE** and matches the current `llama.cpp` so
 
 | Setting | Value | Description |
 |---|---|---|
-| `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `80128` per slot |
-| `LCHAT_PARALLEL` | `3` | Concurrent chat slots |
+| `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `120192` per slot |
+| `LCHAT_PARALLEL` | `2` | Concurrent chat slots |
 
 With `LCHAT_CTX_SIZE = 240384` and `LCHAT_PARALLEL = 3`, `llama-server` allocates a total KV cache size of 240,384 tokens, providing **80,128 tokens per slot**.
 
@@ -126,5 +126,5 @@ In unified mode, `n_ctx_seq` is equal to `n_ctx`, allowing slots to dynamically 
 
 | Mode | `LCHAT_CTX_SIZE` (`-c`) | `LCHAT_PARALLEL` (`-np`) | Effective Capacity per Slot (`n_ctx_slot`) |
 |---|---|---|---|
-| **Default (`kv_unified = false`)** | `240384` | `3` | **`80128` tokens per slot** (`240384 / 3`) |
-| **Unified (`kv_unified = true`)** | `240384` | `3` | **Dynamic pool up to `240384` total tokens** across slots |
+| **Default (`kv_unified = false`)** | `240384` | `2` | **`120192` tokens per slot** (`240384 / 2`) |
+| **Unified (`kv_unified = true`)** | `240384` | `2` | **Dynamic pool up to `240384` total tokens** across slots |

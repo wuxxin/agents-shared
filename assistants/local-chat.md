@@ -69,11 +69,9 @@ The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat 
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
-| `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `80128` per slot |
-| `LCHAT_PARALLEL` | `3` | Concurrent chat slots |
+| `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `120192` per slot |
+| `LCHAT_PARALLEL` | `2` | Concurrent chat slots |
 | `LCHAT_EXTRA_ARGS` | `--temp 0.6 --top-k 20 --repeat-penalty 1.1` | agentic workload tuning |
-| `LCHAT_MTP` | `/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf` | MTP draft model file |
-| `LCHAT_SPECULATIVE` | `--spec-type draft-mtp --spec-draft-n-max 2` | MTP speculative decoding config | 
 
 #### Architecture (Qwen3.6-35B-A3B)
 
@@ -401,9 +399,9 @@ To configure the Zed editor to use the local services for both chat and inline e
         "available_models": [
           {
             "name": "qwen3",
-            "max_tokens": 80128,
+            "max_tokens": 120192,
             "max_output_tokens": 16384,
-            "max_completion_tokens": 80128,
+            "max_completion_tokens": 120192,
             "capabilities": {
               "tools": true,
               "images": true,
