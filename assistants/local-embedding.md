@@ -3,8 +3,8 @@
 `local-embedding.sh` manages the local systemd user service (`local-embedding.service`) for generating high-density text embeddings used in search, retrieval-augmented generation (RAG), and agentic document indexing.
 
 The service supports two backend engines via the `LMBD_ENGINE` configuration parameter:
-1. **TEI Engine (`LMBD_ENGINE=tei`, Default)**: Serves native safetensors embedding models using Hugging Face's `text-embeddings-inference` (`text-embeddings-router`). Optimized for dynamic sequence batching without pre-allocated KV cache overhead.
-2. **Llama-Server Engine (`LMBD_ENGINE=llama`)**: Serves GGUF embedding models using `llama-server` (from `llama.cpp`) with pre-allocated slot parallel context windows.
+1. **Llama-Server Engine (`LMBD_ENGINE=llama`, Default)**: Serves GGUF embedding models using `llama-server` (from `llama.cpp`). Default model: Qwen3-Embedding-0.6B Q8_0 GGUF with 6 × 8K true parallel context windows (single `llama_decode` call).
+2. **TEI Engine (`LMBD_ENGINE=tei`, ABANDONED)**: Serves native safetensors models using Hugging Face's `text-embeddings-inference`. Kept for reference only; not actively used.
 
 Note: Text embeddings can also be served combined inside the [local-chat.md](local-chat.md) service on port 50080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 50082 should be disabled.
 
@@ -73,7 +73,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Supported Engines & Models
 
-### 1. TEI Engine (`LMBD_ENGINE=tei`, Default)
+### 1. TEI Engine (`LMBD_ENGINE=tei`, ABANDONED — reference only)
 
 Serves bidirectional and causal decoder embedding models natively using `text-embeddings-router` (`tei-rocm` package).
 
@@ -111,30 +111,59 @@ This sitecustomize patch solves two Python gRPC / Hugging Face backend compatibi
 
 ---
 
-### 2. Llama-Server Engine (`LMBD_ENGINE=llama`)
+### 2. Llama-Server Engine (`LMBD_ENGINE=llama`, Default)
 
-Serves GGUF embedding models via `llama-server` with explicit slot context pre-allocation.
+Serves GGUF embedding models via `llama-server`. Uses non-unified partitioned KV cache for true parallel batching — all 6 slots batch into a single `llama_decode()` call.
 
-#### Default Model: `Qwen3-Embedding-0.6B-Q8_0.gguf`
+#### Default Model: Qwen3-Embedding-0.6B Q8_0 GGUF
 
-- **Model Path**: `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf`
-- **Architecture**: Causal decoder-only transformer with last-token pooling.
-- **File Size**: ~568 MiB on disk (Q8_0 GGUF format).
-- **Max Context**: 32,768 tokens (served by default at 16,384 tokens).
+| Property | Value |
+|---|---|
+| **Source** | [iyanello/Qwen3-Embedding-0.6B-GGUF](https://huggingface.co/iyanello/Qwen3-Embedding-0.6B-GGUF) (fixed EOS metadata) |
+| **Architecture** | Causal decoder-only (Qwen3ForCausalLM), 596M params, 28 layers |
+| **Pooling** | Last-token pooling (`--pooling last`) |
+| **Output** | 1024-dim dense vectors, L2 normalized |
+| **Training ctx** | 32,768 tokens |
+| **GGUF size** | ~600 MB (Q8_0) |
 
-#### Llama-Server Configuration Defaults
+**Why iyanello over official Qwen GGUF:** The official `Qwen/Qwen3-Embedding-0.6B-GGUF` lacks `add_eos_token` metadata in the GGUF header. The model was trained expecting `<|endoftext|>` appended to every input. Without it, embeddings can degrade to ~0% retrieval recall. `iyanello`'s repack has this baked in.
+
+**Why Qwen3-Embedding over alternatives:**
+- vs bge-m3: 32K context (vs 8K), better for hindsight-style multi-chunk embedding without chunking
+- vs pplx-embed: GGUF-native (no TEI dependency), Q8_0 KV cache supports true parallel batching
+- Same Qwen3-0.6B backbone as existing reranker — consistent VRAM behavior, shared architecture knowledge
+
+#### Configuration Defaults
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `LMBD_ENGINE` | `llama` | Engine selector |
-| `LMBD_MODEL` | `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf` | Path to GGUF model file |
-| `LMBD_ALIAS` | `pplx-embedding` | Model alias header |
-| `LMBD_N_CTX` | `16384` | Context length per parallel slot |
-| `LMBD_PARALLEL` | `2` | Number of parallel context slots |
-| `LMBD_N_GPU_LAYERS` | `999` | GPU offload layer count |
-| `LMBD_DEVICE` | `""` | Acceleration backend device (`ROCm0`, `Vulkan0`, `BLAS`, `none`) |
-| `LMBD_LLAMA_EXTRA_ARGS` | `"--flash-attn on"` | Additional arguments for `llama-server` |
+| `LMBD_LLAMA_MODEL` | `.../Qwen3-Embedding-0.6B-Q8_0.gguf` | Path to GGUF model file |
+| `LMBD_ALIAS` | `qwen3-embedding` | Client model alias |
+| `LMBD_LLAMA_N_CTX` | `49152` | Total context (6 × 8192 for true parallel) |
+| `LMBD_LLAMA_N_UBATCH` | `49152` | Micro-batch (must match N_CTX) |
+| `LMBD_LLAMA_PARALLEL` | `6` | Parallel slots |
+| `LMBD_LLAMA_N_GPU_LAYERS` | `999` | GPU offload (all layers) |
+| `LMBD_LLAMA_THREADS` | `4` | CPU threads |
 | `LLAMA_SERVER_BIN` | `llama-server` | Path to llama-server binary |
+
+**Server flags at runtime:**
+```
+--embeddings --pooling last --embd-normalize 2
+--cache-type-k q8_0 --cache-type-v q8_0
+--ctx-size 49152 --batch-size 49152 --ubatch-size 49152
+--parallel 6 --n-gpu-layers 999
+```
+
+**How true parallel works:** Without `--kv-unified`, `ctx-size 49152 / parallel 6 = 8192` per slot. Each slot has its own 8192-position KV partition (Q8_0, ~224 MB each). `can_split() = true` (causal decoder + LAST pooling), so `pre_decode()` fills the shared batch from all 6 slots → one `llama_decode(49152)` call. Each token carries its `seq_id` — attention is zero between sequences (6 × O(8K²), not O(48K²)). Per-slot 8K cap enforced by `slot.n_ctx = 8192`.
+
+#### Alternate Sequential Config (for GPUs < 6 GB)
+
+```
+--kv-unified --ctx-size 8192 --batch-size 8192 --ubatch-size 8192 --parallel 6
+```
+
+All slots share one 8192-position KV pool (~224 MB). One 8K request per forward pass, 6 sequential iterations. Total VRAM: ~1.4 GB.
 
 ---
 
@@ -178,9 +207,12 @@ To inspect the generated systemd unit, loaded environment configuration, and tra
 - **Dynamic Batching**: Capped by `LMBD_TEI_MAX_CONCURRENT=4` and `LMBD_TEI_MAX_BATCH_TOKENS=32768`. A 4×8K or 2×16K parallel batch consumes **~1.0 GB** of activation VRAM (~2.2 GB total VRAM including weights and CUDA overhead).
 
 ### 2. Llama-Server Engine (`LMBD_ENGINE=llama`)
-- **Pre-allocated KV Cache**: Allocates KV cache memory upfront per parallel slot:
-  $$\text{KV cache} = n\_\text{parallel} \times n\_\text{ctx} \times 2 \times n\_\text{kv\_heads} \times d\_\text{head} \times n\_\text{layers} \times \text{bytes\_per\_element}$$
-- At `n_ctx=16384` with `LMBD_PARALLEL=2`, the default `q8_0` KV cache requires **~448 MiB** of VRAM (~1.5 GB total VRAM).
+- **Non-unified KV Cache (default true parallel)**:
+  6 partitions × 8192 pos × Q8_0 × 28 layers × 8 kv_heads × 64 head_dim × 2 (K+V) × 1 byte = **~1.34 GB** KV cache.
+  Total VRAM: ~3 GB (600M weights + 1.34G KV + 400M runtime + ~600M activations).
+- **Unified KV Cache (alternate sequential)**:
+  1 pool × 8192 pos × Q8_0 = **~224 MB** KV cache.
+  Total VRAM: ~1.4 GB. See env file for switching.
 
 ---
 
@@ -219,7 +251,7 @@ Run with:
 curl -s -X POST http://localhost:50082/v1/embeddings \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "pplx-embedding",
+    "model": "qwen3-embedding",
     "input": "Antigravity local embedding service test"
   }'
 ```

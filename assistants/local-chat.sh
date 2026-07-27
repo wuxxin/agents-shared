@@ -40,13 +40,10 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
-    if [[ ! -f "$LCHAT_MODEL" && -f "/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf" ]]; then
-        LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
-    fi
+    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
     LCHAT_ALIAS=qwen3
     LCHAT_CTX_SIZE=240384
-    LCHAT_PARALLEL=3
+    LCHAT_PARALLEL=2
     LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
     LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
@@ -413,7 +410,7 @@ EOF
 [${e_alias}]
 model = ${LMBD_MODEL}
 embedding = true
-pooling = mean
+pooling = last
 ctx-size = ${LMBD_CTX_SIZE}
 parallel = ${LMBD_PARALLEL}
 ngl = ${e_ngl}
@@ -611,8 +608,20 @@ LCHAT_N_GPU_LAYERS=999
 
 # ### CHAT / VISION MODEL SETTINGS
 
-# Path to the chat model file (built-in MTP model)
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
+# Path to the chat model file
+# spec-type mtp Model
+# LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
+# non mtp Model
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+# Separate MTP draft model file path (leave empty when using built-in MTP model)
+LCHAT_MTP=""
+
+# Speculative Decoding config (default: CPU N-Gram speculative decoding)
+# To enable MTP and use MTP speculative decoding with 2 draft tokens instead:
+#   1. Use model in LCHAT_MODEL with integrated mtp, or add path to mtp draft model in LCHAT_MTP
+#   2. Set LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+# LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
+LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 
 # Model alias used by client integrations (default: qwen3)
 LCHAT_ALIAS=qwen3
@@ -620,8 +629,8 @@ LCHAT_ALIAS=qwen3
 # Context size (default: 240384)
 LCHAT_CTX_SIZE=240384
 
-# Parallel request slots (default: 3)
-LCHAT_PARALLEL=3
+# Parallel request slots (default: 2, true parallel: 240384/2 = 120192 ctx per slot)
+LCHAT_PARALLEL=2
 
 # Multimodal projector arguments (optional)
 LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
@@ -632,15 +641,6 @@ LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.
 # Additional parameters for the Jinja chat template parser (JSON string)
 # Default '{"enable_thinking": false}' turns off chain-of-thought/thinking by default.
 LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
-
-# Separate MTP draft model file path (leave empty when using built-in MTP model)
-LCHAT_MTP=""
-
-# Speculative Decoding config (default: MTP speculative decoding with 2 draft tokens)
-# To disable MTP and use CPU N-Gram speculative decoding instead:
-#   1. Clear LCHAT_MTP: LCHAT_MTP=""
-#   2. Set LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
-LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
 
 # KV cache type (default: q4_0)
 LCHAT_CACHE_TYPE_K=q4_0

@@ -23,24 +23,24 @@ load_env() {
     # General parameters
     LMBD_PORT=50082
     LMBD_HOST=127.0.0.1
-    LMBD_ENGINE=tei
+    LMBD_ENGINE=llama
 
-    # llama-server parameters (default to conservative/existing settings for VRAM safety)
+    # llama-server parameters (Qwen3-Embedding: causal decoder, 596M params, 6×8K parallel, Q8_0 GGUF)
     LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-    LMBD_LLAMA_N_CTX=16384
-    LMBD_LLAMA_N_UBATCH=16384
+    LMBD_LLAMA_N_CTX=49152
+    LMBD_LLAMA_N_UBATCH=49152
     LMBD_LLAMA_N_GPU_LAYERS=999
     LMBD_LLAMA_THREADS=4
-    LMBD_LLAMA_PARALLEL=2
+    LMBD_LLAMA_PARALLEL=6
     LMBD_LLAMA_DEVICE=""
-    LMBD_LLAMA_EXTRA_ARGS="--flash-attn on"
+    LMBD_LLAMA_EXTRA_ARGS=""
 
-    # Max concurrent request slots (default: 8, 6 for Hindsight recall + 2 headroom for Hermes)
-    # GPU dynamically packs requests up to max-batch-tokens per pass; queue absorbs extras at zero VRAM cost
-    LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
-    LMBD_ALIAS=pplx-embedding
-    LMBD_TEI_POOLING="mean"
-    LMBD_TEI_MAX_CONCURRENT=8
+    # Qwen3-Embedding: causal Qwen3 decoder, 596M params, Q8_0 GGUF, last-token pooling
+    # Non-unified KV: 6 partitioned streams × 8192 pos each. All 6 slots batch into one llama_decode().
+    # Per-slot cap = 49152/6 = 8192 tokens (enforced by slot.n_ctx). Total KV: ~1.34 GB.
+    LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/bge-m3 # NOTE: TEI engine abandoned; only llama-server path is active
+    LMBD_ALIAS=qwen3-embedding
+    LMBD_TEI_MAX_CONCURRENT=6
     LMBD_TEI_MAX_BATCH_TOKENS=49152
     LMBD_TEI_EXTRA_ARGS="--dtype bfloat16"
     LMBD_TEI_DEVICE=""
@@ -74,11 +74,11 @@ load_env() {
         if [[ -n "${LMBD_UBATCH_SIZE:-}" ]]; then
             LMBD_LLAMA_N_UBATCH="${LMBD_UBATCH_SIZE}"
         fi
-        LMBD_N_CTX="${LMBD_LLAMA_N_CTX:-16384}"
-        LMBD_N_UBATCH="${LMBD_LLAMA_N_UBATCH:-16384}"
+        LMBD_N_CTX="${LMBD_LLAMA_N_CTX:-32768}"
+        LMBD_N_UBATCH="${LMBD_LLAMA_N_UBATCH:-32768}"
         LMBD_N_GPU_LAYERS="${LMBD_LLAMA_N_GPU_LAYERS:-999}"
         LMBD_THREADS="${LMBD_LLAMA_THREADS:-4}"
-        LMBD_PARALLEL="${LMBD_LLAMA_PARALLEL:-2}"
+        LMBD_PARALLEL="${LMBD_LLAMA_PARALLEL:-6}"
         LMBD_DEVICE="${LMBD_LLAMA_DEVICE:-}"
         LMBD_EXTRA_ARGS="${LMBD_LLAMA_EXTRA_ARGS:-}"
     fi
@@ -101,7 +101,7 @@ load_env() {
             fi
         fi
         export TRUST_REMOTE_CODE=true
-        export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"
+        # export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"  # TEI Python backends only
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -217,8 +217,9 @@ get_llama_args() {
     local -n out_args=$1
     out_args=(
         --model "${LMBD_MODEL}"
-        --embedding
-        --pooling mean
+        --embeddings
+        --pooling last
+        --embd-normalize 2
         --cache-type-k q8_0
         --cache-type-v q8_0
         --ctx-size "${LMBD_N_CTX}"
@@ -254,10 +255,6 @@ get_tei_args() {
         --port "${LMBD_PORT}"
         --hostname "${LMBD_HOST}"
     )
-
-    if [[ -n "${LMBD_TEI_POOLING:-}" ]]; then
-        out_tei_args+=(--pooling "${LMBD_TEI_POOLING}")
-    fi
 
     if [[ -n "${LMBD_TEI_MAX_CONCURRENT:-}" ]]; then
         out_tei_args+=(--max-concurrent-requests "${LMBD_TEI_MAX_CONCURRENT}")
@@ -342,11 +339,11 @@ generate_env_file() {
 # Edit this file to switch engines, models, or tune runtime parameters.
 # Reload with:  local-embedding.sh restart
 
-# Active inference engine: 'tei' (Text Embeddings Inference) or 'llama' (llama-server)
-LMBD_ENGINE=tei
+# Active inference engine: 'llama' (llama-server) — TEI engine abandoned, kept for reference only
+LMBD_ENGINE=llama
 
-# Model alias used by client integrations (default: pplx-embedding)
-LMBD_ALIAS=pplx-embedding
+# Model alias used by client integrations (default: qwen3-embedding)
+LMBD_ALIAS=qwen3-embedding
 
 # Port to bind the server to (default: 50082)
 LMBD_PORT=50082
@@ -354,24 +351,21 @@ LMBD_PORT=50082
 # Host to bind the server to (127.0.0.1 for local access only)
 LMBD_HOST=127.0.0.1
 
-# TEI (Text Embeddings Inference) ENGINE SETTINGS
+# TEI (Text Embeddings Inference) ENGINE SETTINGS (ABANDONED — kept for reference only)
+#
+# NOTE: TEI engine abandoned; only llama-server path is active.
+# These settings remain for backward compatibility but are not used by default.
 #
 # Standalone TEI instances run bidirectional/causal encoders with dynamic batching.
 # Because TEI does not use an autoregressive KV cache, VRAM is static and highly
 # optimized, allowing for larger batch sizes and long contexts without pre-allocation.
 #
-# Path to the safetensors model directory
-LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/pplx-embed-context-v1-0.6b
+# Path to the safetensors model directory (original bge-m3 safetensors, not active)
+LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/bge-m3
 
-# Model alias used by client integrations (default: pplx-embedding)
-# LMBD_ALIAS=pplx-embedding
-
-# Pooling method to override model pooling config (default: mean)
-LMBD_TEI_POOLING="mean"
-
-# Max concurrent request slots (default: 8, 6 for Hindsight recall + 2 headroom for Hermes/other agents)
+# Max concurrent request slots (default: 6, 4 for Hindsight recall search + 2 background)
 # GPU dynamically packs requests up to max-batch-tokens per pass; extra slots are queue-only (zero VRAM cost)
-LMBD_TEI_MAX_CONCURRENT=8
+LMBD_TEI_MAX_CONCURRENT=6
 
 # Max total tokens in a dynamic batch (default: 49152, ~6 × 8192 for 8K context chunks)
 # TEI auto-sizes each batch: shorter chunks pack more, longer ones pack fewer — always stays within token limit
@@ -382,14 +376,14 @@ LMBD_TEI_MAX_BATCH_TOKENS=49152
 # LMBD_TEI_DEVICE="rocm:0"
 
 # Extra arguments to pass to text-embeddings-router
-LMBD_TEI_EXTRA_ARGS="--dtype bfloat16"
+LMBD_TEI_EXTRA_ARGS="--dtype float32"
 
-# Trust remote code to run custom models (e.g. Perplexity pplx-embed-context)
+# Trust remote code to run custom models. Not needed for TEI (abandoned), kept for reference.
 TRUST_REMOTE_CODE=true
 
-# Python search path for custom model patches (bypasses Hugging Face import bugs)
+# Python search path for custom model patches (TEI Python backends only — not used by llama engine)
 EOF
-    echo "PYTHONPATH=${SYSTEMD_USER_DIR}"
+    echo "# PYTHONPATH=${SYSTEMD_USER_DIR}  # uncomment if using TEI engine"
     echo ""
     echo "# PyTorch CUDA memory allocator configuration (prevents VRAM fragmentation/OOM on large contexts)"
     echo "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
@@ -398,39 +392,45 @@ EOF
 
 # LLAMA-SERVER ENGINE SETTINGS
 #
-# llama-server pre-allocates KV cache slots statically at startup.
-# Each slot allocates LMBD_LLAMA_N_CTX tokens. High context + parallel slots
-# will result in large, persistent VRAM consumption on the GPU:
-#   - LMBD_LLAMA_PARALLEL=2, N_CTX=16384 (at q8_0): ~448 MiB KV Cache VRAM
-#   - LMBD_LLAMA_PARALLEL=8, N_CTX=32768 (at q8_0): ~3.5 GiB KV Cache VRAM
-# Keep parallel/context conservative on llama-server to prevent GPU OOM under chat load.
+# Qwen3-Embedding-0.6B is a causal decoder (596M params, 1024-dim) trained with
+# last-token pooling and L2 normalization. Q8_0 KV cache via --cache-type-k/v q8_0.
+#
+# === TRUE PARALLEL CONFIG (default, non-unified KV): ===
+#   --ctx-size 49152 --parallel 6  (no --kv-unified)
+#   Each slot: 49152/6 = 8192 tokens. 6 independent KV partitions × 8192 pos.
+#   can_split()=true (causal decoder + LAST pooling) → tokens flow freely.
+#   pre_decode() fills shared batch from all 6 slots → one llama_decode(49152).
+#   Total VRAM: ~3 GB (600M weights + 1.34G KV + 400M runtime + ~600M activations).
+#
+# === SEQUENTIAL CONFIG (kv-unified, for GPUs < 6 GB): ===
+#   --ctx-size 8192 --parallel 6 --kv-unified
+#   All slots share one 8192-position KV pool (~224 MB). One 8K request per batch.
+#   6 sequential forward passes. Total VRAM: ~1.4 GB.
 #
 # Path to the text embedding GGUF model file
 LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
 
-# Model alias used by client integrations (default: qwen3-embedding)
-# LMBD_ALIAS=qwen3-embedding
+# Context size (default: 49152, 6×8192 for true parallel)
+# Without --kv-unified, each slot gets N_CTX/N_PARALLEL = 8192 tokens
+LMBD_LLAMA_N_CTX=49152
 
-# Context size per parallel slot (default: 16384)
-LMBD_LLAMA_N_CTX=16384
-
-# Micro-batch size (default: 16384, matching context size)
-LMBD_LLAMA_N_UBATCH=16384
+# Micro-batch size (default: 49152, must match N_CTX for true parallel batching)
+LMBD_LLAMA_N_UBATCH=49152
 
 # Number of layers to offload to GPU (all=999)
 LMBD_LLAMA_N_GPU_LAYERS=999
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
-# LMBD_LLAMA_DEVICE="ROCm0"
+# LMBD_LLAMA_DEVICE="Vulkan1"
 
 # Number of threads to use (default: 4)
 LMBD_LLAMA_THREADS=4
 
-# Parallel request slots (default: 2)
-LMBD_LLAMA_PARALLEL=2
+# Parallel request slots (default: 6, 4-way search + 2 background for Hindsight recall)
+LMBD_LLAMA_PARALLEL=6
 
 # Extra arguments to pass to llama-server
-LMBD_LLAMA_EXTRA_ARGS="--flash-attn on"
+LMBD_LLAMA_EXTRA_ARGS=""
 
 EOF
 }

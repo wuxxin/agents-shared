@@ -239,14 +239,12 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 
 ### current llama-server embedding model: Qwen3-Embedding 0.6B GGUF
 
-- **URL**: https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf
-- **Architecture**: Causal Decoder-only (based on Qwen3 transformer base, using last-token pooling).
+- **URL**: https://huggingface.co/iyanello/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf (fixed EOS metadata; official Qwen GGUF lacks `add_eos_token`)
+- **Architecture**: Causal Decoder-only (Qwen3ForCausalLM), 596M params, 28 layers, 16 attn heads, 8 KV heads (GQA 2:1), head_dim=64. Pooling: last-token.
 - **Format & Size**: GGUF `Q8_0` format, ~600 MB disk size. (Standard base model is 1.2 GB in bf16/fp16 Safetensors).
-- **Total GPU Usage**: 
-  - **Default Serving Setup** (`LMBD_PARALLEL=2` slots @ `LMBD_N_CTX=16384` context, `q8_0` KV cache format): **~1.5 GB VRAM** (Weight baseline: ~600 MB, CUDA overhead: ~400 MB, KV Cache: ~448 MB [~224 MB per slot]).
-  - **Standardized Load Comparison** (8 parallel requests @ 8K context, total tokens: 65,536):
-    - **8-bit KV Cache**: **~1.9 GB VRAM** (Weight baseline: ~600 MB, CUDA overhead: ~400 MB, KV Cache: ~896 MB [112 MB per slot]).
-    - **16-bit KV Cache**: **~2.8 GB VRAM** (Weight baseline: ~600 MB, CUDA overhead: ~400 MB, KV Cache: ~1.79 GB [224 MB per slot]).
+- **Total GPU Usage**:
+  - **Default Serving Setup** (non-unified KV, 6 parallel slots @ 8K context, Q8_0 KV cache, single `llama_decode(49152)`): **~3.0 GB VRAM** (600M weights + 1.34G KV [6 × 224 MB] + 400M runtime + ~600M activations).
+  - **Sequential Config** (kv-unified, 6 parallel slots, single 8K-position shared pool): **~1.4 GB VRAM** (600M weights + 224M KV + 400M runtime + ~200M activations).
 - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): **~12.0ms** | 8x8K batch (65K tkn): **~650ms** (served via `llama-server` GGUF).
 - **English & German Score**: 
   - **MTEB English (Retrieval)**: ~64.3

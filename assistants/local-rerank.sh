@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# local-rerank.sh - Manage local TEI/llama-server systemd user service for Text Reranking
+# local-rerank.sh - Manage local llama-server systemd user service for Text Reranking
 #
 # Usage: local-rerank.sh <command> [args...]
 #
-# Manages a systemd user service (local-rerank.service) that runs either
-# text-embeddings-router (TEI) or llama-server serving the Text Reranker model.
+# Manages a systemd user service (local-rerank.service) that runs llama-server
+# serving the Text Reranker model (jina-reranker-v3 via embedding-based cosine similarity).
 #
 #
 
@@ -23,21 +23,22 @@ load_env() {
     # General parameters
     LRR_PORT=50086
     LRR_HOST=127.0.0.1
-    LRR_ENGINE=tei
+    LRR_ENGINE=llama
+    LRR_ALIAS=jina-reranker-v3
 
-    # llama-server parameters (default to conservative/existing settings for VRAM safety)
-    LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+    # llama-server parameters (jina-reranker-v3: Qwen3-0.6B decoder + MLP, 16K ctx, F16 KV cache, Q4_K_M GGUF)
+    LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3-Q4_K_M.gguf
     LRR_LLAMA_N_CTX=16384
     LRR_LLAMA_N_UBATCH=16384
-    LRR_LLAMA_N_GPU_LAYERS=99
-    LRR_LLAMA_THREADS=8
+    LRR_LLAMA_N_GPU_LAYERS=999
+    LRR_LLAMA_THREADS=4
     LRR_LLAMA_PARALLEL=2
+    # kv-unified + Q8_0 KV: 2 slots share one 16K-position pool (~448 MB). Sequential processing.
     LRR_LLAMA_DEVICE=""
-    LRR_LLAMA_EXTRA_ARGS="--flash-attn on"
+    LRR_LLAMA_EXTRA_ARGS=""
 
     # TEI parameters (ettin-reranker-400m-v1 via ModernBertModel detection, requires tei-rocm >= pkgrel=6)
     LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/ettin-reranker-400m-v1
-    LRR_ALIAS=ettin-reranker
     LRR_TEI_MAX_CONCURRENT=4 # 4 queue slots — GPU processes 1 at a time; queue absorbs others without VRAM cost
     LRR_TEI_MAX_BATCH_TOKENS=8192
     LRR_TEI_EXTRA_ARGS="--dtype bfloat16"
@@ -54,9 +55,9 @@ load_env() {
     # Auto-detect engine if not set (legacy configuration support)
     if [[ -z "${LRR_ENGINE:-}" ]]; then
         if [[ "${LRR_MODEL:-}" =~ \.gguf$ ]]; then
-LRR_ENGINE=tei
+            LRR_ENGINE=llama
         else
-            LRR_ENGINE=tei
+            LRR_ENGINE=llama
         fi
     fi
 
@@ -68,7 +69,7 @@ LRR_ENGINE=tei
     else
         LRR_MODEL="${LRR_LLAMA_MODEL:-${LRR_MODEL:-}}"
         # shellcheck disable=SC2034
-        LRR_API_PATH=/v1/rerank
+        LRR_API_PATH=/v1/embeddings
 
         # Keep existing mapping for llama parameters
         if [[ -n "${LRR_UBATCH_SIZE:-}" ]]; then
@@ -101,7 +102,7 @@ LRR_ENGINE=tei
             fi
         fi
         export TRUST_REMOTE_CODE=true
-        export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"
+        # export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"  # TEI Python backends only
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -217,10 +218,9 @@ get_llama_args() {
     local -n out_args=$1
     out_args=(
         --model "${LRR_MODEL}"
-        --embedding
-        --pooling rank
-        --cache-type-k q4_0
-        --cache-type-v q4_0
+        --embeddings
+        --pooling last
+        --kv-unified
         --ctx-size "${LRR_N_CTX}"
         --batch-size "${LRR_N_CTX}"
         --ubatch-size "${LRR_N_UBATCH}"
@@ -338,10 +338,10 @@ generate_env_file() {
 # Active inference engine: 'llama' (llama-server) or 'tei' (Text Embeddings Inference)
 # NOTE: TEI now supports ettin-reranker-400m-v1 via ModernBertModel detection (tei-rocm >= pkgrel=6).
 #       Download: scripts/local-download.sh /data/public/machine-learning/models --reranker
-LRR_ENGINE=tei
+LRR_ENGINE=llama
 
-# Model alias for client integrations (default: ettin-reranker)
-LRR_ALIAS=ettin-reranker
+# Model alias for client integrations (default: jina-reranker-v3)
+LRR_ALIAS=jina-reranker-v3
 
 # Port to bind the server to (default: 50086)
 LRR_PORT=50086
@@ -349,11 +349,12 @@ LRR_PORT=50086
 # Host to bind the server to (127.0.0.1 for local access only)
 LRR_HOST=127.0.0.1
 
-# API path for rerank endpoint (/v1/rerank for llama-server, /rerank for TEI)
-LRR_API_PATH=/v1/rerank
+# API path for rerank endpoint (/v1/embeddings for llama-server, /rerank for TEI)
+LRR_API_PATH=/v1/embeddings
 
 # TEI (Text Embeddings Inference) ENGINE SETTINGS
 #
+# Alternative engine: set LRR_ENGINE=tei to switch from llama-server back to TEI.
 # TEI auto-detects reranker model architecture and sets appropriate
 # pooling and tokenization. TEI uses dynamic batching with static VRAM
 # allocation, allowing efficient parallel reranking request handling.
@@ -378,9 +379,9 @@ LRR_TEI_EXTRA_ARGS="--dtype bfloat16"
 # Trust remote code to run custom models
 TRUST_REMOTE_CODE=true
 
-# Python search path for custom model patches (bypasses Hugging Face import bugs)
+# Python search path for custom model patches (TEI Python backends only — not used by llama engine)
 EOF
-    echo "PYTHONPATH=${SYSTEMD_USER_DIR}"
+    echo "# PYTHONPATH=${SYSTEMD_USER_DIR}  # uncomment if using TEI engine"
     echo ""
     echo "# PyTorch CUDA memory allocator configuration (prevents VRAM fragmentation/OOM on large contexts)"
     echo "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
@@ -389,13 +390,18 @@ EOF
 
 # LLAMA-SERVER ENGINE SETTINGS
 #
-# llama-server pre-allocates KV cache slots statically at startup.
-# Each slot allocates LRR_LLAMA_N_CTX tokens. High context + parallel slots
-# will result in large, persistent VRAM consumption on the GPU.
-# Keep parallel/context conservative on llama-server to prevent GPU OOM under chat load.
+# jina-reranker-v3 is a Qwen3-0.6B causal decoder with a 2-layer MLP projector (1024→512→512, ReLU).
+# Uses LAST-token pooling to produce 512-dim embeddings. Clients POST to /v1/embeddings and
+# compute cosine similarity client-side for reranking.
+#
+# F16 KV cache (default) stores K/V in 16-bit per element.
+# Q8_0 KV cache via --cache-type-k/v q8_0 was tested but degraded projector output for reranking.
+# With --kv-unified, the 2 parallel slots share one 16384-position KV pool (~896 MB F16).
+# Processing: sequential (2 slots share pool; one 16K request per forward pass).
+# Total VRAM: ~1.75 GB (360M Q4_K_M weights + 896M KV + 400M runtime + ~100M activations).
 #
 # Path to the text reranker GGUF model file
-LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3-Q4_K_M.gguf
 
 # Context size per parallel slot (default: 16384)
 LRR_LLAMA_N_CTX=16384
@@ -403,22 +409,22 @@ LRR_LLAMA_N_CTX=16384
 # Micro-batch size (default: 16384, matching context size)
 LRR_LLAMA_N_UBATCH=16384
 
-# Number of layers to offload to GPU (all=99)
-LRR_LLAMA_N_GPU_LAYERS=99
+# Number of layers to offload to GPU (all=999)
+LRR_LLAMA_N_GPU_LAYERS=999
 # To run inference on CPU instead of GPU (none=0)
 # LRR_LLAMA_N_GPU_LAYERS=0
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # LRR_LLAMA_DEVICE="ROCm0"
 
-# Number of threads to use (default: 8)
-LRR_LLAMA_THREADS=8
+# Number of threads to use (default: 4)
+LRR_LLAMA_THREADS=4
 
 # Parallel request slots (default: 2)
 LRR_LLAMA_PARALLEL=2
 
 # Extra arguments to pass to llama-server
-LRR_LLAMA_EXTRA_ARGS="--flash-attn on"
+LRR_LLAMA_EXTRA_ARGS=""
 
 EOF
 }
@@ -662,7 +668,7 @@ cmd_test() {
 
     local host="${LRR_HOST:-127.0.0.1}"
     local port="${LRR_PORT:-50086}"
-    local alias="${LRR_ALIAS:-jina-reranker}"
+    local alias="${LRR_ALIAS:-jina-reranker-v3}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
@@ -707,9 +713,9 @@ cmd_test() {
             repeat_arg=(--repeat "$repeat")
         fi
 
-        # Run rerank benchmark
+        # jina-reranker-v3 serves via /v1/embeddings; benchmark as embedding workload
         python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-            --mode rerank \
+            --mode embedding \
             --url "${base_url}" \
             --model "${alias}" \
             --context "${context_file}" \
@@ -718,7 +724,7 @@ cmd_test() {
         return 0
     fi
 
-    echo "Sending validation query to http://${host}:${port}/v1/rerank..."
+    echo "Sending validation query to http://${host}:${port}/v1/embeddings..."
     echo "Query: \"What is the speed of light in a vacuum?\""
     echo "Documents:"
     echo "  [Index 0] \"The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.\""
@@ -728,30 +734,46 @@ cmd_test() {
     echo "  [Index 4] \"The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.\""
     echo ""
 
-    local rerank_resp
-    rerank_resp=$(curl -s -f -X POST "${base_url}/v1/rerank" \
-        -H "Content-Type: application/json" \
-        -d "{
-          \"model\": \"${alias}\",
-          \"query\": \"What is the speed of light in a vacuum?\",
-          \"documents\": [
-            \"The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.\",
-            \"The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.\",
-            \"Light travels through glass windows when shining from the outside sun.\",
-            \"The speed of light in water is about 225,000 kilometers per second due to the refractive index.\",
-            \"The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.\"
-          ],
-          \"top_n\": 3
-        }")
+    # jina-reranker-v3 serves via /v1/embeddings with last-token pooling
+    # Embed query and documents, then compute cosine similarity client-side
+    local result
+    result=$(python3 -c "
+import json, subprocess, sys
+from math import sqrt
 
-    echo "${rerank_resp}"
-    if ! echo "${rerank_resp}" | grep -q "relevance_score"; then
-        echo "Error: Reranker response structure is invalid." >&2
-        return 1
-    fi
+docs = [
+    'The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.',
+    'The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.',
+    'Light travels through glass at a speed of approximately 200,000 kilometers per second, which is slower than in a vacuum.',
+    'The speed of light in water is about 225,000 kilometers per second due to the refractive index.',
+    'The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.'
+]
+query = 'What is the speed of light in a vacuum?'
 
+def embed(text):
+    resp = subprocess.run(['curl', '-s', '-f', '-X', 'POST', '${base_url}/v1/embeddings',
+        '-H', 'Content-Type: application/json',
+        '-d', json.dumps({'model': '${alias}', 'input': text})],
+        capture_output=True, text=True)
+    data = json.loads(resp.stdout)
+    return data['data'][0]['embedding']
+
+def cosine_sim(a, b):
+    dot = sum(x*y for x,y in zip(a,b))
+    norm_a = sqrt(sum(x*x for x in a))
+    norm_b = sqrt(sum(x*x for x in b))
+    return dot / (norm_a * norm_b) if norm_a and norm_b else 0
+
+query_emb = embed(query)
+scores = [(i, cosine_sim(query_emb, embed(doc))) for i, doc in enumerate(docs)]
+scores.sort(key=lambda x: x[1], reverse=True)
+top_idx = scores[0][0]
+print(json.dumps({'top_index': top_idx, 'scores': [{'index': i, 'score': round(s, 4)} for i, s in scores]}))
+")
+
+    echo "${result}"
     local top_idx
-    top_idx=$(echo "${rerank_resp}" | python3 -c "import sys, json; print(json.load(sys.stdin).get('results', [{}])[0].get('index', -1))")
+    top_idx=$(echo "${result}" | python3 -c "import sys, json; print(json.load(sys.stdin)['top_index'])")
     if [ "$top_idx" -ne 1 ]; then
         echo "Error: Reranker validation failed. Top document index was $top_idx, expected 1." >&2
         return 1
@@ -776,7 +798,7 @@ usage() {
     echo "  run       - Run a command inside the server environment"
     echo "  shell     - Spawn an interactive shell in the server environment"
     echo "  cat       - Print service file, environment configuration, and transient exec command"
-    echo "  test [--benchmark] [--repeat XX] - Run validation tests or rerank benchmark"
+    echo "  test [--benchmark] [--repeat XX] - Run validation tests (cosine similarity) or embedding benchmark"
     echo "Note: Text reranking can also be served combined inside the local-chat service."
 }
 
