@@ -172,6 +172,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
    - **Expected GPU Mem (8 parallel)**: **~1.6 GB VRAM** (Weight baseline: ~1.14 GB; CUDA context and batch activations: ~400 MB).
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~3.0ms | 8x8K batch (65K tkn): ~200ms.
    - *Best for*: Risk-free enterprise hybrid retrieval (dense, sparse, multi-vector).
+   - **Active Deployment**: Selected as production embedding model (replaces pplx-embed-context-v1-0.6b). Candle-native means no Python backend overhead, lower VRAM despite more params.
 3. **[gte-multilingual-base](https://huggingface.co/Alibaba-NLP/gte-multilingual-base)** (306M parameters)
    - **MTEB German Retrieval**: ~69.2
    - **Context Window**: 8,192 (8K) tokens
