@@ -413,9 +413,12 @@ main() {
 
     if [[ "$download_embedding" == true ]]; then
         echo "=== Acquiring Embedding Model ==="
+        # Download Qwen3-Embedding-0.6B Q8_0 GGUF (639 MB, fixed EOS from iyanello)
+        # Causal Qwen3 decoder, 596M params, 1024-dim, 32K max ctx, last-token pooling
+        # Serves via: llama-server --embeddings --pooling last -c 8192
         acquire_file \
             "embedding/Qwen3-Embedding-0.6B-Q8_0.gguf" \
-            "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf" \
+            "https://huggingface.co/iyanello/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf" \
             "${target_dir}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
 
         # Download pplx-embed-context-v1-0.6b Q8_0 GGUF for llama.cpp (639 MB)
@@ -444,8 +447,17 @@ main() {
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
 
+        # Download BAAI/bge-m3 Q8_0 GGUF from official ggml-org (635 MB)
+        # XLM-RoBERTa encoder, 568M params, 1024-dim embeddings, 8K max context
+        # Serves via: llama-server --embeddings --pooling cls -c 8192
+        # Official ggml-org conversion, near-lossless quality (<0.5% degradation vs F16)
+        acquire_file \
+            "embedding/bge-m3-q8_0.gguf" \
+            "https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/main/bge-m3-q8_0.gguf" \
+            "${target_dir}/embedding/bge-m3-q8_0.gguf"
+
         # NOTE: bge-m3 safetensors kept for TEI reference; TEI engine is abandoned,
-        # the llama.cpp path uses pplx-embed GGUF above instead.
+        # the llama.cpp path uses bge-m3 GGUF above instead.
         echo "Downloading essential TEI files for bge-m3 (~2.3 GB, skipping ONNX/images/ColBERT extras)..."
         mkdir -p "${target_dir}/embedding/bge-m3"
         python3 -c '
