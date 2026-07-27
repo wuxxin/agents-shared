@@ -41,6 +41,9 @@ client: httpx.AsyncClient = None  # type: ignore[assignment]
 model_inventory_list: list[dict] = []
 model_to_service: dict[str, str] = {}
 
+# Backend availability tracking — services confirmed online by background discovery
+available_services: set[str] = set()
+
 # Check for mock backends mode
 LROUT_MOCK_BACKENDS = os.environ.get("LROUT_MOCK_BACKENDS", "") in (
     "1",
@@ -358,6 +361,122 @@ async def check_service(name: str, url: str) -> list[dict] | None:
             return None
 
 
+def _init_fallback_inventory():
+    """Seed inventory with alias-based entries so the router responds immediately at startup."""
+    global model_inventory_list, model_to_service
+    model_inventory_list = []
+    model_to_service = {}
+
+    for name in ["chat", "embedding", "rerank", "stt", "tts", "image"]:
+        alias = resolve_service_alias(name)
+        if alias:
+            true_svc = resolve_service_from_model_id(alias, name)
+            model_to_service[alias] = true_svc
+            entry: dict[str, Any] = {
+                "id": alias,
+                "object": "model",
+                "owned_by": "local-inference",
+            }
+            pricing = PRICING_REGISTRY.get(true_svc)
+            if pricing:
+                entry["pricing"] = pricing
+            model_inventory_list.append(entry)
+            # qwen3-thinking alias (for chat service)
+            if alias == "qwen3":
+                model_to_service["qwen3-thinking"] = name
+                thinking_entry: dict[str, Any] = {
+                    "id": "qwen3-thinking",
+                    "object": "model",
+                    "owned_by": "local-inference",
+                }
+                if pricing:
+                    thinking_entry["pricing"] = pricing
+                model_inventory_list.append(thinking_entry)
+
+
+def _merge_discovered_models(svc_name: str, models: list[dict]):
+    """Merge dynamically discovered models into the global inventory."""
+    global model_inventory_list, model_to_service, available_services
+
+    available_services.add(svc_name)
+
+    for model_data in models:
+        m_id = model_data.get("id")
+        if not m_id:
+            continue
+        true_svc = resolve_service_from_model_id(m_id, svc_name)
+        model_to_service[m_id] = true_svc
+
+        if not any(m.get("id") == m_id for m in model_inventory_list):
+            entry: dict[str, Any] = {
+                "id": m_id,
+                "object": "model",
+                "owned_by": "local-inference",
+            }
+            pricing = PRICING_REGISTRY.get(true_svc)
+            if pricing:
+                entry["pricing"] = pricing
+            model_inventory_list.append(entry)
+            print(
+                f"[DISCOVERY] Service '{svc_name}' available — added model: {m_id}",
+                file=sys.stderr,
+            )
+
+
+async def discover_services_background():
+    """Background task: seed fallback inventory, then incrementally discover backends.
+
+    Starts the router with alias-based models immediately so requests can be
+    routed even before backends are probed. Polls backends every 10 seconds,
+    adding dynamically-reported models as they appear.
+    """
+    global model_inventory_list, model_to_service
+
+    if LROUT_MOCK_BACKENDS:
+        model_inventory_list = [
+            {"id": "qwen3", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["chat"]},
+            {"id": "qwen3-thinking", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["chat"]},
+            {"id": "qwen3-embedding", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["embedding"]},
+            {"id": "qwen3-reranker", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["rerank"]},
+            {"id": "whisper-1", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["stt"]},
+            {"id": "qwen3-tts", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["tts"]},
+            {"id": "z-image-turbo", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["image"]},
+        ]
+        model_to_service = {
+            "qwen3": "chat", "qwen3-thinking": "chat",
+            "qwen3-embedding": "embedding", "qwen3-reranker": "rerank",
+            "whisper-1": "stt", "qwen3-tts": "tts", "z-image-turbo": "image",
+        }
+        return
+
+    # Phase 1: seed inventory from configured aliases so the router works immediately
+    _init_fallback_inventory()
+    print(f"[DISCOVERY] Fallback inventory seeded: {[m['id'] for m in model_inventory_list]}")
+
+    # Phase 2: background polling loop
+    enabled_services = get_enabled_services()
+    print(f"[DISCOVERY] Polling services every 10s: {enabled_services}")
+
+    while True:
+        try:
+            config = resolve_config()
+            for name, enabled in enabled_services.items():
+                if not enabled:
+                    continue
+                if name == "embedding" and not enabled_services["embedding"]:
+                    continue
+                res = await check_service(name, config[name])
+                if res is not None:
+                    _merge_discovered_models(name, res)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            print(f"[DISCOVERY] Error: {exc}", file=sys.stderr)
+        await asyncio.sleep(10.0)
+
+
+# Legacy blocking startup — replaced by discover_services_background() for non-blocking startup.
+# Kept for reference; not called by lifespan().
 async def build_inventory_and_wait():
     global model_inventory_list, model_to_service
     import sys
@@ -1190,8 +1309,8 @@ atexit.register(save_on_exit)
 
 
 def handle_exit_signal(signum, frame):
-    save_on_exit()
-    sys.exit(0)
+    # Shutdown is handled by uvicorn via lifespan cleanup — do nothing here
+    pass
 
 
 # Register signals (ignore errors if in non-main threads or during testing)
@@ -1205,23 +1324,24 @@ except Exception:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global client, save_task
-    # Load usage
     load_usage_data()
-    # Set long timeouts for inference queries (e.g. 10m for long generations/transcriptions)
-    client = httpx.AsyncClient(timeout=600.0)
-    # Build model inventory and wait for all services to become available
-    await build_inventory_and_wait()
-    # Start periodic save task
+    # Shorter timeouts: 120s total, 5s connect — prevents pool drain hang on shutdown
+    client = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=5.0))
+    # Background discovery — non-blocking, starts fallback inventory immediately
+    discovery_task = asyncio.create_task(discover_services_background())
     save_task = asyncio.create_task(periodic_save_task())
     yield
-    # Cleanup
+    # --- shutdown ---
+    discovery_task.cancel()
     save_task.cancel()
-    try:
-        await save_task
-    except asyncio.CancelledError:
-        pass
+    # Cancel ALL remaining tasks (proxied streams, pending checks, etc.)
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    for t in tasks:
+        t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    # Now nothing holds httpx connections — safe to do sync ops
     save_on_exit()
-    await client.aclose()
+    await asyncio.wait_for(client.aclose(), timeout=5.0)
 
 
 app = FastAPI(
@@ -1649,6 +1769,23 @@ async def proxy_request(
         print_debug_raw(
             f"REQUEST [{agent_id}:{service_id}:{model_id}] {request.method} {request.url.path}",
             body,
+        )
+
+    # If the target backend hasn't been confirmed online yet, tell the client to retry
+    if not LROUT_MOCK_BACKENDS and service and service not in available_services:
+        print(
+            f"[ROUTER] Backend '{service}' not yet available — returning 503 (Retry-After: 5s)",
+            file=sys.stderr,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "message": f"Backend service '{service}' is not available yet — retry shortly",
+                    "type": "service_unavailable",
+                }
+            },
+            headers={"Retry-After": "5"},
         )
 
     try:
