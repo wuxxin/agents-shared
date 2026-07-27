@@ -37,7 +37,7 @@ To route PicoClaw to local inference servers, configure `~/.local/sandbox/picocl
   "agents": {
     "defaults": {
       "model_name": "qwen3",
-      "context_window": 80128
+      "context_window": 120192
     }
   },
   "model_list": [

@@ -309,7 +309,7 @@ cmd_install() {
     "defaults": {
       "provider": "openai_compatible/local",
       "model": "qwen3",
-      "context_window_tokens": 80128
+      "context_window_tokens": 120192
     }
   },
   "embeddings": {

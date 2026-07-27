@@ -344,7 +344,7 @@ completed_sections = ["storage", "memory"]
 uri = "http://localhost:50080/v1"
 model = "qwen3"
 api_key = "unused"
-max_tokens = 80128
+max_tokens = 120192
 temperature = 1.0
 
 # --- Speech-to-Text
@@ -515,7 +515,7 @@ agent = "default"
 # --- Agent Settings, Heartbeat and Peer Groups
 
 [agents.default]
-max_context_tokens = 80128
+max_context_tokens = 120192
 model_provider = "openai.local"
 tts_provider = "openai.local"
 image_provider = "openai.local"

@@ -269,7 +269,7 @@ write_default_provider_toml() {
 id = "qwen3"
 display_name = "Qwen3"
 tier = "local"
-context_window = 80128
+context_window = 120192
 max_output_tokens = 8192
 input_cost_per_m = 1.5
 output_cost_per_m = 9.0
