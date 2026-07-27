@@ -418,6 +418,14 @@ main() {
             "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf" \
             "${target_dir}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
 
+        # Download pplx-embed-context-v1-0.6b Q8_0 GGUF for llama.cpp (639 MB)
+        # Pre-converted via hellc's fork (bit-perfect); bidirectional Qwen3 encoder, non-causal attention
+        # Serves via: llama-server --embeddings --pooling mean -b 8192 -ub 8192
+        acquire_file \
+            "embedding/pplx-embed-context-v1-0.6b-q8_0.gguf" \
+            "https://huggingface.co/argus-ai/pplx-embed-context-v1-0.6b-GGUF/resolve/main/pplx-embed-context-v1-0.6b-q8_0.gguf" \
+            "${target_dir}/embedding/pplx-embed-context-v1-0.6b-q8_0.gguf"
+
         # Download HF PyTorch/Safetensors weights for TEI (if hf tool is available)
         echo "Downloading full Hugging Face weights for TEI (Qwen3-Embedding-0.6B)..."
         mkdir -p "${target_dir}/embedding/Qwen3-Embedding-0.6B"
@@ -427,6 +435,7 @@ main() {
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
 
+        # NOTE: pplx-embed-context-v1-0.6b safetensors are kept for reference/TEI fallback
         echo "Downloading full Hugging Face weights for TEI (pplx-embed-context-v1-0.6b)..."
         mkdir -p "${target_dir}/embedding/pplx-embed-context-v1-0.6b"
         if command -v hf &>/dev/null; then
@@ -434,6 +443,30 @@ main() {
         else
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
+
+        # NOTE: bge-m3 safetensors kept for TEI reference; TEI engine is abandoned,
+        # the llama.cpp path uses pplx-embed GGUF above instead.
+        echo "Downloading essential TEI files for bge-m3 (~2.3 GB, skipping ONNX/images/ColBERT extras)..."
+        mkdir -p "${target_dir}/embedding/bge-m3"
+        python3 -c '
+import sys
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="BAAI/bge-m3",
+    local_dir=sys.argv[1],
+    ignore_patterns=[
+        "onnx/**",      # ONNX exports (redundant for TEI PyTorch backend)
+        "imgs/**",      # sample images
+        "*.jpg",        # sample image
+        "colbert_linear.pt",   # ColBERT multi-vector (not used by TEI bi-encoder)
+        "sparse_linear.pt",    # lexical retrieval (not used by TEI bi-encoder)
+    ],
+)
+' "${target_dir}/embedding/bge-m3" || {
+            echo "Warning: snapshot_download failed. Falling back to hf download."
+            echo "  hf download BAAI/bge-m3 --local-dir ${target_dir}/embedding/bge-m3"
+            hf download BAAI/bge-m3 --local-dir "${target_dir}/embedding/bge-m3" || true
+        }
     fi
 
     # 3. Reranker
@@ -482,7 +515,26 @@ main() {
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
 
-        echo "Downloading full Hugging Face weights for TEI (jina-reranker-v3)..."
+        # Download jina-reranker-v3 Q4_K_M GGUF for llama.cpp (397 MB)
+        # Official Jina AI conversion; requires hanxiao/llama.cpp fork or PR #22576 (draft)
+        # Architecture: Qwen3-0.6B decoder + MLP projector, 131K context, listwise 64 docs
+        # Serves via: llama-server --reranking --pooling rank (when PR #22576 merges)
+        acquire_file \
+            "reranker/jina-reranker-v3-Q4_K_M.gguf" \
+            "https://huggingface.co/jinaai/jina-reranker-v3-GGUF/resolve/main/jina-reranker-v3-Q4_K_M.gguf" \
+            "${target_dir}/reranker/jina-reranker-v3-Q4_K_M.gguf"
+
+        # Download projector weights for jina-reranker-v3 (3 MB)
+        # Required for the Python rerank.py wrapper in the hanxiao/llama.cpp fork
+        # The projector (1024 → 512 → 256) is NOT baked into the GGUF
+        acquire_file \
+            "reranker/jina-reranker-v3-projector.safetensors" \
+            "https://huggingface.co/jinaai/jina-reranker-v3-GGUF/resolve/main/projector.safetensors" \
+            "${target_dir}/reranker/jina-reranker-v3-projector.safetensors"
+
+        # NOTE: jina-reranker-v3 safetensors kept for TEI reference; TEI engine is abandoned,
+        # the llama.cpp path uses the GGUF + projector above instead.
+        echo "Downloading full Hugging Face weights for TEI (jina-reranker-v3) [reference only]..."
         mkdir -p "${target_dir}/reranker/jina-reranker-v3"
         if command -v hf &>/dev/null; then
             hf download jinaai/jina-reranker-v3 --local-dir "${target_dir}/reranker/jina-reranker-v3"
@@ -503,6 +555,23 @@ snapshot_download(
 ' "${target_dir}/reranker/ettin-reranker-400m-v1" || {
             echo "Warning: snapshot_download failed. The model repo is ~10.67 GB due to ONNX/OpenVINO exports." >&2
             echo "  Try: hf download cross-encoder/ettin-reranker-400m-v1 --local-dir ${target_dir}/reranker/ettin-reranker-400m-v1" >&2
+        }
+
+        echo "Downloading essential files for ettin-reranker-150m-v1 (~596 MB, skipping ONNX/OpenVINO bloat)..."
+        # No GGUF exists for 150m/400m ettin (SentTrans head, not standard BertForSeqClass)
+        # Download safetensors only for potential future GGUF conversion or TEI fallback
+        mkdir -p "${target_dir}/reranker/ettin-reranker-150m-v1"
+        python3 -c '
+import sys
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="cross-encoder/ettin-reranker-150m-v1",
+    local_dir=sys.argv[1],
+    ignore_patterns=["onnx/**", "openvino/**"],
+)
+' "${target_dir}/reranker/ettin-reranker-150m-v1" || {
+            echo "Warning: snapshot_download failed. Trying fallback..." >&2
+            hf download cross-encoder/ettin-reranker-150m-v1 --local-dir "${target_dir}/reranker/ettin-reranker-150m-v1" || true
         }
     fi
 
