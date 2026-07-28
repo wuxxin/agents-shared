@@ -4,7 +4,7 @@
 # Usage: local-rerank.sh <command> [args...]
 #
 # Manages a systemd user service (local-rerank.service) that runs llama-server
-# serving the Text Reranker model (jina-reranker-v3 via embedding-based cosine similarity).
+# serving the Text Reranker model (Qwen3-Reranker-0.6B via generative yes/no classification).
 #
 #
 
@@ -24,10 +24,10 @@ load_env() {
     LRR_PORT=50086
     LRR_HOST=127.0.0.1
     LRR_ENGINE=llama
-    LRR_ALIAS=jina-reranker-v3
+    LRR_ALIAS=qwen3-reranker
 
-    # llama-server parameters (jina-reranker-v3: Qwen3-0.6B decoder + MLP, 16K ctx, F16 KV cache, Q4_K_M GGUF)
-    LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3-Q4_K_M.gguf
+    # llama-server parameters (Qwen3-Reranker-0.6B: generative yes/no classifier, 40K ctx, Q4_K_M GGUF)
+    LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
     LRR_LLAMA_N_CTX=16384
     LRR_LLAMA_N_UBATCH=16384
     LRR_LLAMA_N_GPU_LAYERS=999
@@ -69,7 +69,7 @@ load_env() {
     else
         LRR_MODEL="${LRR_LLAMA_MODEL:-${LRR_MODEL:-}}"
         # shellcheck disable=SC2034
-        LRR_API_PATH=/v1/embeddings
+        LRR_API_PATH=/v1/rerank
 
         # Keep existing mapping for llama parameters
         if [[ -n "${LRR_UBATCH_SIZE:-}" ]]; then
@@ -218,8 +218,7 @@ get_llama_args() {
     local -n out_args=$1
     out_args=(
         --model "${LRR_MODEL}"
-        --embeddings
-        --pooling last
+        --reranking
         --kv-unified
         --ctx-size "${LRR_N_CTX}"
         --batch-size "${LRR_N_CTX}"
@@ -298,7 +297,7 @@ generate_service_file() {
     else
         get_llama_args args
         exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
-        description="Local Document Reranking Server (llama-server)"
+        description="Local Document Reranking Server (llama-server + Qwen3-Reranker)"
         doc_link="https://github.com/ggml-org/llama.cpp"
     fi
 
@@ -340,8 +339,8 @@ generate_env_file() {
 #       Download: scripts/local-download.sh /data/public/machine-learning/models --reranker
 LRR_ENGINE=llama
 
-# Model alias for client integrations (default: jina-reranker-v3)
-LRR_ALIAS=jina-reranker-v3
+# Model alias for client integrations (default: qwen3-reranker)
+LRR_ALIAS=qwen3-reranker
 
 # Port to bind the server to (default: 50086)
 LRR_PORT=50086
@@ -349,8 +348,8 @@ LRR_PORT=50086
 # Host to bind the server to (127.0.0.1 for local access only)
 LRR_HOST=127.0.0.1
 
-# API path for rerank endpoint (/v1/embeddings for llama-server, /rerank for TEI)
-LRR_API_PATH=/v1/embeddings
+# API path for rerank endpoint (/v1/rerank for llama-server, /rerank for TEI)
+LRR_API_PATH=/v1/rerank
 
 # TEI (Text Embeddings Inference) ENGINE SETTINGS
 #
@@ -390,18 +389,19 @@ EOF
 
 # LLAMA-SERVER ENGINE SETTINGS
 #
-# jina-reranker-v3 is a Qwen3-0.6B causal decoder with a 2-layer MLP projector (1024→512→512, ReLU).
+# jina-reranker-v3 (alternative): Qwen3-0.6B causal decoder with a 2-layer MLP projector (1024→512→512, ReLU).
 # Uses LAST-token pooling to produce 512-dim embeddings. Clients POST to /v1/embeddings and
-# compute cosine similarity client-side for reranking.
+# compute cosine similarity client-side for reranking. NOTE: requires GGUF with projector tensors
+# and patched llama.cpp converter; the official GGUF lacks projector weights.
 #
-# F16 KV cache (default) stores K/V in 16-bit per element.
-# Q8_0 KV cache via --cache-type-k/v q8_0 was tested but degraded projector output for reranking.
-# With --kv-unified, the 2 parallel slots share one 16384-position KV pool (~896 MB F16).
-# Processing: sequential (2 slots share pool; one 16K request per forward pass).
-# Total VRAM: ~1.75 GB (360M Q4_K_M weights + 896M KV + 400M runtime + ~100M activations).
+# Qwen3-Reranker-0.6B (current): generative yes/no classifier using rank pooling.
+# Clients POST query + documents to /v1/rerank and receive relevance_score (P(yes)) directly.
+# F16 KV cache (default) stores K/V in 16-bit per element. With --kv-unified, the 2 parallel
+# slots share one 16384-position KV pool (~896 MB F16). No projector or separate embedding step.
+# Total VRAM: ~1.04 GB (360M Q4_K_M weights + 896M KV + 400M runtime + ~100M activations).
 #
 # Path to the text reranker GGUF model file
-LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/jina-reranker-v3-Q4_K_M.gguf
+LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
 
 # Context size per parallel slot (default: 16384)
 LRR_LLAMA_N_CTX=16384
@@ -662,16 +662,36 @@ cmd_run() {
     systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
 }
 
+# Wait for server to become ready (Vulkan shader compilation takes time on first load)
+wait_for_endpoint() {
+    local url="$1"
+    local max_retries="${2:-30}"
+    local delay="${3:-2}"
+    local label="${4:-server}"
+    for i in $(seq 1 $max_retries); do
+        if curl -s -f "$url" > /dev/null 2>&1; then
+            return 0
+        fi
+        echo "  Waiting for ${label} to become ready... ($i/$max_retries)"
+        sleep "$delay"
+    done
+    echo "Error: ${label} did not become ready after $((max_retries * delay))s." >&2
+    return 1
+}
+
 cmd_test() {
     echo "Running local-rerank validation tests..."
     load_env
 
     local host="${LRR_HOST:-127.0.0.1}"
     local port="${LRR_PORT:-50086}"
-    local alias="${LRR_ALIAS:-jina-reranker-v3}"
+    local alias="${LRR_ALIAS:-qwen3-reranker}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
+
+    # Wait for server to become ready (shader compilation on first load takes time)
+    wait_for_endpoint "${base_url}/health" 30 2 "local-rerank" || return 1
 
     local benchmark=false
     local repeat=""
@@ -713,9 +733,9 @@ cmd_test() {
             repeat_arg=(--repeat "$repeat")
         fi
 
-        # jina-reranker-v3 serves via /v1/embeddings; benchmark as embedding workload
+        # Qwen3-Reranker serves via /v1/rerank; benchmark as reranking workload
         python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
-            --mode embedding \
+            --mode rerank \
             --url "${base_url}" \
             --model "${alias}" \
             --context "${context_file}" \
@@ -724,7 +744,7 @@ cmd_test() {
         return 0
     fi
 
-    echo "Sending validation query to http://${host}:${port}/v1/embeddings..."
+    echo "Sending validation rerank request to http://${host}:${port}/v1/rerank..."
     echo "Query: \"What is the speed of light in a vacuum?\""
     echo "Documents:"
     echo "  [Index 0] \"The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.\""
@@ -734,12 +754,11 @@ cmd_test() {
     echo "  [Index 4] \"The Earth orbits the Sun at an average speed of about 29.78 kilometers per second.\""
     echo ""
 
-    # jina-reranker-v3 serves via /v1/embeddings with last-token pooling
-    # Embed query and documents, then compute cosine similarity client-side
+    # Qwen3-Reranker serves via /v1/rerank with yes/no generative classification
+    # Scores are returned directly as relevance_score (P(yes) probability)
     local result
     result=$(python3 -c "
 import json, subprocess, sys
-from math import sqrt
 
 docs = [
     'The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.',
@@ -750,22 +769,14 @@ docs = [
 ]
 query = 'What is the speed of light in a vacuum?'
 
-def embed(text):
-    resp = subprocess.run(['curl', '-s', '-f', '-X', 'POST', '${base_url}/v1/embeddings',
-        '-H', 'Content-Type: application/json',
-        '-d', json.dumps({'model': '${alias}', 'input': text})],
-        capture_output=True, text=True)
-    data = json.loads(resp.stdout)
-    return data['data'][0]['embedding']
+payload = {'model': '${alias}', 'query': query, 'documents': docs}
+resp = subprocess.run(['curl', '-s', '-f', '-X', 'POST', '${base_url}/v1/rerank',
+    '-H', 'Content-Type: application/json',
+    '-d', json.dumps(payload)],
+    capture_output=True, text=True)
+data = json.loads(resp.stdout)
 
-def cosine_sim(a, b):
-    dot = sum(x*y for x,y in zip(a,b))
-    norm_a = sqrt(sum(x*x for x in a))
-    norm_b = sqrt(sum(x*x for x in b))
-    return dot / (norm_a * norm_b) if norm_a and norm_b else 0
-
-query_emb = embed(query)
-scores = [(i, cosine_sim(query_emb, embed(doc))) for i, doc in enumerate(docs)]
+scores = [(r['index'], r['relevance_score']) for r in data['results']]
 scores.sort(key=lambda x: x[1], reverse=True)
 top_idx = scores[0][0]
 print(json.dumps({'top_index': top_idx, 'scores': [{'index': i, 'score': round(s, 4)} for i, s in scores]}))

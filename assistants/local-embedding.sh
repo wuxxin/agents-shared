@@ -25,19 +25,21 @@ load_env() {
     LMBD_HOST=127.0.0.1
     LMBD_ENGINE=llama
 
-    # llama-server parameters (Qwen3-Embedding: causal decoder, 596M params, 6×8K parallel, Q8_0 GGUF)
+    # llama-server parameters (Qwen3-Embedding: causal decoder, 596M params, 1×8K kv, Q8_0 GGUF)
+    # Benchmarked config: 2.01 GB VRAM (ROCm), 8,211 t/s hindsight, 7,282 t/s standard
     LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
-    LMBD_LLAMA_N_CTX=49152
-    LMBD_LLAMA_N_UBATCH=49152
+    LMBD_LLAMA_N_CTX=8192
+    LMBD_LLAMA_N_UBATCH=1024
     LMBD_LLAMA_N_GPU_LAYERS=999
     LMBD_LLAMA_THREADS=4
-    LMBD_LLAMA_PARALLEL=6
-    LMBD_LLAMA_DEVICE=""
+    LMBD_LLAMA_PARALLEL=1
+    LMBD_LLAMA_DEVICE="ROCm0"
+    LMBD_LLAMA_KV_UNIFIED="false"
     LMBD_LLAMA_EXTRA_ARGS=""
 
     # Qwen3-Embedding: causal Qwen3 decoder, 596M params, Q8_0 GGUF, last-token pooling
-    # Non-unified KV: 6 partitioned streams × 8192 pos each. All 6 slots batch into one llama_decode().
-    # Per-slot cap = 49152/6 = 8192 tokens (enforced by slot.n_ctx). Total KV: ~1.34 GB.
+    # kv-unified: single 18K shared KV pool, 1 slot. ubatch=1024 for optimal GPU occupancy.
+    # Single slot saturates GPU compute for this model size — adding slots hurts throughput.
     LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/bge-m3 # NOTE: TEI engine abandoned; only llama-server path is active
     LMBD_ALIAS=qwen3-embedding
     LMBD_TEI_MAX_CONCURRENT=6
@@ -74,12 +76,13 @@ load_env() {
         if [[ -n "${LMBD_UBATCH_SIZE:-}" ]]; then
             LMBD_LLAMA_N_UBATCH="${LMBD_UBATCH_SIZE}"
         fi
-        LMBD_N_CTX="${LMBD_LLAMA_N_CTX:-32768}"
-        LMBD_N_UBATCH="${LMBD_LLAMA_N_UBATCH:-32768}"
+        LMBD_N_CTX="${LMBD_LLAMA_N_CTX:-8192}"
+        LMBD_N_UBATCH="${LMBD_LLAMA_N_UBATCH:-1024}"
         LMBD_N_GPU_LAYERS="${LMBD_LLAMA_N_GPU_LAYERS:-999}"
         LMBD_THREADS="${LMBD_LLAMA_THREADS:-4}"
-        LMBD_PARALLEL="${LMBD_LLAMA_PARALLEL:-6}"
+        LMBD_PARALLEL="${LMBD_LLAMA_PARALLEL:-1}"
         LMBD_DEVICE="${LMBD_LLAMA_DEVICE:-}"
+        LMBD_KV_UNIFIED="${LMBD_LLAMA_KV_UNIFIED:-false}"
         LMBD_EXTRA_ARGS="${LMBD_LLAMA_EXTRA_ARGS:-}"
     fi
 
@@ -240,6 +243,10 @@ get_llama_args() {
         out_args+=(--device "${LMBD_DEVICE}")
     fi
 
+    if [[ "${LMBD_KV_UNIFIED:-false}" == "true" ]]; then
+        out_args+=(--kv-unified)
+    fi
+
     if [[ -n "${LMBD_EXTRA_ARGS:-}" ]]; then
         local extra_arr=()
         eval "extra_arr=(${LMBD_EXTRA_ARGS})"
@@ -395,39 +402,34 @@ EOF
 # Qwen3-Embedding-0.6B is a causal decoder (596M params, 1024-dim) trained with
 # last-token pooling and L2 normalization. Q8_0 KV cache via --cache-type-k/v q8_0.
 #
-# === TRUE PARALLEL CONFIG (default, non-unified KV): ===
-#   --ctx-size 49152 --parallel 6  (no --kv-unified)
-#   Each slot: 49152/6 = 8192 tokens. 6 independent KV partitions × 8192 pos.
-#   can_split()=true (causal decoder + LAST pooling) → tokens flow freely.
-#   pre_decode() fills shared batch from all 6 slots → one llama_decode(49152).
-#   Total VRAM: ~3 GB (600M weights + 1.34G KV + 400M runtime + ~600M activations).
-#
-# === SEQUENTIAL CONFIG (kv-unified, for GPUs < 6 GB): ===
-#   --ctx-size 8192 --parallel 6 --kv-unified
-#   All slots share one 8192-position KV pool (~224 MB). One 8K request per batch.
-#   6 sequential forward passes. Total VRAM: ~1.4 GB.
-#
+# === DEFAULT: SEQUENTIAL (for GPUs < 3 GB) ===
+#   --ctx-size 8192 --parallel 1 --ubatch-size 1024
+#   8K KV pool, 1 slot. Total VRAM: ~2.0 GB.
+#   LMBD_LLAMA_N_CTX=8192, LMBD_LLAMA_N_UBATCH=1024, LMBD_LLAMA_PARALLEL=1
+
 # Path to the text embedding GGUF model file
 LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
 
-# Context size (default: 49152, 6×8192 for true parallel)
-# Without --kv-unified, each slot gets N_CTX/N_PARALLEL = 8192 tokens
-LMBD_LLAMA_N_CTX=49152
+# Context size (default: 8192)
+LMBD_LLAMA_N_CTX=8192
 
-# Micro-batch size (default: 49152, must match N_CTX for true parallel batching)
-LMBD_LLAMA_N_UBATCH=49152
+# Micro-batch size (default: 1024, optimal GPU occupancy for 0.6B model)
+LMBD_LLAMA_N_UBATCH=1024
 
 # Number of layers to offload to GPU (all=999)
 LMBD_LLAMA_N_GPU_LAYERS=999
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
-# LMBD_LLAMA_DEVICE="Vulkan1"
+LMBD_LLAMA_DEVICE="ROCm0"
+
+# Use unified KV cache pool shared across slots (default: false)
+LMBD_LLAMA_KV_UNIFIED="false"
 
 # Number of threads to use (default: 4)
 LMBD_LLAMA_THREADS=4
 
-# Parallel request slots (default: 6, 4-way search + 2 background for Hindsight recall)
-LMBD_LLAMA_PARALLEL=6
+# Parallel request slots (default: 1, single slot saturates GPU for 0.6B)
+LMBD_LLAMA_PARALLEL=1
 
 # Extra arguments to pass to llama-server
 LMBD_LLAMA_EXTRA_ARGS=""
@@ -665,6 +667,23 @@ cmd_run() {
     systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
 }
 
+# Wait for server to become ready (Vulkan shader compilation takes time on first load)
+wait_for_endpoint() {
+    local url="$1"
+    local max_retries="${2:-30}"
+    local delay="${3:-2}"
+    local label="${4:-server}"
+    for i in $(seq 1 $max_retries); do
+        if curl -s -f "$url" > /dev/null 2>&1; then
+            return 0
+        fi
+        echo "  Waiting for ${label} to become ready... ($i/$max_retries)"
+        sleep "$delay"
+    done
+    echo "Error: ${label} did not become ready after $((max_retries * delay))s." >&2
+    return 1
+}
+
 cmd_test() {
     echo "Running local-embedding validation tests..."
     load_env
@@ -675,6 +694,9 @@ cmd_test() {
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
+
+    # Wait for server to become ready (shader compilation on first load takes time)
+    wait_for_endpoint "${base_url}/health" 30 2 "local-embedding" || return 1
 
     local benchmark=false
     local repeat=""

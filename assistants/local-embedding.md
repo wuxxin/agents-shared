@@ -3,7 +3,7 @@
 `local-embedding.sh` manages the local systemd user service (`local-embedding.service`) for generating high-density text embeddings used in search, retrieval-augmented generation (RAG), and agentic document indexing.
 
 The service supports two backend engines via the `LMBD_ENGINE` configuration parameter:
-1. **Llama-Server Engine (`LMBD_ENGINE=llama`, Default)**: Serves GGUF embedding models using `llama-server` (from `llama.cpp`). Default model: Qwen3-Embedding-0.6B Q8_0 GGUF with 6 × 8K true parallel context windows (single `llama_decode` call).
+1. **Llama-Server Engine (`LMBD_ENGINE=llama`, Default)**: Serves GGUF embedding models using `llama-server` (from `llama.cpp`). Default model: Qwen3-Embedding-0.6B Q8_0 GGUF with 1 × 8K kv context (benchmarked: 2.01 GB VRAM, 8,211 t/s hindsight throughput).
 2. **TEI Engine (`LMBD_ENGINE=tei`, ABANDONED)**: Serves native safetensors models using Hugging Face's `text-embeddings-inference`. Kept for reference only; not actively used.
 
 Note: Text embeddings can also be served combined inside the [local-chat.md](local-chat.md) service on port 50080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 50082 should be disabled.
@@ -113,7 +113,7 @@ This sitecustomize patch solves two Python gRPC / Hugging Face backend compatibi
 
 ### 2. Llama-Server Engine (`LMBD_ENGINE=llama`, Default)
 
-Serves GGUF embedding models via `llama-server`. Uses non-unified partitioned KV cache for true parallel batching — all 6 slots batch into a single `llama_decode()` call.
+Serves GGUF embedding models via `llama-server`. Uses kv-unified shared KV pool — a single 16K context slot with ubatch=1024, benchmarked at 2.49 GB VRAM (ROCm) and 8,411 t/s hindsight throughput. One slot saturates GPU compute for this model size.
 
 #### Default Model: Qwen3-Embedding-0.6B Q8_0 GGUF
 
@@ -140,10 +140,12 @@ Serves GGUF embedding models via `llama-server`. Uses non-unified partitioned KV
 | `LMBD_ENGINE` | `llama` | Engine selector |
 | `LMBD_LLAMA_MODEL` | `.../Qwen3-Embedding-0.6B-Q8_0.gguf` | Path to GGUF model file |
 | `LMBD_ALIAS` | `qwen3-embedding` | Client model alias |
-| `LMBD_LLAMA_N_CTX` | `49152` | Total context (6 × 8192 for true parallel) |
-| `LMBD_LLAMA_N_UBATCH` | `49152` | Micro-batch (must match N_CTX) |
-| `LMBD_LLAMA_PARALLEL` | `6` | Parallel slots |
+| `LMBD_LLAMA_N_CTX` | `8192` | Per-slot context (8K) |
+| `LMBD_LLAMA_N_UBATCH` | `1024` | Micro-batch (optimal GPU occupancy for 0.6B) |
+| `LMBD_LLAMA_PARALLEL` | `1` | Parallel slots (1 saturates GPU for 0.6B) |
 | `LMBD_LLAMA_N_GPU_LAYERS` | `999` | GPU offload (all layers) |
+| `LMBD_LLAMA_DEVICE` | `ROCm0` | GPU backend (run `llama-cli --list-devices`) |
+| `LMBD_LLAMA_KV_UNIFIED` | `false` | Unified KV pool (false = independent per-slot) |
 | `LMBD_LLAMA_THREADS` | `4` | CPU threads |
 | `LLAMA_SERVER_BIN` | `llama-server` | Path to llama-server binary |
 
@@ -151,19 +153,17 @@ Serves GGUF embedding models via `llama-server`. Uses non-unified partitioned KV
 ```
 --embeddings --pooling last --embd-normalize 2
 --cache-type-k q8_0 --cache-type-v q8_0
---ctx-size 49152 --batch-size 49152 --ubatch-size 49152
---parallel 6 --n-gpu-layers 999
+--ctx-size 8192 --batch-size 8192 --ubatch-size 1024
+--parallel 1 --n-gpu-layers 999 --device ROCm0
 ```
 
-**How true parallel works:** Without `--kv-unified`, `ctx-size 49152 / parallel 6 = 8192` per slot. Each slot has its own 8192-position KV partition (Q8_0, ~224 MB each). `can_split() = true` (causal decoder + LAST pooling), so `pre_decode()` fills the shared batch from all 6 slots → one `llama_decode(49152)` call. Each token carries its `seq_id` — attention is zero between sequences (6 × O(8K²), not O(48K²)). Per-slot 8K cap enforced by `slot.n_ctx = 8192`.
+**Benchmarked performance** (RX 7900 XTX, ROCm, Qwen3-Embedding-0.6B Q8_0):
+| Benchmark | Throughput | VRAM |
+|---|---|---|
+| Standard (89 × 512-token chunks) | 7,282 t/s | 2.01 GB |
+| Hindsight (12 × 8K parallel requests) | 8,239 t/s | 2.01 GB |
 
-#### Alternate Sequential Config (for GPUs < 6 GB)
-
-```
---kv-unified --ctx-size 8192 --batch-size 8192 --ubatch-size 8192 --parallel 6
-```
-
-All slots share one 8192-position KV pool (~224 MB). One 8K request per forward pass, 6 sequential iterations. Total VRAM: ~1.4 GB.
+**Why single-slot:** For a 0.6B model, one slot already saturates GPU compute. Adding parallel slots increases VRAM usage and KV cache pressure without improving throughput. See config comments in the `.env` file for alternate configs (16K kv-unified for larger per-request context, 6-slot true parallel for large-batch workloads).
 
 ---
 

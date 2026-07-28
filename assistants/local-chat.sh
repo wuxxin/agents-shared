@@ -981,6 +981,23 @@ cmd_run() {
     systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
 }
 
+# Wait for server to become ready (Vulkan shader compilation takes time on first load)
+wait_for_endpoint() {
+    local url="$1"
+    local max_retries="${2:-30}"
+    local delay="${3:-2}"
+    local label="${4:-server}"
+    for i in $(seq 1 $max_retries); do
+        if curl -s -f "$url" > /dev/null 2>&1; then
+            return 0
+        fi
+        echo "  Waiting for ${label} to become ready... ($i/$max_retries)"
+        sleep "$delay"
+    done
+    echo "Error: ${label} did not become ready after $((max_retries * delay))s." >&2
+    return 1
+}
+
 cmd_test() {
     echo "Running local-chat validation tests..."
     load_env
@@ -991,6 +1008,9 @@ cmd_test() {
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
+
+    # Wait for server to become ready (shader compilation on first load takes time)
+    wait_for_endpoint "${base_url}/health" 30 2 "local-chat" || return 1
 
     local benchmark=false
     local skip_prefill=false

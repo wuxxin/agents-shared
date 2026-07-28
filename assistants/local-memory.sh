@@ -41,22 +41,24 @@ DEFAULT_HINDSIGHT_API_LLM_TIMEOUT=180
 DEFAULT_HINDSIGHT_API_LLM_MAX_CONCURRENT=2
 DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT="low"
 
-# hindsight embedding (6 parallel recall calls, 8K max context, TEI / pplx-embedding)
+# hindsight embedding (6 parallel recall calls, 8K max context, llama-server / Qwen3-Embedding-0.6B)
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER="openai"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="unused"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="http://localhost:51080/v1"
-DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="pplx-embedding"
-# recall 4-way parallel search + 2 background (matches 6×8K TEI embedding slots)
+DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="qwen3-embedding"
+# recall 4-way parallel search + 2 background (matches 6×8K llama-server slots)
 DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT=6
 DEFAULT_HINDSIGHT_API_RECALL_INCLUDE_CHUNKS="false"
 DEFAULT_HINDSIGHT_API_RECALL_MAX_TOKENS=1536
 DEFAULT_HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS=500
 
-# hindsight rerank (sequential after recall fusion, 8K max context, TEI / ettin-reranker)
+# hindsight rerank (sequential after recall fusion, 16K max context, llama-server / Qwen3-Reranker)
+# Uses Cohere-compatible /v1/rerank endpoint with yes/no generative classification.
+# Routes through local-router (port 51080) for unified access, or directly to local-rerank (port 50086).
 DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER="cohere"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY="unused"
-DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:50086/v1/rerank"
-DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="ettin-reranker"
+DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1/rerank"
+DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="qwen3-reranker"
 DEFAULT_HINDSIGHT_API_RERANKER_MAX_CONCURRENT=1
 
 # reflect scope
@@ -389,14 +391,16 @@ HINDSIGHT_API_LLM_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_LLM_MAX_CONCURRENT}"
 # HINDSIGHT_API_LLM_REASONING_EFFORT (low, medium, high)
 HINDSIGHT_API_LLM_REASONING_EFFORT="${DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT}"
 
-# text embedding (6 parallel recall calls, 8K max context, TEI / pplx-embedding)
+# text embedding (6 parallel recall calls, 8K max context, llama-server / Qwen3-Embedding-0.6B)
 HINDSIGHT_API_EMBEDDINGS_PROVIDER="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL}"
 HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="${DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL}"
 HINDSIGHT_API_RECALL_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT}"
 
-# document rerank (sequential after recall fusion, 8K max context, TEI / ettin-reranker-400m)
+# document rerank (sequential after recall fusion, 16K max context, llama-server / Qwen3-Reranker)
+# Uses Cohere-compatible /v1/rerank endpoint with yes/no generative classification.
+# Routes directly to local-rerank (port 50086), or through local-router at http://localhost:51080/v1/rerank
 HINDSIGHT_API_RERANKER_PROVIDER="${DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER}"
 HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY}"
 HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL}"

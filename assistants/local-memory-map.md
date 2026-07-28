@@ -12,7 +12,7 @@ Serves text embeddings.
   - **Model:** `Qwen3-Embedding-0.6B` (596M, Q8_0 GGUF from iyanello, causal decoder, last-token pooling, 32K ctx, 6×8K true parallel, Q8_0 KV cache [6 partitions × 8K])
 - Local Rerank Service ([local-rerank.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-rerank.sh) / `llama-server` or `text-embeddings-router`)
 Serves document reranking.
-  - **Model (active):** `jina-reranker-v3` (596M, Q4_K_M GGUF, Qwen3 decoder + MLP projector, 16K ctx, Q8_0 unified KV cache, 2×16K sequential slots, 512-dim output)
+  - **Model (active):** `Qwen3-Reranker-0.6B` (596M, Q4_K_M GGUF, Qwen3 decoder + binary classification head, 16K ctx, unified KV cache, 2×16K sequential slots, Cohere-compatible `/v1/rerank` scores)
   - **Model (alternative):** `ettin-reranker-400m-v1` (~0.8 GB Safetensors, served via TEI, 1×8K batch, ModernBERT backbone, native `/v1/rerank` scores)
 - Local Speech-to-Text ([local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh) / `whisper-server`)
 Serves audio transcription.
@@ -59,7 +59,7 @@ LCHAT_OVERRIDE=(
 LMBD_OVERRIDE=(
     'LMBD_DEVICE="Vulkan1"'
 )
-# run RERANK on vulkan/dgpu (llama-server with jina-reranker-v3, or LRR_TEI_DEVICE="Vulkan1" for TEI)
+# run RERANK on vulkan/dgpu (llama-server with Qwen3-Reranker, or LRR_TEI_DEVICE="Vulkan1" for TEI)
 LRR_OVERRIDE=(
     'LRR_DEVICE="Vulkan1"'
 )

@@ -69,6 +69,29 @@ def get_tmp_dir() -> str:
     return tempfile.gettempdir()
 
 
+def parse_tokenize_response(resp) -> List[int]:
+    """Parse /tokenize response into a flat list of token IDs.
+
+    Handles TEI format (list of token objects or list of ints),
+    llama-server dict format ({"tokens": [...]}), and nested list format.
+    """
+    if isinstance(resp, list):
+        if len(resp) > 0 and isinstance(resp[0], list):
+            raw_tokens = resp[0]
+        else:
+            raw_tokens = resp
+        tokens = []
+        for t in raw_tokens:
+            if isinstance(t, int):
+                tokens.append(t)
+            elif isinstance(t, dict) and "id" in t:
+                tokens.append(t["id"])
+        return tokens
+    elif isinstance(resp, dict):
+        return resp.get("tokens", [])
+    return []
+
+
 def run_streamed_query(
     url: str, payload: dict, display_label: str, quiet: bool = False
 ) -> Tuple[float, float, str, int, int]:
@@ -708,33 +731,21 @@ def run_llm_embed(
         tprint(f"  Warning: Failed to query server props for n_ctx: {e}")
 
     tprint("  Tokenizing full context via server...")
-    try:
-        tokenize_resp = post_json(
-            f"{url}/tokenize",
-            {"inputs": context_content},
-        )
-    except Exception as e:
-        tprint(f"  Warning: TEI tokenize failed ({e}), trying llama-server format...")
+    tokenize_resp = post_json(
+        f"{url}/tokenize",
+        {"inputs": context_content},
+    )
+    # Llama-server returns empty tokens for TEI-format /tokenize requests.
+    # Fall back to native llama-server format when tokens are empty.
+    all_tokens = parse_tokenize_response(tokenize_resp)
+    if not all_tokens:
+        tprint("  TEI format returned empty, retrying with llama-server format...")
         tokenize_resp = post_json(
             f"{url}/tokenize",
             {"model": model, "content": context_content, "add_special": False},
         )
+        all_tokens = parse_tokenize_response(tokenize_resp)
 
-    if isinstance(tokenize_resp, list):
-        if len(tokenize_resp) > 0 and isinstance(tokenize_resp[0], list):
-            raw_tokens = tokenize_resp[0]
-        else:
-            raw_tokens = tokenize_resp
-        all_tokens = []
-        for t in raw_tokens:
-            if isinstance(t, int):
-                all_tokens.append(t)
-            elif isinstance(t, dict) and "id" in t:
-                all_tokens.append(t["id"])
-    elif isinstance(tokenize_resp, dict):
-        all_tokens = tokenize_resp.get("tokens", [])
-    else:
-        all_tokens = []
     total_tokens_exact = len(all_tokens)
 
     # Split token array into chunks
@@ -918,41 +929,45 @@ def run_llm_embed_hindsight(
         context_content = f.read()
 
     tprint("  Tokenizing full hindsight context via server...")
-    try:
-        tokenize_resp = post_json(
-            f"{url}/tokenize",
-            {"inputs": context_content},
-        )
-    except Exception as e:
-        tprint(f"  Warning: TEI tokenize failed ({e}), trying llama-server format...")
+    tokenize_resp = post_json(
+        f"{url}/tokenize",
+        {"inputs": context_content},
+    )
+    # Llama-server returns empty tokens for TEI-format /tokenize requests.
+    # Fall back to native llama-server format when tokens are empty.
+    all_tokens = parse_tokenize_response(tokenize_resp)
+    if not all_tokens:
+        tprint("  TEI format returned empty, retrying with llama-server format...")
         tokenize_resp = post_json(
             f"{url}/tokenize",
             {"model": model, "content": context_content, "add_special": False},
         )
-
-    if isinstance(tokenize_resp, list):
-        if len(tokenize_resp) > 0 and isinstance(tokenize_resp[0], list):
-            raw_tokens = tokenize_resp[0]
-        else:
-            raw_tokens = tokenize_resp
-        all_tokens = []
-        for t in raw_tokens:
-            if isinstance(t, int):
-                all_tokens.append(t)
-            elif isinstance(t, dict) and "id" in t:
-                all_tokens.append(t["id"])
-    elif isinstance(tokenize_resp, dict):
-        all_tokens = tokenize_resp.get("tokens", [])
-    else:
-        all_tokens = []
+        all_tokens = parse_tokenize_response(tokenize_resp)
 
     total_tokens_exact = len(all_tokens)
     total_context_chars = len(context_content)
 
+    # Query server for per-slot context size so we don't exceed it.
+    # The server reserves one position (e.g. BOS), so use n_ctx - 1 as safe maximum.
+    server_n_ctx = 8192
+    try:
+        props = get_json(f"{url}/props")
+        if props and "default_generation_settings" in props:
+            n_ctx = props["default_generation_settings"].get("n_ctx", 8192)
+            if n_ctx > 0:
+                server_n_ctx = n_ctx
+                tprint(f"  Server reports n_ctx (per-slot): {server_n_ctx}")
+    except Exception as e:
+        tprint(f"  Warning: Failed to query server props for n_ctx: {e}")
+
     num_rounds = 3
     reqs_per_round = 4
-    token_len_per_req = 8192
-    total_batch_tokens = num_rounds * reqs_per_round * token_len_per_req  # 98304 tokens
+    token_len_per_req = max(1024, server_n_ctx - 1)
+    # Cap at 8K tokens so we can compare across different server context sizes
+    if token_len_per_req > 8191:
+        token_len_per_req = 8191
+        tprint(f"  Capping per-request tokens to 8191 (8K) for cross-config comparison")
+    total_batch_tokens = num_rounds * reqs_per_round * token_len_per_req
 
     tprint("\n===================================================")
     tprint("=== HINDSIGHT PARALLEL EMBEDDING BENCHMARK     ===")
@@ -962,8 +977,9 @@ def run_llm_embed_hindsight(
         f"Context Size:      {total_context_chars} chars ({total_tokens_exact} tokens)"
     )
     tprint(
-        f"Rounds Pattern:    {num_rounds} rounds × {reqs_per_round} parallel 8K requests"
+        f"Rounds Pattern:    {num_rounds} rounds × {reqs_per_round} parallel {token_len_per_req // 1024}K requests"
     )
+    tprint(f"Per-Request Tokens:{token_len_per_req}")
     tprint(f"Total Tokens:      {total_batch_tokens}")
     tprint(f"Repeats:           {repeats}\n")
 
@@ -1011,7 +1027,7 @@ def run_llm_embed_hindsight(
     run_results = []
     for r in range(repeats):
         tprint(
-            f"  [Run {r + 1}/{repeats}] Starting {num_rounds} rounds of {reqs_per_round} parallel 8K requests..."
+            f"  [Run {r + 1}/{repeats}] Starting {num_rounds} rounds of {reqs_per_round} parallel {token_len_per_req // 1024}K requests..."
         )
         t_batch_start = time.perf_counter()
 
@@ -1019,7 +1035,7 @@ def run_llm_embed_hindsight(
         token_offset = 0
 
         for rd_idx in range(num_rounds):
-            round_labels = [f"R{rd_idx + 1}_{i + 1}(8K)" for i in range(reqs_per_round)]
+            round_labels = [f"R{rd_idx + 1}_{i + 1}({token_len_per_req // 1024}K)" for i in range(reqs_per_round)]
             round_slices = []
             for _ in range(reqs_per_round):
                 round_slices.append(

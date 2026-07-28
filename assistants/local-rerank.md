@@ -1,12 +1,12 @@
 # Local Document Reranking Service Guide
 
-> Requires **libggml-git-hip >= 10148** (with `jina-reranker-v3.patch` for projector support). Model downloaded via [local-download.sh](local-download.sh).
+> Requires **libggml-git-hip >= 10148**. Model downloaded via [local-download.sh](local-download.sh).
 
-`local-rerank.sh` manages the local `llama-server` systemd user service (`local-rerank.service`), serving the Text Reranker model (`jina-reranker-v3`). It uses LAST-token pooling with a 2-layer MLP projector (ReLU activated) to produce 512-dim embeddings. Clients POST to `/v1/embeddings` and compute cosine similarity client-side for reranking.
+`local-rerank.sh` manages the local `llama-server` systemd user service (`local-rerank.service`), serving the Text Reranker model (`Qwen3-Reranker-0.6B`). The model uses generative ranking with rank pooling and a binary yes/no classification head: it scores relevance based on the logit probability of "yes" vs "no" at the end of the query+document sequence. Clients POST query + documents to `/v1/rerank` and receive relevance scores directly.
 
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Package**: `libggml-git-hip` → `llama.cpp-git-ggml-hip`
-- **Architecture patch**: `jina-reranker-v3.patch` adds `JinaForRankingModel` converter, `DENSE_2_OUT`/`DENSE_3_OUT` tensor mappings, and ReLU activation support
+- **Model**: [prithivMLmods/Qwen3-Reranker-0.6B-seq-cls-GGUF](https://huggingface.co/prithivMLmods/Qwen3-Reranker-0.6B-seq-cls-GGUF)
 
 ## Usage
 
@@ -56,27 +56,28 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Default Reranking Model
 
-The local service runs **`jinaai/jina-reranker-v3`** in Q4_K_M GGUF format via llama-server.
+The local service runs **`prithivMLmods/Qwen3-Reranker-0.6B`** in Q4_K_M GGUF format via llama-server.
 
 Key specifications:
-  - **Architecture**: Qwen3-0.6B decoder + 2-layer MLP projector (1024→512→512, ReLU activation)
-  - **Context Size**: 131,072 tokens (served at 16,384 for VRAM efficiency)
-  - **MTEB(eng, v2) Retrieval NDCG@10**: ~0.5940
-  - **License**: CC-BY-NC 4.0 (private use only)
-  - **Backend**: llama-server with `--embeddings --pooling last`
-  - **Output**: 512-dim projected embeddings → client-side cosine similarity for reranking
+  - **Architecture**: Qwen3-0.6B decoder + binary classification head (1024-dim → 2-dim yes/no logits)
+  - **Context Size**: 40,960 tokens (served at 16,384 for VRAM efficiency)
+  - **BEIR nDCG@10 (English)**: ~58.2
+  - **License**: Apache 2.0
+  - **Backend**: llama-server with `--reranking`
+  - **Output**: Relevance score (P(yes) probability) via `/v1/rerank` endpoint
   - **VRAM**: ~1,039 MB (Q4_K_M weights ~397 MB + CUDA overhead ~400 MB + activations ~242 MB)
   - **Download**: `bash scripts/local-download.sh /data/public/machine-learning/models --reranker`
-  - **Capabilities**: Multi-document listwise ranking, LBNL causal self-attention interaction over query and documents.
+  - **Capabilities**: Generative ranking: processes query+document pairs and scores via yes/no token probabilities.
 
 ### Serving Architecture
 
-jina-reranker-v3 uses an embedding-based reranking approach:
-1. llama-server loads the GGUF model with `--embeddings --pooling last`
-2. Clients POST query + document pairs to `/v1/embeddings`
-3. The model processes through Qwen3 backbone → LAST-token pooling → MLP projector
-4. Returns 512-dim projected embeddings
-5. Client computes cosine similarity between query and document embeddings for ranking
+Qwen3-Reranker-0.6B uses a generative ranking approach:
+1. llama-server loads the GGUF model with `--reranking`
+2. Clients POST query + document pairs to `/v1/rerank`
+3. The model processes each query+document pair through the Qwen3 backbone
+4. Applies the classification head (cls.output.weight [1024→2]) to produce yes/no logits
+5. Softmax converts logits to probabilities → relevance_score = P(yes)
+6. Results are returned sorted by relevance_score descending
 
 ### Alternative: TEI / ettin-reranker-400m-v1
 
@@ -99,9 +100,9 @@ Key specifications:
 
 ### Service Endpoints (Port `50086`)
 
-OpenAI-compatible /v1/embeddings endpoint for embedding-based reranking.
+Cohere-compatible /v1/rerank endpoint for generative classification-based reranking.
 
-- **`POST /v1/embeddings`**: Get 512-dim projected embeddings for query/document texts. Compute cosine similarity client-side for reranking.
+- **`POST /v1/rerank`**: Submit query + document list; returns relevance scores (P(yes) probabilities) sorted descending.
 - **`POST /tokenize`**: Converts input text into model-specific integer token IDs.
 - **`POST /detokenize`**: Converts token IDs back into string characters.
 - **`GET /health`**: Returns JSON details regarding slots, queue metrics, and service health.
@@ -154,17 +155,20 @@ To run a document reranking speed benchmark using 10 safe-length document chunks
 
 Alternatively, you can test it manually using `curl`:
 
-### Document Reranking Test (Embedding-based Cosine Similarity)
+### Document Reranking Test (Classification-based)
+
 ```bash
-# Embed query
-curl -s -X POST http://localhost:50086/v1/embeddings \
+# Rerank documents using the /v1/rerank endpoint
+curl -s -X POST http://localhost:50086/v1/rerank \
   -H "Content-Type: application/json" \
-  -d '{"model": "jina-reranker-v3", "input": "What is the speed of light in a vacuum?"}'
-
-# Embed document
-curl -s -X POST http://localhost:50086/v1/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{"model": "jina-reranker-v3", "input": "The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second."}'
-
-# Compute cosine similarity between the two embeddings client-side
+  -d '{
+    "model": "qwen3-reranker",
+    "query": "What is the speed of light in a vacuum?",
+    "documents": [
+      "The speed of sound in dry air at 20 degrees Celsius is approximately 343 meters per second.",
+      "The speed of light in a vacuum is a fundamental physical constant exactly equal to 299,792,458 meters per second.",
+      "Light travels through glass at a speed of approximately 200,000 kilometers per second."
+    ]
+  }'
+# Returns results sorted by relevance_score descending: index 1 gets ~0.99, others < 0.05
 ```
