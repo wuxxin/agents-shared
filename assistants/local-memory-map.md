@@ -52,21 +52,21 @@ LIMG_ENABLED=1
 # Overrides for specific services (applied on install/start/restart/edit), can be defined as Bash arrays. E.g.:
 # run CHAT on vulkan/dgpu
 LCHAT_OVERRIDE=(
-    'LCHAT_DEVICE="Vulkan1"'
+    'LCHAT_DEVICE="vulkan1"'
     'GGML_VK_DISABLE_MMVQ=1'
 )
 # run EMBEDDING on vulkan/dgpu
 LMBD_OVERRIDE=(
-    'LMBD_DEVICE="Vulkan1"'
+    'LMBD_DEVICE="vulkan1"'
 )
 # run RERANK on vulkan/dgpu (llama-server with Qwen3-Reranker, or LRR_TEI_DEVICE="Vulkan1" for TEI)
 LRR_OVERRIDE=(
-    'LRR_DEVICE="Vulkan1"'
+    'LRR_DEVICE="vulkan1"'
 )
 # run SPEECH-TO-TEXT on vulkan/igpu
 LSTT_OVERRIDE=(
     'CUDA_VISIBLE_DEVICES=""'
-    # "0" selects Vulkan0, because we hide hip/rocm devices
+    # "0" selects vulkan0, because we hide hip/rocm devices
     'LSTT_DEVICE="0"'
 )
 # run TEXT-TO-SPEECH on cpu
@@ -86,12 +86,12 @@ LIMG_OVERRIDE=(
 
 | Service / Component | Device/Backend | VRAM (dGPU Vulkan1) | VRAM (iGPU Vulkan0) | System RAM |
 |---|---|---|---|---|
-| **Chat** | Vulkan1 (dGPU) | **19,142 MiB** | 0 MiB | ~851 MiB |
-| **Embedding** | Vulkan1 (dGPU) | **~2,940 MiB** | 0 MiB | ~400 MiB |
-| **Rerank** | Vulkan1 (dGPU) | **~1,308 MiB** | 0 MiB | ~200 MiB |
-| **Speech-to-Text** | Vulkan0 (iGPU) | 0 MiB | **809 MiB** | ~126 MiB |
+| **Chat** | vulkan1 (dGPU) | **19,142 MiB** | 0 MiB | ~851 MiB |
+| **Embedding** | vulkan1 (dGPU) | **~2,940 MiB** | 0 MiB | ~400 MiB |
+| **Rerank** | vulkan1 (dGPU) | **~1,308 MiB** | 0 MiB | ~200 MiB |
+| **Speech-to-Text** | vulkan0 (iGPU) | 0 MiB | **809 MiB** | ~126 MiB |
 | **Text-to-Speech** | CPU | 0 MiB | 0 MiB | **~2,970 MiB** |
-| **Image** | Vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,812 MiB |
+| **Image** | vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,812 MiB |
 | **Total** | - | **23,390 MiB** | **7,177 MiB** | **~10,944 MiB** |
 
 **Status:**
