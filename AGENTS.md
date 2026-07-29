@@ -72,8 +72,10 @@ shfmt -i 4 -w scripts/*.sh
 - check configuration changes for packages by verifying it with the source code
   of the package checkedout and updated in `scratch/*-sources`.
 - always check with `[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]` if you are bwrapped yourself.
-  - if bwrapped, do not use systemd to start/stop or otherwise introspect running systemd services.
-  - if bwrapped, expect hat the real $HOME of the $USER eg. ~/.local is not available to you, you have a bwrapped ~/.local 
+  - if bwrapped: the sandbox overlays on top of the real filesystem. Most paths (~/.local, ~/.config, the workspace) are readable and writable as normal. Only sensitive host paths (notably the systemd private socket) are not mounted into the sandbox.
+  - if bwrapped, do not use systemd to start/stop or otherwise introspect running systemd services — the systemd socket is unavailable.
+  - if bwrapped, you can still install files (e.g., systemd unit or env files) into their expected sandbox locations to verify their content, then inspect them with normal file tools.
+  - if bwrapped, `journalctl` (including `--user`) is available to read service logs, and you can introspect the running system via the process tree (`ps`, `/proc`, `pgrep`).
 - whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, it must be updated if any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
 - When running `run-local-benchmark.py` for testing or validation 
   (e.g., in `--mock` mode), make sure you do not overwrite the production
