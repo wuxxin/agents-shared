@@ -87,7 +87,7 @@ Each subagent in `oh-my-opencode-slim.jsonc` is equipped with dedicated MCP tool
 
 ---
 
-## Per-Agent Memory Isolation Architecture
+## Per-Agent Memory Isolation & Bank Architecture
 
 Memory isolation is configured in `opencode.json` via `opencode-hindsight-plus`:
 
@@ -103,10 +103,82 @@ Memory isolation is configured in `opencode.json` via `opencode-hindsight-plus`:
 ]
 ```
 
-### Key Benefits:
-- **Zero Pollution**: High-level design rationale in `opencode-oracle` remains clean and unpolluted by `fixer`'s low-level trial-and-error logs.
-- **Cross-Bank Recall**: `fixer` can query `opencode-oracle` as an `additionalBank` during recall without polluting `oracle`'s written memories.
-- **Dual Architecture**: Automatic background retention via `opencode-hindsight-plus` combined with explicit tool queries via `hindsight-mcp`.
+### What is `enableKnowledgePages`?
+In `opencode-hindsight-plus`, **Knowledge Pages** are dynamic, auto-synthesized markdown documents generated from a bank's mental models (`hindsight_page_list`, `hindsight_page_get`, `hindsight_page_create`, `hindsight_page_refresh`). Instead of executing an raw search (`hindsight_recall`) that returns multiple disjointed memory chunks, calling `hindsight_page_get` reads an up-to-date, auto-consolidated executive summary of an entire mental model (e.g. `User Profile & Core Preferences`, `System Architecture`, `Known Bugs & Verified Fixes`) in 1 single high-density call.
+
+### Bank Naming Convention
+
+Memory banks are named using agent role namespaces: `opencode-{agent}` (e.g., `opencode-orchestrator`, `opencode-oracle`, `opencode-fixer`, `opencode-librarian`, `opencode-explorer`, `opencode-designer`, and the user's personal context bank `assistant-test`).
+
+---
+
+## Hindsight Bank Configuration Setup & Apply Script
+
+Each bank in `sandbox-templates/opencode/hindsight-banks/` contains custom `retain_mission`, `observations_mission`, `reflect_mission`, and Mental Model definitions tailored to that agent's role:
+
+| Bank JSON File | Primary Focus | Custom `reflect_mission` Summary |
+|---|---|---|
+| `assistant-test.json` | Personal user context, wellness, routines, host environment | Empathetic, actionable personal summary respecting ADHD routines and wellness priorities. |
+| `opencode-orchestrator.json` | Project roadmap, session handoffs, subagent assignments | Executive project status summary, upcoming milestones, and active handoffs. |
+| `opencode-oracle.json` | System architecture, design trade-offs, post-mortems | Authoritative architectural breakdown detailing design patterns, trade-offs, and invariants. |
+| `opencode-fixer.json` | Error trace patterns, bug root causes, fix runbooks | Root-cause diagnosis and actionable repair runbook based on past post-mortems. |
+| `opencode-librarian.json` | External documentation, API specs, library quirks | Structured documentation briefing highlighting API signatures and library gotchas. |
+| `opencode-explorer.json` | Directory structure, module layout, AST symbol maps | Codebase architecture map detailing module responsibilities and symbol export locations. |
+| `opencode-designer.json` | UI component patterns, brand tokens, accessibility | Visual design specification detailing component tokens, layout rules, and ARIA guidelines. |
+
+### Single Command to Provision / Reconfigure All Banks
+
+Run this script block to apply all bank configurations to the local Hindsight server on `http://localhost:8888`:
+
+```bash
+for bank_file in sandbox-templates/opencode/hindsight-banks/*.json; do
+  bank_id=$(basename "$bank_file" .json)
+  echo "=== Applying configuration for bank: $bank_id ==="
+  
+  # 1. Update Retain, Observations, and Reflect missions
+  python3 -c "
+import json, urllib.request
+data = json.load(open('$bank_file'))
+bank = data.get('bank', {})
+payload = json.dumps({
+    'retain_mission': bank.get('retain_mission'),
+    'observations_mission': bank.get('observations_mission'),
+    'reflect_mission': bank.get('reflect_mission'),
+    'enable_observations': bank.get('enable_observations', True)
+}).encode('utf-8')
+req = urllib.request.Request(
+    'http://localhost:8888/v1/default/banks/$bank_id/config',
+    data=payload,
+    headers={'Content-Type': 'application/json'},
+    method='PATCH'
+)
+try:
+    with urllib.request.urlopen(req) as resp:
+        print(f'  Config status: {resp.status}')
+except Exception as e:
+    print(f'  Config error (creating bank): {e}')
+"
+
+  # 2. Register Mental Models
+  python3 -c "
+import json, urllib.request
+data = json.load(open('$bank_file'))
+for mm in data.get('mental_models', []):
+    payload = json.dumps(mm).encode('utf-8')
+    req = urllib.request.Request(
+        'http://localhost:8888/v1/default/banks/$bank_id/mental-models',
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            print(f'  Registered mental model {mm[\"id\"]}: {resp.status}')
+    except Exception as e:
+        print(f'  Mental model error ({mm[\"id\"]}): {e}')
+"
+done
+```
 
 ---
 
@@ -139,12 +211,16 @@ Memory isolation is configured in `opencode.json` via `opencode-hindsight-plus`:
    * **Source**: [best-linux-code/opencode-hindsight-plus](https://github.com/best-linux-code/opencode-hindsight-plus) & [Vectorize Hindsight](https://github.com/vectorize-io/hindsight).
    * **Package / Service**: `opencode-hindsight-plus` (plugin) + `hindsight-mcp` (MCP server).
 
+6. **`hindsight-api`**:
+   * **Main Purpose**: Teaches agents how to programmatically inspect, query, and reconfigure Hindsight memory banks, missions, and mental models via the Hindsight REST API (`http://localhost:8888`).
+   * **Source**: Local Hindsight REST API (`local-memory.sh`).
+
 ### Single Command to Recreate / Sync All Skills
 
 Run the following unified script block to recreate all skill directories and sync definition files from the template to `$HOME/.config/opencode/skills/`:
 
 ```bash
-for skill in sequential-thinking arbor openadapt opencode-a2a hindsight; do
+for skill in sequential-thinking arbor openadapt opencode-a2a hindsight hindsight-api; do
   mkdir -p "$HOME/.config/opencode/skills/$skill"
   if [ -f "sandbox-templates/opencode/skills/$skill/SKILL.md" ]; then
     cp "sandbox-templates/opencode/skills/$skill/SKILL.md" "$HOME/.config/opencode/skills/$skill/SKILL.md"
