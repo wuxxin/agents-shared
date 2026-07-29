@@ -1,0 +1,54 @@
+{
+  "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
+  "companion": {
+    "enabled": false,
+    "position": "bottom-right",
+    "size": "medium",
+    "gifPack": "default",
+    "loopStyle": "classic",
+    "speed": 1,
+    "debug": false
+  },
+  "preset": "custom",
+  "presets": {
+    "custom": {
+      "orchestrator": {
+        "model": "deepseek/deepseek-v4-pro",
+        "variant": "xhigh",
+        "skills": ["*"],
+        "mcps": ["*", "!context7"]
+      },
+      "oracle": {
+        "model": "deepseek/deepseek-v4-pro",
+        "variant": "xhigh",
+        "skills": ["simplify", "arbor", "hindsight"],
+        "mcps": ["sequential-thinking", "arbor", "hindsight", "websearch", "gh_grep"]
+      },
+      "librarian": {
+        "model": "deepseek/deepseek-v4-flash",
+        "variant": "low",
+        "skills": ["openadapt", "hindsight"],
+        "mcps": ["websearch", "openadapt", "context7", "gh_grep"]
+      },
+      "explorer": {
+        "model": "deepseek/deepseek-v4-flash",
+        "variant": "low",
+        "skills": ["arbor"],
+        "mcps": ["arbor", "gh_grep"]
+      },
+      "designer": {
+        "model": "google/gemini-3.6-flash",
+        "variant": "medium",
+        "skills": ["openadapt", "hindsight"],
+        "mcps": ["openadapt", "hindsight"]
+      },
+      "fixer": {
+        "model": "deepseek/deepseek-v4-pro",
+        "variant": "xhigh",
+        "skills": ["arbor", "hindsight"],
+        "mcps": ["arbor", "hindsight"]
+      }
+    }
+  },
+  "disabled_agents": ["observer"]
+}
