@@ -189,7 +189,7 @@ Sourcing this file automatically loads and exports variables into the sandbox en
   Space-separated list of relative directories under `LAUNCHER_PRIVATE_BASEPATH` to bind-mount.
 
 - **`LAUNCHER_SANDBOX_MOUNTS`** (Default: `""`)
-  Space-separated list of other sandboxes to expose (`sandbox_name/subpath`). Inside the container, this maps to `~/.local/sandbox/sandbox_name/subpath`.
+  Space-separated list of other sandboxes to expose (`sandbox_name/subpath`). Host `~/.local/sandbox/sandbox_name/subpath` is mounted directly to `~/.subpath` inside the sandbox (e.g., `deep-research/.cache/deep-research-profiles` mounts to `~/.cache/deep-research-profiles` inside the container).
 
 - **`LAUNCHER_EXTRA_MOUNTS`** (Default: `"$HOME/agent-shared:agent-shared /data/download:download"`)
   Space-separated list of `host-path:sandbox-path` mount specifications. Relative sandbox paths map under `$HOME`.
@@ -251,10 +251,10 @@ DISABLE_DBUS="true"          # Disable DBus session bus communication
 # DISABLE_PID_SHARE="true"     # Isolate PID namespace (set to false to share host PIDs, to enable trace or inspect of child processes)
 
 # --- Path / Directory Mounts ---
-# LAUNCHER_PRIVATE_BASEPATH="%h/agent-private"
+# LAUNCHER_PRIVATE_BASEPATH="$HOME/agent-private"
 # LAUNCHER_PRIVATE_MOUNTS=""
 # LAUNCHER_SANDBOX_MOUNTS=""
-LAUNCHER_EXTRA_MOUNTS="%h/agent-shared:agent-shared /data/download:download"
+LAUNCHER_EXTRA_MOUNTS="$HOME/agent-shared:agent-shared /data/download:download"
 
 # --- Desktop / GUI Integration ---
 # LAUNCHER_GUI="false"            # Set to true to enable generating a desktop entry (.desktop file)
@@ -285,21 +285,22 @@ LAUNCHER_SIDECAR_SLEEP_ARGS='-c "export; exec sleep infinity"'
 # LAUNCHER_DEFAULT_ARGS=""   # Default args passed if none are provided (e.g. '$work_dir/default')
 LAUNCHER_INIT_DEFAULT_PROJECT="true" # Set to true to run 'git init' on the default project workspace
 
-# --- Install/Uninstall Hooks ---
-# Array of bash commands executed during install. Must be idempotent — should recreate everything needed as if it were a fresh install.
-LAUNCHER_INSTALL_CMDS=(
-   'cd $HOME/.config/opencode && bun install'
-   'cd $HOME/.config/opencode && bunx oh-my-opencode-slim install --no-tui --skills=yes --companion=no --background-subagents=no'
-   # 'cd $HOME/.config/opencode && npx @slkiser/opencode-quota init'
-   'uv tool install --force --refresh arbor-agent "openadapt[browser]" opencode-a2a'
-)
-
 # Array of bash commands executed during uninstall. Should clean up any files/directories created by LAUNCHER_INSTALL_CMDS.
 LAUNCHER_UNINSTALL_CMDS=(
-   'cd $HOME/.local/bin/ && rm -f arbor arbor-mcp coordinator executor openadapt review-research run-research'
+   'cd $HOME/.local/bin/ && rm arbor arbor-mcp coordinator executor openadapt review-research run-research'
    'rm -rf $HOME/.local/share/uv'
    'rm -rf $HOME/.config/opencode/node_modules'
    'rm -rf $HOME/.cache/opencode/packages'
-   'cd $HOME/.config/opencode && rm -f bun.lock package-lock.json'
+   'cd $HOME/.config/opencode && rm bun.lock package-lock.json'
 )
+
+# Array of bash commands executed during install. Must be idempotent — should recreate everything needed as if it were a fresh install.
+LAUNCHER_INSTALL_CMDS=(
+   "${LAUNCHER_UNINSTALL_CMDS[@]}"
+   'cd $HOME/.config/opencode && bun install'
+   'cd $HOME/.config/opencode && bunx oh-my-opencode-slim install --no-tui --skills=yes --companion=no --background-subagents=no'
+   'cd $HOME/.config/opencode && npx @slkiser/opencode-quota update --yes'
+   'for tool in arbor-agent "openadapt[browser]" opencode-a2a; do uv tool install --force --refresh $tool;done'
+)
+
 ```

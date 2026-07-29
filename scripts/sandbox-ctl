@@ -16,10 +16,10 @@ DEFAULT_DISABLE_DBUS="false"
 DEFAULT_DISABLE_HARDWARE="false"
 DEFAULT_DISABLE_IPC_SHARE="true"
 DEFAULT_DISABLE_PID_SHARE="true"
-DEFAULT_LAUNCHER_PRIVATE_BASEPATH="%h/agent-private"
+DEFAULT_LAUNCHER_PRIVATE_BASEPATH="$HOME/agent-private"
 DEFAULT_LAUNCHER_PRIVATE_MOUNTS=""
 DEFAULT_LAUNCHER_SANDBOX_MOUNTS=""
-DEFAULT_LAUNCHER_EXTRA_MOUNTS="%h/agent-shared:agent-shared /data/download:download"
+DEFAULT_LAUNCHER_EXTRA_MOUNTS="$HOME/agent-shared:agent-shared /data/download:download"
 DEFAULT_LAUNCHER_GUI="false"
 DEFAULT_LAUNCHER_GUI_NAME=""
 DEFAULT_LAUNCHER_GUI_COMMENT="Sandboxed app"
@@ -206,10 +206,8 @@ build_sandbox_config() {
     local disable_ipc_share="${DISABLE_IPC_SHARE:-$DEFAULT_DISABLE_IPC_SHARE}"
     local disable_pid_share="${DISABLE_PID_SHARE:-$DEFAULT_DISABLE_PID_SHARE}"
     local disable_hardware="${DISABLE_HARDWARE:-$DEFAULT_DISABLE_HARDWARE}"
-    local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-}"
-    if [[ -z "$launcher_private_basepath" ]]; then
-        launcher_private_basepath=$(resolve_path "$DEFAULT_LAUNCHER_PRIVATE_BASEPATH")
-    fi
+    local launcher_private_basepath
+    launcher_private_basepath=$(resolve_path "${LAUNCHER_PRIVATE_BASEPATH:-$DEFAULT_LAUNCHER_PRIVATE_BASEPATH}")
     local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-$DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
     local launcher_sandbox_mounts="${LAUNCHER_SANDBOX_MOUNTS:-$DEFAULT_LAUNCHER_SANDBOX_MOUNTS}"
     local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$DEFAULT_LAUNCHER_EXTRA_MOUNTS}"
@@ -341,8 +339,22 @@ build_sandbox_config() {
         # LAUNCHER_PRIVATE_MOUNTS
         for m in $launcher_private_mounts; do
             if [[ -n "$m" ]]; then
-                mkdir -p "$launcher_private_basepath/$m"
-                echo "BindPaths=$launcher_private_basepath/$m:$launcher_private_basepath/$m"
+                local mount_path
+                if [[ "$m" == /* || "$m" == ~* || "$m" == %h* ]]; then
+                    mount_path=$(resolve_path "$m")
+                else
+                    mount_path=$(resolve_path "$launcher_private_basepath/$m")
+                fi
+                mkdir -p "$mount_path" || true
+                if [[ "$mount_path" == "$HOME"/* ]]; then
+                    local rel_target="${mount_path#"$HOME"/}"
+                    local real_target_path="$persistent_home/$rel_target"
+                    if [[ -L "$real_target_path" ]]; then
+                        rm -f "$real_target_path"
+                    fi
+                    mkdir -p "$real_target_path" 2>/dev/null || true
+                fi
+                echo "BindPaths=$mount_path:$mount_path"
             fi
         done
 
@@ -352,8 +364,8 @@ build_sandbox_config() {
                 local sandbox_name="${m%%/*}"
                 local subpath="${m#*/}"
                 mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-                mkdir -p "$persistent_home/.local/sandbox/${sandbox_name}/${subpath}"
-                echo "BindPaths=$HOME/.local/sandbox/${sandbox_name}/${subpath}:$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+                mkdir -p "$persistent_home/${subpath}"
+                echo "BindPaths=$HOME/.local/sandbox/${sandbox_name}/${subpath}:$HOME/${subpath}"
             fi
         done
 
@@ -558,10 +570,24 @@ build_sandbox_config() {
         # LAUNCHER_PRIVATE_MOUNTS
         for m in $launcher_private_mounts; do
             if [[ -n "$m" ]]; then
-                mkdir -p "$launcher_private_basepath/$m"
+                local mount_path
+                if [[ "$m" == /* || "$m" == ~* || "$m" == %h* ]]; then
+                    mount_path=$(resolve_path "$m")
+                else
+                    mount_path=$(resolve_path "$launcher_private_basepath/$m")
+                fi
+                mkdir -p "$mount_path" || true
+                if [[ "$mount_path" == "$HOME"/* ]]; then
+                    local rel_target="${mount_path#"$HOME"/}"
+                    local real_target_path="$persistent_home/$rel_target"
+                    if [[ -L "$real_target_path" ]]; then
+                        rm -f "$real_target_path"
+                    fi
+                    mkdir -p "$real_target_path" 2>/dev/null || true
+                fi
                 echo "--bind"
-                echo "$launcher_private_basepath/$m"
-                echo "$launcher_private_basepath/$m"
+                echo "$mount_path"
+                echo "$mount_path"
             fi
         done
 
@@ -571,10 +597,10 @@ build_sandbox_config() {
                 local sandbox_name="${m%%/*}"
                 local subpath="${m#*/}"
                 mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-                mkdir -p "$persistent_home/.local/sandbox/${sandbox_name}/${subpath}"
+                mkdir -p "$persistent_home/${subpath}"
                 echo "--bind"
                 echo "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-                echo "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+                echo "$HOME/${subpath}"
             fi
         done
 
@@ -694,16 +720,42 @@ run_sandbox() {
         done
     fi
 
+    # Check sandbox mounts
+    if [[ "$is_mounted" == "false" ]]; then
+        local launcher_sandbox_mounts="${LAUNCHER_SANDBOX_MOUNTS:-$DEFAULT_LAUNCHER_SANDBOX_MOUNTS}"
+        for m in $launcher_sandbox_mounts; do
+            if [[ -n "$m" ]]; then
+                local sandbox_name="${m%%/*}"
+                local subpath="${m#*/}"
+                local host_sandbox_path="$HOME/.local/sandbox/${sandbox_name}/${subpath}"
+                if is_under "$cwd" "$host_sandbox_path"; then
+                    is_mounted=true
+                    rel_path=$(realpath --relative-to="$host_sandbox_path" "$cwd" 2>/dev/null || echo "")
+                    local target_base="$HOME/${subpath}"
+                    if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
+                        target_cwd="$target_base"
+                    else
+                        target_cwd="$target_base/$rel_path"
+                    fi
+                    break
+                fi
+            fi
+        done
+    fi
+
     # 4. Check private mounts
     if [[ "$is_mounted" == "false" ]]; then
         local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-$DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
-        local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-}"
-        if [[ -z "$launcher_private_basepath" ]]; then
-            launcher_private_basepath=$(resolve_path "$DEFAULT_LAUNCHER_PRIVATE_BASEPATH")
-        fi
+        local launcher_private_basepath
+        launcher_private_basepath=$(resolve_path "${LAUNCHER_PRIVATE_MOUNTS_BASEPATH:-${LAUNCHER_PRIVATE_BASEPATH:-$DEFAULT_LAUNCHER_PRIVATE_BASEPATH}}")
         for m in $launcher_private_mounts; do
             if [[ -n "$m" ]]; then
-                local mount_path="$launcher_private_basepath/$m"
+                local mount_path
+                if [[ "$m" == /* || "$m" == ~* || "$m" == %h* ]]; then
+                    mount_path=$(resolve_path "$m")
+                else
+                    mount_path=$(resolve_path "$launcher_private_basepath/$m")
+                fi
                 if is_under "$cwd" "$mount_path"; then
                     is_mounted=true
                     rel_path=$(realpath --relative-to="$mount_path" "$cwd" 2>/dev/null || echo "")
