@@ -1,0 +1,29 @@
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract external API documentation summaries, third-party library signatures, dependency version quirks, official best practices, and web research findings. Ignore transient search results and irrelevant web pages.",
+    "enable_observations": true,
+    "observations_mission": "Track third-party library updates, API deprecations, external framework best practices, and external technical documentation snapshots.",
+    "reflect_mission": "Synthesize a structured documentation briefing highlighting API signatures, external library quirks, best practices, and verified web research."
+  },
+  "mental_models": [
+    {
+      "id": "external-docs",
+      "name": "External Library & API Documentation",
+      "source_query": "What third-party libraries, APIs, or frameworks are used, and what are their key signatures, options, and usage examples?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "library-quirks",
+      "name": "Known Library Quirks & Gotchas",
+      "source_query": "What third-party library bugs, version incompatibilities, or subtle API gotchas were discovered during research?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract overall project goals, high-level task breakdowns, session handoffs, subagent assignments, major milestone completions, and user preferences for workflow execution. Ignore minor syntax debugging and transient command outputs.",
+    "enable_observations": true,
+    "observations_mission": "Track active project progress, ongoing task state, overall architectural roadmap, and multi-agent coordination history over time.",
+    "reflect_mission": "Synthesize an executive summary of current project status, upcoming goals, active subagent assignments, key user constraints, and recent session handoffs."
+  },
+  "mental_models": [
+    {
+      "id": "project-roadmap",
+      "name": "Project Roadmap & Milestones",
+      "source_query": "What are the primary goals, active milestones, completed features, and pending deliverables for this project?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "session-handoffs",
+      "name": "Session Handoffs & State",
+      "source_query": "What are the recent session handoffs, pending tasks left by previous sessions, and user instructions for the current session?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "agent-coordination",
+      "name": "Subagent Assignments & A2A Routing",
+      "source_query": "Which subagents (oracle, fixer, explorer, librarian, designer) or external A2A agents were assigned to which tasks, and what were their outcomes?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}

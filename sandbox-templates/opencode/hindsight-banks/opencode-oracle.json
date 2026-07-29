@@ -1,0 +1,38 @@
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract architectural decisions, design patterns, system boundary choices, technology stack selections, structural trade-offs, and design post-mortems. Ignore transient code edits, single line syntax fixes, and raw terminal logs.",
+    "enable_observations": true,
+    "observations_mission": "Track architectural evolution, key design invariants, system component relationships, and reasoning patterns over time.",
+    "reflect_mission": "Synthesize an authoritative architectural breakdown detailing system boundaries, core design principles, trade-offs made, component dependencies, and design post-mortems."
+  },
+  "mental_models": [
+    {
+      "id": "architecture-patterns",
+      "name": "System Architecture & Design Patterns",
+      "source_query": "What are the core architectural principles, component interfaces, design patterns, and system boundaries in this codebase?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "trade-offs-decisions",
+      "name": "Design Trade-Offs & Rationale",
+      "source_query": "What key architectural trade-offs were evaluated? Why were specific libraries, frameworks, or data structures chosen over alternatives?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "post-mortems",
+      "name": "Architectural Post-Mortems & Anti-Patterns",
+      "source_query": "What past architectural failures, anti-patterns, or refactoring post-mortems were identified to avoid repeating mistakes?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}

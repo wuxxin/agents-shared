@@ -1,0 +1,29 @@
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract error trace patterns, bug root causes, test failure post-mortems, regression fixes, environment setup errors, and troubleshooting runbooks. Ignore successful routine builds and non-error outputs.",
+    "enable_observations": true,
+    "observations_mission": "Track recurring bug types, flaky test behavior, common environment pitfalls, and successful repair patterns across debugging sessions.",
+    "reflect_mission": "Synthesize a root-cause diagnosis and actionable fix strategy based on past error trace patterns, post-mortems, and verified test failure resolutions."
+  },
+  "mental_models": [
+    {
+      "id": "known-bugs-fixes",
+      "name": "Known Bugs & Verified Fixes",
+      "source_query": "What bugs or test failures were previously encountered, what were their root causes, and how were they fixed?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "troubleshooting-runbooks",
+      "name": "Troubleshooting & Debug Runbooks",
+      "source_query": "What are the step-by-step diagnostic runbooks, commands, and environment fixes for known build or runtime errors?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}

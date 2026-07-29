@@ -1,0 +1,29 @@
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract codebase file structure, module organization, entrypoints, exported symbol mappings, and dependency tree relationships. Ignore temporary scratch files and verbose directory listings.",
+    "enable_observations": true,
+    "observations_mission": "Track repository structure evolution, module additions, directory layouts, and dependency graph mapping over time.",
+    "reflect_mission": "Synthesize a concise codebase architecture map detailing directory structure, core module responsibilities, entry points, and symbol export locations."
+  },
+  "mental_models": [
+    {
+      "id": "codebase-structure",
+      "name": "Codebase Structure & Layout",
+      "source_query": "What is the overall directory organization, core module layout, entrypoints, and responsibilities of each directory?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "symbol-mapping",
+      "name": "Exported Symbols & Dependency Graphs",
+      "source_query": "Where are key classes, functions, interfaces, and types defined and exported across modules?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}

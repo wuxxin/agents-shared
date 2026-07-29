@@ -1,0 +1,29 @@
+{
+  "version": "1",
+  "bank": {
+    "retain_mission": "Extract UI component specifications, design system tokens (colors, typography, spacing), responsive layout rules, accessibility constraints, animation guidelines, and visual feedback notes. Ignore raw HTML boilerplate.",
+    "enable_observations": true,
+    "observations_mission": "Track design system evolution, component hierarchy, brand visual guidelines, and UI feedback history over time.",
+    "reflect_mission": "Synthesize a visual design specification detailing component patterns, brand colors, typography, accessibility rules, and layout constraints."
+  },
+  "mental_models": [
+    {
+      "id": "design-system",
+      "name": "Design System Tokens & Components",
+      "source_query": "What are the project's design system tokens, color palettes, typography, button/card styles, and component patterns?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "layout-accessibility",
+      "name": "Responsive Layout & Accessibility Rules",
+      "source_query": "What are the responsive breakpoint rules, flex/grid layouts, dark mode preferences, and ARIA/accessibility guidelines?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    }
+  ]
+}
