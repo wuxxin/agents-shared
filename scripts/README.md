@@ -32,7 +32,7 @@ python3 scripts/download-helper.py benchmark-context --output <output_file.md>
 
 ## `sandbox-ctl`
 
-A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened **Bubblewrap (`bwrap`)** sandbox with persistent home directory mapping, X11/Wayland display sharing, Pipewire/PulseAudio sound support, and SSH agent forwarding.
+A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened systemd transient service or Bubblewrap (`bwrap`) container with persistent home directory mapping, sandboxed install/uninstall hooks, X11/Wayland display sharing, Pipewire/PulseAudio sound support, and SSH agent forwarding.
 
 ```bash
 ./scripts/sandbox-ctl install <app_name>
