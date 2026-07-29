@@ -123,8 +123,8 @@ show_help() {
     cat <<EOF
 Sandbox-Ctl
 
-Usage when called directly ($LAUNCHER_NAME):
-
+- scriptcopy [or install-script]
+    - Copy the sandbox-ctl script file to ~/.local/bin/sandbox-ctl
 - install <app_name> [opts]
     - Setup sandbox, service files, and symlink in ~/.local/bin
     - Options:
@@ -236,6 +236,9 @@ build_sandbox_config() {
         echo "BindPaths=$persistent_home:$HOME"
         echo "WorkingDirectory=$target_cwd"
         echo "Environment=HOME=$HOME"
+        echo "Environment=SANDBOX_NAME=$app_name"
+        echo "Environment=SANDBOX_ENGINE=systemd"
+        echo "Environment=SANDBOX=$app_name"
 
         # LAUNCHER_EXPORTS
         if [[ ${#LAUNCHER_EXPORTS[@]} -gt 0 ]]; then
@@ -428,6 +431,15 @@ build_sandbox_config() {
         echo "--setenv"
         echo "HOME"
         echo "$HOME"
+        echo "--setenv"
+        echo "SANDBOX_NAME"
+        echo "$app_name"
+        echo "--setenv"
+        echo "SANDBOX_ENGINE"
+        echo "bwrap"
+        echo "--setenv"
+        echo "SANDBOX"
+        echo "$app_name"
 
         # LAUNCHER_EXPORTS
         if [[ ${#LAUNCHER_EXPORTS[@]} -gt 0 ]]; then
@@ -1399,6 +1411,8 @@ echo "$PATH" | tr ":" "\n" | while read -r entry; do
     fi
 done
 echo "  Key Environment:"
+echo "    SANDBOX_NAME=${SANDBOX_NAME:-unset}"
+echo "    SANDBOX_ENGINE=${SANDBOX_ENGINE:-unset}"
 echo "    SHELL=${SHELL:-unset}"
 echo "    XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
 echo "    SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-unset}"
@@ -1492,6 +1506,25 @@ cmd_logs() {
     journalctl --user -u "${SERVICE_NAME}.service" "$@"
 }
 
+# Command: Copy sandbox-ctl script itself to ~/.local/bin/sandbox-ctl
+cmd_scriptcopy() {
+    local bin_dir="$HOME/.local/bin"
+    local script_target="$bin_dir/$LAUNCHER_NAME"
+    local current_script
+    current_script="$(realpath "$0")"
+
+    mkdir -p "$bin_dir"
+
+    if [[ "$current_script" != "$(realpath "$script_target" 2>/dev/null)" ]]; then
+        echo "Copying launcher script $current_script -> $script_target..."
+        cp "$current_script" "$script_target"
+        chmod +x "$script_target"
+        echo "Successfully installed $LAUNCHER_NAME to $script_target"
+    else
+        echo "Launcher script is already located at $script_target (up to date)."
+    fi
+}
+
 # --- Parsing Command and Routing ---
 
 main() {
@@ -1507,6 +1540,11 @@ main() {
 
         if [[ "$cmd" == "help" ]]; then
             show_help
+            exit 0
+        fi
+
+        if [[ "$cmd" == "scriptcopy" || "$cmd" == "install-script" || "$cmd" == "copy-script" ]]; then
+            cmd_scriptcopy
             exit 0
         fi
 
@@ -1584,7 +1622,11 @@ main() {
             run_sandbox "$@"
             ;;
         shell)
-            run_sandbox "${SHELL:-/bin/bash}" "$@"
+            if [[ $# -eq 0 ]]; then
+                run_sandbox "${SHELL:-/bin/bash}" -l
+            else
+                run_sandbox "${SHELL:-/bin/bash}" "$@"
+            fi
             ;;
         *)
             echo "Unknown command: $cmd" >&2

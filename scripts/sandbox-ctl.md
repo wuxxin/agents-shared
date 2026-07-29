@@ -16,7 +16,7 @@ By default, it runs the application inside a native **systemd user transient ser
 - **Graphic & Audio Controls**: Securely forwards X11, Wayland, Pipewire, PulseAudio, and DBus sockets into systemd and bubblewrap environments.
 - **SSH Agent Forwarding**: Forwards the host's `SSH_AUTH_SOCK` socket for Git operations.
 - **Generic GUI / Desktop Lifecycle**: Automatically creates standard desktop entries (`.desktop` files) and menus for graphical applications during installation.
-- **Dynamic Path Mounts (`LAUNCHER_*`)**: Easily mount workspaces, other sandboxes, or external host paths.
+- **Sandbox Environment Indicators**: Automatically injects `SANDBOX_NAME="<app_name>"`, `SANDBOX_ENGINE="<engine>"`, and `SANDBOX="<app_name>"` into all container sessions, making it easy for scripts, tools, and shell prompts (`zsh`, `bash`) to detect and display the active sandbox name.
 
 ---
 
@@ -35,7 +35,7 @@ sandbox-ctl install opencode
 # Run opencode inside the sandbox
 sandbox-ctl exec opencode
 
-# Run an interactive bash shell in the opencode sandbox
+# Run an interactive login shell ($SHELL -l) in the opencode sandbox
 sandbox-ctl shell opencode
 
 # Execute a custom command in the opencode sandbox
@@ -80,6 +80,10 @@ When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox
 ---
 
 ## Sandbox Administration & Lifecycle
+
+### `scriptcopy` (alias `install-script` / `copy-script`)
+
+Copies the `sandbox-ctl` executable script itself to `~/.local/bin/sandbox-ctl` and sets executable permissions without setting up a sandbox, initializing environment configuration files, or creating systemd service files. Use this command when you want to make `sandbox-ctl` globally available in your user `PATH`.
 
 ### `install [--no-git-config] [--new-config] [--new-config-from <path>] [--no-start]`
 
@@ -143,6 +147,29 @@ Runs automated sanity checks and diagnostic tests for the application:
 - `"auto"` (Default): Uses systemd if the systemd user manager socket is reachable; otherwise automatically falls back to `bwrap`.
 - `"systemd"`: Forces execution through systemd (`systemd-run`). Fails if systemd user socket is unreachable.
 - `"bwrap"`: Forces execution through Bubblewrap containers directly, bypassing systemd.
+
+### Environment Identifiers & Shell Prompt Integration
+
+`sandbox-ctl` automatically injects identity environment variables into every sandboxed session:
+- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`).
+- **`SANDBOX_ENGINE`**: Set to the active engine (`systemd` or `bwrap`).
+- **`SANDBOX`**: Set to the target application name (`opencode`).
+
+You can customize your `zsh` or `bash` prompt inside the sandbox to display the active sandbox indicator:
+
+**Zsh (`~/.zshrc`)**:
+```zsh
+if [[ -n "$SANDBOX_NAME" ]]; then
+    PROMPT="%F{cyan}[$SANDBOX_NAME]%f $PROMPT"
+fi
+```
+
+**Bash (`~/.bashrc`)**:
+```bash
+if [ -n "$SANDBOX_NAME" ]; then
+    PS1="[$SANDBOX_NAME] $PS1"
+fi
+```
 
 ---
 
