@@ -8,10 +8,11 @@ By default, it runs the application inside a native **systemd user transient ser
 
 ## Features
 
-- **Relocated HOME**: Relocates the application's home directory to `$HOME/.local/sandbox/<app_name>` by overlaying the real user home with a persistant path.
+- **Persistent Relocated HOME**: Maps the persistent sandbox home directory (`$HOME/.local/sandbox/<app_name>`) as the user's real `$HOME` inside the sandbox across all execution modes (`exec`, `run`, `shell`, `service`, and install/uninstall hooks). The application cannot see or access `.local/sandbox/<app_name>` from the inside because `$HOME` IS the persistent sandbox directory.
 - **Dual Calling Modes**: Supports being called directly as a manager/orchestrator or called transparently as a symlink named after the target application.
-- **Configurable Environment File**: Automatically sources and exports variables from `~/.local/sandbox/<app_name>.env` before execution.
-- **Configurable Engines**: Supports systemd transient service execution, Bubblewrap confinement, or automatic engine detection/fallback.
+- **Configurable Environment File**: Automatically sources and exports variables from `~/.config/systemd/user/<app_name>.env` before execution.
+- **Dual Execution Engines**: Supports systemd transient service execution (`systemd-run`), Bubblewrap confinement (`bwrap`), or automatic engine detection and fallback.
+- **Sandboxed Hook Execution**: Executes `LAUNCHER_INSTALL_CMDS` and `LAUNCHER_UNINSTALL_CMDS` inside the sandbox environment so package managers (`bun`, `uv`, `npm`) install strictly inside the isolated sandbox home.
 - **Graphic & Audio Controls**: Securely forwards X11, Wayland, Pipewire, PulseAudio, and DBus sockets into systemd and bubblewrap environments.
 - **SSH Agent Forwarding**: Forwards the host's `SSH_AUTH_SOCK` socket for Git operations.
 - **Generic GUI / Desktop Lifecycle**: Automatically creates standard desktop entries (`.desktop` files) and menus for graphical applications during installation.
@@ -28,7 +29,7 @@ The launcher supports two distinct calling modes:
 When executed directly as `sandbox-ctl` you must specify the subcommand and the target application. This is the mode used to install, uninstall, destroy, configure, or run shell/custom commands:
 
 ```bash
-# Setup sandbox, service files, and symlink for opencode
+# Setup sandbox, service files, symlink, and run sandboxed install hooks for opencode
 sandbox-ctl install opencode
 
 # Run opencode inside the sandbox
@@ -43,8 +44,11 @@ sandbox-ctl run opencode ls -la
 # Open the environment configuration file for opencode
 sandbox-ctl edit opencode
 
-# Display environment config, bubblewrap / systemd-run representations, and service file
-sandbox-ctl analyse opencode
+# Display service file and environment configuration
+sandbox-ctl cat opencode
+
+# Run sandbox self-test diagnostics and engine checks
+sandbox-ctl selftest opencode
 
 # Service Control Commands:
 sandbox-ctl start opencode
@@ -55,6 +59,9 @@ sandbox-ctl enable opencode
 sandbox-ctl disable opencode
 sandbox-ctl logs opencode
 
+# Remove launcher files and run sandboxed uninstall hooks (preserves persistent data)
+sandbox-ctl uninstall opencode
+
 # Delete the persistent data/directories for opencode
 sandbox-ctl destroy opencode
 ```
@@ -63,7 +70,10 @@ sandbox-ctl destroy opencode
 
 When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox-ctl`), the script operates as a **transparent proxy**.
 
-- **Current Workdir**: If the current working directory is under `$HOME`, it is mapped to the corresponding path under the wrapped persistent home (`~/.local/sandbox/<app_name>`). If the current working directory is outside `$HOME` or is an explicitly mounted directory, it is mapped 1:1 inside the sandbox. No extra mounting is performed; if the directory does not exist, sandbox execution will fail.
+- **Current Workdir Resolution**: 
+  - If CWD is under host `$HOME/.local/sandbox/<app_name>`, it maps to `$HOME` or `$HOME/<subpath>` inside the sandbox.
+  - If CWD is under host `$HOME`, it maps to `$HOME/<subpath>` inside the sandbox.
+  - If CWD is under an explicitly mounted workspace (`work_dir`) or extra mount (`LAUNCHER_EXTRA_MOUNTS`), it is mapped 1:1 inside the sandbox.
 - **Direct Argument Propagation**: All arguments are passed directly to the original binary inside the sandbox.
 - E.g., calling `opencode --version` runs `opencode --version` inside the sandbox, and calling `git commit` runs `git commit` inside the sandbox.
 
@@ -71,22 +81,20 @@ When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox
 
 ## Sandbox Administration & Lifecycle
 
-The launcher provides several commands to manage your sandbox configurations:
-
-### `install [--no-git-config] [--new-config] [--no-start]`
+### `install [--no-git-config] [--new-config] [--new-config-from <path>] [--no-start]`
 
 Sets up:
 - the persistent sandbox home directory (`~/.local/sandbox/<app_name>`)
 - the workspace (`~/agent-private/<app_name>`)
 - creates the `.env` configuration file, establishes the symlink in `~/.local/bin/<app_name>`, generates the systemd user service unit file, and creates desktop files if `LAUNCHER_GUI=true` is configured.
-- by default, it copies your host's `~/.gitconfig` into the sandbox home to preserve your Git identity.
-    - Use `--no-git-config` to skip copying the Git configuration.
-- Use `--new-config` to force overwrite the environment configuration file with defaults.
+- copies your host's `~/.gitconfig` into the sandbox home to preserve your Git identity (unless `--no-git-config` is supplied).
+- **Sandboxed Install Hooks**: Executes all commands listed in `LAUNCHER_INSTALL_CMDS` sequentially **inside the sandbox**. Commands execute from first to last (logging warnings if an individual command fails) seeing only the sandboxed filesystem and environment.
 - Use `--no-start` to register files without automatically enabling/starting the service (if `LAUNCHER_SERVICE_ENABLED=true` is configured).
 
 ### `uninstall`
 
-Stops, disables, and removes the systemd user service file. It also removes the launcher symlink `~/.local/bin/<app_name>` and any desktop entries. Persistent data directories and the environment configuration file are preserved.
+Stops, disables, and removes the systemd user service file, launcher symlink `~/.local/bin/<app_name>`, and desktop entries.
+- **Sandboxed Uninstall Hooks**: Executes all commands listed in `LAUNCHER_UNINSTALL_CMDS` sequentially **inside the sandbox** to clean up installed modules or tools before removing configuration. Persistent data directories and environment files are preserved.
 
 ### `destroy`
 
@@ -97,9 +105,44 @@ Permanently deletes the persistent sandbox home directory (`~/.local/sandbox/<ap
 
 Opens the environment configuration file `~/.config/systemd/user/<app_name>.env` in the editor specified by your `$EDITOR` environment variable (defaults to `nano` if unset). If systemd is running and the service is active, restarts the service upon editor exit to apply the updated environment.
 
-### `analyse`
+### `cat`
 
-Displays the environment configuration file content, the bubblewrap CLI arguments representation, the systemd-run CLI arguments representation, and the generated systemd service file (if it exists) to help inspect and debug containment parameters.
+Prints the systemd service unit file and environment configuration file contents.
+
+### `selftest`
+
+Runs automated sanity checks and diagnostic tests for the application:
+1. **Config & Service File Audits**: Verifies that environment files and systemd service unit files exist and checks for raw/unresolved specifier strings (`%h`, `%H`, etc.).
+2. **Systemd Service Unit Status**: Queries and displays the systemd user service unit status via `systemctl --user status`.
+3. **Engine Diagnostic Execution**: Executes inline container diagnostics for **both execution engines** (`bwrap` and `systemd` if reachable):
+   - Working directory (`PWD`) and `UID`
+   - Real `$HOME` resolution (`HOME=$HOME`)
+   - Persistent home leak check (verifying `$HOME/.local/sandbox/<app_name>` does NOT exist inside the sandbox)
+   - `PATH` directory existence checks
+   - Key environment variables (`SHELL`, `XDG_RUNTIME_DIR`, `SSH_AUTH_SOCK`, `DISPLAY`, `WAYLAND_DISPLAY`)
+   - Unresolved specifier check in runtime environment (`env | grep -E "%[hHtSEuUbB]"`)
+
+---
+
+## Execution Engines & Engine Differences
+
+`sandbox-ctl` supports two execution engines configured via `LAUNCHER_ENGINE`:
+
+| Feature / Aspect | Systemd Engine (`LAUNCHER_ENGINE="systemd"`) | Bubblewrap Engine (`LAUNCHER_ENGINE="bwrap"`) |
+| :--- | :--- | :--- |
+| **Execution Tool** | `systemd-run --user` (transient scopes/services) | `bwrap` (Bubblewrap container executable) |
+| **Prerequisites** | Systemd user daemon socket reachable | `bwrap` binary installed in PATH |
+| **Persistent HOME** | Host `$HOME/.local/sandbox/<app>` -> `$HOME` | Host `$HOME/.local/sandbox/<app>` -> `$HOME` |
+| **Path Mounts** | `BindPaths` systemd properties | `--bind` Bubblewrap arguments |
+| **Environment Exports** | `Environment=` systemd properties | `--setenv` Bubblewrap arguments |
+| **Background Services** | Registered as native systemd user units | Executed under systemd service or wrapper |
+| **Resource Limits** | Native cgroups v2 containment | Managed by parent process tree / namespaces |
+| **Logging** | Systemd journal (`journalctl --user`) | Stdout/Stderr streaming |
+
+### Engine Selection (`LAUNCHER_ENGINE`)
+- `"auto"` (Default): Uses systemd if the systemd user manager socket is reachable; otherwise automatically falls back to `bwrap`.
+- `"systemd"`: Forces execution through systemd (`systemd-run`). Fails if systemd user socket is unreachable.
+- `"bwrap"`: Forces execution through Bubblewrap containers directly, bypassing systemd.
 
 ---
 
@@ -108,95 +151,155 @@ Displays the environment configuration file content, the bubblewrap CLI argument
 Each application's environment configuration file is stored on the host at:
 `~/.config/systemd/user/<app_name>.env`
 
-Sourcing this file automatically loads and exports variables into the sandbox. Note: For backward compatibility, installing or running a command automatically migrates any legacy environment files from `~/.local/sandbox/<app_name>.env` to the new path.
+Sourcing this file automatically loads and exports variables into the sandbox environment.
 
-### Detailed Configuration Option Documentation
-
-These variables can be defined in the application's environment configuration file on the host (`~/.config/systemd/user/<app_name>.env`):
+### Configuration Options Reference
 
 - **`LAUNCHER_ENGINE`** (Default: `"auto"`)
-  Configures the execution engine. Can be set to `auto` (detect systemd and fallback to bwrap), `systemd` (force systemd scope transient service execution), or `bwrap` (force bubblewrap container execution). Use `bwrap` if you need strict namespace isolation bypassing systemd, or `systemd` to force cgroups containment.
+  Configures the execution engine (`auto`, `systemd`, or `bwrap`).
 
 - **`DISABLE_XDG_RUNTIME`** (Default: `"false"`)
-  Disables binding the host's `$XDG_RUNTIME_DIR` entirely. This deactivates Wayland, Pipewire, PulseAudio, and DBus, forcing the application to run completely headless.
+  Disables binding the host's `$XDG_RUNTIME_DIR` entirely (deactivates Wayland, Pipewire, PulseAudio, DBus).
 
 - **`DISABLE_SSH_AUTH`** (Default: `"false"`)
-  Disables forwarding the host's SSH agent socket (`SSH_AUTH_SOCK`). This prevents the sandbox from accessing or using your host's SSH keys for Git commands or SSH connections.
+  Disables forwarding the host's SSH agent socket (`SSH_AUTH_SOCK`).
 
 - **`DISABLE_WAYLAND`** (Default: `"false"`)
-  Disables forwarding Wayland compositor sockets. The application will not be able to render window displays on a Wayland desktop (though it may fall back to X11 if `DISPLAY` is still set).
+  Disables forwarding Wayland compositor sockets.
 
 - **`DISABLE_AUDIO`** (Default: `"false"`)
-  Disables forwarding PulseAudio/Pipewire sockets. The application will have no audio playback or recording capabilities.
+  Disables forwarding PulseAudio/Pipewire sockets.
 
 - **`DISABLE_DBUS`** (Default: `"false"`)
-  Disables forwarding the DBus session socket. The application cannot send desktop notifications, interact with the system tray, query desktop themes, or communicate with other host desktop services (which significantly reduces host breakout risk).
+  Disables forwarding the DBus session socket.
 
 - **`DISABLE_IPC_SHARE`** (Default: `"true"`)
-  Disables host IPC namespace sharing. Set to `"true"` to isolate the IPC namespace for security, or `"false"` to share the host's IPC namespace. Sharing the IPC namespace is required for GPU/ROCm servers to communicate with host device drivers.
+  Disables host IPC namespace sharing (set to `"false"` for GPU/ROCm hardware IPC access).
 
 - **`DISABLE_PID_SHARE`** (Default: `"true"`)
-  Disables host PID namespace sharing. Set to `"true"` to isolate the PID namespace, or `"false"` to share the host's PID namespace. Sharing PIDs is rarely needed unless the sandboxed app must trace or inspect host processes.
+  Disables host PID namespace sharing.
 
 - **`DISABLE_HARDWARE`** (Default: `"false"`)
-  Disables access to host hardware and DRI/GPU devices. Set to `"true"` to isolate host hardware (runs completely headless using `--dev /dev` / `PrivateDevices=yes`), or `"false"` to allow host device access.
+  Disables access to host hardware and DRI/GPU devices (`PrivateDevices=yes` / `--dev /dev`).
 
 - **`LAUNCHER_PRIVATE_BASEPATH`** (Default: `"$HOME/agent-private"`)
-  Configures the base directory on the host where private workspaces are stored. Customize this if your workspaces reside on a separate drive or path.
+  Configures host base directory for private workspaces.
 
 - **`LAUNCHER_PRIVATE_MOUNTS`** (Default: `""`)
-  A space-separated list of relative directories under `LAUNCHER_PRIVATE_BASEPATH` to bind-mount. Use this to selectively expose specific workspace directories inside the sandbox.
+  Space-separated list of relative directories under `LAUNCHER_PRIVATE_BASEPATH` to bind-mount.
 
 - **`LAUNCHER_SANDBOX_MOUNTS`** (Default: `""`)
-  A space-separated list of other application sandboxes to expose. Format is `sandbox_name/subpath`. Use this when one sandboxed app must access specific folders in another app's persistent home.
+  Space-separated list of other sandboxes to expose (`sandbox_name/subpath`). Inside the container, this maps to `~/.local/sandbox/sandbox_name/subpath`.
 
 - **`LAUNCHER_EXTRA_MOUNTS`** (Default: `"$HOME/agent-shared:agent-shared /data/download:download"`)
-  A space-separated list of `host-path:sandbox-path` mount specifications. Use this to bind mount arbitrary host directories or files. Relative sandbox paths are mounted under the relocated home directory.
+  Space-separated list of `host-path:sandbox-path` mount specifications. Relative sandbox paths map under `$HOME`.
 
 - **`LAUNCHER_GUI`** (Default: `"false"`)
-  Enables graphical desktop entry integration. Set to `"true"` to automatically create a desktop entry launcher (`.desktop` file) under `~/.local/share/applications/` on install. Set to `"false"` to skip or remove it.
+  Enables desktop entry launcher (`.desktop` file) creation under `~/.local/share/applications/`.
 
-- **`LAUNCHER_GUI_NAME`** (Default: Capitalized `<app_name>`)
-  Specifies the display name inside the generated desktop entry.
-
-- **`LAUNCHER_GUI_COMMENT`** (Default: `"Sandboxed <app_name>"`)
-  Specifies the description/comment inside the generated desktop entry.
-
-- **`LAUNCHER_GUI_ICON`** (Default: `"<app_name>"`)
-  Specifies the application icon name inside the generated desktop entry.
-
-- **`LAUNCHER_GUI_CATEGORIES`** (Default: `"Utility;"`)
-  Specifies the desktop menu categories for the desktop entry.
-
-- **`LAUNCHER_GUI_TERMINAL`** (Default: `"false"`)
-  Specifies whether the graphical application requires running inside a terminal window.
-
-- **`LAUNCHER_APP_FLAGS`** (Default: `""`)
-  A list of command-line arguments to append when launching the real binary. Use this to pass mandatory startup flags (e.g. `--no-sandbox` for Electron-based apps).
-
-- **`LAUNCHER_DEFAULT_ARGS`** (Default: `""`)
-  Default arguments passed to the application if it is invoked with none. Use this to open a default folder or project.
-
-- **`LAUNCHER_INIT_DEFAULT_PROJECT`** (Default: `"false"`)
-  Automates repository initialization. Set to `"true"` to run `git init` on the default project workspace on install.
+- **`LAUNCHER_GUI_NAME`**, **`LAUNCHER_GUI_COMMENT`**, **`LAUNCHER_GUI_ICON`**, **`LAUNCHER_GUI_CATEGORIES`**, **`LAUNCHER_GUI_TERMINAL`**
+  Customize display properties for the generated desktop entry.
 
 - **`LAUNCHER_SERVICE_ENABLED`** (Default: `"false"`)
-  Enables the systemd user service. If `"true"`, the service will be enabled and started on installation or configuration updates.
+  Enables background systemd user service.
 
-- **`LAUNCHER_SERVICE_CMD`** (Default: `"sleep"`)
-  The main command/binary to run in the background as the primary service.
-
-- **`LAUNCHER_SERVICE_ARGS`** (Default: `"10"`)
-  The arguments passed to the primary service command.
+- **`LAUNCHER_SERVICE_CMD`** (Default: `"sleep"`), **`LAUNCHER_SERVICE_ARGS`** (Default: `"10"`)
+  The main background service command and arguments.
+  *Example service test configuration*:
+  ```bash
+  LAUNCHER_SERVICE_CMD="bash"
+  LAUNCHER_SERVICE_ARGS='-c "export; exec sleep infinity"'
+  ```
 
 - **`LAUNCHER_SIDECARS`** (Default: `"sleep"`)
-  A space- or semicolon-separated list of background sidecar processes to monitor and execute with the main service.
-
-- **`LAUNCHER_SIDECAR_<NAME>_CMD`**
-  The command or path to the sidecar executable (e.g. `LAUNCHER_SIDECAR_SLEEP_CMD="sleep"`).
-
-- **`LAUNCHER_SIDECAR_<NAME>_ARGS`**
-  The arguments to pass to the sidecar command (e.g. `LAUNCHER_SIDECAR_SLEEP_ARGS="10"`).
+  Space- or semicolon-separated list of background sidecar processes to monitor with the main service.
 
 - **`LAUNCHER_EXPORTS`** (Default: `()`)
-  A bash array containing key-value environment variable exports (e.g., `'KEY=VALUE'`) to be injected into the sandbox for all execution modes (service, run, exec, shell).
+  Bash array containing key-value environment variable exports (e.g. `'KEY=VALUE'`) injected into all execution modes.
+
+- **`LAUNCHER_INSTALL_CMDS`** (Default: `()`)
+  Bash array of commands executed **inside the sandbox** during `install`. Must be idempotent. Runs sequentially from first to last.
+
+- **`LAUNCHER_UNINSTALL_CMDS`** (Default: `()`)
+  Bash array of commands executed **inside the sandbox** during `uninstall` to clean up installed tools or packages.
+
+---
+
+## Complete Application Configuration Example (`opencode.env`)
+
+Below is a complete, annotated example environment configuration file (`~/.config/systemd/user/opencode.env`) demonstrating persistent home isolation, sandboxed install/uninstall hooks, background service options, and extra directory mounts:
+
+```bash
+# env configuration for opencode
+# This file is loaded by the sandbox launcher.
+
+# --- Execution Options ---
+# Configures the execution engine (auto, systemd, bwrap).
+# Set to 'systemd' to force cgroups containment or 'bwrap' to force bubblewrap container.
+# LAUNCHER_ENGINE="auto"
+
+# --- Hardening / Feature Flags (set to true to disable) ---
+# DISABLE_XDG_RUNTIME="false"   # Disable XDG runtime directory (Wayland, DBus, audio)
+DISABLE_SSH_AUTH="true"      # Disable SSH agent forwarding
+DISABLE_WAYLAND="true"       # Disable Wayland display access
+# DISABLE_AUDIO="false"         # Disable audio playback/recording
+DISABLE_DBUS="true"          # Disable DBus session bus communication
+
+# --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
+# DISABLE_HARDWARE="false"     # Isolate host GPU/DRI devices (set to true to run headless)
+# DISABLE_IPC_SHARE="true"     # Isolate IPC namespace (set to false for GPU/ROCm hardware)
+# DISABLE_PID_SHARE="true"     # Isolate PID namespace (set to false to share host PIDs, to enable trace or inspect of child processes)
+
+# --- Path / Directory Mounts ---
+# LAUNCHER_PRIVATE_BASEPATH="%h/agent-private"
+# LAUNCHER_PRIVATE_MOUNTS=""
+# LAUNCHER_SANDBOX_MOUNTS=""
+LAUNCHER_EXTRA_MOUNTS="%h/agent-shared:agent-shared /data/download:download"
+
+# --- Desktop / GUI Integration ---
+# LAUNCHER_GUI="false"            # Set to true to enable generating a desktop entry (.desktop file)
+# LAUNCHER_GUI_NAME=""
+# LAUNCHER_GUI_COMMENT="Sandboxed app"
+# LAUNCHER_GUI_ICON=""
+# LAUNCHER_GUI_CATEGORIES="Utility;"
+# LAUNCHER_GUI_TERMINAL="false"
+
+# --- Service & Sidecar Options ---
+# Set LAUNCHER_SERVICE_ENABLED="true" to enable background systemd service execution.
+# Example launcher service command that outputs environment exports and waits until stopped:
+LAUNCHER_SERVICE_ENABLED="true"
+LAUNCHER_SERVICE_CMD="bash"
+LAUNCHER_SERVICE_ARGS='-c "export; exec sleep infinity"'
+LAUNCHER_SIDECARS="sleep"
+LAUNCHER_SIDECAR_SLEEP_CMD="bash"
+LAUNCHER_SIDECAR_SLEEP_ARGS='-c "export; exec sleep infinity"'
+
+# --- Environment Variable Exports ---
+# List of environment variables to export into the sandbox environment
+# LAUNCHER_EXPORTS=(
+#   'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true'
+# )
+
+# --- Application Startup Options ---
+# LAUNCHER_APP_FLAGS=""     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
+# LAUNCHER_DEFAULT_ARGS=""   # Default args passed if none are provided (e.g. '$work_dir/default')
+LAUNCHER_INIT_DEFAULT_PROJECT="true" # Set to true to run 'git init' on the default project workspace
+
+# --- Install/Uninstall Hooks ---
+# Array of bash commands executed during install. Must be idempotent — should recreate everything needed as if it were a fresh install.
+LAUNCHER_INSTALL_CMDS=(
+   'cd $HOME/.config/opencode && bun install'
+   'cd $HOME/.config/opencode && bunx oh-my-opencode-slim install --no-tui --skills=yes --companion=no --background-subagents=no'
+   # 'cd $HOME/.config/opencode && npx @slkiser/opencode-quota init'
+   'uv tool install --force --refresh arbor-agent "openadapt[browser]" opencode-a2a'
+)
+
+# Array of bash commands executed during uninstall. Should clean up any files/directories created by LAUNCHER_INSTALL_CMDS.
+LAUNCHER_UNINSTALL_CMDS=(
+   'cd $HOME/.local/bin/ && rm -f arbor arbor-mcp coordinator executor openadapt review-research run-research'
+   'rm -rf $HOME/.local/share/uv'
+   'rm -rf $HOME/.config/opencode/node_modules'
+   'rm -rf $HOME/.cache/opencode/packages'
+   'cd $HOME/.config/opencode && rm -f bun.lock package-lock.json'
+)
+```

@@ -29,6 +29,10 @@ DEFAULT_LAUNCHER_GUI_TERMINAL="false"
 DEFAULT_LAUNCHER_APP_FLAGS=""
 DEFAULT_LAUNCHER_DEFAULT_ARGS=""
 DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT="false"
+# shellcheck disable=SC2034
+DEFAULT_LAUNCHER_INSTALL_CMDS=""
+# shellcheck disable=SC2034
+DEFAULT_LAUNCHER_UNINSTALL_CMDS=""
 
 # Service & Sidecar Default Constants
 DEFAULT_LAUNCHER_SERVICE_ENABLED="false"
@@ -117,50 +121,46 @@ fi
 # Helper: Display launcher help information
 show_help() {
     cat <<EOF
-Sandbox Launcher Help
+Sandbox-Ctl
 
 Usage when called directly ($LAUNCHER_NAME):
 
-$0 install <app_name> [opts]
+- install <app_name> [opts]
     - Setup sandbox, service files, and symlink in ~/.local/bin
     - Options:
         --no-git-config (skip copying .gitconfig)
-        --new-config (overwrite environment file)
+        --new-config (overwrite environment file with defaults)
+        --new-config-from <path> (copy environment file from path)
         --no-start (setup files without starting service)
-
-$0 uninstall <app_name>
+- uninstall <app_name>
     - Remove symlinks, desktop, and systemd service files (preserves data)
-
-$0 destroy <app_name>
+- destroy <app_name>
     - Delete persistent sandbox home and env file
-
-$0 edit <app_name>
+- edit <app_name>
     - Edit environment configuration file for app
-
-$0 analyse <app_name>
-    - Display env file content, bwrap args, systemd-run args, and service file
-
-$0 exec <app_name> [args...]
+- cat <app_name>
+    - Print service file and environment configuration
+- selftest <app_name>
+    - Print config (cat) then run sandbox diagnostics
+- exec <app_name> [args...]
     - Run the sandboxed application with optional args
-
-$0 run <app_name> <cmd> [args...]
+- run <app_name> <cmd> [args...]
     - Run a custom command inside the sandbox
-
-$0 shell <app_name>
+- shell <app_name>
     - Spawn an interactive shell inside the sandbox
 
 Service Control Commands:
-$0 start <app_name>     - Start the systemd user service
-$0 stop <app_name>      - Stop the systemd user service
-$0 restart <app_name>   - Restart the systemd user service
-$0 status <app_name>    - Show status of the systemd user service
-$0 enable <app_name>    - Enable systemd user service on boot
-$0 disable <app_name>   - Disable systemd user service on boot
-$0 logs <app_name>      - Tail systemd user service logs
+- start <app_name>     - Start the systemd user service
+- stop <app_name>      - Stop the systemd user service
+- restart <app_name>   - Restart the systemd user service
+- status <app_name>    - Show status of the systemd user service
+- enable <app_name>    - Enable systemd user service on boot
+- disable <app_name>   - Disable systemd user service on boot
+- logs <app_name>      - Tail systemd user service logs
 
 Usage when called as a symlink (e.g. <app_name>):
-  $0 [args...]                 - Run the sandboxed <app_name> with all arguments
-                                 passed transparently to the original binary
+  - [args...]          - Run the sandboxed <app_name> with all arguments
+                         passed transparently to the original binary
 
 EOF
 }
@@ -200,7 +200,7 @@ initialize_sandbox() {
 # Helper: Build unified sandbox configurations
 build_sandbox_config() {
     local target_mode="$1" # "systemd" or "bwrap"
-    local target_cwd="${2:-$persistent_home}"
+    local target_cwd="${2:-$HOME}"
 
     # Extract values from environment with defaults
     local disable_ipc_share="${DISABLE_IPC_SHARE:-$DEFAULT_DISABLE_IPC_SHARE}"
@@ -235,9 +235,9 @@ build_sandbox_config() {
 
         # Relocated HOME
         echo "TemporaryFileSystem=$HOME"
-        echo "BindPaths=$persistent_home:$persistent_home"
+        echo "BindPaths=$persistent_home:$HOME"
         echo "WorkingDirectory=$target_cwd"
-        echo "Environment=HOME=$persistent_home"
+        echo "Environment=HOME=$HOME"
 
         # LAUNCHER_EXPORTS
         if [[ ${#LAUNCHER_EXPORTS[@]} -gt 0 ]]; then
@@ -352,8 +352,8 @@ build_sandbox_config() {
                 local sandbox_name="${m%%/*}"
                 local subpath="${m#*/}"
                 mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-                mkdir -p "$persistent_home/${subpath}"
-                echo "BindPaths=$HOME/.local/sandbox/${sandbox_name}/${subpath}:$HOME/.local/sandbox/$app_name/${subpath}"
+                mkdir -p "$persistent_home/.local/sandbox/${sandbox_name}/${subpath}"
+                echo "BindPaths=$HOME/.local/sandbox/${sandbox_name}/${subpath}:$HOME/.local/sandbox/${sandbox_name}/${subpath}"
             fi
         done
 
@@ -375,9 +375,10 @@ build_sandbox_config() {
 
                 mkdir -p "$host_path" || true
 
-                # For host creation of target mount point
-                local real_target_path="$target_path"
-                if [[ "$real_target_path" == "$HOME/.local/sandbox/$app_name"/* ]]; then
+                # For host creation of target mount point inside persistent home
+                if [[ "$target_path" == "$HOME"/* ]]; then
+                    local rel_target="${target_path#"$HOME"/}"
+                    local real_target_path="$persistent_home/$rel_target"
                     if [[ -L "$real_target_path" ]]; then
                         rm -f "$real_target_path"
                     fi
@@ -392,8 +393,6 @@ build_sandbox_config() {
         # Return bubblewrap arguments (space-separated, line-by-line)
         echo "--die-with-parent"
         echo "--new-session"
-        echo "--cap-add"
-        echo "CAP_SYS_PTRACE"
         echo "--ro-bind"
         echo "/"
         echo "/"
@@ -410,13 +409,13 @@ build_sandbox_config() {
         echo "$HOME"
         echo "--bind"
         echo "$persistent_home"
-        echo "$persistent_home"
+        echo "$HOME"
         echo "--bind"
         echo "$work_dir"
         echo "$work_dir"
         echo "--setenv"
         echo "HOME"
-        echo "$persistent_home"
+        echo "$HOME"
 
         # LAUNCHER_EXPORTS
         if [[ ${#LAUNCHER_EXPORTS[@]} -gt 0 ]]; then
@@ -572,10 +571,10 @@ build_sandbox_config() {
                 local sandbox_name="${m%%/*}"
                 local subpath="${m#*/}"
                 mkdir -p "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-                mkdir -p "$persistent_home/${subpath}"
+                mkdir -p "$persistent_home/.local/sandbox/${sandbox_name}/${subpath}"
                 echo "--bind"
                 echo "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
-                echo "$persistent_home/${subpath}"
+                echo "$HOME/.local/sandbox/${sandbox_name}/${subpath}"
             fi
         done
 
@@ -592,14 +591,15 @@ build_sandbox_config() {
                 if [[ "$sandbox_path" == /* ]]; then
                     target_path="$sandbox_path"
                 else
-                    target_path="$persistent_home/$sandbox_path"
+                    target_path="$HOME/$sandbox_path"
                 fi
 
                 mkdir -p "$host_path" || true
 
-                # Ensure the mount point exists in the persistent home
-                local real_target_path="${target_path//%h/$HOME}"
-                if [[ "$real_target_path" == "$persistent_home"/* ]]; then
+                # Ensure the mount point exists in the persistent home on host
+                if [[ "$target_path" == "$HOME"/* ]]; then
+                    local rel_target="${target_path#"$HOME"/}"
+                    local real_target_path="$persistent_home/$rel_target"
                     if [[ -L "$real_target_path" ]]; then
                         rm -f "$real_target_path"
                     fi
@@ -646,16 +646,16 @@ run_sandbox() {
     if is_under "$cwd" "$persistent_home"; then
         is_mounted=true
         rel_path=$(realpath --relative-to="$persistent_home" "$cwd" 2>/dev/null || echo "")
-        if [[ "$rel_path" == "." ]]; then
-            target_cwd="$persistent_home"
+        if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
+            target_cwd="$HOME"
         else
-            target_cwd="$persistent_home/$rel_path"
+            target_cwd="$HOME/$rel_path"
         fi
     # 2. Check if CWD is under work_dir
     elif is_under "$cwd" "$work_dir"; then
         is_mounted=true
         rel_path=$(realpath --relative-to="$work_dir" "$cwd" 2>/dev/null || echo "")
-        if [[ "$rel_path" == "." ]]; then
+        if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
             target_cwd="$work_dir"
         else
             target_cwd="$work_dir/$rel_path"
@@ -680,14 +680,10 @@ run_sandbox() {
                     if [[ "$sandbox_path" == /* ]]; then
                         target_base="$sandbox_path"
                     else
-                        if [[ "$run_engine" == "systemd" ]]; then
-                            target_base="$HOME/$sandbox_path"
-                        else
-                            target_base="$persistent_home/$sandbox_path"
-                        fi
+                        target_base="$HOME/$sandbox_path"
                     fi
 
-                    if [[ "$rel_path" == "." ]]; then
+                    if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
                         target_cwd="$target_base"
                     else
                         target_cwd="$target_base/$rel_path"
@@ -711,7 +707,7 @@ run_sandbox() {
                 if is_under "$cwd" "$mount_path"; then
                     is_mounted=true
                     rel_path=$(realpath --relative-to="$mount_path" "$cwd" 2>/dev/null || echo "")
-                    if [[ "$rel_path" == "." ]]; then
+                    if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
                         target_cwd="$mount_path"
                     else
                         target_cwd="$mount_path/$rel_path"
@@ -729,7 +725,7 @@ run_sandbox() {
             if [[ -n "$p" ]] && is_under "$cwd" "$p"; then
                 is_mounted=true
                 rel_path=$(realpath --relative-to="$p" "$cwd" 2>/dev/null || echo "")
-                if [[ "$rel_path" == "." ]]; then
+                if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
                     target_cwd="$p"
                 else
                     target_cwd="$p/$rel_path"
@@ -748,13 +744,18 @@ run_sandbox() {
         rel_path=$(realpath --relative-to="$real_home" "$real_cwd" 2>/dev/null || echo "")
 
         if [[ -n "$rel_path" && "$rel_path" != ..* ]]; then
-            if [[ "$rel_path" == "." ]]; then
-                target_cwd="$persistent_home"
+            if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
+                target_cwd="$HOME"
             else
-                target_cwd="$persistent_home/$rel_path"
+                target_cwd="$HOME/$rel_path"
             fi
 
-            if [[ ! -d "$target_cwd" ]]; then
+            local check_host_dir="$persistent_home"
+            if [[ "$rel_path" != "." && -n "$rel_path" ]]; then
+                check_host_dir="$persistent_home/$rel_path"
+            fi
+
+            if [[ ! -d "$check_host_dir" ]]; then
                 echo "Warning: Current working directory '$cwd' is mapped to '$target_cwd' inside the sandbox, which does not exist." >&2
                 echo "This will likely cause the sandbox execution to fail." >&2
             fi
@@ -762,6 +763,10 @@ run_sandbox() {
             # Outside HOME
             target_cwd="$cwd"
         fi
+    fi
+
+    if [[ -z "$target_cwd" ]]; then
+        target_cwd="$HOME"
     fi
 
     # Construct cmd_args with LAUNCHER_APP_FLAGS if defined
@@ -793,7 +798,7 @@ run_sandbox() {
             fi
         done < <(build_sandbox_config systemd "$target_cwd")
         echo "Executing sandbox using systemd-run: ${cmd_args[*]}"
-        exec systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
+        systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
     else
         # 2. Run via bubblewrap
         # Ensure bubblewrap is installed on the host
@@ -812,7 +817,7 @@ run_sandbox() {
         # Add chdir to current working directory
         bwrap_args+=(--chdir "$target_cwd")
         echo "Executing sandbox using bwrap: ${cmd_args[*]}"
-        exec bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
+        bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
     fi
 }
 
@@ -820,15 +825,34 @@ run_sandbox() {
 cmd_install() {
     local no_git_config=false
     local new_config=false
+    local new_config_from=""
     local no_start=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
         --no-git-config) no_git_config=true ;;
         --new-config) new_config=true ;;
+        --new-config-from)
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo "Error: --new-config-from requires a path argument." >&2
+                exit 1
+            fi
+            new_config_from="$1"
+            if [[ ! -f "$new_config_from" || ! -r "$new_config_from" ]]; then
+                echo "Error: --new-config-from file '$new_config_from' does not exist or is not readable." >&2
+                exit 1
+            fi
+            ;;
         --no-start) no_start=true ;;
         esac
         shift
     done
+
+    # --new-config and --new-config-from are mutually exclusive
+    if [[ "$new_config" == "true" && -n "$new_config_from" ]]; then
+        echo "Error: --new-config and --new-config-from are mutually exclusive." >&2
+        exit 1
+    fi
 
     local bin_dir="$HOME/.local/bin"
     local script_target="$bin_dir/$LAUNCHER_NAME"
@@ -877,8 +901,16 @@ cmd_install() {
         echo "Symlink/file already exists at $symlink_target (skipping creation)."
     fi
 
-    # Create environment configuration file if missing or if --new-config is specified
-    if [[ ! -f "$env_file" || "$new_config" == "true" ]]; then
+    # Create or copy environment configuration file
+    if [[ -n "$new_config_from" ]]; then
+        echo "Copying environment file from $new_config_from to $env_file..."
+        mkdir -p "$(dirname "$env_file")"
+        cp "$new_config_from" "$env_file"
+        chmod 600 "$env_file"
+
+        # Re-source environment to load freshly copied settings
+        init_app_vars "$app_name"
+    elif [[ "$new_config" == "true" || ! -f "$env_file" ]]; then
         echo "Creating environment file at $env_file..."
         mkdir -p "$(dirname "$env_file")"
         cat >"$env_file" <<EOF
@@ -917,6 +949,10 @@ cmd_install() {
 # LAUNCHER_GUI_TERMINAL="${DEFAULT_LAUNCHER_GUI_TERMINAL}"
 
 # --- Service & Sidecar Options ---
+# Set LAUNCHER_SERVICE_ENABLED="true" to enable background systemd service execution.
+# Example launcher service command that outputs environment exports and waits until stopped:
+# LAUNCHER_SERVICE_CMD="bash"
+# LAUNCHER_SERVICE_ARGS='-c "export; exec sleep infinity"'
 LAUNCHER_SERVICE_ENABLED="${DEFAULT_LAUNCHER_SERVICE_ENABLED}"
 LAUNCHER_SERVICE_CMD="${DEFAULT_LAUNCHER_SERVICE_CMD}"
 LAUNCHER_SERVICE_ARGS="${DEFAULT_LAUNCHER_SERVICE_ARGS}"
@@ -934,6 +970,16 @@ LAUNCHER_SIDECAR_SLEEP_ARGS="${DEFAULT_LAUNCHER_SIDECAR_SLEEP_ARGS}"
 # LAUNCHER_APP_FLAGS="${DEFAULT_LAUNCHER_APP_FLAGS}"     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
 # LAUNCHER_DEFAULT_ARGS="${DEFAULT_LAUNCHER_DEFAULT_ARGS}"   # Default args passed if none are provided (e.g. '\$work_dir/default')
 # LAUNCHER_INIT_DEFAULT_PROJECT="${DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT}" # Set to true to run 'git init' on the default project workspace
+
+# --- Install/Uninstall Hooks ---
+# Array of bash commands executed during install. Must be idempotent — should recreate everything needed as if it were a fresh install.
+# LAUNCHER_INSTALL_CMDS=(
+#   'cp /path/to/source \$HOME/.local/whatever'
+# )
+# Array of bash commands executed during uninstall. Should clean up any files/directories created by LAUNCHER_INSTALL_CMDS.
+# LAUNCHER_UNINSTALL_CMDS=(
+#   'rm -f \$HOME/.local/whatever'
+# )
 
 EOF
         chmod 600 "$env_file"
@@ -978,6 +1024,19 @@ EOF
 
     # Generate systemd user service file
     write_service_file
+
+    # Execute LAUNCHER_INSTALL_CMDS inside sandbox if defined
+    if [[ -n "${LAUNCHER_INSTALL_CMDS[*]:-}" ]]; then
+        echo "Running LAUNCHER_INSTALL_CMDS inside sandbox..."
+        for install_cmd in "${LAUNCHER_INSTALL_CMDS[@]}"; do
+            if [[ -n "$install_cmd" ]]; then
+                echo "--> Sandbox install command: $install_cmd"
+                if ! run_sandbox /bin/bash -c "$install_cmd"; then
+                    echo "Warning: LAUNCHER_INSTALL_CMDS command failed: $install_cmd" >&2
+                fi
+            fi
+        done
+    fi
 
     if is_systemd_running; then
         if [[ "${LAUNCHER_SERVICE_ENABLED:-false}" == "true" || "${LAUNCHER_SERVICE_ENABLED:-false}" == "1" ]]; then
@@ -1186,6 +1245,19 @@ cmd_uninstall() {
         echo "Removed desktop entry: $desktop_file"
     fi
 
+    # Execute LAUNCHER_UNINSTALL_CMDS inside sandbox if defined
+    if [[ -n "${LAUNCHER_UNINSTALL_CMDS[*]:-}" ]]; then
+        echo "Running LAUNCHER_UNINSTALL_CMDS inside sandbox..."
+        for uninstall_cmd in "${LAUNCHER_UNINSTALL_CMDS[@]}"; do
+            if [[ -n "$uninstall_cmd" ]]; then
+                echo "--> Sandbox uninstall command: $uninstall_cmd"
+                if ! run_sandbox /bin/bash -c "$uninstall_cmd"; then
+                    echo "Warning: LAUNCHER_UNINSTALL_CMDS command failed: $uninstall_cmd" >&2
+                fi
+            fi
+        done
+    fi
+
     echo "Uninstallation complete!"
     echo "Persistent sandbox directories and environment file were NOT deleted: '$persistent_home'"
 }
@@ -1202,179 +1274,111 @@ cmd_destroy() {
     echo "Sandbox destruction for '$app_name' complete (workspace '$work_dir', and env file: $env_file was preserved)."
 }
 
-# Command: Analyse sandbox setup and print execution environment details
-cmd_analyse() {
-    echo "=== Sandbox Analysis for '$app_name' ==="
-    echo
-    if [[ -f "$env_file" ]]; then
-        echo "--- Environment File: $env_file ---"
-        cat "$env_file"
+# Command: Print service file and environment configuration
+cmd_cat() {
+    echo "=== Service File: ${SERVICE_FILE} ==="
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        cat "${SERVICE_FILE}"
     else
-        echo "--- Environment File: $env_file (Not Found) ---"
+        echo "(Service file does not exist. Run 'install' to create it.)"
     fi
-    echo
-
-    local real_bin
-    real_bin=$(find_real_binary "$app_name")
-    local target_bin="${real_bin:-$app_name}"
-
-    local cmd_args=()
-    cmd_args+=("$target_bin")
-    if [[ -n "${LAUNCHER_DEFAULT_ARGS:-$DEFAULT_LAUNCHER_DEFAULT_ARGS}" ]]; then
-        eval "cmd_args+=(${LAUNCHER_DEFAULT_ARGS:-$DEFAULT_LAUNCHER_DEFAULT_ARGS})"
-    fi
-
-    local cwd
-    cwd="$(pwd)"
-    local target_cwd=""
-    local is_mounted=false
-    local rel_path=""
-
-    if is_under "$cwd" "$persistent_home"; then
-        is_mounted=true
-        rel_path=$(realpath --relative-to="$persistent_home" "$cwd" 2>/dev/null || echo "")
-        if [[ "$rel_path" == "." ]]; then
-            target_cwd="$persistent_home"
-        else
-            target_cwd="$persistent_home/$rel_path"
-        fi
-    elif is_under "$cwd" "$work_dir"; then
-        is_mounted=true
-        rel_path=$(realpath --relative-to="$work_dir" "$cwd" 2>/dev/null || echo "")
-        if [[ "$rel_path" == "." ]]; then
-            target_cwd="$work_dir"
-        else
-            target_cwd="$work_dir/$rel_path"
-        fi
-    fi
-
-    if [[ "$is_mounted" == "false" ]]; then
-        local launcher_extra_mounts="${LAUNCHER_EXTRA_MOUNTS:-$DEFAULT_LAUNCHER_EXTRA_MOUNTS}"
-        for m in $launcher_extra_mounts; do
-            if [[ -n "$m" ]]; then
-                local host_path="${m%%:*}"
-                host_path="${host_path//%h/$HOME}"
-                host_path="${host_path//\~/$HOME}"
-                host_path="${host_path//\$HOME/$HOME}"
-                if is_under "$cwd" "$host_path"; then
-                    is_mounted=true
-                    rel_path=$(realpath --relative-to="$host_path" "$cwd" 2>/dev/null || echo "")
-
-                    local sandbox_path="${m#*:}"
-                    local target_base
-                    if [[ "$sandbox_path" == /* ]]; then
-                        target_base="$sandbox_path"
-                    else
-                        target_base="$persistent_home/$sandbox_path"
-                    fi
-
-                    if [[ "$rel_path" == "." ]]; then
-                        target_cwd="$target_base"
-                    else
-                        target_cwd="$target_base/$rel_path"
-                    fi
-                    break
-                fi
-            fi
-        done
-    fi
-
-    if [[ "$is_mounted" == "false" ]]; then
-        local launcher_private_mounts="${LAUNCHER_PRIVATE_MOUNTS:-$DEFAULT_LAUNCHER_PRIVATE_MOUNTS}"
-        local launcher_private_basepath="${LAUNCHER_PRIVATE_BASEPATH:-}"
-        if [[ -z "$launcher_private_basepath" ]]; then
-            launcher_private_basepath=$(resolve_path "$DEFAULT_LAUNCHER_PRIVATE_BASEPATH")
-        fi
-        for m in $launcher_private_mounts; do
-            if [[ -n "$m" ]]; then
-                local mount_path="$launcher_private_basepath/$m"
-                if is_under "$cwd" "$mount_path"; then
-                    is_mounted=true
-                    rel_path=$(realpath --relative-to="$mount_path" "$cwd" 2>/dev/null || echo "")
-                    if [[ "$rel_path" == "." ]]; then
-                        target_cwd="$mount_path"
-                    else
-                        target_cwd="$mount_path/$rel_path"
-                    fi
-                    break
-                fi
-            fi
-        done
-    fi
-
-    if [[ "$is_mounted" == "false" ]]; then
-        local real_home
-        real_home="$(realpath "$HOME")"
-        local real_cwd
-        real_cwd="$(realpath "$cwd")"
-        rel_path=$(realpath --relative-to="$real_home" "$real_cwd" 2>/dev/null || echo "")
-
-        if [[ -n "$rel_path" && "$rel_path" != ..* ]]; then
-            if [[ "$rel_path" == "." ]]; then
-                target_cwd="$persistent_home"
-            else
-                target_cwd="$persistent_home/$rel_path"
-            fi
-        else
-            target_cwd="$cwd"
-        fi
-    fi
-
-    echo "--- Mapped Working Directory ---"
-    echo "Host CWD: $cwd"
-    echo "Sandbox CWD: $target_cwd"
-    echo
-
-    echo "--- Bubblewrap (bwrap) Arguments ---"
-    if command -v bwrap >/dev/null 2>&1; then
-        local bwrap_args=()
-        while IFS= read -r arg; do
-            if [[ -n "$arg" ]]; then
-                bwrap_args+=("$arg")
-            fi
-        done < <(build_sandbox_config bwrap)
-        echo "bwrap \\"
-        for arg in "${bwrap_args[@]}"; do
-            echo "  $arg \\"
-        done
-        echo "  --chdir \"$target_cwd\" \\"
-        echo "  ${cmd_args[*]}"
+    echo ""
+    echo "=== Environment File: ${env_file} ==="
+    if [[ -f "${env_file}" ]]; then
+        cat "${env_file}"
     else
-        echo "Bubblewrap is not installed on this host."
+        echo "(Environment file does not exist. Run 'install' to create it.)"
     fi
-    echo
+}
 
-    echo "--- Transient systemd-run Arguments ---"
+# Command: Self-test — audit service unit file, systemd service status, and transient execution for both engines
+cmd_selftest() {
+    echo "=== SELF-TEST SANITY CHECKS: ${app_name} ==="
+    echo ""
+    echo "--- Config & Service File Audits ---"
+    if [[ -f "${env_file}" ]]; then
+        echo "OK: Environment file exists at ${env_file}"
+        if grep -E "%[hHtSEuUbB]" "${env_file}" >/dev/null 2>&1; then
+            echo "WARNING: Raw specifiers detected in environment file ${env_file}:"
+            grep -E "%[hHtSEuUbB]" "${env_file}" || true
+        else
+            echo "OK: Environment file has no unresolved specifiers."
+        fi
+    else
+        echo "WARNING: Environment file missing at ${env_file}"
+    fi
+
+    if [[ -f "${SERVICE_FILE}" ]]; then
+        echo "OK: Systemd service unit file exists at ${SERVICE_FILE}"
+        if grep -E "%[hHtSEuUbB]" "${SERVICE_FILE}" | grep -v 'EnvironmentFile=' >/dev/null 2>&1; then
+            echo "WARNING: Raw specifiers detected in service unit file ${SERVICE_FILE}:"
+            grep -E "%[hHtSEuUbB]" "${SERVICE_FILE}" | grep -v 'EnvironmentFile=' || true
+        else
+            echo "OK: Service file has no unresolved specifiers."
+        fi
+    else
+        echo "INFO: Service file not found at ${SERVICE_FILE} (run 'install' to generate)."
+    fi
+
+    echo ""
+    echo "--- Systemd Service Unit Status ---"
     if is_systemd_running; then
-        local systemd_opts=(
-            --user
-            --pty
-            --wait
-            --collect
-            --quiet
-            -p "Type=exec"
-        )
-        while IFS= read -r prop; do
-            if [[ -n "$prop" ]]; then
-                systemd_opts+=(-p "$prop")
-            fi
-        done < <(build_sandbox_config systemd "$target_cwd")
-        echo "systemd-run \\"
-        for opt in "${systemd_opts[@]}"; do
-            echo "  $opt \\"
-        done
-        echo "  ${cmd_args[*]}"
+        systemctl --user status "${SERVICE_NAME}.service" --no-pager || true
     else
-        echo "systemd user manager is not running/reachable."
+        echo "INFO: Systemd user manager is not running/reachable."
     fi
-    echo
 
-    if [[ -f "$SERVICE_FILE" ]]; then
-        echo "--- Service File: $SERVICE_FILE ---"
-        cat "$SERVICE_FILE"
+    # shellcheck disable=SC2016
+    local run_diag_script='
+echo "  PWD:  $(pwd)"
+echo "  HOME: $HOME"
+echo "  UID:  $(id -u)"
+if [ -d "$HOME/.local/sandbox/'"$app_name"'" ]; then
+    echo "  LEAK WARNING: $HOME/.local/sandbox/'"$app_name"' exists inside the sandbox!"
+else
+    echo "  OK: .local/sandbox/'"$app_name"' is NOT accessible/visible inside sandbox."
+fi
+echo "  PATH check:"
+echo "$PATH" | tr ":" "\n" | while read -r entry; do
+    if [ -d "$entry" ]; then
+        echo "    OK   $entry"
     else
-        echo "--- Service File: $SERVICE_FILE (Not Found) ---"
+        echo "    MISS $entry"
     fi
+done
+echo "  Key Environment:"
+echo "    SHELL=${SHELL:-unset}"
+echo "    XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
+echo "    SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-unset}"
+echo "    DISPLAY=${DISPLAY:-unset}"
+echo "    WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
+echo "  Specifier Check:"
+env | grep -E "%[hHtSEuUbB]" || echo "    OK: no unresolved specifiers in environment"
+'
+
+    echo ""
+    echo "=== TRANSIENT EXECUTION DIAGNOSTICS ==="
+    local orig_engine="${LAUNCHER_ENGINE:-auto}"
+
+    if command -v bwrap >/dev/null 2>&1; then
+        echo ""
+        echo "--- Testing Bubblewrap (bwrap) Engine ---"
+        LAUNCHER_ENGINE="bwrap" run_sandbox /bin/bash -c "$run_diag_script" || echo "ERROR: bwrap selftest failed"
+    else
+        echo "INFO: Bubblewrap (bwrap) binary not found on host."
+    fi
+
+    if is_systemd_running; then
+        echo ""
+        echo "--- Testing Systemd Transient Engine ---"
+        LAUNCHER_ENGINE="systemd" run_sandbox /bin/bash -c "$run_diag_script" || echo "ERROR: systemd selftest failed"
+    else
+        echo "INFO: Systemd user manager not reachable, skipping systemd engine transient selftest."
+    fi
+
+    export LAUNCHER_ENGINE="$orig_engine"
+    echo ""
+    echo "=== SELFTEST COMPLETE ==="
 }
 
 cmd_start() {
@@ -1476,15 +1480,14 @@ main() {
         destroy)
             cmd_destroy
             ;;
-        env)
-            echo "Warning: command 'env' is deprecated, please use 'edit' instead." >&2
-            cmd_edit
-            ;;
         edit)
             cmd_edit
             ;;
-        analyse)
-            cmd_analyse
+        cat)
+            cmd_cat
+            ;;
+        selftest)
+            cmd_selftest
             ;;
         start)
             cmd_start
