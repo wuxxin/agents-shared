@@ -60,7 +60,7 @@ The local service runs **`prithivMLmods/Qwen3-Reranker-0.6B`** in Q4_K_M GGUF fo
 
 Key specifications:
   - **Architecture**: Qwen3-0.6B decoder + binary classification head (1024-dim → 2-dim yes/no logits)
-  - **Context Size**: 40,960 tokens (served at 16,384 for VRAM efficiency)
+  - **Context Size**: 40,960 tokens (served at 12,288 for VRAM efficiency)
   - **BEIR nDCG@10 (English)**: ~58.2
   - **License**: Apache 2.0
   - **Backend**: llama-server with `--reranking`

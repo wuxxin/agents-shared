@@ -6,13 +6,13 @@ This document aggregates detailed memory requirements and allocations for local 
 
 - Local LLM Service ([local-chat.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-chat.sh) / `llama-server`)
 Serves chat and vision.
-  - **Model:** `Qwen3.6-35B-A3B-APEX-I-Compact` (LLM: ~17.0 GiB GGUF, mmproj: ~861 MiB)
+  - **Model:** `Agents-A1-APEX-I-Compact` (Qwen3.6-35B-A3B finetune, LLM: ~17.0 GiB GGUF, mmproj: ~861 MiB)
 - Local Embedding Service ([local-embedding.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-embedding.sh) / `llama-server`)
 Serves text embeddings.
   - **Model:** `Qwen3-Embedding-0.6B` (596M, Q8_0 GGUF from iyanello, causal decoder, last-token pooling, 32K ctx, 6×8K true parallel, Q8_0 KV cache [6 partitions × 8K])
 - Local Rerank Service ([local-rerank.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-rerank.sh) / `llama-server` or `text-embeddings-router`)
 Serves document reranking.
-  - **Model (active):** `Qwen3-Reranker-0.6B` (596M, Q4_K_M GGUF, Qwen3 decoder + binary classification head, 16K ctx, unified KV cache, 2×16K sequential slots, Cohere-compatible `/v1/rerank` scores)
+  - **Model (active):** `Qwen3-Reranker-0.6B` (596M, Q4_K_M GGUF, Qwen3 decoder + binary classification head, 12K ctx, unified KV cache, 2×12K sequential slots, Cohere-compatible `/v1/rerank` scores)
   - **Model (alternative):** `ettin-reranker-400m-v1` (~0.8 GB Safetensors, served via TEI, 1×8K batch, ModernBERT backbone, native `/v1/rerank` scores)
 - Local Speech-to-Text ([local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh) / `whisper-server`)
 Serves audio transcription.

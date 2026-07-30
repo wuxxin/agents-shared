@@ -95,7 +95,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_hip-combi-ROCm0`
 - **Device Setting:** `ROCm0`
 - **Special Setting:** `Layers: 999`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `HIP-COMBI-ROCM0`
 - **GPU Memory Used:** 20346.8 MB
 - **CPU Memory Used:** 81.4 MB
@@ -113,8 +113,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="true"`
   - `LCHAT_EXTRA_ARGS=""`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
@@ -175,8 +175,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="true"`
   - `LCHAT_EXTRA_ARGS=""`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
@@ -216,7 +216,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_hip-ROCm0`
 - **Device Setting:** `ROCm0`
 - **Special Setting:** `Layers: 999`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `HIP-ROCM0`
 - **GPU Memory Used:** 18872.9 MB
 - **CPU Memory Used:** 79.8 MB
@@ -236,7 +236,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ=""`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_MTP=""`
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
@@ -348,8 +348,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="false"`
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
   - `LCHAT_PORT="50080"`
@@ -408,9 +408,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_DEVICE="vulkan0"`
   - `LRR_LLAMA_EXTRA_ARGS=""`
   - `LRR_LLAMA_MODEL="/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"`
-  - `LRR_LLAMA_N_CTX="16384"`
+  - `LRR_LLAMA_N_CTX="12288"`
   - `LRR_LLAMA_N_GPU_LAYERS="999"`
-  - `LRR_LLAMA_N_UBATCH="16384"`
+  - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="99"`
@@ -521,7 +521,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_vulkan-Vulkan0`
 - **Device Setting:** `Vulkan0`
 - **Special Setting:** `Layers: 999 (Context: 20%)`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `VULKAN-VULKAN0`
 - **GPU Memory Used:** 14416.1 MB
 - **CPU Memory Used:** 63.4 MB
@@ -541,7 +541,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ=""`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_MTP=""`
   - `LCHAT_N_CTX="48076"`
   - `LCHAT_N_GPU_LAYERS="999"`
@@ -651,8 +651,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="false"`
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
   - `LCHAT_PORT="50080"`
@@ -711,9 +711,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_DEVICE="vulkan0"`
   - `LRR_LLAMA_EXTRA_ARGS=""`
   - `LRR_LLAMA_MODEL="/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"`
-  - `LRR_LLAMA_N_CTX="16384"`
+  - `LRR_LLAMA_N_CTX="12288"`
   - `LRR_LLAMA_N_GPU_LAYERS="999"`
-  - `LRR_LLAMA_N_UBATCH="16384"`
+  - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="99"`
@@ -822,7 +822,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_vulkan-Vulkan1`
 - **Device Setting:** `Vulkan1`
 - **Special Setting:** `Layers: 999`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `VULKAN-VULKAN1`
 - **GPU Memory Used:** 17894.6 MB
 - **CPU Memory Used:** 63.8 MB
@@ -842,7 +842,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ=""`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_MTP=""`
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
@@ -953,8 +953,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="false"`
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
   - `LCHAT_PORT="50080"`
@@ -1013,9 +1013,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_DEVICE="vulkan0"`
   - `LRR_LLAMA_EXTRA_ARGS=""`
   - `LRR_LLAMA_MODEL="/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"`
-  - `LRR_LLAMA_N_CTX="16384"`
+  - `LRR_LLAMA_N_CTX="12288"`
   - `LRR_LLAMA_N_GPU_LAYERS="999"`
-  - `LRR_LLAMA_N_UBATCH="16384"`
+  - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="99"`
@@ -1124,7 +1124,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_cpu`
 - **Device Setting:** `none`
 - **Special Setting:** `Layers: 0 (Context: 5%)`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `CPU`
 - **GPU Memory Used:** 0.1 MB
 - **CPU Memory Used:** 63.1 MB
@@ -1144,7 +1144,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ=""`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_MTP=""`
   - `LCHAT_N_CTX="12019"`
   - `LCHAT_N_GPU_LAYERS="0"`
@@ -1255,8 +1255,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="false"`
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
   - `LCHAT_PORT="50080"`
@@ -1315,9 +1315,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_DEVICE="vulkan0"`
   - `LRR_LLAMA_EXTRA_ARGS=""`
   - `LRR_LLAMA_MODEL="/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"`
-  - `LRR_LLAMA_N_CTX="16384"`
+  - `LRR_LLAMA_N_CTX="12288"`
   - `LRR_LLAMA_N_GPU_LAYERS="999"`
-  - `LRR_LLAMA_N_UBATCH="16384"`
+  - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="0"`
@@ -1426,7 +1426,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_cpu-blas`
 - **Device Setting:** `BLAS`
 - **Special Setting:** `Layers: 0 (Context: 5%)`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `CPU-BLAS`
 - **GPU Memory Used:** 0.1 MB
 - **CPU Memory Used:** 63.4 MB
@@ -1446,7 +1446,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ=""`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_MTP=""`
   - `LCHAT_N_CTX="12019"`
   - `LCHAT_N_GPU_LAYERS="0"`
@@ -1557,8 +1557,8 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EMBEDDING_ENABLED="false"`
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact-mmproj.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
   - `LCHAT_PORT="50080"`
@@ -1617,9 +1617,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_DEVICE="vulkan0"`
   - `LRR_LLAMA_EXTRA_ARGS=""`
   - `LRR_LLAMA_MODEL="/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"`
-  - `LRR_LLAMA_N_CTX="16384"`
+  - `LRR_LLAMA_N_CTX="12288"`
   - `LRR_LLAMA_N_GPU_LAYERS="999"`
-  - `LRR_LLAMA_N_UBATCH="16384"`
+  - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="0"`
@@ -1854,7 +1854,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Benchmark Test Name:** `chat_running`
 - **Device Setting:** `running on host`
 - **Special Setting:** `unknown`
-- **Model:** `qwen3` (`Qwen3.6-35B-A3B-APEX-I-Compact`)
+- **Model:** `qwen3` (`Agents-A1-APEX-I-Compact`)
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
@@ -1871,7 +1871,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
   - `LCHAT_HOST="127.0.0.1"`
   - `LCHAT_MMPROJ=""`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
+  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf"`
   - `LCHAT_MTP=""`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="2"`
@@ -1970,9 +1970,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_DEVICE="vulkan0"`
   - `LRR_LLAMA_EXTRA_ARGS=""`
   - `LRR_LLAMA_MODEL="/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"`
-  - `LRR_LLAMA_N_CTX="16384"`
+  - `LRR_LLAMA_N_CTX="12288"`
   - `LRR_LLAMA_N_GPU_LAYERS="999"`
-  - `LRR_LLAMA_N_UBATCH="16384"`
+  - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_PORT="50086"`

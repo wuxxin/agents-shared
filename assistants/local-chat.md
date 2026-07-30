@@ -63,7 +63,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ### Default LLM Model
 
-The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat and vision model.
+The local service runs **`Agents-A1-APEX-I-Compact`** (a Qwen3.6-35B-A3B agent-optimized finetune) as its primary chat and vision model.
 
 #### Service Configuration Defaults
 
@@ -73,7 +73,7 @@ The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat 
 | `LCHAT_PARALLEL` | `2` | Concurrent chat slots |
 | `LCHAT_EXTRA_ARGS` | `--temp 0.6 --top-k 20 --repeat-penalty 1.1` | agentic workload tuning |
 
-#### Architecture (Qwen3.6-35B-A3B)
+#### Architecture (Agents-A1 / Qwen3.6-35B-A3B)
 
 | Attribute                  | Value |
 |----------------------------|-------|
@@ -89,7 +89,7 @@ The local service runs **`Qwen3.6-35B-A3B-APEX-I-Compact`** as its primary chat 
 | **Multimodal Inputs**      | Text, Image, Video |
 
 GGUF File (APEX-I-Compact):
-- **File:** `Qwen3.6-35B-A3B-APEX-I-Compact.gguf`
+- **File:** `Agents-A1-APEX-I-Compact.gguf`
 - **File Size:** ~17 GiB on disk
 - **Quantization:** APEX-I-Compact — specialized Mixture-of-Experts adaptive quantization using importance matrix calibration.
 
@@ -105,7 +105,7 @@ Key specifications and limits:
 
 ### Thinking and Reasoning Capabilities
 
-The local **`Qwen3.6-35B-A3B-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning.
+The local **`Agents-A1-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning.
 
 - **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
 - **Default Behavior**: In our customized template, `enable_thinking` defaults to **`false`** (thinking off/none by default) to keep background memory queries, extraction, and verification tasks fast, cheap, and robust.
@@ -346,7 +346,7 @@ LCHAT_EXTRA_ARGS="--tensor-split 1,1 --main-gpu 1"
 By default, the service enables **Multi-Token Prediction (MTP)** speculative decoding using a standalone `Q8_0` MTP draft head file to accelerate text generation.
 
 #### How MTP Speculation Works:
-* **Standalone Draft Head Addon**: The service pairs the primary `Qwen3.6-35B-A3B-APEX-I-Compact.gguf` model with `Qwen3.6-35B-A3B-MTP-ONLY.gguf` (acquired from [`IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY`](https://huggingface.co/IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY), `Q8_0` ~855 MiB).
+* **Standalone Draft Head Addon**: The service pairs the primary `Agents-A1-APEX-I-Compact.gguf` model with `Qwen3.6-35B-A3B-MTP-ONLY.gguf` (acquired from [`IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY`](https://huggingface.co/IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY), `Q8_0` ~855 MiB).
 * **Mechanism**: During each forward step, the MTP draft head takes the 2048-dimensional hidden state ($h_t$) from the final layer of the base model and predicts candidate future tokens ($w_{t+1}, w_{t+2}$) in $<1\text{ ms}$. The target model verifies all candidate tokens in parallel in a single batched forward pass.
 * **Performance & VRAM**: Provides a **~1.45x to 1.75x speedup** across all prompt types (prose, coding, tool-calling, and reasoning) with minimal VRAM overhead (~17.8 GiB total VRAM with `mmproj`).
 

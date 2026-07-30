@@ -50,8 +50,8 @@ load_env() {
 
     # llama-server parameters (legacy, conservative defaults)
     LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
-    LRR_LLAMA_N_CTX=16384
-    LRR_LLAMA_N_UBATCH=16384
+    LRR_LLAMA_N_CTX=12288
+    LRR_LLAMA_N_UBATCH=12288
     LRR_LLAMA_N_GPU_LAYERS=99
     LRR_LLAMA_THREADS=8
     LRR_LLAMA_PARALLEL=2
