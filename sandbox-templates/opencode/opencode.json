@@ -18,9 +18,35 @@
     ]
   ],
   "lsp": true,
+  "formatter": {
+    "shfmt": {
+      "command": ["shfmt", "-i", "4", "-w", "$FILE"]
+    },
+    "ruff": {
+      "command": ["ruff", "format", "$FILE"]
+    }
+  },
   "provider": {
     "deepseek": {},
-    "google-agy": {}
+    "google-agy": {},
+    "local-inference": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Local Inference",
+      "options": {
+        "baseURL": "http://localhost:51080/v1"
+      },
+      "models": {
+        "qwen3": {
+          "name": "Qwen3",
+          "limit": { "context": 120192, "output": 16384 }
+        },
+        "qwen3-thinking": {
+          "name": "Qwen3 Thinking",
+          "limit": { "context": 120192, "output": 16384 },
+          "capabilities": { "thinking": true }
+        }
+      }
+    }
   },
   "mcp": {
     "sequential-thinking": {
@@ -30,14 +56,6 @@
     "arbor": {
       "type": "local",
       "command": ["arbor", "mcp"]
-    },
-    "openadapt": {
-      "type": "local",
-      "command": ["openadapt", "mcp"]
-    },
-    "a2a": {
-      "type": "local",
-      "command": ["opencode-a2a", "mcp"]
     },
     "hindsight": {
       "type": "local",
