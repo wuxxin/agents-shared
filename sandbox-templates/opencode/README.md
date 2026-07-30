@@ -94,11 +94,28 @@ Memory banks are named using agent role namespaces: `opencode-{agent}` (e.g., `o
   {
     "hindsightApiUrl": "http://localhost:8888",
     "dynamicBankId": true,
-    "dynamicBankGranularity": ["agent", "gitProject"],
-    "enableKnowledgePages": true
+    "dynamicBankGranularity": ["agent"],
+    "retainTags": ["{session_id}", "project:{project}"],
+    "retainMetadata": { "project": "{project}" },
+    "enableKnowledgePages": true,
+    "recallBudget": "low",
+    "recallMaxTokens": 1024,
+    "minRecallPromptChars": 15,
+    "retainEveryNTurns": 10,
+    "injectToast": true
   }
 ]
 ```
+
+### Resource Optimization Settings (Local dGPU Hindsight)
+
+| Setting | Customized Value | Standard Default | Description / Impact |
+|---|---|---|---|
+| `recallBudget` | `"low"` | `"mid"` | Reduced search/thinking budget spent by local LLM during memory retrieval. |
+| `recallMaxTokens` | `1024` | `1024` | Caps memory context payload size injected per turn. |
+| `minRecallPromptChars` | `15` | `5` | Skips auto-recall on short/trivial user prompts (e.g. "ok", "yes", "run tests"). |
+| `retainEveryNTurns` | `10` | `10` | Frequency of auto-retention passes (runs every N user turns). |
+| `injectToast` | `true` | `false` | Displays a TUI notification toast when memory is injected into conversation context. |
 
 What is `enableKnowledgePage`?
 

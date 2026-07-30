@@ -18,9 +18,10 @@
         "retainMetadata": { "project": "{project}" },
         "enableKnowledgePages": true,
         "recallBudget": "low",
-        "recallMaxTokens": 512,
+        "recallMaxTokens": 1024,
         "minRecallPromptChars": 15,
-        "retainEveryNTurns": 15
+        "retainEveryNTurns": 10,
+        "injectToast": true
       }
     ]
   ],

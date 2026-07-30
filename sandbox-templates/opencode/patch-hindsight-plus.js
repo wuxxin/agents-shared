@@ -15,8 +15,8 @@ if (!fs.existsSync(distPath)) {
 
 let code = fs.readFileSync(distPath, 'utf8');
 
-// Patch 1: Dynamic gitProject / project_id resolution in buildRetainTemplateVars
-const oldTemplateVars = `function buildRetainTemplateVars(input) {
+// Patch buildRetainTemplateVars to use `basename` (not `path.basename`) and inject dynamic project variables
+const targetOld = `function buildRetainTemplateVars(input) {
   const now = input.now ?? /* @__PURE__ */ new Date();
   const timestamp = now.toISOString().replace(/\\.\\d{3}Z$/, "Z");
   return {
@@ -27,11 +27,11 @@ const oldTemplateVars = `function buildRetainTemplateVars(input) {
   };
 }`;
 
-const newTemplateVars = `function buildRetainTemplateVars(input) {
+const patchedVars = `function buildRetainTemplateVars(input) {
   const now = input.now ?? /* @__PURE__ */ new Date();
   const timestamp = now.toISOString().replace(/\\.\\d{3}Z$/, "Z");
   const dir = input.directory || process.cwd();
-  const gitProj = deriveGitProjectName(dir, true) || (dir ? path.basename(dir) : "unknown");
+  const gitProj = deriveGitProjectName(dir, true) || (dir ? basename(dir) : "unknown");
   return {
     session_id: input.sessionId,
     bank_id: input.bankId,
@@ -42,16 +42,24 @@ const newTemplateVars = `function buildRetainTemplateVars(input) {
   };
 }`;
 
-if (code.includes(oldTemplateVars)) {
-    code = code.replace(oldTemplateVars, newTemplateVars);
+if (code.includes('gitProject: gitProj')) {
+    // Replace existing broken patch if present
+    code = code.replace(
+        /function buildRetainTemplateVars\(input\) \{[\s\S]*?\n\}/,
+        patchedVars
+    );
     fs.writeFileSync(distPath, code, 'utf8');
     console.log(
-        '[patch-hindsight-plus] Successfully patched buildRetainTemplateVars for dynamic project tagging.'
+        '[patch-hindsight-plus] Successfully updated buildRetainTemplateVars with correct scope bindings.'
     );
-} else if (code.includes('gitProject: gitProj')) {
-    console.log('[patch-hindsight-plus] Already patched.');
+} else if (code.includes(targetOld)) {
+    code = code.replace(targetOld, patchedVars);
+    fs.writeFileSync(distPath, code, 'utf8');
+    console.log(
+        '[patch-hindsight-plus] Successfully applied buildRetainTemplateVars patch.'
+    );
 } else {
     console.warn(
-        '[patch-hindsight-plus] Warning: Target template pattern not matched.'
+        '[patch-hindsight-plus] Target template function not matched.'
     );
 }
