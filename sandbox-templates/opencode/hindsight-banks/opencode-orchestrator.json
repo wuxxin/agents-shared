@@ -1,7 +1,7 @@
 {
   "version": "1",
   "bank": {
-    "retain_mission": "Extract overall project goals, high-level task breakdowns, session handoffs, subagent assignments, major milestone completions, and user preferences for workflow execution. Ignore minor syntax debugging and transient command outputs.",
+    "retain_mission": "Extract overall project goals, high-level task breakdowns, session handoffs, subagent assignments, major milestone completions, and user execution preferences. Ignore intermediate subagent thought process text, raw terminal outputs, and line-level code patches.",
     "enable_observations": true,
     "observations_mission": "Track active project progress, ongoing task state, overall architectural roadmap, and multi-agent coordination history over time.",
     "reflect_mission": "Synthesize an executive summary of current project status, upcoming goals, active subagent assignments, key user constraints, and recent session handoffs."

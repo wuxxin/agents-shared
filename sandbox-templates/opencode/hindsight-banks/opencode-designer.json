@@ -1,25 +1,25 @@
 {
   "version": "1",
   "bank": {
-    "retain_mission": "Extract UI component specifications, design system tokens (colors, typography, spacing), responsive layout rules, accessibility constraints, animation guidelines, and visual feedback notes. Ignore raw HTML boilerplate.",
+    "retain_mission": "Extract curated design system tokens (colors, font families, spacing standards), brand visual rules, responsive layout guidelines, and accessibility constraints. Ignore raw HTML DOM trees, accessibility node dumps, and transient CSS snippets (which openadapt inspects live).",
     "enable_observations": true,
-    "observations_mission": "Track design system evolution, component hierarchy, brand visual guidelines, and UI feedback history over time.",
-    "reflect_mission": "Synthesize a visual design specification detailing component patterns, brand colors, typography, accessibility rules, and layout constraints."
+    "observations_mission": "Track design system token evolution, brand visual guidelines, and UI feedback constraints over time.",
+    "reflect_mission": "Synthesize a visual design specification detailing curated design tokens, color standards, typography rules, and accessibility constraints."
   },
   "mental_models": [
     {
-      "id": "design-system",
-      "name": "Design System Tokens & Components",
-      "source_query": "What are the project's design system tokens, color palettes, typography, button/card styles, and component patterns?",
+      "id": "design-tokens",
+      "name": "Design System Tokens & Brand Standards",
+      "source_query": "What are the project's curated design system tokens, color palettes, typography standards, spacing units, and brand visual guidelines?",
       "max_tokens": 2048,
       "trigger": {
         "refresh_after_consolidation": true
       }
     },
     {
-      "id": "layout-accessibility",
-      "name": "Responsive Layout & Accessibility Rules",
-      "source_query": "What are the responsive breakpoint rules, flex/grid layouts, dark mode preferences, and ARIA/accessibility guidelines?",
+      "id": "responsive-accessibility-rules",
+      "name": "Responsive Layout & Accessibility Constraints",
+      "source_query": "What are the responsive breakpoint rules, grid layout guidelines, dark mode preferences, and accessibility constraints?",
       "max_tokens": 1024,
       "trigger": {
         "refresh_after_consolidation": true
