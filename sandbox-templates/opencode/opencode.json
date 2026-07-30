@@ -38,12 +38,14 @@
       "models": {
         "qwen3": {
           "name": "Qwen3",
-          "limit": { "context": 120192, "output": 16384 }
+          "limit": { "context": 120192, "output": 16384 },
+          "request": { "headers": { "X-Client-ID": "opencode" } }
         },
         "qwen3-thinking": {
           "name": "Qwen3 Thinking",
           "limit": { "context": 120192, "output": 16384 },
-          "capabilities": { "thinking": true }
+          "capabilities": { "thinking": true },
+          "request": { "headers": { "X-Client-ID": "opencode" } }
         }
       }
     }
