@@ -7,13 +7,20 @@
     "@slkiser/opencode-quota",
     "opencode-handoff",
     "oh-my-opencode-slim",
+    "@shantur/jarvis-mcp/plugin",
     [
       "opencode-hindsight-plus",
       {
         "hindsightApiUrl": "http://localhost:8888",
         "dynamicBankId": true,
-        "dynamicBankGranularity": ["agent", "gitProject"],
-        "enableKnowledgePages": true
+        "dynamicBankGranularity": ["agent"],
+        "retainTags": ["{session_id}", "project:{project}"],
+        "retainMetadata": { "project": "{project}" },
+        "enableKnowledgePages": true,
+        "recallBudget": "low",
+        "recallMaxTokens": 512,
+        "minRecallPromptChars": 15,
+        "retainEveryNTurns": 15
       }
     ]
   ],
@@ -62,6 +69,10 @@
     "hindsight": {
       "type": "local",
       "command": ["bunx", "hindsight-mcp"]
+    },
+    "jarvis": {
+      "type": "local",
+      "command": ["bunx", "@shantur/jarvis-mcp"]
     }
   },
   "agent": {
