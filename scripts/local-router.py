@@ -434,24 +434,65 @@ async def discover_services_background():
 
     if LROUT_MOCK_BACKENDS:
         model_inventory_list = [
-            {"id": "qwen3", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["chat"]},
-            {"id": "qwen3-thinking", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["chat"]},
-            {"id": "qwen3-embedding", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["embedding"]},
-            {"id": "qwen3-reranker", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["rerank"]},
-            {"id": "whisper-1", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["stt"]},
-            {"id": "qwen3-tts", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["tts"]},
-            {"id": "z-image-turbo", "object": "model", "owned_by": "local-inference", "pricing": PRICING_REGISTRY["image"]},
+            {
+                "id": "qwen3",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
+            {
+                "id": "qwen3-thinking",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
+            {
+                "id": "qwen3-embedding",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["embedding"],
+            },
+            {
+                "id": "qwen3-reranker",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["rerank"],
+            },
+            {
+                "id": "whisper-1",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["stt"],
+            },
+            {
+                "id": "qwen3-tts",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["tts"],
+            },
+            {
+                "id": "z-image-turbo",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["image"],
+            },
         ]
         model_to_service = {
-            "qwen3": "chat", "qwen3-thinking": "chat",
-            "qwen3-embedding": "embedding", "qwen3-reranker": "rerank",
-            "whisper-1": "stt", "qwen3-tts": "tts", "z-image-turbo": "image",
+            "qwen3": "chat",
+            "qwen3-thinking": "chat",
+            "qwen3-embedding": "embedding",
+            "qwen3-reranker": "rerank",
+            "whisper-1": "stt",
+            "qwen3-tts": "tts",
+            "z-image-turbo": "image",
         }
         return
 
     # Phase 1: seed inventory from configured aliases so the router works immediately
     _init_fallback_inventory()
-    print(f"[DISCOVERY] Fallback inventory seeded: {[m['id'] for m in model_inventory_list]}")
+    print(
+        f"[DISCOVERY] Fallback inventory seeded: {[m['id'] for m in model_inventory_list]}"
+    )
 
     # Phase 2: background polling loop
     enabled_services = get_enabled_services()
@@ -731,6 +772,11 @@ def add_usage_record(
                 "errors_post": dict(STATIC_ERRORS_TEMPLATE),
                 "duration_post": 0.0,
                 "duration_streaming": 0.0,
+                "_req_input_vals": [],
+                "_req_cached_input_vals": [],
+                "_req_cached_write_vals": [],
+                "_req_output_vals": [],
+                "_req_total_vals": [],
             }
 
         entry = usage_data_memory[today][agent][service][model]
@@ -746,6 +792,16 @@ def add_usage_record(
             entry["duration_post"] = 0.0
         if "duration_streaming" not in entry:
             entry["duration_streaming"] = 0.0
+        if "_req_input_vals" not in entry:
+            entry["_req_input_vals"] = []
+        if "_req_cached_input_vals" not in entry:
+            entry["_req_cached_input_vals"] = []
+        if "_req_cached_write_vals" not in entry:
+            entry["_req_cached_write_vals"] = []
+        if "_req_output_vals" not in entry:
+            entry["_req_output_vals"] = []
+        if "_req_total_vals" not in entry:
+            entry["_req_total_vals"] = []
 
         entry["calls"] += 1
         if is_streaming:
@@ -759,6 +815,13 @@ def add_usage_record(
         entry["cached_input"] += cached_input
         entry["cached_write"] += cached_write
         entry["output"] += output
+
+        per_request_total = uncached_input + cached_input + cached_write + output
+        entry["_req_input_vals"].append(uncached_input)
+        entry["_req_cached_input_vals"].append(cached_input)
+        entry["_req_cached_write_vals"].append(cached_write)
+        entry["_req_output_vals"].append(output)
+        entry["_req_total_vals"].append(per_request_total)
 
         if status_code >= 400:
             code_str = str(status_code)
@@ -862,6 +925,19 @@ async def periodic_save_task():
             print(f"Error in periodic save: {e}")
 
 
+def compute_req_stats(vals: list[int]) -> dict[str, int]:
+    """Compute min, median, max from a list of integer values."""
+    if not vals:
+        return {"min": 0, "median": 0, "max": 0}
+    sorted_vals = sorted(vals)
+    n = len(sorted_vals)
+    if n % 2 == 1:
+        median = sorted_vals[n // 2]
+    else:
+        median = (sorted_vals[n // 2 - 1] + sorted_vals[n // 2]) // 2
+    return {"min": sorted_vals[0], "median": median, "max": sorted_vals[-1]}
+
+
 def get_cumulative_metrics(
     day_filter: str | None = None, range_filter: str | None = None
 ) -> dict[str, Any]:
@@ -891,6 +967,11 @@ def get_cumulative_metrics(
         "duration_post": 0.0,
         "duration_streaming": 0.0,
         "total_duration": 0.0,
+        "_req_input_vals": [],
+        "_req_cached_input_vals": [],
+        "_req_cached_write_vals": [],
+        "_req_output_vals": [],
+        "_req_total_vals": [],
     }
 
     today = datetime.date.today()
@@ -937,6 +1018,11 @@ def get_cumulative_metrics(
                     "duration_post": 0.0,
                     "duration_streaming": 0.0,
                     "total_duration": 0.0,
+                    "_req_input_vals": [],
+                    "_req_cached_input_vals": [],
+                    "_req_cached_write_vals": [],
+                    "_req_output_vals": [],
+                    "_req_total_vals": [],
                 }
             for agent, services_map in day_data.items():
                 if not isinstance(services_map, dict):
@@ -964,6 +1050,11 @@ def get_cumulative_metrics(
                         "duration_post": 0.0,
                         "duration_streaming": 0.0,
                         "total_duration": 0.0,
+                        "_req_input_vals": [],
+                        "_req_cached_input_vals": [],
+                        "_req_cached_write_vals": [],
+                        "_req_output_vals": [],
+                        "_req_total_vals": [],
                     }
 
                 for service, models_map in services_map.items():
@@ -992,6 +1083,11 @@ def get_cumulative_metrics(
                             "duration_post": 0.0,
                             "duration_streaming": 0.0,
                             "total_duration": 0.0,
+                            "_req_input_vals": [],
+                            "_req_cached_input_vals": [],
+                            "_req_cached_write_vals": [],
+                            "_req_output_vals": [],
+                            "_req_total_vals": [],
                         }
 
                     pricing = PRICING_REGISTRY.get(service, {})
@@ -1027,6 +1123,11 @@ def get_cumulative_metrics(
                                 "duration_post": 0.0,
                                 "duration_streaming": 0.0,
                                 "total_duration": 0.0,
+                                "_req_input_vals": [],
+                                "_req_cached_input_vals": [],
+                                "_req_cached_write_vals": [],
+                                "_req_output_vals": [],
+                                "_req_total_vals": [],
                             }
 
                         calls = counts.get("calls", 0)
@@ -1080,6 +1181,27 @@ def get_cumulative_metrics(
                                 target["errors_streaming"][code] += err_str_val
                                 target["errors_post"][code] += err_post_val
 
+                            # Also accumulate per-request values
+                            src_input_vals = counts.get("_req_input_vals")
+                            if src_input_vals:
+                                target["_req_input_vals"].extend(src_input_vals)
+                            src_cached_input_vals = counts.get("_req_cached_input_vals")
+                            if src_cached_input_vals:
+                                target["_req_cached_input_vals"].extend(
+                                    src_cached_input_vals
+                                )
+                            src_cached_write_vals = counts.get("_req_cached_write_vals")
+                            if src_cached_write_vals:
+                                target["_req_cached_write_vals"].extend(
+                                    src_cached_write_vals
+                                )
+                            src_output_vals = counts.get("_req_output_vals")
+                            if src_output_vals:
+                                target["_req_output_vals"].extend(src_output_vals)
+                            src_total_vals = counts.get("_req_total_vals")
+                            if src_total_vals:
+                                target["_req_total_vals"].extend(src_total_vals)
+
                         accum(models_acc[model_key])
                         accum(agents_acc[agent])
                         accum(services_acc[service])
@@ -1106,6 +1228,26 @@ def get_cumulative_metrics(
                                 "errors_post", {}
                             ).get(code, 0)
 
+                        src_input_vals = counts.get("_req_input_vals")
+                        if src_input_vals:
+                            daily_target["_req_input_vals"].extend(src_input_vals)
+                        src_cached_input_vals = counts.get("_req_cached_input_vals")
+                        if src_cached_input_vals:
+                            daily_target["_req_cached_input_vals"].extend(
+                                src_cached_input_vals
+                            )
+                        src_cached_write_vals = counts.get("_req_cached_write_vals")
+                        if src_cached_write_vals:
+                            daily_target["_req_cached_write_vals"].extend(
+                                src_cached_write_vals
+                            )
+                        src_output_vals = counts.get("_req_output_vals")
+                        if src_output_vals:
+                            daily_target["_req_output_vals"].extend(src_output_vals)
+                        src_total_vals = counts.get("_req_total_vals")
+                        if src_total_vals:
+                            daily_target["_req_total_vals"].extend(src_total_vals)
+
     for entry in models_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
         entry["cache_pct"] = (
@@ -1128,6 +1270,36 @@ def get_cumulative_metrics(
     totals_acc["cache_pct"] = (
         (totals_acc["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
     )
+
+    # Compute per-request statistics for all buckets
+    def _finalize_req_stats(bucket_dict):
+        for entry in bucket_dict.values():
+            entry["req_stats"] = {
+                "input": compute_req_stats(entry.pop("_req_input_vals", [])),
+                "input_read": compute_req_stats(
+                    entry.pop("_req_cached_input_vals", [])
+                ),
+                "input_write": compute_req_stats(
+                    entry.pop("_req_cached_write_vals", [])
+                ),
+                "output": compute_req_stats(entry.pop("_req_output_vals", [])),
+                "per_request": compute_req_stats(entry.pop("_req_total_vals", [])),
+            }
+
+    _finalize_req_stats(models_acc)
+    _finalize_req_stats(agents_acc)
+    _finalize_req_stats(services_acc)
+
+    # totals_acc is a single dict
+    totals_acc["req_stats"] = {
+        "input": compute_req_stats(totals_acc.pop("_req_input_vals", [])),
+        "input_read": compute_req_stats(totals_acc.pop("_req_cached_input_vals", [])),
+        "input_write": compute_req_stats(totals_acc.pop("_req_cached_write_vals", [])),
+        "output": compute_req_stats(totals_acc.pop("_req_output_vals", [])),
+        "per_request": compute_req_stats(totals_acc.pop("_req_total_vals", [])),
+    }
+
+    _finalize_req_stats(daily_acc)
 
     with active_calls_lock:
         totals_acc["calls_active_post"] = global_active_calls_post

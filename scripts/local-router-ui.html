@@ -527,11 +527,13 @@
       <div class="kpi-card" style="--card-accent: var(--accent-green);">
         <div class="kpi-title">Cache Hit Rate</div>
         <div class="kpi-value" id="kpiCachePct">0.00%</div>
+        <div class="kpi-subtext" id="kpiCachePctSub"></div>
       </div>
 
       <div class="kpi-card" style="--card-accent: #3b82f6;">
         <div class="kpi-title">Total Output Tokens</div>
         <div class="kpi-value" id="kpiOutputTokens">0</div>
+        <div class="kpi-subtext" id="kpiOutputSub"></div>
       </div>
 
       <div class="kpi-card" style="--card-accent: #a855f7;">
@@ -640,12 +642,15 @@
             <th onclick="handleHeaderClick(1)">Calls (P/S) <span class="sort-indicator" id="sort-ind-1"></span></th>
             <th onclick="handleHeaderClick(2)">Cached In <span class="sort-indicator" id="sort-ind-2"></span></th>
             <th onclick="handleHeaderClick(3)">Uncached In <span class="sort-indicator" id="sort-ind-3"></span></th>
-            <th onclick="handleHeaderClick(4)">% Cache <span class="sort-indicator" id="sort-ind-4"></span></th>
-            <th onclick="handleHeaderClick(5)">Output <span class="sort-indicator" id="sort-ind-5"></span></th>
-            <th onclick="handleHeaderClick(6)">Total <span class="sort-indicator" id="sort-ind-6"></span></th>
-            <th onclick="handleHeaderClick(7)">p.TimeT <span class="sort-indicator" id="sort-ind-7"></span></th>
-            <th onclick="handleHeaderClick(8)">Est.Cost($) <span class="sort-indicator" id="sort-ind-8"></span></th>
-            <th onclick="handleHeaderClick(9)">Errors (P/S) <span class="sort-indicator" id="sort-ind-9"></span></th>
+            <th onclick="handleHeaderClick(4)">~ Size <span class="sort-indicator" id="sort-ind-4"></span></th>
+            <th onclick="handleHeaderClick(5)">% Cache <span class="sort-indicator" id="sort-ind-5"></span></th>
+            <th onclick="handleHeaderClick(6)">~ Size <span class="sort-indicator" id="sort-ind-6"></span></th>
+            <th onclick="handleHeaderClick(7)">Output <span class="sort-indicator" id="sort-ind-7"></span></th>
+            <th onclick="handleHeaderClick(8)">~ Size <span class="sort-indicator" id="sort-ind-8"></span></th>
+            <th onclick="handleHeaderClick(9)">Total <span class="sort-indicator" id="sort-ind-9"></span></th>
+            <th onclick="handleHeaderClick(10)">p.TimeT <span class="sort-indicator" id="sort-ind-10"></span></th>
+            <th onclick="handleHeaderClick(11)">Est.Cost($) <span class="sort-indicator" id="sort-ind-11"></span></th>
+            <th onclick="handleHeaderClick(12)">Errors (P/S) <span class="sort-indicator" id="sort-ind-12"></span></th>
           </tr>
         </thead>
         <tbody id="modelsTableBody">
@@ -664,7 +669,7 @@
     // Sorting state (sticky across refreshes)
     let currentSortCol = localStorage.getItem('router_ui_sort_col') !== null
       ? parseInt(localStorage.getItem('router_ui_sort_col'), 10)
-      : 8;
+      : 11;
     let currentSortDir = localStorage.getItem('router_ui_sort_dir') !== null
       ? localStorage.getItem('router_ui_sort_dir')
       : 'desc';
@@ -677,6 +682,15 @@
     function fmtNum(n) {
       if (n === undefined || n === null || isNaN(n)) return '0';
       return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+
+    function shortNum(n) {
+      if (n === undefined || n === null || isNaN(n)) return '0';
+      const abs = Math.abs(n);
+      if (abs >= 1073741824) return (n / 1073741824).toFixed(1) + 'g';
+      if (abs >= 1048576) return (n / 1048576).toFixed(1) + 'm';
+      if (abs >= 1024) return (n / 1024).toFixed(1) + 'k';
+      return Math.round(n).toString();
     }
 
     function applyTheme() {
@@ -768,7 +782,7 @@
       const activePost = totals.calls_active_post || 0;
       const activeStream = totals.calls_active_stream || 0;
       document.getElementById('kpiCalls').innerText = fmtNum(calls);
-      document.getElementById('kpiCallsSub').innerText = `Post: ${fmtNum(postCalls)} | Stream: ${fmtNum(strCalls)} | Active p: ${activePost} / s: ${activeStream}`;
+      document.getElementById('kpiCallsSub').innerText = `Post: ${shortNum(postCalls)} | Stream: ${shortNum(strCalls)} | Active p: ${shortNum(activePost)} / s: ${shortNum(activeStream)}`;
 
       const totalTokens = totals.total_tokens || 0;
       const input = totals.input || 0;
@@ -776,19 +790,28 @@
       const output = totals.output || 0;
       const totalInput = input + cachedIn;
 
-      const inputPct = totalTokens > 0 ? ((totalInput / totalTokens) * 100).toFixed(1) : "0.0";
-      const outputPct = totalTokens > 0 ? ((output / totalTokens) * 100).toFixed(1) : "0.0";
+      const inputPct = totalTokens > 0 ? Math.round((totalInput / totalTokens) * 100) : 0;
+      const outputPct = totalTokens > 0 ? Math.round((output / totalTokens) * 100) : 0;
 
       document.getElementById('kpiTokens').innerText = fmtNum(totalTokens);
       document.getElementById('kpiTokensSub').innerText = `Input: ${inputPct}% | Output: ${outputPct}%`;
 
       document.getElementById('kpiInputTokens').innerText = fmtNum(totalInput);
-      document.getElementById('kpiInputSub').innerText = `Cached: ${fmtNum(cachedIn)} | Unique: ${fmtNum(input)}`;
-
       const cachePct = totals.cache_pct || 0;
+      const uniquePct = totalInput > 0 ? Math.round((input / totalInput) * 100) : 0;
+      const cachePctRounded = Math.round(cachePct);
+      const rs = totals.req_stats || {};
+      const inputMed = (rs.input || {}).median || 0;
+      const inputMin = (rs.input || {}).min || 0;
+      const inputMax = (rs.input || {}).max || 0;
+      document.getElementById('kpiInputSub').innerText = `Uniq: ${uniquePct}% | Cache: ${cachePctRounded}% | Med: ${shortNum(inputMed)} (${shortNum(inputMin)},${shortNum(inputMax)}) tks/r`;
       document.getElementById('kpiCachePct').innerText = `${cachePct.toFixed(2)}%`;
+      const crs = (totals.req_stats || {}).input_read || {};
+      document.getElementById('kpiCachePctSub').innerText = `Median: ${shortNum(crs.median || 0)} | Min: ${shortNum(crs.min || 0)} | Max: ${shortNum(crs.max || 0)} tks/r`;
 
       document.getElementById('kpiOutputTokens').innerText = fmtNum(output);
+      const ors = (totals.req_stats || {}).output || {};
+      document.getElementById('kpiOutputSub').innerText = `Median: ${shortNum(ors.median || 0)} | Min: ${shortNum(ors.min || 0)} | Max: ${shortNum(ors.max || 0)} tks/r`;
 
       const totalTime = (totals.total_duration || 0) / 60.0;
       const postTime = (totals.duration_post || 0) / 60.0;
@@ -802,8 +825,8 @@
       const inpCost = costs.input_cost || 0;
       const outCost = costs.output_cost || 0;
 
-      document.getElementById('kpiCost').innerText = `$${totalCost.toFixed(4)}`;
-      document.getElementById('kpiCostSub').innerText = `Input: $${inpCost.toFixed(4)} | Cache: $${cInpCost.toFixed(4)} | Output: $${outCost.toFixed(4)}`;
+      document.getElementById('kpiCost').innerText = `$${totalCost.toFixed(1)}`;
+      document.getElementById('kpiCostSub').innerText = `Input: $${inpCost.toFixed(1)} | Cache: $${cInpCost.toFixed(1)} | Output: $${outCost.toFixed(1)}`;
 
       let totalErr = 0, strErr = 0, postErr = 0;
       let cancelPost = 0, cancelStream = 0;
@@ -819,7 +842,7 @@
       });
 
       document.getElementById('kpiErrors').innerText = fmtNum(totalErr);
-      document.getElementById('kpiErrorsSub').innerText = `Post: ${postErr} | Stream: ${strErr} | Client Cancel p: ${cancelPost} / s: ${cancelStream}`;
+      document.getElementById('kpiErrorsSub').innerText = `Post: ${shortNum(postErr)} | Stream: ${shortNum(strErr)} | Client Cancel p: ${shortNum(cancelPost)} / s: ${shortNum(cancelStream)}`;
     }
 
     function calcPD(data, daysCount) {
@@ -1027,9 +1050,9 @@
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--text-main);">${agent.toUpperCase()}</td>
           <td>${fmtNum(postCalls)} / ${fmtNum(strCalls)}</td>
-          <td>${fmtNum(totIn)}</td>
+          <td>${shortNum(totIn)}</td>
           <td style="color: var(--accent-green);">${cachePct}%</td>
-          <td>${fmtNum(item.output || 0)}</td>
+          <td>${shortNum(item.output || 0)}</td>
           <td>${timeMins}</td>
           <td style="color: var(--accent-cyan);">$${totalCost}</td>
         `;
@@ -1060,9 +1083,9 @@
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--accent-purple);">${service.toUpperCase()}</td>
           <td>${fmtNum(postCalls)} / ${fmtNum(strCalls)}</td>
-          <td>${fmtNum(totIn)}</td>
+          <td>${shortNum(totIn)}</td>
           <td style="color: var(--accent-green);">${cachePct}%</td>
-          <td>${fmtNum(item.output || 0)}</td>
+          <td>${shortNum(item.output || 0)}</td>
           <td>${timeMins}</td>
           <td style="color: var(--accent-cyan);">$${totalCost}</td>
         `;
@@ -1084,13 +1107,17 @@
         const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
 
         const tr = document.createElement('tr');
+        const medSize = ((item.req_stats || {}).per_request || {}).median || 0;
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--text-main);">${key}</td>
           <td>${fmtNum(item.calls_post || 0)} / ${fmtNum(item.streaming_calls || 0)}</td>
           <td>${fmtNum(item.cached_input || 0)}</td>
           <td>${fmtNum(item.input || 0)}</td>
+          <td>${shortNum(medSize)}</td>
           <td style="color: var(--accent-green);">${(item.cache_pct || 0).toFixed(2)}%</td>
+          <td>${shortNum(medSize)}</td>
           <td>${fmtNum(item.output || 0)}</td>
+          <td>${shortNum(medSize)}</td>
           <td>${fmtNum(item.total_tokens || 0)}</td>
           <td>${timeMins}</td>
           <td style="color: var(--accent-cyan);">$${(item.costs?.total_cost || 0).toFixed(4)}</td>

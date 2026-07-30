@@ -220,6 +220,13 @@ Returns cumulative counts grouped by `agent:model:service`, agent totals, servic
         "output_cost": 0.0072,
         "total_cost": 0.009375
       },
+      "req_stats": {
+        "input": {"min": 100, "median": 200, "max": 500},
+        "input_read": {"min": 0, "median": 100, "max": 300},
+        "input_write": {"min": 0, "median": 50, "max": 150},
+        "output": {"min": 50, "median": 150, "max": 400},
+        "per_request": {"min": 200, "median": 500, "max": 1200}
+      },
       "errors_streaming": {
         "400": 0, "401": 0, "403": 0, "404": 0, "408": 0,
         "429": 1, "500": 0, "502": 0, "503": 0, "504": 0, "OTHER": 0
@@ -298,5 +305,5 @@ The router includes a standalone, responsive Web Dashboard SPA served directly a
   - **Day-per-Day Chart.js Visualization**: Interactive time-series stacked bar/line chart (Uncached Input, Cached Input, Output Tokens, Total Calls, Estimated Cost). Selected legend dataset visibilities survive refreshes.
   - **Average Usage per Day (p.D.) Table**: Displays daily averages across `1d`, `7d`, `30d`, `90d`, and `All`.
   - **Breakdown Tables**: Separate structured tables for Clients / Agents Breakdown and Services Breakdown (`AGENT/SERVICE`, `CALLS P/S`, `TOKEN IN`, `% CACHED`, `TOKEN OUT`, `COST`).
-  - **Searchable Models Breakdown Table**: Detailed breakdown by `AGENT:MODEL:SERVICE` (`Calls P/S`, `Cached In`, `Uncached In`, `% Cache`, `Output`, `Total`, `Est.Cost($)`, `Errors P/S`) with sticky column sorting and live search filtering.
+  - **Searchable Models Breakdown Table**: Detailed breakdown by `AGENT:MODEL:SERVICE` (`Calls P/S`, `Cached In`, `Uncached In`, `~ Size`, `% Cache`, `~ Size`, `Output`, `~ Size`, `Total`, `p.TimeT`, `Est.Cost($)`, `Errors P/S`) with sticky column sorting, live search filtering, and per-request median size columns.
 
