@@ -398,7 +398,17 @@ main() {
         local mlc_out_dir="${target_dir}/text"
         hf_to_mlc "${target_dir}/text/Qwen2.5-0.5B-Instruct" "${mlc_out_dir}" ${mlc_quant} "qwen2" "qwen2"
 
-        # 1h. Download full Hugging Face weights for MLC compilation (Qwen3.6-35B-A3B)
+        # 1h. Download Agents-A1 APEX finetune (Qwen3.6-35B-A3B agent-optimized)
+        acquire_file \
+            "vision-text/Agents-A1-APEX-I-Compact.gguf" \
+            "https://huggingface.co/mudler/Agents-A1-APEX-GGUF/resolve/main/Agents-A1-APEX-I-Compact.gguf" \
+            "${target_dir}/vision-text/Agents-A1-APEX-I-Compact.gguf"
+        acquire_file \
+            "vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf" \
+            "https://huggingface.co/mudler/Agents-A1-APEX-GGUF/resolve/main/mmproj.gguf" \
+            "${target_dir}/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf"
+
+        # 1i. Download full Hugging Face weights for MLC compilation (Qwen3.6-35B-A3B)
         echo "Downloading full Hugging Face weights for MLC (Qwen3.6-35B-A3B)..."
         mkdir -p "${target_dir}/vision-text/Qwen3.6-35B-A3B"
         if command -v hf &>/dev/null; then
@@ -585,6 +595,75 @@ snapshot_download(
             echo "Warning: snapshot_download failed. Trying fallback..." >&2
             hf download cross-encoder/ettin-reranker-150m-v1 --local-dir "${target_dir}/reranker/ettin-reranker-150m-v1" || true
         }
+
+        # --- Additional Reranker Models (GGUF for llama-server) ---
+
+        # bge-reranker-v2-m3 GGUF (gpustack community conversion)
+        # 567M params, 8K ctx, XLM-RoBERTa cross-encoder, MIT license
+        # MTEB(eng,v2) NDCG@10: ~0.553, German BEIR: ~57.2
+        # Q4_K_M ~360 MB disk, ~2.0 GB VRAM
+        # Serves via: llama-server --reranking
+        acquire_file \
+            "reranker/bge-reranker-v2-m3-Q4_K_M.gguf" \
+            "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q4_K_M.gguf" \
+            "${target_dir}/reranker/bge-reranker-v2-m3-Q4_K_M.gguf"
+
+        # jina-reranker-v3.5 GGUF (official Jina AI conversion)
+        # 600M params, 131K ctx, listwise LBNL architecture, Qwen3-0.6B backbone
+        # BEIR: 63.20 (highest in 0.6B class), MIRACL: 74.11, German: ✅
+        # License: CC BY-NC 4.0 (non-commercial)
+        # Q4_K_M ~379 MB disk, ~2.5 GB VRAM
+        # NOTE: jina-reranker-v3.patch is applied in both libggml-git-hip and tei-rocm,
+        # but neither produces working reranking in practice (embedding path produces bad scores,
+        # TEI Python backend can't load JinaForRanking). Downloaded for future use when fixes land.
+        acquire_file \
+            "reranker/jina-reranker-v3.5-Q4_K_M.gguf" \
+            "https://huggingface.co/jinaai/jina-reranker-v3.5-GGUF/resolve/main/jina-reranker-v3.5-Q4_K_M.gguf" \
+            "${target_dir}/reranker/jina-reranker-v3.5-Q4_K_M.gguf"
+
+        # --- Additional Reranker Models (TEI / safetensors only, no GGUF) ---
+
+        # LAMAR-600m (TEI safetensors) — BEST multilingual under 5GB, MIT license
+        # 600M params, 8K ctx, XLM-RoBERTa cross-encoder, 51 langs including German
+        # MIRACL: 69.49, XQuAD nDCG@10: 98.59, German: ✅✅ (excellent)
+        # License: MIT
+        # ~1.2 GB fp16 safetensors, ~3.5 GB VRAM at full precision
+        # NOTE: TEI-only (no GGUF). Serve via: text-embeddings-router --model-id <path>
+        if command -v hf &>/dev/null; then
+            echo "Downloading LAMAR-600m (TEI safetensors, MIT license, excellent German)..."
+            mkdir -p "${target_dir}/reranker/LAMAR-600m"
+            hf download nlpai-lab/LAMAR-600m --local-dir "${target_dir}/reranker/LAMAR-600m"
+        else
+            echo "Warning: 'hf' CLI not found. Skipping LAMAR-600m download." >&2
+        fi
+
+        # KaLM-Reranker-V1-Nano (TEI safetensors) — Ultra-lightweight, 128K ctx, Apache 2.0
+        # 270M params, 128K ctx, encoder-decoder (T5Gemma2), FBNL architecture
+        # Apache 2.0 license
+        # ~600 MB fp16 safetensors, ~1.5 GB VRAM
+        # NOTE: TEI/Sentence Transformers only (no GGUF). Requires trust_remote_code=True.
+        if command -v hf &>/dev/null; then
+            echo "Downloading KaLM-Reranker-V1-Nano (TEI safetensors, Apache 2.0, 128K ctx)..."
+            mkdir -p "${target_dir}/reranker/KaLM-Reranker-V1-Nano"
+            hf download KaLM-Embedding/KaLM-Reranker-V1-Nano --local-dir "${target_dir}/reranker/KaLM-Reranker-V1-Nano"
+        else
+            echo "Warning: 'hf' CLI not found. Skipping KaLM-Reranker-V1-Nano download." >&2
+        fi
+
+        # mxbai-rerank-base-v2 (TEI safetensors) — 109 languages, 32K ctx, Apache 2.0
+        # 494M params, 32K ctx, causal decoder (Qwen2-0.5B), GRPO-trained
+        # BEIR: 55.57, German: ✅
+        # Apache 2.0 license
+        # ~1.0 GB fp16 safetensors, ~2.5 GB VRAM
+        # NOTE: TEI compatible (tagged text-embeddings-inference). No official GGUF.
+        # GGUF conversion is feasible (standard Qwen2 decoder).
+        if command -v hf &>/dev/null; then
+            echo "Downloading mxbai-rerank-base-v2 (TEI safetensors, Apache 2.0, 32K ctx)..."
+            mkdir -p "${target_dir}/reranker/mxbai-rerank-base-v2"
+            hf download mixedbread-ai/mxbai-rerank-base-v2 --local-dir "${target_dir}/reranker/mxbai-rerank-base-v2"
+        else
+            echo "Warning: 'hf' CLI not found. Skipping mxbai-rerank-base-v2 download." >&2
+        fi
     fi
 
     # 4. Speech-to-Text
