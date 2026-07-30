@@ -61,6 +61,10 @@ shfmt -i 4 -w scripts/*.sh
 
 
 ## Working with This Repository
+- **OpenCode configuration** lives in `sandbox-templates/opencode/opencode.json` as the canonical repo template.
+  When working on this repository in OpenCode, keep the running config (`~/.config/opencode/opencode.json`) and the
+  repo template in sync: apply changes to both, then save the running config back to the sandbox template.
+  The `copy-config-to-target.sh` script in `~/.config/opencode/` automates saving the running config to the repo.
 - document all agent software default ports and isolation requirements in `README.md`
 - update documentation whenever any changes are made to scripts,
   `README.md`  for overall structure and `assistants/*-ctl.md` for individual
