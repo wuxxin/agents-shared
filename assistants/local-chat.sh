@@ -40,11 +40,11 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf
     LCHAT_ALIAS=qwen3
     LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=2
-    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
+    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf
     LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
     LCHAT_MTP=""
@@ -609,10 +609,10 @@ LCHAT_N_GPU_LAYERS=999
 # ### CHAT / VISION MODEL SETTINGS
 
 # Path to the chat model file
-# spec-type mtp Model
+# spec-type mtp Model (original Qwen3.6 MoE)
 # LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
-# non mtp Model
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
+# non mtp Model (Agents-A1 finetune — better agent fitness)
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf
 # Separate MTP draft model file path (leave empty when using built-in MTP model)
 LCHAT_MTP=""
 
@@ -633,7 +633,7 @@ LCHAT_CTX_SIZE=240384
 LCHAT_PARALLEL=2
 
 # Multimodal projector arguments (optional)
-LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mmproj.gguf
+LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf
 
 # Chat template file (optional)
 LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
@@ -988,7 +988,7 @@ wait_for_endpoint() {
     local delay="${3:-2}"
     local label="${4:-server}"
     for i in $(seq 1 $max_retries); do
-        if curl -s -f "$url" > /dev/null 2>&1; then
+        if curl -s -f "$url" >/dev/null 2>&1; then
             return 0
         fi
         echo "  Waiting for ${label} to become ready... ($i/$max_retries)"
