@@ -28,26 +28,26 @@ TARGET_DIR=""
 
 while [ "${#}" -gt 0 ]; do
     case "${1}" in
-        -y|--yes)
-            CONFIRMED="true"
-            shift
-            ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        -*)
-            echo "Error: Unknown option '${1}'" >&2
-            echo "" >&2
-            usage
-            exit 1
-            ;;
-        *)
-            if [ -z "${TARGET_DIR}" ]; then
-                TARGET_DIR="${1}"
-            fi
-            shift
-            ;;
+    -y | --yes)
+        CONFIRMED="true"
+        shift
+        ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    -*)
+        echo "Error: Unknown option '${1}'" >&2
+        echo "" >&2
+        usage
+        exit 1
+        ;;
+    *)
+        if [ -z "${TARGET_DIR}" ]; then
+            TARGET_DIR="${1}"
+        fi
+        shift
+        ;;
     esac
 done
 
@@ -71,7 +71,7 @@ echo "=== Copying OpenCode template configuration to: ${TARGET_DIR} ==="
 mkdir -p "${TARGET_DIR}"
 
 # Copy root configuration files and documentation
-for file in opencode.json package.json tui.json oh-my-opencode-slim.jsonc README.md opencode.env copy-config-to-target.sh update-memory-banks.sh; do
+for file in opencode.json package.json tui.json oh-my-opencode-slim.jsonc README.md copy-config-to-target.sh update-memory-banks.sh; do
     if [ -f "${SCRIPT_DIR}/${file}" ]; then
         cp "${SCRIPT_DIR}/${file}" "${TARGET_DIR}/${file}"
         echo "  Copied ${file}"
