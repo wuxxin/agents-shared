@@ -52,7 +52,7 @@ DEFAULT_HINDSIGHT_API_RECALL_INCLUDE_CHUNKS="false"
 DEFAULT_HINDSIGHT_API_RECALL_MAX_TOKENS=1536
 DEFAULT_HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS=500
 
-# hindsight rerank (sequential after recall fusion, 16K max context, llama-server / Qwen3-Reranker)
+# hindsight rerank (sequential after recall fusion, 12K max context, llama-server / Qwen3-Reranker)
 # Uses Cohere-compatible /v1/rerank endpoint with yes/no generative classification.
 # Routes through local-router (port 51080) for unified access, or directly to local-rerank (port 50086).
 DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER="cohere"
