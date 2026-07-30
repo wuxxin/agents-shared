@@ -1,4 +1,4 @@
-# Vulkan Backend Optimization & RDNA3 Performance Research
+# LLama Vulkan Backend Optimization & RDNA3 Performance Research
 
 This document compiles findings, hypotheses, configurations tested, and results for optimizing both prompt prefill (ingestion) and token generation (decoding) performance on the Vulkan backend of `llama.cpp` using the AMD Radeon RX 7900 XTX (Navi31 / gfx1100) dGPU.
 
