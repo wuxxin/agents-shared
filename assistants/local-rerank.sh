@@ -28,8 +28,8 @@ load_env() {
 
     # llama-server parameters (Qwen3-Reranker-0.6B: generative yes/no classifier, 40K ctx, Q4_K_M GGUF)
     LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
-    LRR_LLAMA_N_CTX=16384
-    LRR_LLAMA_N_UBATCH=16384
+    LRR_LLAMA_N_CTX=12288
+    LRR_LLAMA_N_UBATCH=12288
     LRR_LLAMA_N_GPU_LAYERS=999
     LRR_LLAMA_THREADS=4
     LRR_LLAMA_PARALLEL=2
@@ -403,11 +403,11 @@ EOF
 # Path to the text reranker GGUF model file
 LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
 
-# Context size per parallel slot (default: 16384)
-LRR_LLAMA_N_CTX=16384
+# Context size per parallel slot (default: 12288)
+LRR_LLAMA_N_CTX=12288
 
-# Micro-batch size (default: 16384, matching context size)
-LRR_LLAMA_N_UBATCH=16384
+# Micro-batch size (default: 12288, matching context size)
+LRR_LLAMA_N_UBATCH=12288
 
 # Number of layers to offload to GPU (all=999)
 LRR_LLAMA_N_GPU_LAYERS=999
@@ -669,7 +669,7 @@ wait_for_endpoint() {
     local delay="${3:-2}"
     local label="${4:-server}"
     for i in $(seq 1 $max_retries); do
-        if curl -s -f "$url" > /dev/null 2>&1; then
+        if curl -s -f "$url" >/dev/null 2>&1; then
             return 0
         fi
         echo "  Waiting for ${label} to become ready... ($i/$max_retries)"
