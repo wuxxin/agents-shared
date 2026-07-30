@@ -6,9 +6,11 @@ This document provides a consolidated reference for configuring the **Hindsight 
 
 The default configuration is tuned for a local inference environment with the following concurrency and context boundaries:
 
+With our current setup, we are only able to support 2 parallel chat, and 1 8k embedding and 1 16K rerank call. 
+
 - **Chat/Vision LLM**: **2 parallel LLM calls** available for Hindsight tasks (`HINDSIGHT_API_LLM_MAX_CONCURRENT=2`).
-- **Embedding Model**: **2 parallel embedding calls** available (`HINDSIGHT_API_RECALL_MAX_CONCURRENT=2`), **8,192 (8K) max context window**.
-- **Reranking Model**: **2 parallel rerank calls** available (`HINDSIGHT_API_RERANKER_MAX_CONCURRENT=2`), **16,384 (16K) max context window**.
+- **Embedding Model**: **1 parallel embedding calls** available (`HINDSIGHT_API_RECALL_MAX_CONCURRENT=1`), **8,192 (8K) max context window**.
+- **Reranking Model**: **1 parallel rerank calls** available (`HINDSIGHT_API_RERANKER_MAX_CONCURRENT=1`), **16,384 (16K) max context window**.
 
 By setting strict concurrency caps across global, reflection, retention, and consolidation scopes, Hindsight avoids VRAM exhaustion, prompt thrashing, and KV cache eviction on local GPU endpoints while maintaining low-latency background memory indexing.
 
