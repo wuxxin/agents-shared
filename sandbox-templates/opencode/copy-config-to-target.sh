@@ -71,7 +71,7 @@ echo "=== Copying OpenCode template configuration to: ${TARGET_DIR} ==="
 mkdir -p "${TARGET_DIR}"
 
 # Copy root configuration files and documentation
-for file in opencode.json package.json tui.json oh-my-opencode-slim.jsonc README.md copy-config-to-target.sh update-memory-banks.sh; do
+for file in opencode.json package.json tui.json oh-my-opencode-slim.jsonc README.md copy-config-to-target.sh update-memory-banks.sh patch-hindsight-tags.js; do
     if [ -f "${SCRIPT_DIR}/${file}" ]; then
         cp "${SCRIPT_DIR}/${file}" "${TARGET_DIR}/${file}"
         echo "  Copied ${file}"

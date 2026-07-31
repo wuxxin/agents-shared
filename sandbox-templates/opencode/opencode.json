@@ -17,7 +17,7 @@
           "bankId": "opencode-orchestrator",
           "autoRetain": true,
           "autoRecall": true,
-          "tags": ["source:opencode", "project:agents-shared", "agent:orchestrator"],
+          "tags": ["source:opencode", "project:{project}", "agent:orchestrator"],
           "retainEveryNTurns": 10,
           "retainConversationExtras": false
         }
@@ -105,7 +105,7 @@
           "bankId": "opencode-oracle",
           "autoRetain": false,
           "autoRecall": false,
-          "tags": ["source:opencode", "project:agents-shared", "agent:oracle"]
+          "tags": ["source:opencode", "project:{project}", "agent:oracle"]
         }
       }
     },
@@ -115,7 +115,7 @@
           "bankId": "opencode-fixer",
           "autoRetain": false,
           "autoRecall": false,
-          "tags": ["source:opencode", "project:agents-shared", "agent:fixer"]
+          "tags": ["source:opencode", "project:{project}", "agent:fixer"]
         }
       }
     },
@@ -125,7 +125,7 @@
           "bankId": "opencode-librarian",
           "autoRetain": false,
           "autoRecall": false,
-          "tags": ["source:opencode", "project:agents-shared", "agent:librarian"]
+          "tags": ["source:opencode", "project:{project}", "agent:librarian"]
         }
       }
     },
@@ -135,7 +135,7 @@
           "bankId": "opencode-explorer",
           "autoRetain": false,
           "autoRecall": false,
-          "tags": ["source:opencode", "project:agents-shared", "agent:explorer"]
+          "tags": ["source:opencode", "project:{project}", "agent:explorer"]
         }
       }
     },
@@ -145,7 +145,7 @@
           "bankId": "opencode-designer",
           "autoRetain": false,
           "autoRecall": false,
-          "tags": ["source:opencode", "project:agents-shared", "agent:designer"]
+          "tags": ["source:opencode", "project:{project}", "agent:designer"]
         }
       }
     }

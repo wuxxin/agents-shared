@@ -97,7 +97,7 @@ for bank_file in "${bank_files[@]}"; do
     bank_id="$(basename "${bank_file}" .json)"
     echo "=== Applying configuration for bank: ${bank_id} ==="
 
-    # 1. Update Retain, Observations, and Reflect missions via 'updates' wrapper
+    # 1. Update bank configuration overrides dynamically from 'bank' dictionary
     python3 -c "
 import json, urllib.request
 bank_file = '${bank_file}'
@@ -106,14 +106,9 @@ bank_id = '${bank_id}'
 
 data = json.load(open(bank_file))
 bank = data.get('bank', {})
-payload = json.dumps({
-    'updates': {
-        'retain_mission': bank.get('retain_mission'),
-        'observations_mission': bank.get('observations_mission'),
-        'reflect_mission': bank.get('reflect_mission'),
-        'enable_observations': bank.get('enable_observations', True)
-    }
-}).encode('utf-8')
+updates = {k: v for k, v in bank.items() if v is not None}
+
+payload = json.dumps({'updates': updates}).encode('utf-8')
 
 req = urllib.request.Request(
     f'{api_url}/v1/default/banks/{bank_id}/config',

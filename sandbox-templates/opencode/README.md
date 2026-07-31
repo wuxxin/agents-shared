@@ -2,29 +2,24 @@
 
 Complete configuration template for OpenCode with `oh-my-opencode-slim`, multi-agent orchestration, Arbor graph intelligence, OpenAdapt browser automation, Agent-to-Agent (A2A) protocol bridge, and per-agent Hindsight long-term memory.
 
-
-The repo source of this file was copied from ~/agent-shared/code/agents-shared/sandbox-templates/opencode/README.md
-
 ---
 
 ## Setup, Installation, and Teardown
 
 ### 1. Create and Provision Sandbox
 
-Run `sandbox-ctl` to provision the sandbox environment, and make a wrapper for `opencode` to ~/.local/bin`
+Run `sandbox-ctl` to provision the sandbox environment and create the `opencode` binary launcher in `~/.local/bin`:
 
 ```bash
 sandbox-ctl install opencode --no-start --new-config-from \
   ~/agent-shared/code/agents-shared/sandbox-templates/opencode/opencode.env
 ```
 
-Running `sandbox-ctl install` automatically recreates all environment dependencies,
-CLI tools, bun packages, via `LAUNCHER_INSTALL_CMDS`.
-
+Running `sandbox-ctl install` automatically recreates all environment dependencies, CLI tools, and Bun packages via `LAUNCHER_INSTALL_CMDS`.
 
 ### 2. Provider Authentication (If Required)
 
-first time provider authentication:
+First-time provider authentication:
 
 ```bash
 opencode auth login --provider google-agy
@@ -45,7 +40,6 @@ opencode
 | Plugin | Package | Purpose |
 |---|---|---|
 | `oh-my-opencode-slim` | `oh-my-opencode-slim` | Multi-agent orchestration (`orchestrator`, `oracle`, `explorer`, `librarian`, `designer`, `fixer`). |
-| `opencode-hindsight-plus` | `opencode-hindsight-plus` | ~~Advanced Hindsight long-term memory plugin.~~ Replaced by `@toady00/opencode-hindsight` (see below). |
 | `@toady00/opencode-hindsight` | `@toady00/opencode-hindsight` (git) | Per-agent Hindsight long-term memory. Each agent writes to its own bank (`opencode-orchestrator`, `opencode-oracle`, etc.) with project-tagged memories. Installed from `github:Toady00/opencode-hindsight#v0.2.2`. |
 | `@anthonyhaussman/opencode-agy-auth` | `@anthonyhaussman/opencode-agy-auth` | Google AGY OAuth authentication for Claude + Gemini models. |
 | `@slkiser/opencode-quota` | `@slkiser/opencode-quota` | Per-provider quota tracking, toast notifications, TUI status panels. |
@@ -74,7 +68,7 @@ opencode
 Each subagent in `oh-my-opencode-slim.jsonc` is equipped with dedicated MCP tools, skills, and isolated memory banks:
 
 | Agent Role | Model & Variant | Assigned MCP Servers | Assigned Skills | Memory Bank | Benefit & Profit |
-|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|
 | **`orchestrator`** | DeepSeek V4 Pro (`xhigh`) | `*` (All MCPs) | `*` (All skills) | `opencode-orchestrator` | Auto-recall/retain, session handoffs, global plan tracking, multi-bank memory queries. |
 | **`oracle`** | DeepSeek V4 Pro (`xhigh`) | `sequential-thinking`, `arbor`, `websearch`, `gh_grep` | `simplify`, `arbor`, `hindsight` | `opencode-oracle` | Pristine architectural decision memory without noise, graph-native AST code intelligence. |
 | **`librarian`** | DeepSeek V4 Flash (`low`) | `websearch`, `openadapt`, `context7`, `gh_grep` | `openadapt`, `hindsight` | `opencode-librarian` | Headless DOM rendering for JS-heavy web docs, persistent research index. |
@@ -86,7 +80,7 @@ Each subagent in `oh-my-opencode-slim.jsonc` is equipped with dedicated MCP tool
 
 ## Per-Agent Memory Isolation & Bank Architecture
 
-Memory isolation uses `@toady00/opencode-hindsight` (v0.2.2, installed from git). Each agent resolves its bank at tool-call time via `ToolContext.agent`, routing memories to the agent's own bank. This replaces the previous `opencode-hindsight-plus` plugin which derived a single bank ID at init time and required per-agent patching.
+Memory isolation uses `@toady00/opencode-hindsight` (v0.2.2, installed from git). Each agent resolves its bank at tool-call time via `ToolContext.agent`, routing memories to the agent's own bank.
 
 ### Plugin Configuration
 
@@ -100,7 +94,7 @@ Global defaults in `opencode.json` apply to all agents (`applyMode: "opt-out"`):
     "bankId": "opencode-orchestrator",
     "autoRetain": true,
     "autoRecall": true,
-    "tags": ["source:opencode", "project:agents-shared"],
+    "tags": ["source:opencode", "project:{project}", "agent:orchestrator"],
     "retainEveryNTurns": 10,
     "retainConversationExtras": false
   }
@@ -118,22 +112,24 @@ Each subagent overrides `bankId` to route to its own bank. Auto-recall and auto-
       "hindsight": {
         "bankId": "opencode-oracle",
         "autoRetain": false, "autoRecall": false,
-        "tags": ["source:opencode", "project:agents-shared", "agent:oracle"]
+        "tags": ["source:opencode", "project:{project}", "agent:oracle"]
       }
     }
   },
-  "fixer": { "options": { "hindsight": { "bankId": "opencode-fixer", ... } } },
-  "librarian": { "options": { "hindsight": { "bankId": "opencode-librarian", ... } } },
-  "explorer": { "options": { "hindsight": { "bankId": "opencode-explorer", ... } } },
-  "designer": { "options": { "hindsight": { "bankId": "opencode-designer", ... } } }
+  "fixer": { "options": { "hindsight": { "bankId": "opencode-fixer", "autoRetain": false, "autoRecall": false, "tags": ["source:opencode", "project:{project}", "agent:fixer"] } } },
+  "librarian": { "options": { "hindsight": { "bankId": "opencode-librarian", "autoRetain": false, "autoRecall": false, "tags": ["source:opencode", "project:{project}", "agent:librarian"] } } },
+  "explorer": { "options": { "hindsight": { "bankId": "opencode-explorer", "autoRetain": false, "autoRecall": false, "tags": ["source:opencode", "project:{project}", "agent:explorer"] } } },
+  "designer": { "options": { "hindsight": { "bankId": "opencode-designer", "autoRetain": false, "autoRecall": false, "tags": ["source:opencode", "project:{project}", "agent:designer"] } } }
 }
 ```
 
+### Tag Template Variable Patch (`patch-hindsight-tags.js`)
+
+The `patch-hindsight-tags.js` script runs idempotently post-install (`LAUNCHER_INSTALL_CMDS`). It patches `@toady00/opencode-hindsight` to expand `{project}`, `{gitProject}`, `{directory}`, and `{pwd}` template placeholders in `tags` dynamically at retention time (resolving to `path.basename(process.cwd())` even after directory shifts like `/move`).
+
 ### MCP Server Removal
 
-The `hindsight-mcp` MCP server is **removed from subagents** to avoid tool name collisions with the plugin. Only the plugin's bank-aware tools (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) are available. Knowledge pages are managed via the Hindsight REST API (see below).
-
-**Note**: The orchestrator still has `mcps: ["*", "!context7"]` which includes the `hindsight` MCP server alongside the plugin. The 3 tools with overlapping names (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) will resolve to whichever loads last. If the MCP version wins, the orchestrator would use the agent-centric API instead of the bank-centric API. Monitor after install; if the orchestrator writes to the wrong bank, remove `hindsight` from the orchestrator's MCP list.
+The `hindsight-mcp` MCP server is **removed from subagents** to avoid tool name collisions with the plugin. Only the plugin's bank-aware tools (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) are available.
 
 ### Auto-Recall Behavior
 
@@ -146,21 +142,20 @@ Tags are stored at the memory level (not document level). Verify with:
 curl -s http://localhost:8888/v1/default/banks/opencode-orchestrator/tags | jq
 ```
 
-
 ---
 
 ## Hindsight Bank Configuration Setup & Apply Script
 
-Each bank in `sandbox-templates/opencode/hindsight-banks/` contains custom `retain_mission`, `observations_mission`, `reflect_mission`, and Mental Model definitions tailored to that agent's role:
+Each bank in `sandbox-templates/opencode/hindsight-banks/` contains custom `retain_mission`, `observations_mission`, `reflect_mission`, disposition traits, and Mental Model definitions tailored to that agent's role:
 
-| Bank JSON File | Primary Focus | Custom `reflect_mission` Summary |
-|---|---|---|
-| `opencode-orchestrator.json` | Project roadmap, session handoffs, subagent assignments | Executive project status summary, upcoming milestones, and active handoffs. |
-| `opencode-oracle.json` | System architecture, design trade-offs, post-mortems | Authoritative architectural breakdown detailing design patterns, trade-offs, and invariants. |
-| `opencode-fixer.json` | Error trace patterns, bug root causes, fix runbooks | Root-cause diagnosis and actionable repair runbook based on past post-mortems. |
-| `opencode-librarian.json` | External documentation, API specs, library quirks | Structured documentation briefing highlighting API signatures and library gotchas. |
-| `opencode-explorer.json` | Directory structure, module layout, AST symbol maps | Codebase architecture map detailing module responsibilities and symbol export locations. |
-| `opencode-designer.json` | UI component patterns, brand tokens, accessibility | Visual design specification detailing component tokens, layout rules, and ARIA guidelines. |
+| Bank JSON File | Disposition (Sk / Lit / Emp) | Primary Focus | Custom `reflect_mission` Summary |
+|---|:---:|---|---|
+| `opencode-orchestrator.json` | 3 / 3 / **5** | Project roadmap, developer preferences, host profile, handoffs | Executive status summary, user preferences, host setup, milestones, and handoffs. |
+| `opencode-oracle.json` | **5** / 2 / 3 | System architecture, design trade-offs, post-mortems | Authoritative architectural breakdown detailing design patterns, trade-offs, and invariants. |
+| `opencode-fixer.json` | 4 / **5** / 1 | Error trace patterns, bug root causes, fix runbooks | Root-cause diagnosis and actionable repair runbook based on past post-mortems. |
+| `opencode-librarian.json` | 2 / **5** / 2 | External documentation, API specs, library quirks | Structured documentation briefing highlighting API signatures and library gotchas. |
+| `opencode-explorer.json` | 3 / 2 / 1 | Directory structure, module layout, AST symbol maps | Codebase architecture map detailing module responsibilities and symbol layout. |
+| `opencode-designer.json` | 2 / 3 / **5** | UI component patterns, brand tokens, accessibility | Visual design specification detailing component tokens, layout rules, and ARIA guidelines. |
 
 ### Single Command to Provision / Reconfigure All Banks
 
@@ -172,9 +167,7 @@ Run `./update-memory-banks.sh` to apply all bank configurations from `hindsight-
 
 ### Deprecated: `patch-hindsight-plus.js`
 
-The `patch-hindsight-plus.js` script is **no longer needed**. It previously patched `opencode-hindsight-plus` at install time to inject project-name resolution into template variables. With the switch to `@toady00/opencode-hindsight`, tags are configured natively via `defaults.tags` and per-agent `options.hindsight.tags`.
-
-The file is retained in the template for reference but is not called during install.
+The legacy `patch-hindsight-plus.js` script targeted the older `opencode-hindsight-plus` package and is no longer called during installation. It is retained for reference only.
 
 ---
 
@@ -224,7 +217,7 @@ To eliminate package cache fragmentation and maintain exactly one physical copy 
    * **Main Purpose**: Provides headless browser rendering, DOM state inspection, visual web element verification, and web action automation (~800 - 1,100 tokens).
    * **Source**: [OpenAdapt AI](https://github.com/openadapt-ai/OpenAdapt) browser automation emitter.
    * **Tool Command**: `uv tool install "openadapt[browser]"` -> `openadapt mcp`.
-   * **dependencies for playwright webkit browser:** `icu74`, `playwright-webkit-flite-deps`,
+   * **Dependencies for Playwright WebKit Browser:** `icu74`, `playwright-webkit-flite-deps`.
 
 4. **`opencode-a2a`**:
    * **Main Purpose**: Enables Agent-to-Agent (A2A) protocol peer discovery, remote agent card inspection, and inter-agent task delegation across framework boundaries.
@@ -233,10 +226,9 @@ To eliminate package cache fragmentation and maintain exactly one physical copy 
 
 5. **`hindsight`**:
    * **Main Purpose**: Per-agent long-term memory with bank isolation. Each agent writes to its own bank (`opencode-{agent}`) with project-tagged memories. Auto-recall/retain for the orchestrator's root session; explicit tools for subagent child sessions.
-   * **Source**: [Toady00/opencode-hindsight](https://github.com/Toady00/opencode-hindsight) (pre-1.0 alpha, installed from git) & [Vectorize Hindsight](https://github.com/vectorize-io/hindsight).
+   * **Source**: [Toady00/opencode-hindsight](https://github.com/Toady00/opencode-hindsight) (installed from git) & [Vectorize Hindsight](https://github.com/vectorize-io/hindsight).
    * **Package / Service**: `@toady00/opencode-hindsight` (plugin).
 
 6. **`hindsight-api`**:
    * **Main Purpose**: Teaches agents how to programmatically inspect, query, and reconfigure Hindsight memory banks, missions, and mental models via the Hindsight REST API (`http://localhost:8888`).
    * **Source**: Local Hindsight REST API (`local-memory.sh`).
-
