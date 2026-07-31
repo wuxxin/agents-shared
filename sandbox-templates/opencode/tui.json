@@ -1,6 +1,7 @@
 {
   "plugin": [
     "oh-my-opencode-slim",
-    "@slkiser/opencode-quota"
+    "@slkiser/opencode-quota",
+    "@toady00/opencode-hindsight"
   ]
 }

@@ -2,28 +2,25 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "deepseek/deepseek-v4-flash",
   "plugin": [
-    "@anthonyhaussman/opencode-agy-auth",
-    "opencode-llm-proxy",
-    "@slkiser/opencode-quota",
-    "opencode-handoff",
-    "oh-my-opencode-slim",
-    "@shantur/jarvis-mcp/plugin",
+    "./node_modules/@anthonyhaussman/opencode-agy-auth",
+    "./node_modules/opencode-llm-proxy",
+    "./node_modules/@slkiser/opencode-quota",
+    "./node_modules/opencode-handoff",
+    "./node_modules/oh-my-opencode-slim",
+    "./node_modules/@shantur/jarvis-mcp/plugin",
     [
-      "opencode-hindsight-plus",
+      "./node_modules/@toady00/opencode-hindsight",
       {
         "hindsightApiUrl": "http://localhost:8888",
-        "autoRecall": false,
-        "autoRetain": false,
-        "dynamicBankId": true,
-        "dynamicBankGranularity": ["agent"],
-        "retainTags": ["{session_id}", "project:{project}"],
-        "retainMetadata": { "project": "{project}" },
-        "enableKnowledgePages": true,
-        "recallBudget": "low",
-        "recallMaxTokens": 1024,
-        "minRecallPromptChars": 15,
-        "retainEveryNTurns": 10,
-        "injectToast": true
+        "applyMode": "opt-out",
+        "defaults": {
+          "bankId": "opencode-orchestrator",
+          "autoRetain": true,
+          "autoRecall": true,
+          "tags": ["source:opencode", "project:agents-shared", "agent:orchestrator"],
+          "retainEveryNTurns": 10,
+          "retainConversationExtras": false
+        }
       }
     ]
   ],
@@ -101,6 +98,56 @@
     },
     "general": {
       "disable": true
+    },
+    "oracle": {
+      "options": {
+        "hindsight": {
+          "bankId": "opencode-oracle",
+          "autoRetain": false,
+          "autoRecall": false,
+          "tags": ["source:opencode", "project:agents-shared", "agent:oracle"]
+        }
+      }
+    },
+    "fixer": {
+      "options": {
+        "hindsight": {
+          "bankId": "opencode-fixer",
+          "autoRetain": false,
+          "autoRecall": false,
+          "tags": ["source:opencode", "project:agents-shared", "agent:fixer"]
+        }
+      }
+    },
+    "librarian": {
+      "options": {
+        "hindsight": {
+          "bankId": "opencode-librarian",
+          "autoRetain": false,
+          "autoRecall": false,
+          "tags": ["source:opencode", "project:agents-shared", "agent:librarian"]
+        }
+      }
+    },
+    "explorer": {
+      "options": {
+        "hindsight": {
+          "bankId": "opencode-explorer",
+          "autoRetain": false,
+          "autoRecall": false,
+          "tags": ["source:opencode", "project:agents-shared", "agent:explorer"]
+        }
+      }
+    },
+    "designer": {
+      "options": {
+        "hindsight": {
+          "bankId": "opencode-designer",
+          "autoRetain": false,
+          "autoRecall": false,
+          "tags": ["source:opencode", "project:agents-shared", "agent:designer"]
+        }
+      }
     }
   }
 }
