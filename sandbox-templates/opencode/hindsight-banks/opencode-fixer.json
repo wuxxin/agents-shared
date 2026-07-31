@@ -1,6 +1,9 @@
 {
   "version": "1",
   "bank": {
+    "disposition_skepticism": 4,
+    "disposition_literalism": 5,
+    "disposition_empathy": 1,
     "retain_mission": "Extract distilled error root causes, bug post-mortems, verified test fix patterns, and diagnostic runbooks. Ignore raw verbose compiler stack traces, terminal log dumps, and routine build outputs.",
     "enable_observations": true,
     "observations_mission": "Track recurring bug root causes, flaky test behaviors, common environment pitfalls, and verified repair patterns across debugging sessions.",

@@ -1,6 +1,9 @@
 {
   "version": "1",
   "bank": {
+    "disposition_skepticism": 3,
+    "disposition_literalism": 2,
+    "disposition_empathy": 1,
     "retain_mission": "Extract high-level module domain responsibilities, architectural directory boundaries, and structural refactoring intent. Ignore raw AST symbol definitions, function signatures, line numbers, and file listings (which the arbor tool indexes dynamically live).",
     "enable_observations": true,
     "observations_mission": "Track high-level module boundary evolution, directory domain responsibilities, and structural refactoring patterns over time.",

@@ -1,15 +1,36 @@
 {
   "version": "1",
   "bank": {
-    "retain_mission": "Extract overall project goals, high-level task breakdowns, session handoffs, subagent assignments, major milestone completions, and user execution preferences. Ignore intermediate subagent thought process text, raw terminal outputs, and line-level code patches.",
+    "disposition_skepticism": 3,
+    "disposition_literalism": 3,
+    "disposition_empathy": 5,
+    "retain_mission": "Extract overall project goals, technical decisions and their rationale, architectural choices, coding patterns and conventions, project structure facts, library/tool preferences, recurring issues, developer workflow preferences, user commitments, routines, and running host machine & agent environment configuration (OS, hardware, local LLM/embedding/reranker services, agent harness tools and features, shared paths). Ignore intermediate subagent thought process text, raw terminal outputs, line-level code patches, transient debugging output, and boilerplate.",
     "enable_observations": true,
-    "observations_mission": "Track active project progress, ongoing task state, overall architectural roadmap, and multi-agent coordination history over time.",
-    "reflect_mission": "Synthesize an executive summary of current project status, upcoming goals, active subagent assignments, key user constraints, and recent session handoffs."
+    "observations_mission": "Track active project progress, ongoing task state, overall architectural roadmap, tech stack evolution, team conventions, developer preferences, host machine profile & tools, user constraints, active commitments, and multi-agent coordination history over time.",
+    "reflect_mission": "Synthesize an executive summary of current project status, developer preferences, host environment setup, upcoming goals, active subagent assignments, key user constraints, active commitments, and recent session handoffs."
   },
   "mental_models": [
     {
-      "id": "project-roadmap",
-      "name": "Project Roadmap & Milestones",
+      "id": "user-host-environment",
+      "name": "Developer Preferences, Host & Agent Environment Profile",
+      "source_query": "What are the core facts about the user and their host machine? (Hardware, OS, major packages for local inference and agent setup) What tools, languages, and frameworks does the developer prefer? What shared paths and services are configured for the agent?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "project-context",
+      "name": "Project Context & Architecture",
+      "source_query": "What is the project's tech stack, architecture, and key conventions? What are the main components and how do they fit together?",
+      "max_tokens": 2048,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "project-status",
+      "name": "Project Status & Deliverables",
       "source_query": "What are the primary goals, active milestones, completed features, and pending deliverables for this project?",
       "max_tokens": 2048,
       "trigger": {
@@ -29,6 +50,15 @@
       "id": "agent-coordination",
       "name": "Subagent Assignments & A2A Routing",
       "source_query": "Which subagents (oracle, fixer, explorer, librarian, designer) or external A2A agents were assigned to which tasks, and what were their outcomes?",
+      "max_tokens": 1024,
+      "trigger": {
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "project-tasks-commitments",
+      "name": "Active Tasks & Accountability",
+      "source_query": "What are the user's active short/mid-term tasks, project commitments, check-ins, and deadlines?",
       "max_tokens": 1024,
       "trigger": {
         "refresh_after_consolidation": true
