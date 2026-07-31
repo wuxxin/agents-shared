@@ -16,13 +16,13 @@
         "model": "deepseek/deepseek-v4-pro",
         "variant": "xhigh",
         "skills": ["*"],
-        "mcps": ["*", "!context7"]
+        "mcps": ["*", "!context7", "!hindsight"]
       },
       "oracle": {
         "model": "deepseek/deepseek-v4-pro",
         "variant": "xhigh",
         "skills": ["simplify", "arbor", "hindsight"],
-        "mcps": ["sequential-thinking", "arbor", "hindsight", "websearch", "gh_grep"]
+        "mcps": ["sequential-thinking", "arbor", "websearch", "gh_grep"]
       },
       "librarian": {
         "model": "deepseek/deepseek-v4-flash",
@@ -33,20 +33,20 @@
       "explorer": {
         "model": "deepseek/deepseek-v4-flash",
         "variant": "low",
-        "skills": ["arbor"],
+        "skills": ["arbor", "hindsight"],
         "mcps": ["arbor", "gh_grep"]
       },
       "designer": {
         "model": "google/gemini-3.6-flash",
         "variant": "medium",
         "skills": ["openadapt", "hindsight"],
-        "mcps": ["openadapt", "hindsight"]
+        "mcps": ["openadapt"]
       },
       "fixer": {
         "model": "deepseek/deepseek-v4-pro",
         "variant": "xhigh",
         "skills": ["arbor", "hindsight"],
-        "mcps": ["arbor", "hindsight"]
+        "mcps": ["arbor"]
       }
     }
   },
