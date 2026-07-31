@@ -5,7 +5,7 @@ description: Long-term memory recall, retention, reflection, and per-agent menta
 
 # Vectorize Hindsight Memory Skill
 
-Provides persistent long-term memory and mental model access paired with `opencode-hindsight-plus` plugin and `hindsight-mcp` tools (`mcp__hindsight__*`).
+Provides persistent long-term memory and mental model access paired with `@toady00/opencode-hindsight` plugin.
 
 ## Memory Isolation & Bank Architecture
 
@@ -20,9 +20,9 @@ Each agent operates within an isolated memory bank namespace (`opencode-{agent}`
 - **`hindsight_recall`**: Proactively search memory banks before answering complex questions where prior session context is valuable.
 - **`hindsight_retain`**: Explicitly save crucial user preferences, architectural rules, or fix runbooks.
 - **`hindsight_reflect`**: Request a synthesized summary over historical memories for a specific query.
-- **Cross-Bank Queries**: Worker agents (e.g., `fixer`) can query `oracle`'s memory bank by passing `bank_id: "opencode-oracle"` in explicit `hindsight_recall` tool calls.
+- **Cross-Bank Queries**: Each agent operates in its own bank. Cross-bank recall is not natively supported; use the Hindsight REST API directly for cross-bank queries.
 
 ## Guidelines
 
-1. Leverage automatic background retention (`opencode-hindsight-plus`) for general session history.
-2. Use explicit MCP tool calls (`hindsight-mcp`) when querying target mental models across different agent banks.
+1. Leverage automatic background retention (`@toady00/opencode-hindsight`) for the orchestrator's root session.
+2. Use explicit plugin tool calls (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) for subagent child sessions.
