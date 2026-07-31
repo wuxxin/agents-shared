@@ -192,7 +192,7 @@ Reverse engineering the OpenCode binary (`/usr/bin/opencode`, Bun-compiled execu
 To eliminate package cache fragmentation and maintain exactly one physical copy on disk:
 
 1. **`opencode.json`**: Configured with relative paths (`"./node_modules/<package>"`) for all plugins.
-2. **`package.json`**: Serves as the single source of truth for all plugin versions and git repositories (e.g. `"@toady00/opencode-hindsight": "github:Toady00/opencode-hindsight#v0.2.2"`).
+2. **`package.json`**: Serves as the single source of truth for all plugin versions (e.g. `"@toady00/opencode-hindsight": ">=0.2.0"`).
 3. **`LAUNCHER_INSTALL_CMDS` (`opencode.env`)**: Runs a single `bun install` command inside `$HOME/.config/opencode`.
 4. **Hard-link Sharing**: Bun hard-links `node_modules/` to Bun's global cache (`~/.bun/install/cache`), sharing identical inodes with zero extra disk footprint.
 

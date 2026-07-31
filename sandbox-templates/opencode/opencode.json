@@ -51,7 +51,7 @@
         }
       }
     },
-    "google-agy": {},
+
     "local-inference": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Local Inference",
