@@ -45,7 +45,8 @@ opencode
 | Plugin | Package | Purpose |
 |---|---|---|
 | `oh-my-opencode-slim` | `oh-my-opencode-slim` | Multi-agent orchestration (`orchestrator`, `oracle`, `explorer`, `librarian`, `designer`, `fixer`). |
-| `opencode-hindsight-plus` | `opencode-hindsight-plus` | Advanced Hindsight long-term memory plugin with per-agent dynamic bank isolation and `additionalBanks` cross-recall. |
+| `opencode-hindsight-plus` | `opencode-hindsight-plus` | ~~Advanced Hindsight long-term memory plugin.~~ Replaced by `@toady00/opencode-hindsight` (see below). |
+| `@toady00/opencode-hindsight` | `@toady00/opencode-hindsight` (git) | Per-agent Hindsight long-term memory. Each agent writes to its own bank (`opencode-orchestrator`, `opencode-oracle`, etc.) with project-tagged memories. Installed from `github:Toady00/opencode-hindsight#v0.2.2`. |
 | `@anthonyhaussman/opencode-agy-auth` | `@anthonyhaussman/opencode-agy-auth` | Google AGY OAuth authentication for Claude + Gemini models. |
 | `@slkiser/opencode-quota` | `@slkiser/opencode-quota` | Per-provider quota tracking, toast notifications, TUI status panels. |
 | `opencode-handoff` | `opencode-handoff` | Session handoff with `/handoff` command. |
@@ -72,54 +73,78 @@ opencode
 
 Each subagent in `oh-my-opencode-slim.jsonc` is equipped with dedicated MCP tools, skills, and isolated memory banks:
 
-| Agent Role | Model & Variant | Assigned MCP Servers | Assigned Skills | Memory Bank Partition | Benefit & Profit |
-|---|---|---|---|---|---|
-| **`orchestrator`** | DeepSeek V4 Pro (`xhigh`) | `*` (All MCPs) | `*` (All skills) | `opencode-orchestrator` | Session handoffs, global plan tracking, multi-bank memory queries, cross-runtime A2A delegation. |
-| **`oracle`** | DeepSeek V4 Pro (`xhigh`) | `sequential-thinking`, `arbor`, `hindsight`, `websearch`, `gh_grep` | `simplify`, `arbor`, `hindsight` | `opencode-oracle` | Pristine architectural decision memory without noise, graph-native AST code intelligence, sequential hypothesis revision. |
+| Agent Role | Model & Variant | Assigned MCP Servers | Assigned Skills | Memory Bank | Benefit & Profit |
+|---|---|---|---|---|---|---|
+| **`orchestrator`** | DeepSeek V4 Pro (`xhigh`) | `*` (All MCPs) | `*` (All skills) | `opencode-orchestrator` | Auto-recall/retain, session handoffs, global plan tracking, multi-bank memory queries. |
+| **`oracle`** | DeepSeek V4 Pro (`xhigh`) | `sequential-thinking`, `arbor`, `websearch`, `gh_grep` | `simplify`, `arbor`, `hindsight` | `opencode-oracle` | Pristine architectural decision memory without noise, graph-native AST code intelligence. |
 | **`librarian`** | DeepSeek V4 Flash (`low`) | `websearch`, `openadapt`, `context7`, `gh_grep` | `openadapt`, `hindsight` | `opencode-librarian` | Headless DOM rendering for JS-heavy web docs, persistent research index. |
-| **`explorer`** | DeepSeek V4 Flash (`low`) | `arbor`, `gh_grep` | `arbor` | `opencode-explorer` | Fast dependency graph traversal and symbol relationship lookup without heavy RAG scans. |
-| **`designer`** | Gemini 3.6 Flash (`medium`) | `openadapt`, `hindsight` | `openadapt`, `hindsight` | `opencode-designer` | Visual DOM inspection, layout rendering, visual regression checking, design system rule retention. |
-| **`fixer`** | DeepSeek V4 Pro (`xhigh`) | `arbor`, `hindsight` | `arbor`, `hindsight` | `opencode-fixer` *(Reads `opencode-oracle` via `additionalBanks`)* | Isolated bank for low-level stack trace logs while reading high-level architectural decisions from `oracle`. |
+| **`explorer`** | DeepSeek V4 Flash (`low`) | `arbor`, `gh_grep` | `arbor` | `opencode-explorer` | Fast dependency graph traversal and symbol relationship lookup. |
+| **`designer`** | Gemini 3.6 Flash (`medium`) | `openadapt` | `openadapt`, `hindsight` | `opencode-designer` | Visual DOM inspection, layout rendering, design system rule retention. |
+| **`fixer`** | DeepSeek V4 Pro (`xhigh`) | `arbor` | `arbor`, `hindsight` | `opencode-fixer` | Isolated bank for bug post-mortems, verified fix patterns, and diagnostic runbooks. |
 
 ---
 
 ## Per-Agent Memory Isolation & Bank Architecture
 
-Memory isolation is configured in `opencode.json` via `opencode-hindsight-plus`.
-Memory banks are named using agent role namespaces: `opencode-{agent}` (e.g., `opencode-orchestrator`, `opencode-oracle`, `opencode-fixer`, `opencode-librarian`, `opencode-explorer`, `opencode-designer`.
+Memory isolation uses `@toady00/opencode-hindsight` (v0.2.2, installed from git). Each agent resolves its bank at tool-call time via `ToolContext.agent`, routing memories to the agent's own bank. This replaces the previous `opencode-hindsight-plus` plugin which derived a single bank ID at init time and required per-agent patching.
+
+### Plugin Configuration
+
+Global defaults in `opencode.json` apply to all agents (`applyMode: "opt-out"`):
 
 ```json
-[
-  "opencode-hindsight-plus",
-  {
-    "hindsightApiUrl": "http://localhost:8888",
-    "dynamicBankId": true,
-    "dynamicBankGranularity": ["agent"],
-    "retainTags": ["{session_id}", "project:{project}"],
-    "retainMetadata": { "project": "{project}" },
-    "enableKnowledgePages": true,
-    "recallBudget": "low",
-    "recallMaxTokens": 1024,
-    "minRecallPromptChars": 15,
+["@toady00/opencode-hindsight", {
+  "hindsightApiUrl": "http://localhost:8888",
+  "applyMode": "opt-out",
+  "defaults": {
+    "bankId": "opencode-orchestrator",
+    "autoRetain": true,
+    "autoRecall": true,
+    "tags": ["source:opencode", "project:agents-shared"],
     "retainEveryNTurns": 10,
-    "injectToast": true
+    "retainConversationExtras": false
   }
-]
+}]
 ```
 
-### Resource Optimization Settings (Local dGPU Hindsight)
+### Per-Agent Bank Overrides
 
-| Setting | Customized Value | Standard Default | Description / Impact |
-|---|---|---|---|
-| `recallBudget` | `"low"` | `"mid"` | Reduced search/thinking budget spent by local LLM during memory retrieval. |
-| `recallMaxTokens` | `1024` | `1024` | Caps memory context payload size injected per turn. |
-| `minRecallPromptChars` | `15` | `5` | Skips auto-recall on short/trivial user prompts (e.g. "ok", "yes", "run tests"). |
-| `retainEveryNTurns` | `10` | `10` | Frequency of auto-retention passes (runs every N user turns). |
-| `injectToast` | `true` | `false` | Displays a TUI notification toast when memory is injected into conversation context. |
+Each subagent overrides `bankId` to route to its own bank. Auto-recall and auto-retain are disabled for subagents (child sessions — only the orchestrator's root session gets automatic behavior). Manual tools (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) work for all configured agents:
 
-What is `enableKnowledgePage`?
+```json
+"agent": {
+  "oracle": {
+    "options": {
+      "hindsight": {
+        "bankId": "opencode-oracle",
+        "autoRetain": false, "autoRecall": false,
+        "tags": ["source:opencode", "project:agents-shared", "agent:oracle"]
+      }
+    }
+  },
+  "fixer": { "options": { "hindsight": { "bankId": "opencode-fixer", ... } } },
+  "librarian": { "options": { "hindsight": { "bankId": "opencode-librarian", ... } } },
+  "explorer": { "options": { "hindsight": { "bankId": "opencode-explorer", ... } } },
+  "designer": { "options": { "hindsight": { "bankId": "opencode-designer", ... } } }
+}
+```
 
-  In `opencode-hindsight-plus`, **Knowledge Pages** are dynamic, auto-synthesized markdown documents generated from a bank's mental models (`hindsight_page_list`, `hindsight_page_get`, `hindsight_page_create`, `hindsight_page_refresh`). Instead of executing an raw search (`hindsight_recall`) that returns multiple disjointed memory chunks, calling `hindsight_page_get` reads an up-to-date, auto-consolidated executive summary of an entire mental model (e.g. `User Profile & Core Preferences`, `System Architecture`, `Known Bugs & Verified Fixes`) in 1 single high-density call.
+### MCP Server Removal
+
+The `hindsight-mcp` MCP server is **removed from subagents** to avoid tool name collisions with the plugin. Only the plugin's bank-aware tools (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) are available. Knowledge pages are managed via the Hindsight REST API (see below).
+
+**Note**: The orchestrator still has `mcps: ["*", "!context7"]` which includes the `hindsight` MCP server alongside the plugin. The 3 tools with overlapping names (`hindsight_retain`, `hindsight_recall`, `hindsight_reflect`) will resolve to whichever loads last. If the MCP version wins, the orchestrator would use the agent-centric API instead of the bank-centric API. Monitor after install; if the orchestrator writes to the wrong bank, remove `hindsight` from the orchestrator's MCP list.
+
+### Auto-Recall Behavior
+
+The orchestrator gets auto-recall at session start and compaction. Subagents (child sessions) call recall/retain explicitly when the orchestrator delegates work. The plugin's `sessionStartMentalModel` config can auto-inject a specific mental model at orchestrator session start.
+
+### Tag Storage
+
+Tags are stored at the memory level (not document level). Verify with:
+```bash
+curl -s http://localhost:8888/v1/default/banks/opencode-orchestrator/tags | jq
+```
 
 
 ---
@@ -144,6 +169,41 @@ Run `./update-memory-banks.sh` to apply all bank configurations from `hindsight-
 ```bash
 ./update-memory-banks.sh $HOME/.config/opencode/hindsight-banks http://localhost:8888 --yes
 ```
+
+### Deprecated: `patch-hindsight-plus.js`
+
+The `patch-hindsight-plus.js` script is **no longer needed**. It previously patched `opencode-hindsight-plus` at install time to inject project-name resolution into template variables. With the switch to `@toady00/opencode-hindsight`, tags are configured natively via `defaults.tags` and per-agent `options.hindsight.tags`.
+
+The file is retained in the template for reference but is not called during install.
+
+---
+
+## Plugin Resolution & Cache Single-Copy Architecture
+
+### Mechanism Findings & OpenCode Resolution Logic
+
+Reverse engineering the OpenCode binary (`/usr/bin/opencode`, Bun-compiled executable) revealed the exact mechanism governing plugin specifier resolution (`resolvePluginSpec` / `pQ`):
+
+1. **NPM Specifiers (`oh-my-opencode-slim`, `@toady00/opencode-hindsight`)**:
+   - Evaluated via `Jq(spec)` -> returns `false` (not starting with `.`, `file://`, or absolute path).
+   - Rewrites bare names to `${pkg}@latest`.
+   - Triggers OpenCode's internal downloader (`V1.add(...)`), which fetches packages directly into `~/.cache/opencode/packages/<pkg>/`.
+   - Files in `~/.config/opencode/node_modules/` are ignored for NPM specifiers, causing duplicate package downloads and `@latest` vs. bare directory divergence.
+
+2. **Relative File Specifiers (`./node_modules/<pkg>`)**:
+   - Evaluated via `Jq(spec)` -> returns `true`.
+   - Resolved directly relative to the configuration folder (`~/.config/opencode/node_modules/<pkg>`).
+   - Completely **bypasses OpenCode's internal downloader**, ensuring `~/.cache/opencode/packages/` remains empty (0 extra copies).
+
+### Single-Copy Architecture
+
+To eliminate package cache fragmentation and maintain exactly one physical copy on disk:
+
+1. **`opencode.json`**: Configured with relative paths (`"./node_modules/<package>"`) for all plugins.
+2. **`package.json`**: Serves as the single source of truth for all plugin versions and git repositories (e.g. `"@toady00/opencode-hindsight": "github:Toady00/opencode-hindsight#v0.2.2"`).
+3. **`LAUNCHER_INSTALL_CMDS` (`opencode.env`)**: Runs a single `bun install` command inside `$HOME/.config/opencode`.
+4. **Hard-link Sharing**: Bun hard-links `node_modules/` to Bun's global cache (`~/.bun/install/cache`), sharing identical inodes with zero extra disk footprint.
+
 ---
 
 ## Skill Recreation & Download Guide
@@ -172,9 +232,9 @@ Run `./update-memory-banks.sh` to apply all bank configurations from `hindsight-
    * **Tool Command**: `uv tool install opencode-a2a` -> `opencode-a2a serve --port 9090` (sidecar) & `opencode-a2a mcp`.
 
 5. **`hindsight`**:
-   * **Main Purpose**: Enables long-term temporal, semantic, and entity-graph memory recall, retention, and reflection against local Hindsight server (`http://localhost:8888`), with per-agent bank isolation (`opencode-{agent}`) and cross-bank recall via `additionalBanks`.
-   * **Source**: [best-linux-code/opencode-hindsight-plus](https://github.com/best-linux-code/opencode-hindsight-plus) & [Vectorize Hindsight](https://github.com/vectorize-io/hindsight).
-   * **Package / Service**: `opencode-hindsight-plus` (plugin) + `hindsight-mcp` (MCP server).
+   * **Main Purpose**: Per-agent long-term memory with bank isolation. Each agent writes to its own bank (`opencode-{agent}`) with project-tagged memories. Auto-recall/retain for the orchestrator's root session; explicit tools for subagent child sessions.
+   * **Source**: [Toady00/opencode-hindsight](https://github.com/Toady00/opencode-hindsight) (pre-1.0 alpha, installed from git) & [Vectorize Hindsight](https://github.com/vectorize-io/hindsight).
+   * **Package / Service**: `@toady00/opencode-hindsight` (plugin).
 
 6. **`hindsight-api`**:
    * **Main Purpose**: Teaches agents how to programmatically inspect, query, and reconfigure Hindsight memory banks, missions, and mental models via the Hindsight REST API (`http://localhost:8888`).
