@@ -156,6 +156,28 @@ for mm in data.get('mental_models', []):
                 print(f'  Updated mental model {mm_id}: {patch_resp.status}')
         except Exception as patch_e:
             print(f'  Mental model error ({mm_id}): {patch_e}')
+
+# 3. Prune leftover mental models not present in bank JSON
+expected_ids = {mm.get('id') for mm in data.get('mental_models', []) if mm.get('id')}
+try:
+    get_req = urllib.request.Request(f'{api_url}/v1/default/banks/{bank_id}/mental-models')
+    with urllib.request.urlopen(get_req) as resp:
+        res_data = json.load(resp)
+        items = res_data.get('items', res_data) if isinstance(res_data, dict) else res_data
+        actual_ids = {mm.get('id') for mm in items if mm.get('id')}
+        leftover_ids = actual_ids - expected_ids
+        for leftover_id in leftover_ids:
+            del_req = urllib.request.Request(
+                f'{api_url}/v1/default/banks/{bank_id}/mental-models/{leftover_id}',
+                method='DELETE'
+            )
+            try:
+                with urllib.request.urlopen(del_req) as del_resp:
+                    print(f'  Pruned leftover mental model {leftover_id}: {del_resp.status}')
+            except Exception as del_e:
+                print(f'  Error pruning mental model ({leftover_id}): {del_e}')
+except Exception as get_e:
+    print(f'  Could not list mental models for pruning: {get_e}')
 "
 done
 

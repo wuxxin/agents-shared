@@ -3,7 +3,6 @@
   "model": "deepseek/deepseek-v4-flash",
   "plugin": [
     "./node_modules/@anthonyhaussman/opencode-agy-auth",
-    "./node_modules/opencode-llm-proxy",
     "./node_modules/@slkiser/opencode-quota",
     "./node_modules/opencode-handoff",
     "./node_modules/oh-my-opencode-slim",

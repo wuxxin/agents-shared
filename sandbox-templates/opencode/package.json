@@ -16,8 +16,7 @@
     "@toady00/opencode-hindsight": "github:Toady00/opencode-hindsight#v0.2.2",
     "@shantur/jarvis-mcp": "latest",
     "oh-my-opencode-slim": ">=2.1.0",
-    "opencode-handoff": ">=0.5.0",
-    "opencode-llm-proxy": ">=1.7.1"
+    "opencode-handoff": ">=0.5.0"
   },
   "trustedDependencies": [
     "@ast-grep/cli",

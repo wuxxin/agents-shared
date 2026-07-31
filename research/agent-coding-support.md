@@ -92,7 +92,7 @@ Hermes-Agent features bundled skills to delegate to external coding CLI installa
 ## 📋 Instruction Guide: Recreating this Analysis
 
 If you do links to the source code , point relative to `scratch/` so `picoclaw/pkg/providers/cli/claude_cli_provider.go`.
-If you research for opencode (agent or llm-proxy support), ignore the opencode-zen (a Remote Inference API and Model by opencode) for this analysis.
+If you research for opencode agent support, ignore the opencode-zen (a Remote Inference API and Model by opencode) for this analysis.
 To recreate or update this document, read whole document, and then follow these research steps
 
 

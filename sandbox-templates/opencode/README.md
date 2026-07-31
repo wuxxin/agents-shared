@@ -44,7 +44,6 @@ opencode
 | `@anthonyhaussman/opencode-agy-auth` | `@anthonyhaussman/opencode-agy-auth` | Google AGY OAuth authentication for Claude + Gemini models. |
 | `@slkiser/opencode-quota` | `@slkiser/opencode-quota` | Per-provider quota tracking, toast notifications, TUI status panels. |
 | `opencode-handoff` | `opencode-handoff` | Session handoff with `/handoff` command. |
-| `opencode-llm-proxy` | `opencode-llm-proxy` | Local LLM proxy on `127.0.0.1:4010`. |
 | --- | --- | --- |
 | `openadapt` | `openadapt[browser]` (PyPI / `uv tool`) | Headless browser rendering, DOM inspection, and web action automation (~800 - 1,100 tokens). |
 | `a2a` | `opencode-a2a` (PyPI / `uv tool`) | Agent-to-Agent protocol peer discovery and remote task delegation (sidecar on port `9090`). |
