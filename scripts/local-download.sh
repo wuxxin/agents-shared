@@ -175,7 +175,7 @@ convert_and_quantize_reranker() {
 
 hf_to_mlc() {
     if [ "$#" -lt 3 ]; then
-        echo "Usage: hf_to_mlc <source> <destbasedir> <quant> <modeltype> <template> [devices=\"rocm vulkan\"]" >&2
+        echo "Usage: hf_to_mlc <source> <destbasedir> <quant> <modeltype> <template>" >&2
         return 1
     fi
 
@@ -184,7 +184,6 @@ hf_to_mlc() {
     local quant="$3"
     local model_type="$4"
     local conv_template="$5"
-    local devices="${6:-rocm vulkan}"
 
     if [ ! -d "$source_path" ]; then
         echo "Error: Source directory '$source_path' does not exist." >&2
@@ -231,24 +230,36 @@ hf_to_mlc() {
         echo "Created weights: $cache_file"
     fi
 
-    # --- Step 3: Compile (Evaluated per device) ---
-    for device in $devices; do
-        local lib_output="${mlc_model_dir}/${model_name}-${device}.so"
-
-        echo "Compiling Library for $device..."
-        if [ -f "$lib_output" ]; then
-            echo "Skipped: Library for $device already exists." >&2
-        else
-            local cmd_compile=(mlc_llm compile "$mlc_model_dir" --device "$device" -o "$lib_output")
-            cmd_compile+=(--device "rocm:0")
-
-            if ! "${cmd_compile[@]}"; then
-                echo "Error: Compilation failed for device $device." >&2
-                return 1
-            fi
-            echo "Compiled: $lib_output"
+    # --- Step 3: Compile .so variants ---
+    # ROCm FlashInfer variant (default)
+    local lib_rocm_fi="${mlc_model_dir}/lib_rocm_fi.so"
+    echo "Compiling ROCm + FlashInfer..."
+    if [ -f "$lib_rocm_fi" ]; then
+        echo "Skipped: lib_rocm_fi.so already exists." >&2
+    else
+        if ! mlc_llm compile "$mlc_model_dir" --device rocm \
+            --opt "flashinfer=1;cublas_gemm=0;cudagraph=1;cutlass=0" \
+            -o "$lib_rocm_fi"; then
+            echo "Error: Compilation failed for ROCm FlashInfer." >&2
+            return 1
         fi
-    done
+        echo "Compiled: lib_rocm_fi.so"
+    fi
+
+    # ROCm non-FlashInfer variant
+    local lib_rocm="${mlc_model_dir}/lib_rocm.so"
+    echo "Compiling ROCm (no FlashInfer)..."
+    if [ -f "$lib_rocm" ]; then
+        echo "Skipped: lib_rocm.so already exists." >&2
+    else
+        if ! mlc_llm compile "$mlc_model_dir" --device rocm \
+            --opt "flashinfer=0;cublas_gemm=0;cudagraph=0;cutlass=0" \
+            -o "$lib_rocm"; then
+            echo "Error: Compilation failed for ROCm (non-FI)." >&2
+            return 1
+        fi
+        echo "Compiled: lib_rocm.so"
+    fi
 }
 
 main() {
