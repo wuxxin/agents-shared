@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # scripts/test-local-router-usage.py - Test local router usage tracking and metrics
 
-import os
-import sys
-import tempfile
-import shutil
-import json
 import datetime
 import importlib.util
+import json
+import os
+import shutil
+import sys
+import tempfile
 
 # Override environment BEFORE importing local-router to isolate systemd directories
 temp_config_dir = tempfile.mkdtemp()
@@ -19,7 +19,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(script_dir)
 
 # Import test client and router app
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 # Load hyphenated module using importlib
 spec = importlib.util.spec_from_file_location(
@@ -31,7 +31,13 @@ sys.modules["local_router"] = local_router
 assert spec.loader is not None
 spec.loader.exec_module(local_router)
 
-from local_router import app, check_and_save_usage, get_usage_file_path  # type: ignore[import-not-found] # noqa: E402
+from local_router import (  # type: ignore[import-not-found]
+    _decrement_active_call,
+    _increment_active_call,
+    app,
+    check_and_save_usage,
+    get_usage_file_path,
+)
 
 
 def run_tests():
@@ -81,10 +87,19 @@ def run_tests():
         payload["stream"] = True
         resp = client.post("/v1/chat/completions", json=payload, headers=headers_hermes)
         assert resp.status_code == 200
-        # Iterate over stream chunks to trigger interception code
-        for chunk in resp.iter_bytes():
+        for _chunk in resp.iter_bytes():
             pass
         print("Chat Hermes streaming: OK")
+
+        # 3b. Verify direct active stream counter increment/decrement lifecycle
+        print("Testing active stream counter lifecycle...")
+        _increment_active_call("test_ag", "chat", "test_md", is_streaming=True)
+        active_check = client.get("/usage").json()["totals"]["calls_active_stream"]
+        assert active_check == 1, f"Expected active stream 1, got {active_check}"
+        _decrement_active_call("test_ag", "chat", "test_md", is_streaming=True)
+        after_check = client.get("/usage").json()["totals"]["calls_active_stream"]
+        assert after_check == 0, f"Expected active stream 0, got {after_check}"
+        print("Active stream counter lifecycle: OK")
 
         # 4. Simulate Embedding from Hindsight
         print("Testing Embeddings (Hindsight)...")
@@ -186,6 +201,16 @@ def run_tests():
             pass
         print("Chat completions streaming error (429): OK")
 
+        # 8d. Simulate Chat completion from Zed editor (User-Agent header auto-mapping)
+        print("Testing Chat completions from Zed editor...")
+        resp = client.post(
+            "/v1/chat/completions",
+            json={"model": "qwen3", "messages": [{"role": "user", "content": "hi"}]},
+            headers={"User-Agent": "Zed/1.12.0+stable (linux; x86_64)"},
+        )
+        assert resp.status_code == 200
+        print("Chat Zed auto-mapping: OK")
+
         # Give database background writes a small yield
         check_and_save_usage(force=True)
 
@@ -197,14 +222,14 @@ def run_tests():
 
         # Validate totals block
         totals = usage_res.get("totals", {})
-        assert totals.get("calls", 0) == 9, (
-            f"Expected 9 calls, got {totals.get('calls')}"
+        assert totals.get("calls", 0) == 10, (
+            f"Expected 10 calls, got {totals.get('calls')}"
         )
         assert totals.get("streaming_calls", 0) == 2, (
             f"Expected 2 streaming calls, got {totals.get('streaming_calls')}"
         )
-        assert totals.get("calls_post", 0) == 7, (
-            f"Expected 7 calls_post, got {totals.get('calls_post')}"
+        assert totals.get("calls_post", 0) == 8, (
+            f"Expected 8 calls_post, got {totals.get('calls_post')}"
         )
 
         # Assert errors are recorded in totals
@@ -230,12 +255,34 @@ def run_tests():
         assert "hermes" in agents_dict
         assert "hindsight" in agents_dict
         assert "curl" in agents_dict
+        assert "zed" in agents_dict
         assert "unknown" in agents_dict
 
         assert agents_dict["hermes"]["calls"] == 5  # 2 chat + 1 img + 2 errors
         assert agents_dict["hindsight"]["calls"] == 2  # 1 embed + 1 rerank
         assert agents_dict["curl"]["calls"] == 1  # 1 tts
+        assert agents_dict["zed"]["calls"] == 1  # 1 chat zed
         assert agents_dict["unknown"]["calls"] == 1  # 1 stt
+
+        # Verify req_stats breakdown fields in totals and models
+        req_stats = totals.get("req_stats", {})
+        for metric_name in [
+            "total_input",
+            "cached_input",
+            "cached_write",
+            "uniq_input",
+            "output",
+            "per_request",
+        ]:
+            assert metric_name in req_stats, f"Missing {metric_name} in req_stats"
+            assert "min" in req_stats[metric_name]
+            assert "median" in req_stats[metric_name]
+            assert "max" in req_stats[metric_name]
+
+        # Verify active call counters in totals
+        assert "calls_active_post" in totals
+        assert "calls_active_stream" in totals
+        assert "calls_active" in totals
 
         # Verify cost calculations are populated
         costs = chat_stats.get("costs", {})
@@ -300,19 +347,19 @@ def run_tests():
         assert day_usage["hermes"]["chat"]["qwen3"]["duration_post"] >= 0.0
         assert day_usage["hermes"]["chat"]["qwen3"]["duration_streaming"] >= 0.0
     print("Serialization verify: OK")
+    print("\nALL TESTS PASSED SUCCESSFULLY! ✅")
+    os._exit(0)
 
 
 if __name__ == "__main__":
     try:
         run_tests()
-        print("\nALL TESTS PASSED SUCCESSFULLY! ✅")
-        sys.exit(0)
     except AssertionError as ae:
         print(f"\nTEST FAIL: {ae}", file=sys.stderr)
         import traceback
 
         traceback.print_exc()
-        sys.exit(1)
+        os._exit(1)
     finally:
         # Clean up temporary folders
         if os.path.exists(temp_config_dir):

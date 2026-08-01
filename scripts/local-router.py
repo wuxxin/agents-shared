@@ -102,7 +102,10 @@ save_task: asyncio.Task = None  # type: ignore[assignment]
 
 global_active_calls_post: int = 0
 global_active_calls_stream: int = 0
-active_calls_lock = threading.Lock()
+active_calls_per_agent: dict[str, dict[str, int]] = {}
+active_calls_per_service: dict[str, dict[str, int]] = {}
+active_calls_per_model: dict[str, dict[str, int]] = {}
+active_calls_lock = threading.RLock()
 
 # --- Prometheus setup ---
 metrics_registry = CollectorRegistry()
@@ -284,7 +287,7 @@ async def check_service(name: str, url: str) -> list[dict] | None:
     """
     match = re.search(r"//([^/:]+)(?::(\d+))?", url)
     if not match:
-        if is_verbose():
+        if is_debug():
             print(
                 f"[ROUTER CHECK] Invalid URL '{url}' for service '{name}'",
                 file=sys.stderr,
@@ -293,16 +296,16 @@ async def check_service(name: str, url: str) -> list[dict] | None:
     host = match.group(1)
     port = int(match.group(2)) if match.group(2) else 80
 
-    if is_verbose():
+    if is_debug():
         print(f"[ROUTER CHECK] Probing service '{name}' at {url}...", file=sys.stderr)
 
     if name in ("chat", "embedding", "rerank"):
         try:
             models_url = f"{url}/v1/models"
-            if is_verbose():
+            if is_debug():
                 print(f"[ROUTER CHECK] Attempting GET {models_url}...", file=sys.stderr)
             resp = await client.get(models_url, timeout=1.0)
-            if is_verbose():
+            if is_debug():
                 print(
                     f"[ROUTER CHECK] GET {models_url} -> status {resp.status_code}",
                     file=sys.stderr,
@@ -314,13 +317,13 @@ async def check_service(name: str, url: str) -> list[dict] | None:
                 # Some servers (e.g. TEI text-embeddings-router) do not expose /v1/models.
                 # Fallback to probing /health endpoint.
                 health_url = f"{url}/health"
-                if is_verbose():
+                if is_debug():
                     print(
                         f"[ROUTER CHECK] GET {models_url} returned 404. Probing fallback GET {health_url}...",
                         file=sys.stderr,
                     )
                 hresp = await client.get(health_url, timeout=1.0)
-                if is_verbose():
+                if is_debug():
                     print(
                         f"[ROUTER CHECK] GET {health_url} -> status {hresp.status_code}",
                         file=sys.stderr,
@@ -328,7 +331,7 @@ async def check_service(name: str, url: str) -> list[dict] | None:
                 if hresp.status_code == 200:
                     return []
         except Exception as exc:
-            if is_verbose():
+            if is_debug():
                 print(
                     f"[ROUTER CHECK] Probe error for '{name}' at {url}: {exc}",
                     file=sys.stderr,
@@ -338,7 +341,7 @@ async def check_service(name: str, url: str) -> list[dict] | None:
     else:
         # For STT, TTS, Image: check if port is open
         try:
-            if is_verbose():
+            if is_debug():
                 print(
                     f"[ROUTER CHECK] Opening TCP connection to {host}:{port} for '{name}'...",
                     file=sys.stderr,
@@ -346,14 +349,14 @@ async def check_service(name: str, url: str) -> list[dict] | None:
             reader, writer = await asyncio.open_connection(host, port)
             writer.close()
             await writer.wait_closed()
-            if is_verbose():
+            if is_debug():
                 print(
                     f"[ROUTER CHECK] TCP connection to {host}:{port} for '{name}' succeeded.",
                     file=sys.stderr,
                 )
             return []
         except Exception as exc:
-            if is_verbose():
+            if is_debug():
                 print(
                     f"[ROUTER CHECK] TCP connection to {host}:{port} for '{name}' failed: {exc}",
                     file=sys.stderr,
@@ -424,13 +427,14 @@ def _merge_discovered_models(svc_name: str, models: list[dict]):
 
 
 async def discover_services_background():
-    """Background task: seed fallback inventory, then incrementally discover backends.
+    """Background task: seed fallback inventory, then discover backends.
 
-    Starts the router with alias-based models immediately so requests can be
-    routed even before backends are probed. Polls backends every 10 seconds,
-    adding dynamically-reported models as they appear.
+    Starts asynchronously on router start. Probes enabled services every 2s during
+    initial startup phase (up to 120 seconds). If not all expected services are up
+    within 120 seconds, logs critical error and aborts process.
+    Once all expected services are detected, switches to periodic background polling (10s).
     """
-    global model_inventory_list, model_to_service
+    global model_inventory_list, model_to_service, available_services
 
     if LROUT_MOCK_BACKENDS:
         model_inventory_list = [
@@ -486,26 +490,69 @@ async def discover_services_background():
             "qwen3-tts": "tts",
             "z-image-turbo": "image",
         }
+        for s in ["chat", "embedding", "rerank", "stt", "tts", "image"]:
+            available_services.add(s)
         return
 
-    # Phase 1: seed inventory from configured aliases so the router works immediately
+    # Seed inventory from configured aliases so the router works immediately
     _init_fallback_inventory()
     print(
         f"[DISCOVERY] Fallback inventory seeded: {[m['id'] for m in model_inventory_list]}"
     )
 
-    # Phase 2: background polling loop
     enabled_services = get_enabled_services()
-    print(f"[DISCOVERY] Polling services every 10s: {enabled_services}")
+    expected_services = [
+        name
+        for name, enabled in enabled_services.items()
+        if enabled and not (name == "embedding" and not enabled_services["embedding"])
+    ]
+    print(
+        f"[DISCOVERY] Async startup service detection (timeout 120s): {expected_services}"
+    )
+
+    # Phase 1: Async startup synchronization (up to 120s timeout)
+    start_time = asyncio.get_event_loop().time()
+    timeout = 120.0
+    poll_interval = 2.0
 
     while True:
         try:
             config = resolve_config()
-            for name, enabled in enabled_services.items():
-                if not enabled:
-                    continue
-                if name == "embedding" and not enabled_services["embedding"]:
-                    continue
+            for name in expected_services:
+                if name not in available_services:
+                    res = await check_service(name, config[name])
+                    if res is not None:
+                        _merge_discovered_models(name, res)
+
+            missing = [s for s in expected_services if s not in available_services]
+            if not missing:
+                print(
+                    f"[DISCOVERY] All expected inference services are online and ready! ({expected_services})"
+                )
+                break
+
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= timeout:
+                print(
+                    f"CRITICAL: Not all expected inference services came online within 120 seconds. "
+                    f"Missing services: {', '.join(missing)}. Aborting.",
+                    file=sys.stderr,
+                )
+                os._exit(1)
+
+            await asyncio.sleep(poll_interval)
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:
+            print(f"[DISCOVERY] Startup probe error: {exc}", file=sys.stderr)
+            await asyncio.sleep(poll_interval)
+
+    # Phase 2: Ongoing background polling loop (60s)
+    print("[DISCOVERY] Transitioning to periodic background polling every 60s...")
+    while True:
+        try:
+            config = resolve_config()
+            for name in expected_services:
                 res = await check_service(name, config[name])
                 if res is not None:
                     _merge_discovered_models(name, res)
@@ -513,7 +560,7 @@ async def discover_services_background():
             break
         except Exception as exc:
             print(f"[DISCOVERY] Error: {exc}", file=sys.stderr)
-        await asyncio.sleep(10.0)
+        await asyncio.sleep(60.0)
 
 
 # Legacy blocking startup — replaced by discover_services_background() for non-blocking startup.
@@ -792,16 +839,20 @@ def add_usage_record(
             entry["duration_post"] = 0.0
         if "duration_streaming" not in entry:
             entry["duration_streaming"] = 0.0
-        if "_req_input_vals" not in entry:
-            entry["_req_input_vals"] = []
+        if "_req_total_input_vals" not in entry:
+            entry["_req_total_input_vals"] = []
         if "_req_cached_input_vals" not in entry:
             entry["_req_cached_input_vals"] = []
         if "_req_cached_write_vals" not in entry:
             entry["_req_cached_write_vals"] = []
+        if "_req_uniq_input_vals" not in entry:
+            entry["_req_uniq_input_vals"] = []
         if "_req_output_vals" not in entry:
             entry["_req_output_vals"] = []
         if "_req_total_vals" not in entry:
             entry["_req_total_vals"] = []
+        if "_req_input_vals" not in entry:
+            entry["_req_input_vals"] = []
 
         entry["calls"] += 1
         if is_streaming:
@@ -816,12 +867,16 @@ def add_usage_record(
         entry["cached_write"] += cached_write
         entry["output"] += output
 
-        per_request_total = uncached_input + cached_input + cached_write + output
-        entry["_req_input_vals"].append(uncached_input)
+        total_input_req = uncached_input + cached_input
+        per_request_total = total_input_req + cached_write + output
+
+        entry["_req_total_input_vals"].append(total_input_req)
         entry["_req_cached_input_vals"].append(cached_input)
         entry["_req_cached_write_vals"].append(cached_write)
+        entry["_req_uniq_input_vals"].append(uncached_input)
         entry["_req_output_vals"].append(output)
         entry["_req_total_vals"].append(per_request_total)
+        entry["_req_input_vals"].append(total_input_req)
 
         if status_code >= 400:
             code_str = str(status_code)
@@ -945,34 +1000,44 @@ def get_cumulative_metrics(
     agents_acc: dict[str, dict[str, Any]] = {}
     services_acc: dict[str, dict[str, Any]] = {}
     daily_acc: dict[str, dict[str, Any]] = {}
-    totals_acc: dict[str, Any] = {
-        "calls": 0,
-        "streaming_calls": 0,
-        "calls_post": 0,
-        "input": 0,
-        "cached_input": 0,
-        "cached_write": 0,
-        "output": 0,
-        "total_tokens": 0,
-        "cache_pct": 0.0,
-        "costs": {
-            "cached_input_cost": 0.0,
-            "input_cost": 0.0,
-            "cached_write_cost": 0.0,
-            "output_cost": 0.0,
+
+    def _new_acc_dict() -> dict[str, Any]:
+        return {
+            "calls": 0,
+            "streaming_calls": 0,
+            "calls_post": 0,
+            "calls_active_post": 0,
+            "calls_active_stream": 0,
+            "calls_active": 0,
+            "input": 0,
+            "cached_input": 0,
+            "cached_write": 0,
+            "output": 0,
+            "total_tokens": 0,
             "total_cost": 0.0,
-        },
-        "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
-        "errors_post": dict(STATIC_ERRORS_TEMPLATE),
-        "duration_post": 0.0,
-        "duration_streaming": 0.0,
-        "total_duration": 0.0,
-        "_req_input_vals": [],
-        "_req_cached_input_vals": [],
-        "_req_cached_write_vals": [],
-        "_req_output_vals": [],
-        "_req_total_vals": [],
-    }
+            "cache_pct": 0.0,
+            "costs": {
+                "cached_input_cost": 0.0,
+                "input_cost": 0.0,
+                "cached_write_cost": 0.0,
+                "output_cost": 0.0,
+                "total_cost": 0.0,
+            },
+            "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
+            "errors_post": dict(STATIC_ERRORS_TEMPLATE),
+            "duration_post": 0.0,
+            "duration_streaming": 0.0,
+            "total_duration": 0.0,
+            "_req_total_input_vals": [],
+            "_req_cached_input_vals": [],
+            "_req_cached_write_vals": [],
+            "_req_uniq_input_vals": [],
+            "_req_output_vals": [],
+            "_req_total_vals": [],
+            "_req_input_vals": [],
+        }
+
+    totals_acc = _new_acc_dict()
 
     today = datetime.date.today()
     days_to_process = []
@@ -1003,92 +1068,19 @@ def get_cumulative_metrics(
         for day in sorted(days_to_process):
             day_data = usage_data_memory.get(day, {})
             if day not in daily_acc:
-                daily_acc[day] = {
-                    "calls": 0,
-                    "streaming_calls": 0,
-                    "calls_post": 0,
-                    "input": 0,
-                    "cached_input": 0,
-                    "cached_write": 0,
-                    "output": 0,
-                    "total_tokens": 0,
-                    "total_cost": 0.0,
-                    "errors_streaming": 0,
-                    "errors_post": 0,
-                    "duration_post": 0.0,
-                    "duration_streaming": 0.0,
-                    "total_duration": 0.0,
-                    "_req_input_vals": [],
-                    "_req_cached_input_vals": [],
-                    "_req_cached_write_vals": [],
-                    "_req_output_vals": [],
-                    "_req_total_vals": [],
-                }
+                daily_acc[day] = _new_acc_dict()
+
             for agent, services_map in day_data.items():
                 if not isinstance(services_map, dict):
                     continue
                 if agent not in agents_acc:
-                    agents_acc[agent] = {
-                        "calls": 0,
-                        "streaming_calls": 0,
-                        "calls_post": 0,
-                        "input": 0,
-                        "cached_input": 0,
-                        "cached_write": 0,
-                        "output": 0,
-                        "total_tokens": 0,
-                        "cache_pct": 0.0,
-                        "costs": {
-                            "cached_input_cost": 0.0,
-                            "input_cost": 0.0,
-                            "cached_write_cost": 0.0,
-                            "output_cost": 0.0,
-                            "total_cost": 0.0,
-                        },
-                        "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
-                        "errors_post": dict(STATIC_ERRORS_TEMPLATE),
-                        "duration_post": 0.0,
-                        "duration_streaming": 0.0,
-                        "total_duration": 0.0,
-                        "_req_input_vals": [],
-                        "_req_cached_input_vals": [],
-                        "_req_cached_write_vals": [],
-                        "_req_output_vals": [],
-                        "_req_total_vals": [],
-                    }
+                    agents_acc[agent] = _new_acc_dict()
 
                 for service, models_map in services_map.items():
                     if not isinstance(models_map, dict):
                         continue
                     if service not in services_acc:
-                        services_acc[service] = {
-                            "calls": 0,
-                            "streaming_calls": 0,
-                            "calls_post": 0,
-                            "input": 0,
-                            "cached_input": 0,
-                            "cached_write": 0,
-                            "output": 0,
-                            "total_tokens": 0,
-                            "cache_pct": 0.0,
-                            "costs": {
-                                "cached_input_cost": 0.0,
-                                "input_cost": 0.0,
-                                "cached_write_cost": 0.0,
-                                "output_cost": 0.0,
-                                "total_cost": 0.0,
-                            },
-                            "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
-                            "errors_post": dict(STATIC_ERRORS_TEMPLATE),
-                            "duration_post": 0.0,
-                            "duration_streaming": 0.0,
-                            "total_duration": 0.0,
-                            "_req_input_vals": [],
-                            "_req_cached_input_vals": [],
-                            "_req_cached_write_vals": [],
-                            "_req_output_vals": [],
-                            "_req_total_vals": [],
-                        }
+                        services_acc[service] = _new_acc_dict()
 
                     pricing = PRICING_REGISTRY.get(service, {})
                     cost_prompt = float(pricing.get("prompt", "0.0"))
@@ -1101,34 +1093,7 @@ def get_cumulative_metrics(
                             continue
                         model_key = f"{agent}:{model}:{service}"
                         if model_key not in models_acc:
-                            models_acc[model_key] = {
-                                "calls": 0,
-                                "streaming_calls": 0,
-                                "calls_post": 0,
-                                "input": 0,
-                                "cached_input": 0,
-                                "cached_write": 0,
-                                "output": 0,
-                                "total_tokens": 0,
-                                "cache_pct": 0.0,
-                                "costs": {
-                                    "cached_input_cost": 0.0,
-                                    "input_cost": 0.0,
-                                    "cached_write_cost": 0.0,
-                                    "output_cost": 0.0,
-                                    "total_cost": 0.0,
-                                },
-                                "errors_streaming": dict(STATIC_ERRORS_TEMPLATE),
-                                "errors_post": dict(STATIC_ERRORS_TEMPLATE),
-                                "duration_post": 0.0,
-                                "duration_streaming": 0.0,
-                                "total_duration": 0.0,
-                                "_req_input_vals": [],
-                                "_req_cached_input_vals": [],
-                                "_req_cached_write_vals": [],
-                                "_req_output_vals": [],
-                                "_req_total_vals": [],
-                            }
+                            models_acc[model_key] = _new_acc_dict()
 
                         calls = counts.get("calls", 0)
                         str_calls = counts.get("streaming_calls", 0)
@@ -1153,6 +1118,17 @@ def get_cumulative_metrics(
                         dur_post = counts.get("duration_post", 0.0)
                         dur_str = counts.get("duration_streaming", 0.0)
                         tot_dur = dur_post + dur_str
+
+                        src_tot_in = (
+                            counts.get("_req_total_input_vals")
+                            or counts.get("_req_input_vals")
+                            or []
+                        )
+                        src_c_in = counts.get("_req_cached_input_vals") or []
+                        src_c_wr = counts.get("_req_cached_write_vals") or []
+                        src_u_in = counts.get("_req_uniq_input_vals") or []
+                        src_out = counts.get("_req_output_vals") or []
+                        src_tot = counts.get("_req_total_vals") or []
 
                         def accum(target: dict[str, Any]):
                             target["calls"] += calls
@@ -1181,26 +1157,18 @@ def get_cumulative_metrics(
                                 target["errors_streaming"][code] += err_str_val
                                 target["errors_post"][code] += err_post_val
 
-                            # Also accumulate per-request values
-                            src_input_vals = counts.get("_req_input_vals")
-                            if src_input_vals:
-                                target["_req_input_vals"].extend(src_input_vals)
-                            src_cached_input_vals = counts.get("_req_cached_input_vals")
-                            if src_cached_input_vals:
-                                target["_req_cached_input_vals"].extend(
-                                    src_cached_input_vals
-                                )
-                            src_cached_write_vals = counts.get("_req_cached_write_vals")
-                            if src_cached_write_vals:
-                                target["_req_cached_write_vals"].extend(
-                                    src_cached_write_vals
-                                )
-                            src_output_vals = counts.get("_req_output_vals")
-                            if src_output_vals:
-                                target["_req_output_vals"].extend(src_output_vals)
-                            src_total_vals = counts.get("_req_total_vals")
-                            if src_total_vals:
-                                target["_req_total_vals"].extend(src_total_vals)
+                            if src_tot_in:
+                                target["_req_total_input_vals"].extend(src_tot_in)
+                            if src_c_in:
+                                target["_req_cached_input_vals"].extend(src_c_in)
+                            if src_c_wr:
+                                target["_req_cached_write_vals"].extend(src_c_wr)
+                            if src_u_in:
+                                target["_req_uniq_input_vals"].extend(src_u_in)
+                            if src_out:
+                                target["_req_output_vals"].extend(src_out)
+                            if src_tot:
+                                target["_req_total_vals"].extend(src_tot)
 
                         accum(models_acc[model_key])
                         accum(agents_acc[agent])
@@ -1221,32 +1189,27 @@ def get_cumulative_metrics(
                         daily_target["duration_streaming"] += dur_str
                         daily_target["total_duration"] += tot_dur
                         for code in STATIC_ERRORS_TEMPLATE:
-                            daily_target["errors_streaming"] += counts.get(
+                            daily_target["errors_streaming"][code] = daily_target.get(
                                 "errors_streaming", {}
-                            ).get(code, 0)
-                            daily_target["errors_post"] += counts.get(
+                            ).get(code, 0) + counts.get("errors_streaming", {}).get(
+                                code, 0
+                            )
+                            daily_target["errors_post"][code] = daily_target.get(
                                 "errors_post", {}
-                            ).get(code, 0)
+                            ).get(code, 0) + counts.get("errors_post", {}).get(code, 0)
 
-                        src_input_vals = counts.get("_req_input_vals")
-                        if src_input_vals:
-                            daily_target["_req_input_vals"].extend(src_input_vals)
-                        src_cached_input_vals = counts.get("_req_cached_input_vals")
-                        if src_cached_input_vals:
-                            daily_target["_req_cached_input_vals"].extend(
-                                src_cached_input_vals
-                            )
-                        src_cached_write_vals = counts.get("_req_cached_write_vals")
-                        if src_cached_write_vals:
-                            daily_target["_req_cached_write_vals"].extend(
-                                src_cached_write_vals
-                            )
-                        src_output_vals = counts.get("_req_output_vals")
-                        if src_output_vals:
-                            daily_target["_req_output_vals"].extend(src_output_vals)
-                        src_total_vals = counts.get("_req_total_vals")
-                        if src_total_vals:
-                            daily_target["_req_total_vals"].extend(src_total_vals)
+                        if src_tot_in:
+                            daily_target["_req_total_input_vals"].extend(src_tot_in)
+                        if src_c_in:
+                            daily_target["_req_cached_input_vals"].extend(src_c_in)
+                        if src_c_wr:
+                            daily_target["_req_cached_write_vals"].extend(src_c_wr)
+                        if src_u_in:
+                            daily_target["_req_uniq_input_vals"].extend(src_u_in)
+                        if src_out:
+                            daily_target["_req_output_vals"].extend(src_out)
+                        if src_tot:
+                            daily_target["_req_total_vals"].extend(src_tot)
 
     for entry in models_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
@@ -1274,34 +1237,81 @@ def get_cumulative_metrics(
     # Compute per-request statistics for all buckets
     def _finalize_req_stats(bucket_dict):
         for entry in bucket_dict.values():
+            src_tot_in = entry.pop("_req_total_input_vals", [])
+            src_c_in = entry.pop("_req_cached_input_vals", [])
+            src_c_wr = entry.pop("_req_cached_write_vals", [])
+            src_u_in = entry.pop("_req_uniq_input_vals", [])
+            src_out = entry.pop("_req_output_vals", [])
+            src_tot = entry.pop("_req_total_vals", [])
+
+            src_legacy = entry.pop("_req_input_vals", [])
+            if not src_tot_in and src_legacy:
+                src_tot_in = list(src_legacy)
+            if not src_u_in and src_legacy:
+                src_u_in = list(src_legacy)
+
             entry["req_stats"] = {
-                "input": compute_req_stats(entry.pop("_req_input_vals", [])),
-                "input_read": compute_req_stats(
-                    entry.pop("_req_cached_input_vals", [])
-                ),
-                "input_write": compute_req_stats(
-                    entry.pop("_req_cached_write_vals", [])
-                ),
-                "output": compute_req_stats(entry.pop("_req_output_vals", [])),
-                "per_request": compute_req_stats(entry.pop("_req_total_vals", [])),
+                "total_input": compute_req_stats(src_tot_in),
+                "cached_input": compute_req_stats(src_c_in),
+                "cached_write": compute_req_stats(src_c_wr),
+                "uniq_input": compute_req_stats(src_u_in),
+                "output": compute_req_stats(src_out),
+                "per_request": compute_req_stats(src_tot),
+                # Backward compatibility aliases
+                "input": compute_req_stats(src_tot_in),
+                "input_read": compute_req_stats(src_c_in),
+                "input_write": compute_req_stats(src_c_wr),
             }
 
     _finalize_req_stats(models_acc)
     _finalize_req_stats(agents_acc)
     _finalize_req_stats(services_acc)
-
-    # totals_acc is a single dict
-    totals_acc["req_stats"] = {
-        "input": compute_req_stats(totals_acc.pop("_req_input_vals", [])),
-        "input_read": compute_req_stats(totals_acc.pop("_req_cached_input_vals", [])),
-        "input_write": compute_req_stats(totals_acc.pop("_req_cached_write_vals", [])),
-        "output": compute_req_stats(totals_acc.pop("_req_output_vals", [])),
-        "per_request": compute_req_stats(totals_acc.pop("_req_total_vals", [])),
-    }
-
     _finalize_req_stats(daily_acc)
 
+    # Compute for totals_acc as well
+    src_tot_in = totals_acc.pop("_req_total_input_vals", [])
+    src_c_in = totals_acc.pop("_req_cached_input_vals", [])
+    src_c_wr = totals_acc.pop("_req_cached_write_vals", [])
+    src_u_in = totals_acc.pop("_req_uniq_input_vals", [])
+    src_out = totals_acc.pop("_req_output_vals", [])
+    src_tot = totals_acc.pop("_req_total_vals", [])
+
+    src_legacy = totals_acc.pop("_req_input_vals", [])
+    if not src_tot_in and src_legacy:
+        src_tot_in = list(src_legacy)
+    if not src_u_in and src_legacy:
+        src_u_in = list(src_legacy)
+
+    totals_acc["req_stats"] = {
+        "total_input": compute_req_stats(src_tot_in),
+        "cached_input": compute_req_stats(src_c_in),
+        "cached_write": compute_req_stats(src_c_wr),
+        "uniq_input": compute_req_stats(src_u_in),
+        "output": compute_req_stats(src_out),
+        "per_request": compute_req_stats(src_tot),
+        # Backward compatibility aliases
+        "input": compute_req_stats(src_tot_in),
+        "input_read": compute_req_stats(src_c_in),
+        "input_write": compute_req_stats(src_c_wr),
+    }
+
     with active_calls_lock:
+        for ag, item in agents_acc.items():
+            ac = active_calls_per_agent.get(ag, {"post": 0, "stream": 0})
+            item["calls_active_post"] = ac.get("post", 0)
+            item["calls_active_stream"] = ac.get("stream", 0)
+            item["calls_active"] = ac.get("post", 0) + ac.get("stream", 0)
+        for svc, item in services_acc.items():
+            ac = active_calls_per_service.get(svc, {"post": 0, "stream": 0})
+            item["calls_active_post"] = ac.get("post", 0)
+            item["calls_active_stream"] = ac.get("stream", 0)
+            item["calls_active"] = ac.get("post", 0) + ac.get("stream", 0)
+        for m_key, item in models_acc.items():
+            ac = active_calls_per_model.get(m_key, {"post": 0, "stream": 0})
+            item["calls_active_post"] = ac.get("post", 0)
+            item["calls_active_stream"] = ac.get("stream", 0)
+            item["calls_active"] = ac.get("post", 0) + ac.get("stream", 0)
+
         totals_acc["calls_active_post"] = global_active_calls_post
         totals_acc["calls_active_stream"] = global_active_calls_stream
         totals_acc["calls_active"] = (
@@ -1506,14 +1516,13 @@ async def lifespan(app: FastAPI):
     # --- shutdown ---
     discovery_task.cancel()
     save_task.cancel()
-    # Cancel ALL remaining tasks (proxied streams, pending checks, etc.)
-    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    for t in tasks:
-        t.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
-    # Now nothing holds httpx connections — safe to do sync ops
+    await asyncio.gather(discovery_task, save_task, return_exceptions=True)
     save_on_exit()
-    await asyncio.wait_for(client.aclose(), timeout=5.0)
+    if client:
+        try:
+            await asyncio.wait_for(client.aclose(), timeout=2.0)
+        except Exception:
+            pass
 
 
 app = FastAPI(
@@ -1905,6 +1914,74 @@ async def process_response_usage(
         )
 
 
+def _increment_active_call(
+    agent_id: str, service_id: str, model_id: str, is_streaming: bool
+):
+    global global_active_calls_stream, global_active_calls_post
+    model_key = f"{agent_id}:{model_id}:{service_id}"
+    calls_active_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
+    with active_calls_lock:
+        if is_streaming:
+            global_active_calls_stream += 1
+            if agent_id not in active_calls_per_agent:
+                active_calls_per_agent[agent_id] = {"post": 0, "stream": 0}
+            active_calls_per_agent[agent_id]["stream"] += 1
+            if service_id not in active_calls_per_service:
+                active_calls_per_service[service_id] = {"post": 0, "stream": 0}
+            active_calls_per_service[service_id]["stream"] += 1
+            if model_key not in active_calls_per_model:
+                active_calls_per_model[model_key] = {"post": 0, "stream": 0}
+            active_calls_per_model[model_key]["stream"] += 1
+        else:
+            global_active_calls_post += 1
+            if agent_id not in active_calls_per_agent:
+                active_calls_per_agent[agent_id] = {"post": 0, "stream": 0}
+            active_calls_per_agent[agent_id]["post"] += 1
+            if service_id not in active_calls_per_service:
+                active_calls_per_service[service_id] = {"post": 0, "stream": 0}
+            active_calls_per_service[service_id]["post"] += 1
+            if model_key not in active_calls_per_model:
+                active_calls_per_model[model_key] = {"post": 0, "stream": 0}
+            active_calls_per_model[model_key]["post"] += 1
+
+
+def _decrement_active_call(
+    agent_id: str, service_id: str, model_id: str, is_streaming: bool
+):
+    global global_active_calls_stream, global_active_calls_post
+    model_key = f"{agent_id}:{model_id}:{service_id}"
+    calls_active_gauge.labels(agent=agent_id, service=service_id, model=model_id).dec()
+    with active_calls_lock:
+        if is_streaming:
+            global_active_calls_stream = max(0, global_active_calls_stream - 1)
+            if agent_id in active_calls_per_agent:
+                active_calls_per_agent[agent_id]["stream"] = max(
+                    0, active_calls_per_agent[agent_id]["stream"] - 1
+                )
+            if service_id in active_calls_per_service:
+                active_calls_per_service[service_id]["stream"] = max(
+                    0, active_calls_per_service[service_id]["stream"] - 1
+                )
+            if model_key in active_calls_per_model:
+                active_calls_per_model[model_key]["stream"] = max(
+                    0, active_calls_per_model[model_key]["stream"] - 1
+                )
+        else:
+            global_active_calls_post = max(0, global_active_calls_post - 1)
+            if agent_id in active_calls_per_agent:
+                active_calls_per_agent[agent_id]["post"] = max(
+                    0, active_calls_per_agent[agent_id]["post"] - 1
+                )
+            if service_id in active_calls_per_service:
+                active_calls_per_service[service_id]["post"] = max(
+                    0, active_calls_per_service[service_id]["post"] - 1
+                )
+            if model_key in active_calls_per_model:
+                active_calls_per_model[model_key]["post"] = max(
+                    0, active_calls_per_model[model_key]["post"] - 1
+                )
+
+
 async def proxy_request(
     target_url: str,
     request: Request,
@@ -1914,15 +1991,12 @@ async def proxy_request(
     agent: str | None = None,
 ) -> Response:
     """Asynchronously streams request to target and forwards the response back."""
-    global global_active_calls_stream, global_active_calls_post
     body = content if content is not None else await request.body()
     start_time = time.perf_counter()
 
     agent_id = agent or "unknown"
     service_id = service or "unknown"
     model_id = model or "unknown"
-
-    calls_active_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
 
     is_streaming = False
     if body:
@@ -1931,11 +2005,9 @@ async def proxy_request(
         except Exception:
             pass
 
-    with active_calls_lock:
-        if is_streaming:
-            global_active_calls_stream += 1
-        else:
-            global_active_calls_post += 1
+    _increment_active_call(agent_id, service_id, model_id, is_streaming)
+    stream_response_returned = False
+    active_decremented = False
 
     if is_debug() and body:
         print_debug_raw(
@@ -2012,10 +2084,11 @@ async def proxy_request(
                 original_chunks = []
 
                 async def mock_generator():
-                    async for chunk in mock_resp.body_iterator:
-                        yield chunk
-                        original_chunks.append(chunk)
+                    nonlocal active_decremented
                     try:
+                        async for chunk in mock_resp.body_iterator:
+                            yield chunk
+                            original_chunks.append(chunk)
                         full_body = b"".join(original_chunks)
                         elapsed = time.perf_counter() - start_time
                         await process_response_usage(
@@ -2031,7 +2104,14 @@ async def proxy_request(
                         )
                     except Exception as e:
                         print(f"Error processing mock usage: {e}", file=sys.stderr)
+                    finally:
+                        if not active_decremented:
+                            _decrement_active_call(
+                                agent_id, service_id, model_id, is_streaming
+                            )
+                            active_decremented = True
 
+                stream_response_returned = True
                 return StreamingResponse(
                     mock_generator(),
                     status_code=mock_resp.status_code,
@@ -2063,6 +2143,7 @@ async def proxy_request(
             )
 
             async def response_generator():
+                nonlocal active_decremented
                 body_accumulator = []
                 try:
                     async for chunk in response.aiter_bytes():
@@ -2070,6 +2151,11 @@ async def proxy_request(
                         body_accumulator.append(chunk)
                 finally:
                     await response.aclose()
+                    if not active_decremented:
+                        _decrement_active_call(
+                            agent_id, service_id, model_id, is_streaming
+                        )
+                        active_decremented = True
                     try:
                         full_body = b"".join(body_accumulator)
                         elapsed = time.perf_counter() - start_time
@@ -2094,6 +2180,7 @@ async def proxy_request(
                 if k.lower() not in ("transfer-encoding", "content-length")
             }
 
+            stream_response_returned = True
             return StreamingResponse(
                 response_generator(),
                 status_code=response.status_code,
@@ -2210,14 +2297,9 @@ async def proxy_request(
             pass
         raise
     finally:
-        calls_active_gauge.labels(
-            agent=agent_id, service=service_id, model=model_id
-        ).dec()
-        with active_calls_lock:
-            if is_streaming:
-                global_active_calls_stream = max(0, global_active_calls_stream - 1)
-            else:
-                global_active_calls_post = max(0, global_active_calls_post - 1)
+        if not stream_response_returned and not active_decremented:
+            _decrement_active_call(agent_id, service_id, model_id, is_streaming)
+            active_decremented = True
 
 
 # --- Usage & Metrics Routes ---
@@ -2305,6 +2387,17 @@ def extract_request_agent(
             )
             if isinstance(eb_val, str):
                 custom = eb_val
+
+    # Fallback: check User-Agent header if no custom header/body identifier provided
+    if not custom:
+        ua_raw = request.headers.get("user-agent", "")
+        ua_lower = ua_raw.lower()
+        if "zed/" in ua_lower:
+            custom = "zed"
+        elif "hindsight" in ua_lower:
+            custom = "hindsight"
+        elif "hermes" in ua_lower:
+            custom = "hermes"
 
     agent = resolve_client_id(custom)
     if agent == "unknown":

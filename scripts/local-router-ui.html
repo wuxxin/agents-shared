@@ -222,7 +222,7 @@
       color: #fff;
     }
 
-    /* KPI Summary Cards Grid (4 -> 3 -> 2 -> 1 per row) */
+    /* KPI Summary Cards Grid */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -338,19 +338,7 @@
       width: 100%;
     }
 
-    /* Breakdown Section (Agents & Services Tables) */
-    .breakdown-section {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
-
-    @media (max-width: 1280px) {
-      .breakdown-section {
-        grid-template-columns: 1fr;
-      }
-    }
-
+    /* Full-width Breakdown Cards (Stacked vertically, 100% width) */
     .breakdown-card {
       background: var(--card-bg);
       backdrop-filter: var(--glass-blur);
@@ -362,6 +350,7 @@
       flex-direction: column;
       gap: 16px;
       overflow-x: auto;
+      width: 100%;
     }
 
     /* Table Styling for Breakdown Grids & Main Table */
@@ -369,11 +358,11 @@
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 0.85rem;
+      font-size: 0.78rem;
     }
 
     th {
-      padding: 10px 12px;
+      padding: 7px 8px;
       font-weight: 600;
       color: var(--text-muted);
       border-bottom: 1px solid var(--card-border);
@@ -401,10 +390,14 @@
     }
 
     td {
-      padding: 10px 12px;
+      padding: 6px 8px;
       border-bottom: 1px solid var(--card-border);
       font-family: 'JetBrains Mono', monospace;
       white-space: nowrap;
+    }
+
+    .num-col {
+      text-align: right;
     }
 
     tr:hover td {
@@ -414,6 +407,7 @@
     .text-cell {
       font-family: 'Inter', sans-serif;
       font-weight: 600;
+      text-align: left;
     }
 
     .badge-error {
@@ -423,6 +417,55 @@
     .badge-success {
       color: var(--accent-green);
       font-weight: 600;
+    }
+
+    /* Collapsible Tree Rows */
+    .tree-row-agent {
+      background: rgba(99, 102, 241, 0.09);
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tree-row-agent:hover td {
+      background: rgba(99, 102, 241, 0.16) !important;
+    }
+
+    .tree-row-service {
+      background: rgba(6, 182, 212, 0.05);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tree-row-service:hover td {
+      background: rgba(6, 182, 212, 0.12) !important;
+    }
+
+    .tree-row-model {
+      background: transparent;
+    }
+
+    .tree-toggle-icon {
+      display: inline-block;
+      width: 16px;
+      text-align: center;
+      font-size: 0.75rem;
+      margin-right: 4px;
+      color: var(--accent-primary);
+      user-select: none;
+    }
+
+    .btn-tree-toggle {
+      background: var(--row-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-tree-toggle:hover {
+      color: var(--text-main);
+      background: rgba(99, 102, 241, 0.15);
     }
 
     /* Detailed Table Section */
@@ -437,6 +480,7 @@
       flex-direction: column;
       gap: 16px;
       overflow-x: auto;
+      width: 100%;
     }
 
     .table-header-tools {
@@ -504,7 +548,7 @@
       </div>
     </header>
 
-    <!-- KPI Summary Grid (7 Cards) -->
+    <!-- KPI Summary Grid (8 Cards) -->
     <div class="kpi-grid">
       <div class="kpi-card" style="--card-accent: var(--accent-primary);">
         <div class="kpi-title">Total Requests</div>
@@ -521,19 +565,19 @@
       <div class="kpi-card" style="--card-accent: var(--accent-cyan);">
         <div class="kpi-title">Total Input Tokens</div>
         <div class="kpi-value" id="kpiInputTokens">0</div>
-        <div class="kpi-subtext" id="kpiInputSub">Cached: 0 | Unique: 0</div>
+        <div class="kpi-subtext" id="kpiInputSub">Uniq: 0% | Cache: 0% | Tks/R:  ~0   (0 <-> 0)</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: var(--accent-green);">
         <div class="kpi-title">Cache Hit Rate</div>
         <div class="kpi-value" id="kpiCachePct">0.00%</div>
-        <div class="kpi-subtext" id="kpiCachePctSub"></div>
+        <div class="kpi-subtext" id="kpiCachePctSub">Tks/R:  ~0   (0 <-> 0)</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: #3b82f6;">
         <div class="kpi-title">Total Output Tokens</div>
         <div class="kpi-value" id="kpiOutputTokens">0</div>
-        <div class="kpi-subtext" id="kpiOutputSub"></div>
+        <div class="kpi-subtext" id="kpiOutputSub">Tks/R:  ~0   (0 <-> 0)</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: #a855f7;">
@@ -576,85 +620,117 @@
         <thead>
           <tr>
             <th>TIMEFRAME</th>
-            <th>CALLS (P/S)</th>
-            <th>TOKEN IN</th>
-            <th>% CACHED</th>
-            <th>TOKEN OUT</th>
-            <th>p.TimeT</th>
-            <th>COST</th>
+            <th class="num-col">ReqP</th>
+            <th class="num-col">ReqS</th>
+            <th class="num-col">TOKEN IN</th>
+            <th class="num-col">In MED</th>
+            <th class="num-col">In MAX</th>
+            <th class="num-col">% CACHED</th>
+            <th class="num-col">CIn MED</th>
+            <th class="num-col">CIn MAX</th>
+            <th class="num-col">TOKEN OUT</th>
+            <th class="num-col">Out MED</th>
+            <th class="num-col">Out MAX</th>
+            <th class="num-col">p.TimeT</th>
+            <th class="num-col">COST</th>
           </tr>
         </thead>
         <tbody id="pdTableBody"></tbody>
       </table>
     </div>
 
-    <!-- Breakdown Section (Agents & Services Tables) -->
-    <div class="breakdown-section">
-      <div class="breakdown-card">
-        <div class="section-title" style="margin:0;">Clients / Agents Breakdown</div>
-        <table>
-          <thead>
-            <tr>
-              <th>AGENT</th>
-              <th>CALLS (P/S)</th>
-              <th>TOKEN IN</th>
-              <th>% CACHED</th>
-              <th>TOKEN OUT</th>
-              <th>p.TimeT</th>
-              <th>COST</th>
-            </tr>
-          </thead>
-          <tbody id="agentsTableBody"></tbody>
-        </table>
-      </div>
-      <div class="breakdown-card">
-        <div class="section-title" style="margin:0;">Services Breakdown</div>
-        <table>
-          <thead>
-            <tr>
-              <th>SERVICE</th>
-              <th>CALLS (P/S)</th>
-              <th>TOKEN IN</th>
-              <th>% CACHED</th>
-              <th>TOKEN OUT</th>
-              <th>p.TimeT</th>
-              <th>COST</th>
-            </tr>
-          </thead>
-          <tbody id="servicesTableBody"></tbody>
-        </table>
-      </div>
+    <!-- Clients / Agents Breakdown Table (Full width stacked) -->
+    <div class="breakdown-card">
+      <div class="section-title" style="margin:0;">Clients / Agents Breakdown</div>
+      <table>
+        <thead>
+          <tr>
+            <th>AGENT</th>
+            <th class="num-col">ActP</th>
+            <th class="num-col">ActS</th>
+            <th class="num-col">ReqP</th>
+            <th class="num-col">ReqS</th>
+            <th class="num-col">TOKEN IN</th>
+            <th class="num-col">In MED</th>
+            <th class="num-col">In MAX</th>
+            <th class="num-col">% CACHED</th>
+            <th class="num-col">CIn MED</th>
+            <th class="num-col">CIn MAX</th>
+            <th class="num-col">TOKEN OUT</th>
+            <th class="num-col">Out MED</th>
+            <th class="num-col">Out MAX</th>
+            <th class="num-col">p.TimeT</th>
+            <th class="num-col">COST</th>
+          </tr>
+        </thead>
+        <tbody id="agentsTableBody"></tbody>
+      </table>
     </div>
 
-    <!-- Detailed Models Table -->
+    <!-- Services Breakdown Table (Full width stacked) -->
+    <div class="breakdown-card">
+      <div class="section-title" style="margin:0;">Services Breakdown</div>
+      <table>
+        <thead>
+          <tr>
+            <th>SERVICE</th>
+            <th class="num-col">ActP</th>
+            <th class="num-col">ActS</th>
+            <th class="num-col">ReqP</th>
+            <th class="num-col">ReqS</th>
+            <th class="num-col">TOKEN IN</th>
+            <th class="num-col">In MED</th>
+            <th class="num-col">In MAX</th>
+            <th class="num-col">% CACHED</th>
+            <th class="num-col">CIn MED</th>
+            <th class="num-col">CIn MAX</th>
+            <th class="num-col">TOKEN OUT</th>
+            <th class="num-col">Out MED</th>
+            <th class="num-col">Out MAX</th>
+            <th class="num-col">p.TimeT</th>
+            <th class="num-col">COST</th>
+          </tr>
+        </thead>
+        <tbody id="servicesTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Detailed Models Table (AGENT / SERVICE / MODEL Tree View) -->
     <div class="table-container">
       <div class="table-header-tools">
-        <div class="section-title" style="margin:0;">Models Breakdown (AGENT:MODEL:SERVICE)</div>
-        <div class="search-box">
-          <span>🔍</span>
-          <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Filter model, agent, or service...">
+        <div class="section-title" style="margin:0;">Models Breakdown (AGENT / SERVICE / MODEL)</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="btn-tree-toggle" id="btnToggleAll" onclick="toggleAllTree()">📁 Collapse All</button>
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Filter model, service, or agent...">
+          </div>
         </div>
       </div>
       <table id="modelsTable">
         <thead>
           <tr>
-            <th onclick="handleHeaderClick(0)">AGENT:MODEL:SERVICE <span class="sort-indicator" id="sort-ind-0"></span></th>
-            <th onclick="handleHeaderClick(1)">Calls (P/S) <span class="sort-indicator" id="sort-ind-1"></span></th>
-            <th onclick="handleHeaderClick(2)">Cached In <span class="sort-indicator" id="sort-ind-2"></span></th>
-            <th onclick="handleHeaderClick(3)">Uncached In <span class="sort-indicator" id="sort-ind-3"></span></th>
-            <th onclick="handleHeaderClick(4)">~ Size <span class="sort-indicator" id="sort-ind-4"></span></th>
-            <th onclick="handleHeaderClick(5)">% Cache <span class="sort-indicator" id="sort-ind-5"></span></th>
-            <th onclick="handleHeaderClick(6)">~ Size <span class="sort-indicator" id="sort-ind-6"></span></th>
-            <th onclick="handleHeaderClick(7)">Output <span class="sort-indicator" id="sort-ind-7"></span></th>
-            <th onclick="handleHeaderClick(8)">~ Size <span class="sort-indicator" id="sort-ind-8"></span></th>
-            <th onclick="handleHeaderClick(9)">Total <span class="sort-indicator" id="sort-ind-9"></span></th>
-            <th onclick="handleHeaderClick(10)">p.TimeT <span class="sort-indicator" id="sort-ind-10"></span></th>
-            <th onclick="handleHeaderClick(11)">Est.Cost($) <span class="sort-indicator" id="sort-ind-11"></span></th>
-            <th onclick="handleHeaderClick(12)">Errors (P/S) <span class="sort-indicator" id="sort-ind-12"></span></th>
+            <th onclick="handleHeaderClick(0)">AGENT / SERVICE / MODEL <span class="sort-indicator" id="sort-ind-0"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(1)">ActP <span class="sort-indicator" id="sort-ind-1"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(2)">ActS <span class="sort-indicator" id="sort-ind-2"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(3)">ReqP <span class="sort-indicator" id="sort-ind-3"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(4)">ReqS <span class="sort-indicator" id="sort-ind-4"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(5)">TOKEN IN <span class="sort-indicator" id="sort-ind-5"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(6)">In MED <span class="sort-indicator" id="sort-ind-6"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(7)">In MAX <span class="sort-indicator" id="sort-ind-7"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(8)">% CACHED <span class="sort-indicator" id="sort-ind-8"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(9)">CIn MED <span class="sort-indicator" id="sort-ind-9"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(10)">CIn MAX <span class="sort-indicator" id="sort-ind-10"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(11)">TOKEN OUT <span class="sort-indicator" id="sort-ind-11"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(12)">Out MED <span class="sort-indicator" id="sort-ind-12"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(13)">Out MAX <span class="sort-indicator" id="sort-ind-13"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(14)">p.TimeT <span class="sort-indicator" id="sort-ind-14"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(15)">COST <span class="sort-indicator" id="sort-ind-15"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(16)">ErrP <span class="sort-indicator" id="sort-ind-16"></span></th>
+            <th class="num-col" onclick="handleHeaderClick(17)">ErrS <span class="sort-indicator" id="sort-ind-17"></span></th>
           </tr>
         </thead>
-        <tbody id="modelsTableBody">
-        </tbody>
+        <tbody id="modelsTableBody"></tbody>
       </table>
     </div>
   </div>
@@ -666,13 +742,17 @@
     let timerId = null;
     let cachedUsageData = null;
 
-    // Sorting state (sticky across refreshes)
+    // Sticky sorting state
     let currentSortCol = localStorage.getItem('router_ui_sort_col') !== null
       ? parseInt(localStorage.getItem('router_ui_sort_col'), 10)
-      : 11;
+      : 15;
     let currentSortDir = localStorage.getItem('router_ui_sort_dir') !== null
       ? localStorage.getItem('router_ui_sort_dir')
       : 'desc';
+
+    // Collapsible tree state dictionary
+    let treeState = JSON.parse(localStorage.getItem('router_ui_tree_state') || '{}');
+    let globalAllCollapsed = false;
 
     // Theme state
     let currentTheme = localStorage.getItem('router_ui_theme') || 'system';
@@ -691,6 +771,19 @@
       if (abs >= 1048576) return (n / 1048576).toFixed(1) + 'm';
       if (abs >= 1024) return (n / 1024).toFixed(1) + 'k';
       return Math.round(n).toString();
+    }
+
+    function arrayMedian(arr) {
+      if (!arr || arr.length === 0) return 0;
+      const sorted = arr.slice().sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 !== 0) return sorted[mid];
+      return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+    }
+
+    function arrayMax(arr) {
+      if (!arr || arr.length === 0) return 0;
+      return Math.max(...arr);
     }
 
     function applyTheme() {
@@ -801,17 +894,19 @@
       const uniquePct = totalInput > 0 ? Math.round((input / totalInput) * 100) : 0;
       const cachePctRounded = Math.round(cachePct);
       const rs = totals.req_stats || {};
-      const inputMed = (rs.input || {}).median || 0;
-      const inputMin = (rs.input || {}).min || 0;
-      const inputMax = (rs.input || {}).max || 0;
-      document.getElementById('kpiInputSub').innerText = `Uniq: ${uniquePct}% | Cache: ${cachePctRounded}% | Med: ${shortNum(inputMed)} (${shortNum(inputMin)},${shortNum(inputMax)}) tks/r`;
+      const totalInStats = rs.total_input || rs.input || {};
+      const totalInMed = totalInStats.median || 0;
+      const totalInMin = totalInStats.min || 0;
+      const totalInMax = totalInStats.max || 0;
+      document.getElementById('kpiInputSub').innerText = `Uniq: ${uniquePct}% | Cache: ${cachePctRounded}% | Tks/R:  ~${shortNum(totalInMed)}   (${shortNum(totalInMin)} <-> ${shortNum(totalInMax)})`;
+
       document.getElementById('kpiCachePct').innerText = `${cachePct.toFixed(2)}%`;
-      const crs = (totals.req_stats || {}).input_read || {};
-      document.getElementById('kpiCachePctSub').innerText = `Median: ${shortNum(crs.median || 0)} | Min: ${shortNum(crs.min || 0)} | Max: ${shortNum(crs.max || 0)} tks/r`;
+      const crs = rs.cached_input || rs.input_read || {};
+      document.getElementById('kpiCachePctSub').innerText = `Tks/R:  ~${shortNum(crs.median || 0)}   (${shortNum(crs.min || 0)} <-> ${shortNum(crs.max || 0)})`;
 
       document.getElementById('kpiOutputTokens').innerText = fmtNum(output);
-      const ors = (totals.req_stats || {}).output || {};
-      document.getElementById('kpiOutputSub').innerText = `Median: ${shortNum(ors.median || 0)} | Min: ${shortNum(ors.min || 0)} | Max: ${shortNum(ors.max || 0)} tks/r`;
+      const ors = rs.output || {};
+      document.getElementById('kpiOutputSub').innerText = `Tks/R:  ~${shortNum(ors.median || 0)}   (${shortNum(ors.min || 0)} <-> ${shortNum(ors.max || 0)})`;
 
       const totalTime = (totals.total_duration || 0) / 60.0;
       const postTime = (totals.duration_post || 0) / 60.0;
@@ -849,13 +944,23 @@
       const totals = data.totals || {};
       const actualDays = Math.max(1, daysCount);
       const totalIn = (totals.input || 0) + (totals.cached_input || 0);
+      const rs = totals.req_stats || {};
+      const totalInStats = rs.total_input || rs.input || {};
+      const cachedInStats = rs.cached_input || rs.input_read || {};
+      const outputStats = rs.output || {};
       return {
         callsPost: Math.round((totals.calls_post || 0) / actualDays),
         callsStream: Math.round((totals.streaming_calls || 0) / actualDays),
         input: Math.round(totalIn / actualDays),
-        cachePct: (totals.cache_pct || 0).toFixed(1),
+        inSize: shortNum(totalInStats.median || 0),
+        inMax: shortNum(totalInStats.max || 0),
+        cachePct: (totals.cache_pct || 0).toFixed(2),
+        cInSize: shortNum(cachedInStats.median || 0),
+        cInMax: shortNum(cachedInStats.max || 0),
         output: Math.round((totals.output || 0) / actualDays),
-        time: ((totals.total_duration || 0) / 60.0 / actualDays).toFixed(1),
+        outSize: shortNum(outputStats.median || 0),
+        outMax: shortNum(outputStats.max || 0),
+        time: ((totals.total_duration || 0) / 60.0 / actualDays).toFixed(2),
         cost: ((totals.costs?.total_cost || 0) / actualDays).toFixed(4)
       };
     }
@@ -878,12 +983,19 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--accent-cyan);">${cfg.label}</td>
-          <td>${fmtNum(pd.callsPost)} / ${fmtNum(pd.callsStream)}</td>
-          <td>${fmtNum(pd.input)}</td>
-          <td style="color: var(--accent-green);">${pd.cachePct}%</td>
-          <td>${fmtNum(pd.output)}</td>
-          <td>${pd.time}</td>
-          <td style="color: var(--accent-cyan);">$${pd.cost}</td>
+          <td class="num-col">${fmtNum(pd.callsPost)}</td>
+          <td class="num-col">${fmtNum(pd.callsStream)}</td>
+          <td class="num-col">${fmtNum(pd.input)}</td>
+          <td class="num-col">${pd.inSize}</td>
+          <td class="num-col">${pd.inMax}</td>
+          <td class="num-col" style="color: var(--accent-green);">${pd.cachePct}%</td>
+          <td class="num-col">${pd.cInSize}</td>
+          <td class="num-col">${pd.cInMax}</td>
+          <td class="num-col">${fmtNum(pd.output)}</td>
+          <td class="num-col">${pd.outSize}</td>
+          <td class="num-col">${pd.outMax}</td>
+          <td class="num-col">${pd.time}</td>
+          <td class="num-col" style="color: var(--accent-cyan);">$${pd.cost}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -1033,28 +1145,50 @@
       const sortedKeys = Object.keys(agentsData).sort((a,b) => agentsData[b].calls - agentsData[a].calls);
 
       if (sortedKeys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--text-dim);">No agent activity recorded in this range.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16" style="color: var(--text-dim);">No agent activity recorded in this range.</td></tr>';
         return;
       }
 
       sortedKeys.forEach(agent => {
         const item = agentsData[agent];
         const totIn = (item.input || 0) + (item.cached_input || 0);
-        const cachePct = (item.cache_pct || 0).toFixed(1);
+        const cachePct = (item.cache_pct || 0).toFixed(2);
         const postCalls = item.calls_post || 0;
         const strCalls = item.streaming_calls || 0;
-        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
+        const actPost = item.calls_active_post || 0;
+        const actStream = item.calls_active_stream || 0;
+        const rs = item.req_stats || {};
+        const totalInStats = rs.total_input || rs.input || {};
+        const cachedInStats = rs.cached_input || rs.input_read || {};
+        const outputStats = rs.output || {};
+
+        const inSize = shortNum(totalInStats.median || 0);
+        const inMax = shortNum(totalInStats.max || 0);
+        const cInSize = shortNum(cachedInStats.median || 0);
+        const cInMax = shortNum(cachedInStats.max || 0);
+        const outSize = shortNum(outputStats.median || 0);
+        const outMax = shortNum(outputStats.max || 0);
+        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(2);
         const totalCost = (item.costs?.total_cost || 0).toFixed(4);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--text-main);">${agent.toUpperCase()}</td>
-          <td>${fmtNum(postCalls)} / ${fmtNum(strCalls)}</td>
-          <td>${shortNum(totIn)}</td>
-          <td style="color: var(--accent-green);">${cachePct}%</td>
-          <td>${shortNum(item.output || 0)}</td>
-          <td>${timeMins}</td>
-          <td style="color: var(--accent-cyan);">$${totalCost}</td>
+          <td class="num-col">${actPost}</td>
+          <td class="num-col">${actStream}</td>
+          <td class="num-col">${fmtNum(postCalls)}</td>
+          <td class="num-col">${fmtNum(strCalls)}</td>
+          <td class="num-col">${shortNum(totIn)}</td>
+          <td class="num-col">${inSize}</td>
+          <td class="num-col">${inMax}</td>
+          <td class="num-col" style="color: var(--accent-green);">${cachePct}%</td>
+          <td class="num-col">${cInSize}</td>
+          <td class="num-col">${cInMax}</td>
+          <td class="num-col">${shortNum(item.output || 0)}</td>
+          <td class="num-col">${outSize}</td>
+          <td class="num-col">${outMax}</td>
+          <td class="num-col">${timeMins}</td>
+          <td class="num-col" style="color: var(--accent-cyan);">$${totalCost}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -1066,67 +1200,326 @@
       const sortedKeys = Object.keys(servicesData).sort((a,b) => servicesData[b].calls - servicesData[a].calls);
 
       if (sortedKeys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--text-dim);">No service activity recorded in this range.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16" style="color: var(--text-dim);">No service activity recorded in this range.</td></tr>';
         return;
       }
 
       sortedKeys.forEach(service => {
         const item = servicesData[service];
         const totIn = (item.input || 0) + (item.cached_input || 0);
-        const cachePct = (item.cache_pct || 0).toFixed(1);
+        const cachePct = (item.cache_pct || 0).toFixed(2);
         const postCalls = item.calls_post || 0;
         const strCalls = item.streaming_calls || 0;
-        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
+        const actPost = item.calls_active_post || 0;
+        const actStream = item.calls_active_stream || 0;
+        const rs = item.req_stats || {};
+        const totalInStats = rs.total_input || rs.input || {};
+        const cachedInStats = rs.cached_input || rs.input_read || {};
+        const outputStats = rs.output || {};
+
+        const inSize = shortNum(totalInStats.median || 0);
+        const inMax = shortNum(totalInStats.max || 0);
+        const cInSize = shortNum(cachedInStats.median || 0);
+        const cInMax = shortNum(cachedInStats.max || 0);
+        const outSize = shortNum(outputStats.median || 0);
+        const outMax = shortNum(outputStats.max || 0);
+        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(2);
         const totalCost = (item.costs?.total_cost || 0).toFixed(4);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="text-cell" style="color: var(--accent-purple);">${service.toUpperCase()}</td>
-          <td>${fmtNum(postCalls)} / ${fmtNum(strCalls)}</td>
-          <td>${shortNum(totIn)}</td>
-          <td style="color: var(--accent-green);">${cachePct}%</td>
-          <td>${shortNum(item.output || 0)}</td>
-          <td>${timeMins}</td>
-          <td style="color: var(--accent-cyan);">$${totalCost}</td>
+          <td class="num-col">${actPost}</td>
+          <td class="num-col">${actStream}</td>
+          <td class="num-col">${fmtNum(postCalls)}</td>
+          <td class="num-col">${fmtNum(strCalls)}</td>
+          <td class="num-col">${shortNum(totIn)}</td>
+          <td class="num-col">${inSize}</td>
+          <td class="num-col">${inMax}</td>
+          <td class="num-col" style="color: var(--accent-green);">${cachePct}%</td>
+          <td class="num-col">${cInSize}</td>
+          <td class="num-col">${cInMax}</td>
+          <td class="num-col">${shortNum(item.output || 0)}</td>
+          <td class="num-col">${outSize}</td>
+          <td class="num-col">${outMax}</td>
+          <td class="num-col">${timeMins}</td>
+          <td class="num-col" style="color: var(--accent-cyan);">$${totalCost}</td>
         `;
         tbody.appendChild(tr);
       });
     }
 
+    function toggleAgentTree(agentName) {
+      const key = `agent:${agentName}`;
+      treeState[key] = !treeState[key];
+      localStorage.setItem('router_ui_tree_state', JSON.stringify(treeState));
+      if (cachedUsageData) renderTable(cachedUsageData.models || {});
+    }
+
+    function toggleServiceTree(agentName, serviceName) {
+      const key = `svc:${agentName}:${serviceName}`;
+      treeState[key] = !treeState[key];
+      localStorage.setItem('router_ui_tree_state', JSON.stringify(treeState));
+      if (cachedUsageData) renderTable(cachedUsageData.models || {});
+    }
+
+    function toggleAllTree() {
+      globalAllCollapsed = !globalAllCollapsed;
+      const btn = document.getElementById('btnToggleAll');
+      if (btn) btn.innerText = globalAllCollapsed ? '📂 Expand All' : '📁 Collapse All';
+
+      if (cachedUsageData && cachedUsageData.models) {
+        Object.keys(cachedUsageData.models).forEach(k => {
+          const parts = k.split(':');
+          if (parts.length >= 3) {
+            treeState[`agent:${parts[0]}`] = globalAllCollapsed;
+            treeState[`svc:${parts[0]}:${parts[2]}`] = globalAllCollapsed;
+          }
+        });
+        localStorage.setItem('router_ui_tree_state', JSON.stringify(treeState));
+        renderTable(cachedUsageData.models);
+      }
+    }
+
     function renderTable(modelsData) {
       const tbody = document.getElementById('modelsTableBody');
       tbody.innerHTML = '';
-      const keys = Object.keys(modelsData);
 
-      keys.forEach(key => {
+      // Build hierarchical tree: Agent -> Service -> Model
+      const agentsMap = {};
+
+      Object.keys(modelsData).forEach(key => {
         const item = modelsData[key];
+        const parts = key.split(':');
+        let ag = 'unknown', md = key, svc = 'unknown';
+        if (parts.length >= 3) {
+          ag = parts[0];
+          md = parts[1];
+          svc = parts[2];
+        }
+
+        if (!agentsMap[ag]) {
+          agentsMap[ag] = {
+            name: ag,
+            services: {},
+            calls_post: 0,
+            streaming_calls: 0,
+            calls_active_post: 0,
+            calls_active_stream: 0,
+            cached_input: 0,
+            input: 0,
+            output: 0,
+            total_tokens: 0,
+            duration: 0,
+            cost: 0,
+            errors_post: 0,
+            errors_streaming: 0,
+            req_in: [],
+            req_in_max: [],
+            req_cin: [],
+            req_cin_max: [],
+            req_out: [],
+            req_out_max: []
+          };
+        }
+
+        const agNode = agentsMap[ag];
+        if (!agNode.services[svc]) {
+          agNode.services[svc] = {
+            name: svc,
+            models: [],
+            calls_post: 0,
+            streaming_calls: 0,
+            calls_active_post: 0,
+            calls_active_stream: 0,
+            cached_input: 0,
+            input: 0,
+            output: 0,
+            total_tokens: 0,
+            duration: 0,
+            cost: 0,
+            errors_post: 0,
+            errors_streaming: 0,
+            req_in: [],
+            req_in_max: [],
+            req_cin: [],
+            req_cin_max: [],
+            req_out: [],
+            req_out_max: []
+          };
+        }
+
+        const svcNode = agNode.services[svc];
+        svcNode.models.push({ key, agent: ag, service: svc, model: md, item });
+
         let strErr = 0, postErr = 0;
         Object.values(item.errors_streaming || {}).forEach(v => strErr += v);
         Object.values(item.errors_post || {}).forEach(v => postErr += v);
 
-        const timeMins = ((item.total_duration || 0) / 60.0).toFixed(1);
+        const rs = item.req_stats || {};
+        const totalInStats = rs.total_input || rs.input || {};
+        const cachedInStats = rs.cached_input || rs.input_read || {};
+        const outputStats = rs.output || {};
 
-        const tr = document.createElement('tr');
-        const medSize = ((item.req_stats || {}).per_request || {}).median || 0;
-        tr.innerHTML = `
-          <td class="text-cell" style="color: var(--text-main);">${key}</td>
-          <td>${fmtNum(item.calls_post || 0)} / ${fmtNum(item.streaming_calls || 0)}</td>
-          <td>${fmtNum(item.cached_input || 0)}</td>
-          <td>${fmtNum(item.input || 0)}</td>
-          <td>${shortNum(medSize)}</td>
-          <td style="color: var(--accent-green);">${(item.cache_pct || 0).toFixed(2)}%</td>
-          <td>${shortNum(medSize)}</td>
-          <td>${fmtNum(item.output || 0)}</td>
-          <td>${shortNum(medSize)}</td>
-          <td>${fmtNum(item.total_tokens || 0)}</td>
-          <td>${timeMins}</td>
-          <td style="color: var(--accent-cyan);">$${(item.costs?.total_cost || 0).toFixed(4)}</td>
-          <td><span class="${(strErr + postErr) > 0 ? 'badge-error' : 'badge-success'}">${postErr} / ${strErr}</span></td>
-        `;
-        tbody.appendChild(tr);
+        [svcNode, agNode].forEach(node => {
+          node.calls_post += item.calls_post || 0;
+          node.streaming_calls += item.streaming_calls || 0;
+          node.calls_active_post += item.calls_active_post || 0;
+          node.calls_active_stream += item.calls_active_stream || 0;
+          node.cached_input += item.cached_input || 0;
+          node.input += item.input || 0;
+          node.output += item.output || 0;
+          node.total_tokens += item.total_tokens || 0;
+          node.duration += item.total_duration || 0;
+          node.cost += item.costs?.total_cost || 0;
+          node.errors_post += postErr;
+          node.errors_streaming += strErr;
+          if (totalInStats.median) node.req_in.push(totalInStats.median);
+          if (totalInStats.max) node.req_in_max.push(totalInStats.max);
+          if (cachedInStats.median) node.req_cin.push(cachedInStats.median);
+          if (cachedInStats.max) node.req_cin_max.push(cachedInStats.max);
+          if (outputStats.median) node.req_out.push(outputStats.median);
+          if (outputStats.max) node.req_out_max.push(outputStats.max);
+        });
       });
 
-      // Retain sticky sorting after table render
+      const sortedAgents = Object.keys(agentsMap).sort((a, b) => agentsMap[b].cost - agentsMap[a].cost);
+
+      if (sortedAgents.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="18" style="color: var(--text-dim);">No model activity recorded in this range.</td></tr>';
+        return;
+      }
+
+      sortedAgents.forEach(agKey => {
+        const agNode = agentsMap[agKey];
+        const isAgCollapsed = !!treeState[`agent:${agKey}`];
+
+        const agTotIn = agNode.cached_input + agNode.input;
+        const agCachePct = agTotIn > 0 ? (agNode.cached_input / agTotIn * 100.0).toFixed(2) : '0.00';
+        const agTime = (agNode.duration / 60.0).toFixed(2);
+
+        // Render Agent Parent Row
+        const trAg = document.createElement('tr');
+        trAg.className = 'tree-row-agent';
+        trAg.onclick = () => toggleAgentTree(agKey);
+        trAg.innerHTML = `
+          <td class="text-cell" style="color: var(--accent-primary);">
+            <span class="tree-toggle-icon">${isAgCollapsed ? '▶' : '▼'}</span> 📁 ${agKey.toUpperCase()}
+          </td>
+          <td class="num-col">${agNode.calls_active_post}</td>
+          <td class="num-col">${agNode.calls_active_stream}</td>
+          <td class="num-col">${fmtNum(agNode.calls_post)}</td>
+          <td class="num-col">${fmtNum(agNode.streaming_calls)}</td>
+          <td class="num-col">${shortNum(agTotIn)}</td>
+          <td class="num-col">${shortNum(arrayMedian(agNode.req_in))}</td>
+          <td class="num-col">${shortNum(arrayMax(agNode.req_in_max))}</td>
+          <td class="num-col" style="color: var(--accent-green);">${agCachePct}%</td>
+          <td class="num-col">${shortNum(arrayMedian(agNode.req_cin))}</td>
+          <td class="num-col">${shortNum(arrayMax(agNode.req_cin_max))}</td>
+          <td class="num-col">${shortNum(agNode.output)}</td>
+          <td class="num-col">${shortNum(arrayMedian(agNode.req_out))}</td>
+          <td class="num-col">${shortNum(arrayMax(agNode.req_out_max))}</td>
+          <td class="num-col">${agTime}</td>
+          <td class="num-col" style="color: var(--accent-cyan);">$${agNode.cost.toFixed(4)}</td>
+          <td class="num-col"><span class="${agNode.errors_post > 0 ? 'badge-error' : 'badge-success'}">${agNode.errors_post}</span></td>
+          <td class="num-col"><span class="${agNode.errors_streaming > 0 ? 'badge-error' : 'badge-success'}">${agNode.errors_streaming}</span></td>
+        `;
+        tbody.appendChild(trAg);
+
+        if (!isAgCollapsed) {
+          const sortedServices = Object.keys(agNode.services).sort((a, b) => agNode.services[b].cost - agNode.services[a].cost);
+          sortedServices.forEach(svcKey => {
+            const svcNode = agNode.services[svcKey];
+            const isSvcCollapsed = !!treeState[`svc:${agKey}:${svcKey}`];
+
+            const svcTotIn = svcNode.cached_input + svcNode.input;
+            const svcCachePct = svcTotIn > 0 ? (svcNode.cached_input / svcTotIn * 100.0).toFixed(2) : '0.00';
+            const svcTime = (svcNode.duration / 60.0).toFixed(2);
+
+            // Render Service Child Row
+            const trSvc = document.createElement('tr');
+            trSvc.className = 'tree-row-service';
+            trSvc.onclick = () => toggleServiceTree(agKey, svcKey);
+            trSvc.innerHTML = `
+              <td class="text-cell" style="padding-left: 20px; color: var(--accent-purple);">
+                <span class="tree-toggle-icon">${isSvcCollapsed ? '▶' : '▼'}</span> ⚙️ ${svcKey.toUpperCase()}
+              </td>
+              <td class="num-col">${svcNode.calls_active_post}</td>
+              <td class="num-col">${svcNode.calls_active_stream}</td>
+              <td class="num-col">${fmtNum(svcNode.calls_post)}</td>
+              <td class="num-col">${fmtNum(svcNode.streaming_calls)}</td>
+              <td class="num-col">${shortNum(svcTotIn)}</td>
+              <td class="num-col">${shortNum(arrayMedian(svcNode.req_in))}</td>
+              <td class="num-col">${shortNum(arrayMax(svcNode.req_in_max))}</td>
+              <td class="num-col" style="color: var(--accent-green);">${svcCachePct}%</td>
+              <td class="num-col">${shortNum(arrayMedian(svcNode.req_cin))}</td>
+              <td class="num-col">${shortNum(arrayMax(svcNode.req_cin_max))}</td>
+              <td class="num-col">${shortNum(svcNode.output)}</td>
+              <td class="num-col">${shortNum(arrayMedian(svcNode.req_out))}</td>
+              <td class="num-col">${shortNum(arrayMax(svcNode.req_out_max))}</td>
+              <td class="num-col">${svcTime}</td>
+              <td class="num-col" style="color: var(--accent-cyan);">$${svcNode.cost.toFixed(4)}</td>
+              <td class="num-col"><span class="${svcNode.errors_post > 0 ? 'badge-error' : 'badge-success'}">${svcNode.errors_post}</span></td>
+              <td class="num-col"><span class="${svcNode.errors_streaming > 0 ? 'badge-error' : 'badge-success'}">${svcNode.errors_streaming}</span></td>
+            `;
+            tbody.appendChild(trSvc);
+
+            if (!isSvcCollapsed) {
+              const sortedModels = svcNode.models.sort((a, b) => (b.item.costs?.total_cost || 0) - (a.item.costs?.total_cost || 0));
+              sortedModels.forEach(mObj => {
+                const item = mObj.item;
+                let strErr = 0, postErr = 0;
+                Object.values(item.errors_streaming || {}).forEach(v => strErr += v);
+                Object.values(item.errors_post || {}).forEach(v => postErr += v);
+
+                const timeMins = ((item.total_duration || 0) / 60.0).toFixed(2);
+                const actPost = item.calls_active_post || 0;
+                const actStream = item.calls_active_stream || 0;
+                const rs = item.req_stats || {};
+                const totalInStats = rs.total_input || rs.input || {};
+                const cachedInStats = rs.cached_input || rs.input_read || {};
+                const outputStats = rs.output || {};
+
+                const totIn = (item.input || 0) + (item.cached_input || 0);
+                const inSize = shortNum(totalInStats.median || 0);
+                const inMax = shortNum(totalInStats.max || 0);
+                const cInSize = shortNum(cachedInStats.median || 0);
+                const cInMax = shortNum(cachedInStats.max || 0);
+                const outSize = shortNum(outputStats.median || 0);
+                const outMax = shortNum(outputStats.max || 0);
+
+                // Render Model Leaf Row (Matching Services Breakdown column structure)
+                const trM = document.createElement('tr');
+                trM.className = 'tree-row-model';
+                trM.innerHTML = `
+                  <td class="text-cell" style="padding-left: 40px; color: var(--text-main);">
+                    📄 ${mObj.model}
+                  </td>
+                  <td class="num-col">${actPost}</td>
+                  <td class="num-col">${actStream}</td>
+                  <td class="num-col">${fmtNum(item.calls_post || 0)}</td>
+                  <td class="num-col">${fmtNum(item.streaming_calls || 0)}</td>
+                  <td class="num-col">${shortNum(totIn)}</td>
+                  <td class="num-col">${inSize}</td>
+                  <td class="num-col">${inMax}</td>
+                  <td class="num-col" style="color: var(--accent-green);">${(item.cache_pct || 0).toFixed(2)}%</td>
+                  <td class="num-col">${cInSize}</td>
+                  <td class="num-col">${cInMax}</td>
+                  <td class="num-col">${shortNum(item.output || 0)}</td>
+                  <td class="num-col">${outSize}</td>
+                  <td class="num-col">${outMax}</td>
+                  <td class="num-col">${timeMins}</td>
+                  <td class="num-col" style="color: var(--accent-cyan);">$${(item.costs?.total_cost || 0).toFixed(4)}</td>
+                  <td class="num-col"><span class="${postErr > 0 ? 'badge-error' : 'badge-success'}">${postErr}</span></td>
+                  <td class="num-col"><span class="${strErr > 0 ? 'badge-error' : 'badge-success'}">${strErr}</span></td>
+                `;
+                tbody.appendChild(trM);
+              });
+            }
+          });
+        }
+      });
+
       applyTableSort();
       filterTable();
     }
@@ -1147,7 +1540,6 @@
       const table = document.getElementById('modelsTable');
       const ths = table.querySelectorAll('th');
       
-      // Update th headers UI indicator
       ths.forEach((th, idx) => {
         const ind = document.getElementById(`sort-ind-${idx}`);
         if (idx === currentSortCol) {
@@ -1161,6 +1553,7 @@
 
       const tbody = table.querySelector('tbody');
       const rows = Array.from(tbody.querySelectorAll('tr'));
+      if (rows.length === 0) return;
       
       const isAsc = currentSortDir === 'asc';
 
@@ -1169,13 +1562,8 @@
         let valA = a.children[currentSortCol].innerText.trim();
         let valB = b.children[currentSortCol].innerText.trim();
 
-        // Strip formatting symbols and spaces
         valA = valA.replace(/[\$,%\s]/g, '');
         valB = valB.replace(/[\$,%\s]/g, '');
-
-        // Handle composite numeric columns like "Post / Str"
-        if (valA.includes('/')) valA = valA.split('/')[0].trim();
-        if (valB.includes('/')) valB = valB.split('/')[0].trim();
 
         const numA = parseFloat(valA);
         const numB = parseFloat(valB);
@@ -1191,8 +1579,14 @@
     }
 
     function filterTable() {
-      const query = document.getElementById('searchInput').value.toLowerCase();
-      const rows = document.querySelectorAll('#modelsTableBody tr');
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const tbody = document.getElementById('modelsTableBody');
+      const rows = tbody.querySelectorAll('tr');
+
+      if (!query) {
+        return;
+      }
+
       rows.forEach(row => {
         const text = row.innerText.toLowerCase();
         row.style.display = text.includes(query) ? '' : 'none';
