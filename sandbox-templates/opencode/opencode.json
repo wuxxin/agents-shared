@@ -6,7 +6,6 @@
     "./node_modules/@slkiser/opencode-quota",
     "./node_modules/opencode-handoff",
     "./node_modules/oh-my-opencode-slim",
-    "./node_modules/@shantur/jarvis-mcp/plugin",
     [
       "./node_modules/@toady00/opencode-hindsight",
       {
@@ -85,10 +84,6 @@
     "hindsight": {
       "type": "local",
       "command": ["bunx", "hindsight-mcp"]
-    },
-    "jarvis": {
-      "type": "local",
-      "command": ["bunx", "@shantur/jarvis-mcp"]
     }
   },
   "agent": {
