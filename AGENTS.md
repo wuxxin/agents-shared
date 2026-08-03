@@ -7,6 +7,7 @@
   - running various agents (hermes, librefang, nanobot, nanoclaw, picoclaw, ironclaw, zeroclaw)
   - running local inference services (chat,embedding,speech-to-text,text-to-speech,rerank,image) 
   - running a `Signal` Messenger Gateway.
+- `sandbox-templates/*/`: templates usable for `scripts/sandbox-ctl install --new-config-from path-to-env`
 - `scripts/`: Helper utilities for caching/throughput benchmarking, token counting and token speed simulation.
 - `research/`: Documentation about the assistants git repository activity, llm adapter research and other research findings.
 - `scratch/`: Safe workspace directory for configuration testing, source code cloning, and developmental research.
@@ -61,17 +62,13 @@ shfmt -i 4 -w scripts/*.sh
 
 
 ## Working with This Repository
-- **OpenCode configuration** lives in `sandbox-templates/opencode/opencode.json` as the canonical repo template.
-  When working on this repository in OpenCode, keep the running config (`~/.config/opencode/opencode.json`) and the
-  repo template in sync: apply changes to both, then save the running config back to the sandbox template.
-  The `copy-config-to-target.sh` script in `~/.config/opencode/` automates saving the running config to the repo.
 - document all agent software default ports and isolation requirements in `README.md`
 - update documentation whenever any changes are made to scripts,
   `README.md`  for overall structure and `assistants/*-ctl.md` for individual
   agent/service documentation, same for `scripts/`, if any assistant introduces
   new hardware or namespace isolation requirements,
   update the "## Sandboxing Architecture" profiles accordingly.
-- always use `scratch/` for temporary files, git checkout of sourcecode
+- always use the `scratch/` dir in the root of the repo for temporary files, git checkout of sourcecode
   for research and other testings.
 - check configuration changes for packages by verifying it with the source code
   of the package checkedout and updated in `scratch/*-sources`.
@@ -81,12 +78,17 @@ shfmt -i 4 -w scripts/*.sh
   - if bwrapped, you can still install files (e.g., systemd unit or env files) into their expected sandbox locations to verify their content, then inspect them with normal file tools.
   - if bwrapped, `journalctl` (including `--user`) is available to read service logs, and you can introspect the running system via the process tree (`ps`, `/proc`, `pgrep`).
 - whenever you change the output or performance output of a `local-*` script, you must adapt `run-local-benchmark.py`. In addition, it must be updated if any environment variable name or prefix changes (e.g., `LLM_` to `LCHAT_`, `EMBED_` to `LMBD_`) so it can spawn the exec server with the correct matching overrides.
-- When running `run-local-benchmark.py` for testing or validation 
+- When running `run-local-benchmark.py` for benchmarking running or testing 
   (e.g., in `--mock` mode), make sure you do not overwrite the production
   report/JSON files in `assistants/`. when used with the `--mock` flag, 
   the script automatically redirects outputs to `scratch/local-benchmark-mock.*`.
   If running other custom test scenarios, explicitly supply temporary paths via
   `--report scratch/test.md --data scratch/test.json`.
+- **OpenCode sandbox configuration** lives in `sandbox-templates/opencode/opencode.json`
+  When working on this repository in OpenCode, keep the running config (`~/.config/opencode/opencode.json`) and the
+  repo template in sync: apply changes to both, then save the running config back to the sandbox template.
+  The `copy-config-to-target.sh` script in `~/.config/opencode/` automates saving the running config to the repo.
+- **OMP - Oh-my-PI sandbox configuration** lives in `sandbox-templats/omp/`
 - Discover updates of and new configuration features and schemas,
   by inspecting configuration source code directories:
   - ZeroClaw: check crates/zeroclaw-config/src/schema.rs and crates/zeroclaw-memory/
