@@ -1010,7 +1010,7 @@ cmd_test() {
     echo "Using endpoint base: ${base_url}"
 
     # Wait for server to become ready (shader compilation on first load takes time)
-    wait_for_endpoint "${base_url}/health" 30 2 "local-chat" || return 1
+    wait_for_endpoint "${base_url}/v1/models" 30 2 "local-chat" || return 1
 
     local benchmark=false
     local skip_prefill=false
