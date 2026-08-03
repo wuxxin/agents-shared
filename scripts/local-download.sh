@@ -539,11 +539,20 @@ snapshot_download(
             fi
         fi
 
-        # Download HF PyTorch/Safetensors weights for TEI (if hf tool is available)
-        echo "Downloading full Hugging Face weights for TEI (Qwen3-Reranker-0.6B)..."
+        # Download HF PyTorch/Safetensors weights for Infinity (Qwen3-Reranker-0.6B)
+        echo "Downloading full Hugging Face weights for Infinity (Qwen3-Reranker-0.6B)..."
         mkdir -p "${target_dir}/reranker/Qwen3-Reranker-0.6B"
         if command -v hf &>/dev/null; then
             hf download Qwen/Qwen3-Reranker-0.6B --local-dir "${target_dir}/reranker/Qwen3-Reranker-0.6B"
+        else
+            echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
+        fi
+
+        # Download HF PyTorch/Safetensors/ONNX weights for Infinity (BAAI/bge-reranker-v2-m3)
+        echo "Downloading full Hugging Face weights for Infinity (BAAI/bge-reranker-v2-m3)..."
+        mkdir -p "${target_dir}/reranker/bge-reranker-v2-m3"
+        if command -v hf &>/dev/null; then
+            hf download BAAI/bge-reranker-v2-m3 --local-dir "${target_dir}/reranker/bge-reranker-v2-m3"
         else
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
@@ -565,9 +574,9 @@ snapshot_download(
             "https://huggingface.co/jinaai/jina-reranker-v3-GGUF/resolve/main/projector.safetensors" \
             "${target_dir}/reranker/jina-reranker-v3-projector.safetensors"
 
-        # NOTE: jina-reranker-v3 safetensors kept for TEI reference; TEI engine is abandoned,
+        # NOTE: jina-reranker-v3 safetensors kept for reference; TEI engine is abandoned,
         # the llama.cpp path uses the GGUF + projector above instead.
-        echo "Downloading full Hugging Face weights for TEI (jina-reranker-v3) [reference only]..."
+        echo "Downloading full Hugging Face weights for jina-reranker-v3 [reference only]..."
         mkdir -p "${target_dir}/reranker/jina-reranker-v3"
         if command -v hf &>/dev/null; then
             hf download jinaai/jina-reranker-v3 --local-dir "${target_dir}/reranker/jina-reranker-v3"
@@ -575,7 +584,7 @@ snapshot_download(
             echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
         fi
 
-        echo "Downloading essential TEI files for ettin-reranker-400m-v1 (~1.6 GB, skipping ONNX/OpenVINO bloat)..."
+        echo "Downloading essential model files for ettin-reranker-400m-v1..."
         mkdir -p "${target_dir}/reranker/ettin-reranker-400m-v1"
         python3 -c '
 import sys
@@ -583,16 +592,15 @@ from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="cross-encoder/ettin-reranker-400m-v1",
     local_dir=sys.argv[1],
-    ignore_patterns=["onnx/**", "openvino/**"],
+    ignore_patterns=["openvino/**"],
 )
 ' "${target_dir}/reranker/ettin-reranker-400m-v1" || {
-            echo "Warning: snapshot_download failed. The model repo is ~10.67 GB due to ONNX/OpenVINO exports." >&2
+            echo "Warning: snapshot_download failed." >&2
             echo "  Try: hf download cross-encoder/ettin-reranker-400m-v1 --local-dir ${target_dir}/reranker/ettin-reranker-400m-v1" >&2
         }
 
-        echo "Downloading essential files for ettin-reranker-150m-v1 (~596 MB, skipping ONNX/OpenVINO bloat)..."
+        echo "Downloading essential files for ettin-reranker-150m-v1 (~596 MB)..."
         # No GGUF exists for 150m/400m ettin (SentTrans head, not standard BertForSeqClass)
-        # Download safetensors only for potential future GGUF conversion or TEI fallback
         mkdir -p "${target_dir}/reranker/ettin-reranker-150m-v1"
         python3 -c '
 import sys
@@ -600,7 +608,7 @@ from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="cross-encoder/ettin-reranker-150m-v1",
     local_dir=sys.argv[1],
-    ignore_patterns=["onnx/**", "openvino/**"],
+    ignore_patterns=["openvino/**"],
 )
 ' "${target_dir}/reranker/ettin-reranker-150m-v1" || {
             echo "Warning: snapshot_download failed. Trying fallback..." >&2
@@ -624,52 +632,45 @@ snapshot_download(
         # BEIR: 63.20 (highest in 0.6B class), MIRACL: 74.11, German: ✅
         # License: CC BY-NC 4.0 (non-commercial)
         # Q4_K_M ~379 MB disk, ~2.5 GB VRAM
-        # NOTE: jina-reranker-v3.patch is applied in both libggml-git-hip and tei-rocm,
-        # but neither produces working reranking in practice (embedding path produces bad scores,
-        # TEI Python backend can't load JinaForRanking). Downloaded for future use when fixes land.
         acquire_file \
             "reranker/jina-reranker-v3.5-Q4_K_M.gguf" \
             "https://huggingface.co/jinaai/jina-reranker-v3.5-GGUF/resolve/main/jina-reranker-v3.5-Q4_K_M.gguf" \
             "${target_dir}/reranker/jina-reranker-v3.5-Q4_K_M.gguf"
 
-        # --- Additional Reranker Models (TEI / safetensors only, no GGUF) ---
+        # --- Additional Reranker Models (Infinity / TEI / safetensors) ---
 
-        # LAMAR-600m (TEI safetensors) — BEST multilingual under 5GB, MIT license
+        # LAMAR-600m (safetensors) — BEST multilingual under 5GB, MIT license
         # 600M params, 8K ctx, XLM-RoBERTa cross-encoder, 51 langs including German
         # MIRACL: 69.49, XQuAD nDCG@10: 98.59, German: ✅✅ (excellent)
         # License: MIT
         # ~1.2 GB fp16 safetensors, ~3.5 GB VRAM at full precision
-        # NOTE: TEI-only (no GGUF). Serve via: text-embeddings-router --model-id <path>
         if command -v hf &>/dev/null; then
-            echo "Downloading LAMAR-600m (TEI safetensors, MIT license, excellent German)..."
+            echo "Downloading LAMAR-600m (safetensors, MIT license, excellent German)..."
             mkdir -p "${target_dir}/reranker/LAMAR-600m"
             hf download nlpai-lab/LAMAR-600m --local-dir "${target_dir}/reranker/LAMAR-600m"
         else
             echo "Warning: 'hf' CLI not found. Skipping LAMAR-600m download." >&2
         fi
 
-        # KaLM-Reranker-V1-Nano (TEI safetensors) — Ultra-lightweight, 128K ctx, Apache 2.0
+        # KaLM-Reranker-V1-Nano (safetensors) — Ultra-lightweight, 128K ctx, Apache 2.0
         # 270M params, 128K ctx, encoder-decoder (T5Gemma2), FBNL architecture
         # Apache 2.0 license
         # ~600 MB fp16 safetensors, ~1.5 GB VRAM
-        # NOTE: TEI/Sentence Transformers only (no GGUF). Requires trust_remote_code=True.
         if command -v hf &>/dev/null; then
-            echo "Downloading KaLM-Reranker-V1-Nano (TEI safetensors, Apache 2.0, 128K ctx)..."
+            echo "Downloading KaLM-Reranker-V1-Nano (safetensors, Apache 2.0, 128K ctx)..."
             mkdir -p "${target_dir}/reranker/KaLM-Reranker-V1-Nano"
             hf download KaLM-Embedding/KaLM-Reranker-V1-Nano --local-dir "${target_dir}/reranker/KaLM-Reranker-V1-Nano"
         else
             echo "Warning: 'hf' CLI not found. Skipping KaLM-Reranker-V1-Nano download." >&2
         fi
 
-        # mxbai-rerank-base-v2 (TEI safetensors) — 109 languages, 32K ctx, Apache 2.0
+        # mxbai-rerank-base-v2 (safetensors) — 109 languages, 32K ctx, Apache 2.0
         # 494M params, 32K ctx, causal decoder (Qwen2-0.5B), GRPO-trained
         # BEIR: 55.57, German: ✅
         # Apache 2.0 license
         # ~1.0 GB fp16 safetensors, ~2.5 GB VRAM
-        # NOTE: TEI compatible (tagged text-embeddings-inference). No official GGUF.
-        # GGUF conversion is feasible (standard Qwen2 decoder).
         if command -v hf &>/dev/null; then
-            echo "Downloading mxbai-rerank-base-v2 (TEI safetensors, Apache 2.0, 32K ctx)..."
+            echo "Downloading mxbai-rerank-base-v2 (safetensors, Apache 2.0, 32K ctx)..."
             mkdir -p "${target_dir}/reranker/mxbai-rerank-base-v2"
             hf download mixedbread-ai/mxbai-rerank-base-v2 --local-dir "${target_dir}/reranker/mxbai-rerank-base-v2"
         else

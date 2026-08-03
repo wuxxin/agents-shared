@@ -37,12 +37,16 @@ load_env() {
     LRR_LLAMA_DEVICE=""
     LRR_LLAMA_EXTRA_ARGS=""
 
-    # TEI parameters (ettin-reranker-400m-v1 via ModernBertModel detection, requires tei-rocm >= pkgrel=6)
-    LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/ettin-reranker-400m-v1
-    LRR_TEI_MAX_CONCURRENT=4 # 4 queue slots — GPU processes 1 at a time; queue absorbs others without VRAM cost
-    LRR_TEI_MAX_BATCH_TOKENS=8192
-    LRR_TEI_EXTRA_ARGS="--dtype bfloat16"
-    LRR_TEI_DEVICE=""
+    # Infinity parameters (infinity_emb v2 CLI interface, configured natively via INFINITY_* env vars)
+    # Default model: bge-reranker-v2-m3 with ONNX Optimum engine backend
+    LRR_INF_MODEL=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3
+    LRR_INF_ENGINE=optimum
+    LRR_INF_DEVICE=cuda
+    LRR_INF_DTYPE=auto
+    LRR_INF_BATCH_SIZE=32
+    LRR_INF_COMPILE=false
+    LRR_INF_BETTERTRANSFORMER=false
+    LRR_INF_EXTRA_ARGS=""
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -62,10 +66,22 @@ load_env() {
     fi
 
     # Map generic variables based on selected engine for backward compatibility
-    if [[ "${LRR_ENGINE}" == "tei" ]]; then
-        LRR_MODEL="${LRR_TEI_MODEL:-${LRR_MODEL:-}}"
+    if [[ "${LRR_ENGINE}" == "infinity" ]]; then
+        LRR_MODEL="${LRR_INF_MODEL:-${INFINITY_MODEL_ID:-${LRR_MODEL:-}}}"
         # shellcheck disable=SC2034
-        LRR_API_PATH=/rerank
+        LRR_API_PATH=/v1/rerank
+
+        # Export INFINITY_* env vars for native infinity_emb v2 configuration
+        export INFINITY_MODEL_ID="${LRR_MODEL}"
+        export INFINITY_SERVED_MODEL_NAME="${INFINITY_SERVED_MODEL_NAME:-${LRR_ALIAS:-qwen3-reranker}}"
+        export INFINITY_ENGINE="${LRR_INF_ENGINE:-${INFINITY_ENGINE:-optimum}}"
+        export INFINITY_DTYPE="${LRR_INF_DTYPE:-${INFINITY_DTYPE:-auto}}"
+        export INFINITY_BATCH_SIZE="${LRR_INF_BATCH_SIZE:-${INFINITY_BATCH_SIZE:-32}}"
+        export INFINITY_COMPILE="${LRR_INF_COMPILE:-${INFINITY_COMPILE:-false}}"
+        export INFINITY_BETTERTRANSFORMER="${LRR_INF_BETTERTRANSFORMER:-${INFINITY_BETTERTRANSFORMER:-false}}"
+        export INFINITY_HOST="${LRR_HOST:-127.0.0.1}"
+        export INFINITY_PORT="${LRR_PORT:-50086}"
+        export INFINITY_TRUST_REMOTE_CODE=true
     else
         LRR_MODEL="${LRR_LLAMA_MODEL:-${LRR_MODEL:-}}"
         # shellcheck disable=SC2034
@@ -84,10 +100,10 @@ load_env() {
         LRR_EXTRA_ARGS="${LRR_LLAMA_EXTRA_ARGS:-}"
     fi
 
-    # Device selection for TEI
+    # Device selection for Infinity
     local active_device=""
-    if [[ "${LRR_ENGINE}" == "tei" ]]; then
-        active_device="${LRR_TEI_DEVICE:-${LRR_DEVICE:-}}"
+    if [[ "${LRR_ENGINE}" == "infinity" ]]; then
+        active_device="${INFINITY_DEVICE:-${LRR_INF_DEVICE:-${LRR_DEVICE:-cuda}}}"
         if [[ -n "${active_device}" ]]; then
             local dev_lower
             dev_lower=$(echo "${active_device}" | tr '[:upper:]' '[:lower:]')
@@ -96,13 +112,16 @@ load_env() {
                 dev_idx=$(echo "$dev_lower" | grep -o -E '[0-9]+' | head -n 1)
                 export HIP_VISIBLE_DEVICES="${dev_idx}"
                 export CUDA_VISIBLE_DEVICES="${dev_idx}"
+                export INFINITY_DEVICE="cuda"
             elif [[ "$dev_lower" == "cpu" || "$dev_lower" == "none" ]]; then
                 export HIP_VISIBLE_DEVICES=""
                 export CUDA_VISIBLE_DEVICES=""
+                export INFINITY_DEVICE="cpu"
+            else
+                export INFINITY_DEVICE="${dev_lower}"
             fi
         fi
         export TRUST_REMOTE_CODE=true
-        # export PYTHONPATH="${HOME}/.config/systemd/user${PYTHONPATH:+:$PYTHONPATH}"  # TEI Python backends only
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -242,27 +261,15 @@ get_llama_args() {
     fi
 }
 
-# Helper to get unified arguments for text-embeddings-router
-get_tei_args() {
-    local -n out_tei_args=$1
-    out_tei_args=(
-        --model-id "${LRR_MODEL}"
-        --port "${LRR_PORT}"
-        --hostname "${LRR_HOST}"
-    )
+# Helper to get unified arguments for infinity_emb
+get_infinity_args() {
+    local -n out_inf_args=$1
+    out_inf_args=(v2)
 
-    if [[ -n "${LRR_TEI_MAX_CONCURRENT:-}" ]]; then
-        out_tei_args+=(--max-concurrent-requests "${LRR_TEI_MAX_CONCURRENT}")
-    fi
-
-    if [[ -n "${LRR_TEI_MAX_BATCH_TOKENS:-}" ]]; then
-        out_tei_args+=(--max-batch-tokens "${LRR_TEI_MAX_BATCH_TOKENS}")
-    fi
-
-    if [[ -n "${LRR_TEI_EXTRA_ARGS:-}" ]]; then
+    if [[ -n "${LRR_INF_EXTRA_ARGS:-}" ]]; then
         local extra_arr=()
-        eval "extra_arr=(${LRR_TEI_EXTRA_ARGS})"
-        out_tei_args+=("${extra_arr[@]}")
+        eval "extra_arr=(${LRR_INF_EXTRA_ARGS})"
+        out_inf_args+=("${extra_arr[@]}")
     fi
 }
 
@@ -289,11 +296,11 @@ generate_service_file() {
     local description
     local doc_link
 
-    if [[ "${LRR_ENGINE}" == "tei" ]]; then
-        get_tei_args args
-        exec_cmd=$(format_exec_start "${TEI_ROUTER_BIN:-text-embeddings-router}" "${args[@]}")
-        description="Local Document Reranking Server (TEI)"
-        doc_link="https://github.com/huggingface/text-embeddings-inference"
+    if [[ "${LRR_ENGINE}" == "infinity" ]]; then
+        get_infinity_args args
+        exec_cmd=$(format_exec_start "${INFINITY_BIN:-infinity_emb}" "${args[@]}")
+        description="Local Document Reranking Server (Infinity Engine)"
+        doc_link="https://github.com/michaelfeil/infinity"
     else
         get_llama_args args
         exec_cmd=$(format_exec_start "${LLAMA_SERVER_BIN:-llama-server}" "${args[@]}")
@@ -334,8 +341,8 @@ generate_env_file() {
 # Edit this file to switch engines, models, or tune runtime parameters.
 # Reload with:  local-rerank.sh restart
 
-# Active inference engine: 'llama' (llama-server) or 'tei' (Text Embeddings Inference)
-# NOTE: TEI now supports ettin-reranker-400m-v1 via ModernBertModel detection (tei-rocm >= pkgrel=6).
+# Active inference engine: 'llama' (llama-server) or 'infinity' (Infinity Engine)
+# NOTE: Infinity engine supports ONNX Runtime ('optimum') and PyTorch ('torch') backends.
 #       Download: scripts/local-download.sh /data/public/machine-learning/models --reranker
 LRR_ENGINE=llama
 
@@ -348,39 +355,53 @@ LRR_PORT=50086
 # Host to bind the server to (127.0.0.1 for local access only)
 LRR_HOST=127.0.0.1
 
-# API path for rerank endpoint (/v1/rerank for llama-server, /rerank for TEI)
+# API path for rerank endpoint (/v1/rerank)
 LRR_API_PATH=/v1/rerank
 
-# TEI (Text Embeddings Inference) ENGINE SETTINGS
+# INFINITY ENGINE SETTINGS (infinity_emb v2)
 #
-# Alternative engine: set LRR_ENGINE=tei to switch from llama-server back to TEI.
-# TEI auto-detects reranker model architecture and sets appropriate
-# pooling and tokenization. TEI uses dynamic batching with static VRAM
-# allocation, allowing efficient parallel reranking request handling.
+# Alternative engine: set LRR_ENGINE=infinity to switch from llama-server to Infinity.
+# Infinity uses dynamic batching with ONNX Runtime ('optimum') or PyTorch ('torch').
+# Systemd environment variables directly configure the infinity_emb v2 CLI.
 #
-# Path to the safetensors model directory
-LRR_TEI_MODEL=/data/public/machine-learning/models/reranker/ettin-reranker-400m-v1
+# Path to the safetensors / ONNX model directory
+LRR_INF_MODEL=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3
+INFINITY_MODEL_ID=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3
 
-# Max concurrent request slots (default: 4, GPU processes 1 at a time; queue absorbs the rest without VRAM cost)
-LRR_TEI_MAX_CONCURRENT=4
+# Served model nickname
+INFINITY_SERVED_MODEL_NAME=qwen3-reranker
 
-# Max total tokens in a dynamic batch (default: 8192, 1 × 8K single batch)
-# TEI auto-sizes each batch: with 8K chunks this means ~1 request per forward pass
-LRR_TEI_MAX_BATCH_TOKENS=8192
+# Backend engine: 'optimum' (ONNX Runtime, recommended) or 'torch' (PyTorch)
+LRR_INF_ENGINE=optimum
+INFINITY_ENGINE=optimum
 
-# GPU/CPU backend device index or name (e.g. rocm[:0], rocm:1, vulkan[:0], equals to auto if empty)
-# Maps to HIP_VISIBLE_DEVICES / CUDA_VISIBLE_DEVICES internally for TEI
-# LRR_TEI_DEVICE="rocm:0"
+# Device to use ('cuda', 'cpu', or 'auto')
+LRR_INF_DEVICE=cuda
+INFINITY_DEVICE=cuda
 
-# Extra arguments to pass to text-embeddings-router
-LRR_TEI_EXTRA_ARGS="--dtype bfloat16"
+# Model weights precision ('auto', 'float16', 'bfloat16', 'float32')
+LRR_INF_DTYPE=auto
+INFINITY_DTYPE=auto
+
+# Maximum batch size for inference
+LRR_INF_BATCH_SIZE=32
+INFINITY_BATCH_SIZE=32
+
+# Enable PyTorch model compilation (if using torch engine)
+LRR_INF_COMPILE=false
+INFINITY_COMPILE=false
+
+# Enable BetterTransformer flash attention
+LRR_INF_BETTERTRANSFORMER=false
+INFINITY_BETTERTRANSFORMER=false
+
+# Extra arguments to pass to infinity_emb v2
+LRR_INF_EXTRA_ARGS=""
 
 # Trust remote code to run custom models
+INFINITY_TRUST_REMOTE_CODE=true
 TRUST_REMOTE_CODE=true
-
-# Python search path for custom model patches (TEI Python backends only — not used by llama engine)
 EOF
-    echo "# PYTHONPATH=${SYSTEMD_USER_DIR}  # uncomment if using TEI engine"
     echo ""
     echo "# PyTorch CUDA memory allocator configuration (prevents VRAM fragmentation/OOM on large contexts)"
     echo "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
@@ -455,18 +476,6 @@ cmd_install() {
     # Create directory if needed
     mkdir -p "${SYSTEMD_USER_DIR}"
 
-    # Copy TEI gRPC helper monkeypatch to systemd directory next to env and service
-    local root_dir
-    root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-    if [[ -f "${root_dir}/scripts/tei-helper.py" ]]; then
-        if [[ ! -f "${SYSTEMD_USER_DIR}/sitecustomize.py" ]] ||
-            ! cmp -s "${root_dir}/scripts/tei-helper.py" "${SYSTEMD_USER_DIR}/sitecustomize.py"; then
-            echo "Copying TEI helper patch to ${SYSTEMD_USER_DIR}/sitecustomize.py..."
-            cp "${root_dir}/scripts/tei-helper.py" "${SYSTEMD_USER_DIR}/sitecustomize.py"
-            chmod 644 "${SYSTEMD_USER_DIR}/sitecustomize.py"
-        fi
-    fi
-
     # Write env file only if it doesn't exist (preserve user edits)
     if [[ -f "${ENV_FILE}" ]] && [ "${new_config}" = "false" ]; then
         echo "Warning: Env file already exists, skipping: ${ENV_FILE}"
@@ -518,11 +527,6 @@ cmd_uninstall() {
         echo "Removed service file."
     fi
 
-    if [[ -f "${SYSTEMD_USER_DIR}/sitecustomize.py" ]]; then
-        rm -f "${SYSTEMD_USER_DIR}/sitecustomize.py"
-        echo "Removed sitecustomize.py helper patch."
-    fi
-
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
 
@@ -568,9 +572,9 @@ cmd_exec() {
 
     local args
     local bin
-    if [[ "${LRR_ENGINE}" == "tei" ]]; then
-        get_tei_args args
-        bin="${TEI_ROUTER_BIN:-text-embeddings-router}"
+    if [[ "${LRR_ENGINE}" == "infinity" ]]; then
+        get_infinity_args args
+        bin="${INFINITY_BIN:-infinity_emb}"
     else
         get_llama_args args
         bin="${LLAMA_SERVER_BIN:-llama-server}"
@@ -668,7 +672,7 @@ wait_for_endpoint() {
     local max_retries="${2:-30}"
     local delay="${3:-2}"
     local label="${4:-server}"
-    for i in $(seq 1 $max_retries); do
+    for i in $(seq 1 "$max_retries"); do
         if curl -s -f "$url" >/dev/null 2>&1; then
             return 0
         fi
@@ -831,9 +835,9 @@ cmd_cat() {
     echo ""
     echo "=== Transient Execution Command (exec) ==="
     local args
-    if [[ "${LRR_ENGINE}" == "tei" ]]; then
-        get_tei_args args
-        echo "${TEI_ROUTER_BIN:-text-embeddings-router} ${args[*]}"
+    if [[ "${LRR_ENGINE}" == "infinity" ]]; then
+        get_infinity_args args
+        echo "${INFINITY_BIN:-infinity_emb} ${args[*]}"
     else
         get_llama_args args
         echo "${LLAMA_SERVER_BIN:-llama-server} ${args[*]}"

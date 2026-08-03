@@ -136,9 +136,12 @@ LCHAT_OVERRIDE=(
 LMBD_OVERRIDE=(
     'LMBD_DEVICE="Vulkan1"'
 )
-# run RERANK on cpu
+# run RERANK on cpu (llama-server default) or switch engine to infinity (ONNX optimum)
 LRR_OVERRIDE=(
     'LRR_DEVICE="none"'
+    # 'LRR_ENGINE="infinity"'
+    # 'INFINITY_ENGINE="optimum"'
+    # 'INFINITY_DEVICE="cuda"'
 )
 # run SPEECH-TO-TEXT on vulkan/igpu
 LSTT_OVERRIDE=(

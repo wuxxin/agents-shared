@@ -3858,6 +3858,9 @@ def main() -> None:
                             "LRR_N_GPU_LAYERS": 0 if run_cfg.startswith("cpu") else 99,
                             "LRR_ENGINE": lrr_engine,
                         }
+                        if lrr_engine == "infinity":
+                            updates["LRR_INF_DEVICE"] = "cpu" if run_cfg.startswith("cpu") else "cuda"
+                            updates["INFINITY_DEVICE"] = "cpu" if run_cfg.startswith("cpu") else "cuda"
                         hip_vis, cuda_vis = get_visible_devices_env(
                             run_cfg, lrr_device, hip_devices_resolved
                         )
@@ -4080,6 +4083,9 @@ def main() -> None:
                             else "0",
                             "LRR_ENGINE": mock_lrr_engine,
                         }
+                        if mock_lrr_engine == "infinity":
+                            mock_updates["LRR_INF_DEVICE"] = "cpu" if run_cfg.startswith("cpu") else "cuda"
+                            mock_updates["INFINITY_DEVICE"] = "cpu" if run_cfg.startswith("cpu") else "cuda"
                     try:
                         env_dict = read_env_file(srv["env_file"])
                     except Exception:
