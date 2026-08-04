@@ -32,7 +32,7 @@ load_env() {
     LRR_LLAMA_N_UBATCH=12288
     LRR_LLAMA_N_GPU_LAYERS=999
     LRR_LLAMA_THREADS=4
-    LRR_LLAMA_PARALLEL=2
+    LRR_LLAMA_PARALLEL=1
     # kv-unified + Q8_0 KV: 2 slots share one 16K-position pool (~448 MB). Sequential processing.
     LRR_LLAMA_DEVICE=""
     LRR_LLAMA_EXTRA_ARGS=""
@@ -365,8 +365,8 @@ LRR_API_PATH=/v1/rerank
 # Systemd environment variables directly configure the infinity_emb v2 CLI.
 #
 # Path to the safetensors / ONNX model directory
-LRR_INF_MODEL=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3
-INFINITY_MODEL_ID=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3
+LRR_INF_MODEL=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3-ONNX
+INFINITY_MODEL_ID=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3-ONNX
 
 # Served model nickname
 INFINITY_SERVED_MODEL_NAME=qwen3-reranker
