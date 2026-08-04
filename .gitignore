@@ -1,2 +1,3 @@
 .fresh
 scratch/
+__pycache__
