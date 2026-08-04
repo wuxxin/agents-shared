@@ -30,11 +30,17 @@ hindsight:
   mentalModelAutoSeed: true
 mcpServers:
   sequential-thinking:
-    command: ["bunx", "@modelcontextprotocol/server-sequential-thinking"]
+    command:
+      - bunx
+      - "@modelcontextprotocol/server-sequential-thinking"
   arbor:
-    command: ["arbor", "mcp"]
+    command:
+      - arbor
+      - mcp
   hindsight:
-    command: ["bunx", "hindsight-mcp"]
+    command:
+      - bunx
+      - hindsight-mcp
 bash:
   autoBackground:
     enabled: true
