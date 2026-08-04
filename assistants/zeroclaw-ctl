@@ -344,7 +344,7 @@ completed_sections = ["storage", "memory"]
 uri = "http://localhost:50080/v1"
 model = "qwen3"
 api_key = "unused"
-max_tokens = 120192
+max_tokens = 67584
 temperature = 1.0
 
 # --- Speech-to-Text
