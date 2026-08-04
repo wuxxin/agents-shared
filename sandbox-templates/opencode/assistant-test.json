@@ -32,6 +32,21 @@
       }
     },
     {
+      "id": "host-agent-config",
+      "name": "User Host & Agent Environment Profile",
+      "source_query": "What are the core facts about the user's host machine? (Hardware, OS, major packages for the local inference
+      and agent setup) What packages are used for the inference, the agent, the memory system, which channels are set up?
+      Which tools has the agent in addition to its default tools?
+      What shared paths and files are described for the agent/user interaction?",
+      "tags": [],
+      "max_tokens": 2048,
+      "trigger": {
+        "mode": "full",
+        "refresh_after_consolidation": true,
+        "exclude_mental_models": false
+      }
+    },
+    {
       "id": "inner-work",
       "name": "Inner Work, Dreams & Mood History",
       "source_query": "What are the user's dream logs, shadow work, active imagination sessions, mood tracking logs, and reviews?",
@@ -61,18 +76,6 @@
       "source_query": "What are the user's active/short/mid-term tasks, project details, Socratic check-ins, commitments, and deadlines?",
       "tags": [],
       "max_tokens": 1024,
-      "trigger": {
-        "mode": "full",
-        "refresh_after_consolidation": true,
-        "exclude_mental_models": false
-      }
-    },
-    {
-      "id": "host-agent-config",
-      "name": "User Host & Agent Environment Profile",
-      "source_query": "What are the core facts about the user's host machine? (Hardware, OS, major packages for the local inference and agent setup) What packages are used for the inference, the agent, the memory system, which channels are set up? Which tools has the agent in addition to its default tools? What shared paths and files are described for the agent/user interaction?",
-      "tags": [],
-      "max_tokens": 2048,
       "trigger": {
         "mode": "full",
         "refresh_after_consolidation": true,
