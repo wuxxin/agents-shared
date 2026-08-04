@@ -1,5 +1,15 @@
 # Oh-my-PI (OMP) Orchestration Template
 
+model                                      TTFT   TPS      tokens  total
+google-antigravity/tab_flash_lite_preview  355ms  274.7/s  512     1.9s
+google-antigravity/gemini-3.6-flash        597ms  257.9/s  508     2.0s
+google-antigravity/gemini-3-flash          719ms  250.3/s  651     2.6s
+google-antigravity/gemini-2.5-flash        544ms  214.5/s  506     2.4s
+deepseek/deepseek-v4-flash                 913ms  97.6/s   512     5.2s
+deepseek/deepseek-v4-pro                   911ms  45.6/s   512     11.3s
+google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
+
+
 Complete configuration template for Oh-my-PI (`omp`) with multi-agent orchestration, Arbor graph intelligence, OpenAdapt browser automation, local OpenAI-compatible inference routing (`local-router`), and native Hindsight long-term memory.
 
 ---
@@ -64,6 +74,9 @@ sandbox-templates/omp/omp/
 | `sequential-thinking` | local | `bunx @modelcontextprotocol/server-sequential-thinking` | `@modelcontextprotocol/server-sequential-thinking` | Dynamic reflective reasoning chain with thought revision and branching. |
 | `arbor` | local | `arbor mcp` | `arbor-agent` (PyPI / `uv tool`) | Graph-native AST code intelligence, dependency traversal, and hypothesis checks (~700 - 900 tokens). |
 | `hindsight` | local | `bunx hindsight-mcp` | `hindsight-mcp` | Explicit tool-level long-term memory queries (`hindsight_recall`, `hindsight_retain`, `hindsight_reflect`). |
+| `nanobot-signal` | local | `python3 -m omp_tools.nanobot_mcp` | `omp_tools` (sandbox) | Fetch pending Signal messages and post replies via independent `signal-cli` daemon (port 50889) and Nanobot Gateway. |
+| `cron-scheduler` | local | `python3 -m omp_tools.cron_mcp` | `omp_tools` (sandbox) | Dynamic scheduling (`cron_schedule`, `cron_list`, `cron_cancel`) stored in `$HOME/.omp/cron/schedule.json`. |
+| `local-audio` | local | `python3 -m omp_tools.audio_mcp` | `omp_tools` (sandbox) | Audio transcription (Whisper port 50090) and speech synthesis (TTS port 50095). |
 
 ---
 

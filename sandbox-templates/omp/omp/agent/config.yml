@@ -10,7 +10,9 @@ statusLine:
   preset: default
   separator: powerline-thin
 stt:
-  enabled: false
+  enabled: true
+  provider: local
+  baseUrl: "http://localhost:50090/v1"
 compaction:
   strategy: snapcompact
   thresholdPercent: 85
@@ -41,6 +43,21 @@ mcpServers:
     command:
       - bunx
       - hindsight-mcp
+  nanobot-signal:
+    command:
+      - python3
+      - -m
+      - omp_tools.nanobot_mcp
+  cron-scheduler:
+    command:
+      - python3
+      - -m
+      - omp_tools.cron_mcp
+  local-audio:
+    command:
+      - python3
+      - -m
+      - omp_tools.audio_mcp
 bash:
   autoBackground:
     enabled: true
