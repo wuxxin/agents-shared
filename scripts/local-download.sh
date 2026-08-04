@@ -450,13 +450,18 @@ main() {
             "https://huggingface.co/argus-ai/pplx-embed-context-v1-0.6b-GGUF/resolve/main/pplx-embed-context-v1-0.6b-q8_0.gguf" \
             "${target_dir}/embedding/pplx-embed-context-v1-0.6b-q8_0.gguf"
 
-        # Download HF PyTorch/Safetensors weights for TEI (if hf tool is available)
-        echo "Downloading full Hugging Face weights for TEI (Qwen3-Embedding-0.6B)..."
+        # Download full Hugging Face weights for TEI/Infinity
+        echo "Downloading full Hugging Face weights for Infinity/TEI (Qwen3-Embedding-0.6B)..."
         mkdir -p "${target_dir}/embedding/Qwen3-Embedding-0.6B"
         if command -v hf &>/dev/null; then
             hf download Qwen/Qwen3-Embedding-0.6B --local-dir "${target_dir}/embedding/Qwen3-Embedding-0.6B"
+            echo "Downloading Qwen3-Embedding-0.6B Q8 ONNX model for Infinity (~620 MB)..."
+            mkdir -p "${target_dir}/embedding/Qwen3-Embedding-0.6B-ONNX"
+            hf download onnx-community/Qwen3-Embedding-0.6B-ONNX \
+                --include "*.json" --include "*.txt" --include "onnx/model_int8.onnx" \
+                --local-dir "${target_dir}/embedding/Qwen3-Embedding-0.6B-ONNX"
         else
-            echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
+            echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors & ONNX models." >&2
         fi
 
         # NOTE: pplx-embed-context-v1-0.6b safetensors are kept for reference/TEI fallback
@@ -673,9 +678,31 @@ snapshot_download(
             echo "Downloading mxbai-rerank-base-v2 (safetensors, Apache 2.0, 32K ctx)..."
             mkdir -p "${target_dir}/reranker/mxbai-rerank-base-v2"
             hf download mixedbread-ai/mxbai-rerank-base-v2 --local-dir "${target_dir}/reranker/mxbai-rerank-base-v2"
+
+            echo "Downloading BAAI/bge-reranker-v2-m3 Q8 ONNX model for Infinity (~588 MB)..."
+            mkdir -p "${target_dir}/reranker/bge-reranker-v2-m3-ONNX"
+            hf download onnx-community/bge-reranker-v2-m3-ONNX \
+                --include "*.json" --include "*.txt" --include "onnx/model_int8.onnx" \
+                --local-dir "${target_dir}/reranker/bge-reranker-v2-m3-ONNX"
+
+            echo "Downloading BAAI/bge-reranker-large (safetensors + ONNX)..."
+            mkdir -p "${target_dir}/reranker/bge-reranker-large"
+            hf download BAAI/bge-reranker-large --local-dir "${target_dir}/reranker/bge-reranker-large"
+
+            echo "Downloading Qwen3-Reranker-0.6B Q4 ONNX model for Infinity (~995 MB)..."
+            mkdir -p "${target_dir}/reranker/Qwen3-Reranker-0.6B-ONNX"
+            hf download onnx-community/Qwen3-Reranker-0.6B-ONNX \
+                --include "*.json" --include "*.txt" --include "onnx/model_q4.onnx" \
+                --local-dir "${target_dir}/reranker/Qwen3-Reranker-0.6B-ONNX"
         else
-            echo "Warning: 'hf' CLI not found. Skipping mxbai-rerank-base-v2 download." >&2
+            echo "Warning: 'hf' CLI not found. Skipping ONNX reranker downloads." >&2
         fi
+
+        # KaLM-Reranker-V1-Nano Q4_K_M GGUF for llama-server
+        acquire_file \
+            "reranker/kalm-reranker-v1-nano-q4_k_m.gguf" \
+            "https://huggingface.co/KaLM-Embedding/KaLM-Reranker-V1-Nano-Q4_K_M-GGUF/resolve/main/kalm-reranker-v1-nano-q4_k_m.gguf" \
+            "${target_dir}/reranker/kalm-reranker-v1-nano-q4_k_m.gguf"
     fi
 
     # 4. Speech-to-Text
