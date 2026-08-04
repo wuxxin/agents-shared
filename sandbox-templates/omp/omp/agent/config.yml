@@ -1,6 +1,5 @@
 providers:
-  webSearchOrder:
-    []
+  webSearchOrder: []
 modelRoles:
   default: google-antigravity/gemini-3.6-flash
 symbolPreset: unicode
@@ -21,9 +20,21 @@ memory:
 autolearn:
   enabled: true
 hindsight:
-  bankId: omp
+  apiUrl: http://localhost:8888
+  bankId: omp-orchestrator
   scoping: per-project-tagged
   retainMode: full-session
+  autoRecall: true
+  autoRetain: true
+  mentalModelsEnabled: true
+  mentalModelAutoSeed: true
+mcpServers:
+  sequential-thinking:
+    command: ["bunx", "@modelcontextprotocol/server-sequential-thinking"]
+  arbor:
+    command: ["arbor", "mcp"]
+  hindsight:
+    command: ["bunx", "hindsight-mcp"]
 bash:
   autoBackground:
     enabled: true
@@ -44,5 +55,8 @@ computer:
   display: all
 task:
   eager: default
+  maxConcurrency: 32
+  agentIdleTtlMs: 420000
+  prewalk: false
 secrets:
   enabled: false
