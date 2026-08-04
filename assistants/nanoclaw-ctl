@@ -574,7 +574,7 @@ cmd_exec() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" /usr/bin/nanoclaw "$@"
+    systemd-run "${opts[@]}" -- /usr/bin/nanoclaw "$@"
 }
 
 cmd_shell() {
@@ -600,7 +600,7 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" -- "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_run() {
@@ -630,7 +630,7 @@ cmd_run() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "$@"
+    systemd-run "${opts[@]}" -- "$@"
 }
 
 usage() {

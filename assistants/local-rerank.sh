@@ -608,9 +608,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${bin}" "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${bin}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${bin}" "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${bin}" "${args[@]}"
     fi
 }
 
@@ -635,7 +635,7 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_run() {
@@ -663,7 +663,7 @@ cmd_run() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "$@"
 }
 
 # Wait for server to become ready (Vulkan shader compilation takes time on first load)

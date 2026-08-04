@@ -862,7 +862,7 @@ run_sandbox() {
             fi
         done < <(build_sandbox_config systemd "$target_cwd")
         echo "Executing sandbox using systemd-run: ${cmd_args[*]}"
-        systemd-run "${systemd_opts[@]}" "${cmd_args[@]}"
+        systemd-run "${systemd_opts[@]}" -- "${cmd_args[@]}"
     else
         # 2. Run via bubblewrap
         # Ensure bubblewrap is installed on the host
@@ -881,7 +881,7 @@ run_sandbox() {
         # Add chdir to current working directory
         bwrap_args+=(--chdir "$target_cwd")
         echo "Executing sandbox using bwrap: ${cmd_args[*]}"
-        bwrap "${bwrap_args[@]}" "${cmd_args[@]}"
+        bwrap "${bwrap_args[@]}" -- "${cmd_args[@]}"
     fi
 }
 

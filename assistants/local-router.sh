@@ -404,9 +404,9 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" /usr/bin/uvicorn "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- /usr/bin/uvicorn "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" /usr/bin/uvicorn "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- /usr/bin/uvicorn "${args[@]}"
     fi
 }
 
@@ -431,7 +431,7 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_test() {

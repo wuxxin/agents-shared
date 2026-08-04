@@ -659,7 +659,7 @@ cmd_exec() {
     done < <(get_shared_options transient)
 
     # shellcheck disable=SC2086
-    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" /bin/bash -c "$exec_cmd"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- /bin/bash -c "$exec_cmd"
 }
 
 cmd_run() {
@@ -693,7 +693,7 @@ cmd_run() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "$@"
 }
 
 cmd_shell() {
@@ -722,7 +722,7 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${SHELL:-/bin/bash}" "$@"
 }
 
 cmd_cat() {

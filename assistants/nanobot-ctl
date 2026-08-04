@@ -648,7 +648,7 @@ cmd_exec() {
     done < <(get_shared_options transient)
 
     # Use the full path to the binary in the VENV
-    systemd-run "${opts[@]}" "$VENV_DIR/bin/nanobot" "$@"
+    systemd-run "${opts[@]}" -- "$VENV_DIR/bin/nanobot" "$@"
 }
 
 cmd_run() {
@@ -682,7 +682,7 @@ cmd_run() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "$@"
+    systemd-run "${opts[@]}" -- "$@"
 }
 
 cmd_shell() {
@@ -712,7 +712,7 @@ cmd_shell() {
         fi
     done < <(get_shared_options transient)
 
-    systemd-run "${opts[@]}" "${SHELL:-/bin/bash}" "$@"
+    systemd-run "${opts[@]}" -- "${SHELL:-/bin/bash}" "$@"
 }
 
 usage() {
