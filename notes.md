@@ -1,3 +1,5 @@
+sandbox-ctl: check const fileExists = (path: string) => path === "/run/user/1000/bus";
+
 update and install https://github.com/huggingface/optimum-onnx/releases
 
 + hindsight: documented full export/db-reset/re-import workflow for switching embedding+reranker models (see research/hindsight-import-export-reconfiguration.md)
@@ -13,18 +15,15 @@ update and install https://github.com/huggingface/optimum-onnx/releases
 + local-chat: add additional gemma26/4 llm to choose.
 + local-chat: add fim warmup on benchmark, fix fim benchmark
 
-arbor
-openadapt
-caveman
-hindsight
-hindsight-api
-opencode-a2a
+
+roles and commands:
 
 debugging
 git-master
 review-work
 ulw-plan
 
+		
 https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
 https://huggingface.co/Yiivgeny/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16
 https://huggingface.co/Supertone/supertonic
@@ -52,12 +51,13 @@ https://github.com/RUC-NLPIR/DeepAgent
 https://github.com/google/mantis/
 https://github.com/simonucl/PolySkill
 https://github.com/itigges22/ATLAS
+https://github.com/router-for-me/CLIProxyAPI
+https://github.com/Arize-ai/phoenix
 
 mcp and other interesting
 
 https://github.com/xberg-io/xberg
 https://github.com/lucasjinreal/Crane
 https://github.com/memvid/memvid
-
 
 
