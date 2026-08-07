@@ -23,26 +23,26 @@ import time
 import yaml
 from playwright.sync_api import sync_playwright
 
-# ---------------------------------------------------------------------------
+#
 # Exit codes
-# ---------------------------------------------------------------------------
+#
 EXIT_OK = 0
 EXIT_SETUP = 1
 EXIT_PRE_RESEARCH = 2
 EXIT_PLAN = 3
 EXIT_NO_DATA = 4
 
-# ---------------------------------------------------------------------------
+#
 # CSS selectors (element attributes, ids, structure)
-# ---------------------------------------------------------------------------
+#
 SEL_INPUT_BOX = "div[contenteditable='true']"
 SEL_INPUT_BOX_FALLBACK = "textarea"
 SEL_DOWNLOAD_ICON = "button:has(mat-icon[fonticon='arrow_circle_down'])"
 SEL_PLUS_MENU = "simplified-input-menu button, .leading-actions-wrapper button"
-# ---------------------------------------------------------------------------
+#
 # Locator button texts (most robust — survives UI reshuffles)
 # Both German (DE) and English (EN) variants are listed.
-# ---------------------------------------------------------------------------
+#
 LOC_PLUS_MENU_ARIA = ["Uploads&nbsp;&amp; Tools", "Uploads & Tools"]
 LOC_DEEP_RESEARCH_TEXTS = ["Deep Research"]
 LOC_SEND_TEXTS = ["Send message", "Nachricht senden"]
@@ -57,9 +57,9 @@ LOC_DOWNLOAD_TEXTS = ["Download code", "Code herunterladen"]
 LOC_DOWNLOAD_ARIA = ["Download code", "Code herunterladen"]
 LOC_OPEN_RESEARCH_TEXTS = ["Open", "Öffnen", "Open report", "Bericht öffnen"]
 
-# ---------------------------------------------------------------------------
+#
 # Timeout configuration (seconds unless noted)
-# ---------------------------------------------------------------------------
+#
 TIMEOUT_PLAN_WAIT_S = 90
 TIMEOUT_DOM_IDLE_S = 120
 TIMEOUT_TOTAL_GENERATION_S = 900  # 15 minutes
@@ -69,9 +69,9 @@ TIMEOUT_INPUT_WAIT_MS = 3000
 TIMEOUT_SELECTOR_MS = 3000
 MAX_RELOADS = 5
 
-# ---------------------------------------------------------------------------
+#
 # MutationObserver JS snippet (best-effort DOM change tracking)
-# ---------------------------------------------------------------------------
+#
 _MUTATION_OBSERVER_INIT_JS = """
 () => {
     if (window.__drLastChange !== undefined) return true;
@@ -100,9 +100,9 @@ _MUTATION_OBSERVER_QUERY_JS = """
 """
 
 
-# ---------------------------------------------------------------------------
+#
 # Logging helpers — errors/warnings → stderr, info → stdout
-# ---------------------------------------------------------------------------
+#
 def log_info(msg: str) -> None:
     print(msg, flush=True)
 
@@ -115,9 +115,9 @@ def log_warn(msg: str) -> None:
     print(f"WARNING: {msg}", file=sys.stderr, flush=True)
 
 
-# ---------------------------------------------------------------------------
+#
 # Session ID extraction helper
-# ---------------------------------------------------------------------------
+#
 def check_session_id(page, current_sid: str | None) -> str | None:
     if current_sid is not None:
         return current_sid
@@ -134,9 +134,9 @@ def check_session_id(page, current_sid: str | None) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------------------
+#
 # Locator helpers
-# ---------------------------------------------------------------------------
+#
 def _build_text_locator(page, texts: list[str], tag: str = "button"):
     """Return a Playwright Locator matching the first visible element whose
     text content matches one of *texts*.  Tries each text in order."""
@@ -226,9 +226,9 @@ def download_blocks(page, count: int) -> list[str]:
     return blocks
 
 
-# ---------------------------------------------------------------------------
+#
 # DOM change detection (best-effort)
-# ---------------------------------------------------------------------------
+#
 def init_dom_observer(page) -> bool:
     """Inject a MutationObserver. Returns True on success."""
     try:
@@ -266,9 +266,9 @@ def check_connection_error(page) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
+#
 # Profile / browser helpers
-# ---------------------------------------------------------------------------
+#
 def get_profile_dir(profile_name: str) -> str:
     if os.path.isabs(profile_name) or "/" in profile_name:
         return os.path.abspath(profile_name)
@@ -302,9 +302,9 @@ def get_free_port() -> int:
                 continue
 
 
-# ---------------------------------------------------------------------------
+#
 # Prompt parsing
-# ---------------------------------------------------------------------------
+#
 def parse_prompt(file_path: str) -> str:
     if not os.path.exists(file_path):
         log_error(f"Error: Prompt file not found at {file_path}")
@@ -347,9 +347,9 @@ def search_and_replace(prompt_text: str, search_val: str, replace_val: str) -> s
     return prompt_text
 
 
-# ---------------------------------------------------------------------------
+#
 # Interactive browser session
-# ---------------------------------------------------------------------------
+#
 def run_interactive(profile_name: str) -> None:
     """Launch a headed Chromium window for manual Gemini login.
 
@@ -392,9 +392,9 @@ def run_interactive(profile_name: str) -> None:
         log_info("\nSession saved.")
 
 
-# ---------------------------------------------------------------------------
+#
 # Main automation flow
-# ---------------------------------------------------------------------------
+#
 def run_automation(
     prompt_file: str,
     output_yaml: str,
@@ -758,9 +758,9 @@ def run_automation(
     sys.exit(exit_code)
 
 
-# ---------------------------------------------------------------------------
+#
 # Download command for finished research
-# ---------------------------------------------------------------------------
+#
 def run_download(
     url: str,
     output_yaml: str,
@@ -931,9 +931,9 @@ def run_download(
     sys.exit(exit_code)
 
 
-# ---------------------------------------------------------------------------
+#
 # CLI entry point
-# ---------------------------------------------------------------------------
+#
 USAGE = """
 Usage:
 

@@ -14,6 +14,8 @@
 
 ## Code Style & Commands
 
+- **Style:** dont use long visual lines for comment sections, eg. "# -----------"
+
 ### Shell Scripts (`.sh`)
 
 - **Style:** `#!/usr/bin/env bash`, 4-space indent, `set -euo pipefail`, quote `"$var"`, use `$(...)`, `lowercase_vars`, `UPPERCASE_CONSTANTS`.
