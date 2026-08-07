@@ -1,10 +1,10 @@
 # Deep Research to YAML
 
-This directory implements a Playwright-based browser automation to run Gemini Deep Research and return structured yaml as output.
+This directory implements a Playwright-based browser automation to run Gemini Deep Research and return structured YAML as output.
 
 ## Files
 
-- **`deep-research-to-yaml.py`**: Python script using Playwright to control a persistent Chrome instance via CDP, drive Gemini Deep Research, wait for generation with timeout-based completion detection, download output code blocks, and concatenate them into a single output file.
+- **`deep-research-to-yaml.py`**: Python script using Playwright to control a persistent Chrome instance via CDP, drive Gemini Deep Research, wait for generation, download output code blocks, and concatenate them into a single output file.
 
 ---
 
@@ -21,46 +21,40 @@ Since Gemini requires a Google Login which often triggers MFA/2FA, run the brows
 ```bash
 ./deep-research-to-yaml.py browser [default]
 ```
-This launches a real Chromium process with `--user-data-dir` pointing at a persistent profile directory (`~/.config/deep-research-profiles/default`).  Log in to your Google Account, navigate to `gemini.google.com`, verify all works, and close the browser.
+This launches a real Chromium process with `--user-data-dir` pointing at a persistent profile directory (`~/.config/deep-research-profiles/default`). Log in to your Google Account, navigate to `gemini.google.com`, verify all works, and close the browser.
 
-The `research` command later re-uses the *same* `--user-data-dir` and connects to the browser over CDP (Chrome DevTools Protocol) via `--remote-debugging-port`.  This is the only reliable way to carry over the saved login session to headless automation, because Playwright's own browser launcher would start a fresh profile without the login cookies.
+The `research` command re-uses the *same* `--user-data-dir` and connects to the browser over CDP (Chrome DevTools Protocol) via `--remote-debugging-port`. This carries over the saved login session without re-authentication.
 
 ### 3. Running Research (headless)
-Execute the automated deep research:
+Execute automated deep research:
 ```bash
-./deep-research-to-yaml.py research <prompt_file> [search="<query_string>"] [profile=<profile_name>] [output=<output_path.yaml>] [headed|headless]
+./deep-research-to-yaml.py research <prompt_file> [--search "<search_str>"] [--replace "<replace_str>"] [--profile <profile_name>] [--output <output_path.yaml>] [--headed|--headless]
 ```
 
 ### 4. Downloading Finished Research Results (headed/headless)
 Download YAML data blocks from a finished Gemini conversation URL:
 ```bash
-./deep-research-to-yaml.py download <url> [profile=<profile_name>] [output=<output_path.yaml>] [headed|headless]
+./deep-research-to-yaml.py download <url> [--profile <profile_name>] [--output <output_path.yaml>] [--headed|--headless]
 ```
 If `output` is omitted, the script automatically extracts the conversation ID from the URL and saves the output to `<chat_id>.yaml`.
 
 ---
 
-## Implementing a new custom deep search
+## Implementing a New Custom Deep Search
 
+### Gemini Output Token Limits (8k limit) and Split YAML Blocks
 
-### Gemini Output Token Limits (8k limit) and split YAML blocks.
-
-Gemini has a hard output token ceiling of 8K. To prevent output truncations, the prompt must force Gemini to emit the response split across separate YAML blocks. The script tracks progress by count of available download buttons matching the `data_blocks` frontmatter key.
+Gemini has a hard output token ceiling of 8K. To prevent output truncations, prompt instructions can ask Gemini to emit responses split across separate YAML blocks. As soon as downloadable blocks (>0) appear, the script waits 5 seconds, counts all available download buttons, and downloads them all.
 
 ### Data Block Concatenation
 
-Downloaded code blocks are **concatenated as raw text** with newline separators — no YAML parsing or structural merging is performed.  This keeps the script format-agnostic: it works as long as the prompt instructs Gemini to emit blocks whose content can be simply appended.
+Downloaded code blocks are **concatenated as raw text** with newline separators — no YAML parsing or structural merging is performed. This keeps the script format-agnostic: it works as long as the prompt instructs Gemini to emit blocks whose content can be simply appended.
 
-For example, YAML dicts with non-overlapping top-level keys (`report:`, `data_01:`, `data_02:`) concatenate into a valid multi-document or single-document YAML file.  The caller is responsible for designing prompts so that blocks are self-contained and appendable.
+For example, YAML dicts with non-overlapping top-level keys (`report:`, `data_01:`, `data_02:`) concatenate into a valid multi-document or single-document YAML file.
 
 ### Example Research Prompt
 
 ```markdown
----
-data_blocks: 3
-search_identifier: "^Target Dates:.+"
----
-
 # Role & Goal
 You are a precise, objective research assistant. 
 Your task is to find, verify, and compile [Domain] information in [Target Region] for the requested dates,
@@ -69,7 +63,7 @@ Write in a factual, dry, and professional tone.
 Avoid superlatives, advertising catchphrases, or hype.
 
 ## Search Details
-Target Dates: [Dynamically replaced by script] ; Today's Date: [Current Date].
+Target Dates: SEARCH_TARGET_DATES ; Today's Date: [Current Date].
 
 - Specific Date Range: [Date formatting guidelines]
 - Region: [Target Region]
@@ -95,12 +89,12 @@ Perform a general web search, but prioritize and consult these specific domains:
 
 ## Output Format
 
-A brief introduction, followed by exactly three separate, consecutive YAML code blocks.
+A brief introduction, followed by separate, consecutive YAML code blocks.
 Do not add any other text outside these blocks.
 
 ### 1. First YAML Block (Report)
 Under the key `report:`, output the detailed Markdown summary:
-\`\`\`yaml
+```yaml
 report: |
   # [Region] [Domain] Report
   
@@ -112,11 +106,11 @@ report: |
   
   ## Highlights: [Date]
   [Detailed, objective highlights for the day...]
-\`\`\`
+```
 
 ### 2. Second YAML Block (Data Block 1)
 Under the key `data_01:`, output the structured items for the first data block:
-\`\`\`yaml
+```yaml
 data_01:
   - title: "Item Title"
     org: "Organizer Name"
@@ -132,14 +126,13 @@ data_01:
     notes: "Brief description of the item."
     tags:
       - "Tag1"
-\`\`\`
+```
 
 ### 3. Third YAML Block (Data Block 2)
 Under the key `data_02:`, output the structured items for the second data block using the exact same schema:
-\`\`\`yaml
+```yaml
 data_02:
   - title: "Another Item"
     # ... (same schema as data_01)
-\`\`\`
 ```
-
+```

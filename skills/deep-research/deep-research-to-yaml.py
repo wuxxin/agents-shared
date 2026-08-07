@@ -3,15 +3,15 @@
 and merge them into a single output file.
 
 Exit codes:
-    0  — Success (all expected blocks downloaded).
+    0  — Success (download blocks retrieved).
     1  — Setup error (CLI args, prompt file, browser spawn/connect).
     2  — Pre-research error (navigation, input box, prompt entry, Deep Research
          toggle, query submission).
     3  — Plan error (waiting for / clicking plan confirmation).
     4  — Generation timeout with no data blocks at all.
-   10  — Partial data: some blocks downloaded but fewer than expected.
 """
 
+import argparse
 import os
 import random
 import re
@@ -31,7 +31,6 @@ EXIT_SETUP = 1
 EXIT_PRE_RESEARCH = 2
 EXIT_PLAN = 3
 EXIT_NO_DATA = 4
-EXIT_PARTIAL = 10
 
 # ---------------------------------------------------------------------------
 # CSS selectors (element attributes, ids, structure)
@@ -64,7 +63,6 @@ LOC_OPEN_RESEARCH_TEXTS = ["Open", "Öffnen", "Open report", "Bericht öffnen"]
 TIMEOUT_PLAN_WAIT_S = 90
 TIMEOUT_DOM_IDLE_S = 120
 TIMEOUT_TOTAL_GENERATION_S = 900  # 15 minutes
-TIMEOUT_PARTIAL_GRACE_S = 30
 POLL_INTERVAL_S = 10
 TIMEOUT_DOWNLOAD_MS = 20000
 TIMEOUT_INPUT_WAIT_MS = 3000
@@ -118,6 +116,25 @@ def log_warn(msg: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Session ID extraction helper
+# ---------------------------------------------------------------------------
+def check_session_id(page, current_sid: str | None) -> str | None:
+    if current_sid is not None:
+        return current_sid
+    try:
+        url = page.url
+        match = re.search(r"gemini\.google\.com/app/([a-zA-Z0-9_-]+)", url)
+        if match:
+            sid = match.group(1)
+            if sid and sid.lower() not in ["app", "live"]:
+                log_info(f"Gemini Session ID: {sid}")
+                return sid
+    except Exception:
+        pass
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Locator helpers
 # ---------------------------------------------------------------------------
 def _build_text_locator(page, texts: list[str], tag: str = "button"):
@@ -167,7 +184,6 @@ def count_download_buttons(page) -> int:
     loc = _build_text_locator(page, LOC_DOWNLOAD_TEXTS)
     aria = _build_aria_locator(page, LOC_DOWNLOAD_ARIA)
     icon = page.locator(SEL_DOWNLOAD_ICON)
-    # Take the highest count across strategies
     counts = []
     for locator in (loc, aria, icon):
         try:
@@ -179,7 +195,6 @@ def count_download_buttons(page) -> int:
 
 def download_blocks(page, count: int) -> list[str]:
     """Click each download button and return the file contents."""
-    # Build a composite locator and prefer whichever strategy found them
     loc = _build_text_locator(page, LOC_DOWNLOAD_TEXTS)
     aria = _build_aria_locator(page, LOC_DOWNLOAD_ARIA)
     icon = page.locator(SEL_DOWNLOAD_ICON)
@@ -226,7 +241,7 @@ def ms_since_last_dom_change(page) -> int | None:
     """Milliseconds since the last DOM mutation, or None if observer not active."""
     try:
         result = page.evaluate(_MUTATION_OBSERVER_QUERY_JS)
-        return result  # int or None
+        return result
     except Exception:
         return None
 
@@ -290,7 +305,7 @@ def get_free_port() -> int:
 # ---------------------------------------------------------------------------
 # Prompt parsing
 # ---------------------------------------------------------------------------
-def parse_prompt(file_path: str) -> tuple[dict, str]:
+def parse_prompt(file_path: str) -> str:
     if not os.path.exists(file_path):
         log_error(f"Error: Prompt file not found at {file_path}")
         sys.exit(EXIT_SETUP)
@@ -298,46 +313,38 @@ def parse_prompt(file_path: str) -> tuple[dict, str]:
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    frontmatter: dict = {}
     prompt_text = content
-
     if content.startswith("---"):
         parts = content.split("---", 2)
         if len(parts) >= 3:
-            try:
-                frontmatter = yaml.safe_load(parts[1])
-                prompt_text = parts[2].strip()
-            except Exception as e:
-                log_error(f"Error parsing frontmatter: {e}")
+            prompt_text = parts[2].strip()
 
-    return frontmatter, prompt_text
+    return prompt_text
 
 
-def search_and_replace(frontmatter: dict, prompt_text: str, search_value: str) -> str:
-    """Replace the first line matching ``search_identifier`` with *search_value*.
-
-    The ``search_identifier`` frontmatter key is treated as a regex.  This is
-    intentionally generic so it can be used for date injection, region swaps,
-    or any other dynamic prompt substitution.
-    """
-    identifier = frontmatter.get("search_identifier")
-    if not identifier or not search_value:
+def search_and_replace(prompt_text: str, search_val: str, replace_val: str) -> str:
+    """Replace occurrences of search_val with replace_val in prompt_text."""
+    if not search_val:
         return prompt_text
 
+    if search_val in prompt_text:
+        log_info(
+            f"Replacing search string '{search_val}' with '{replace_val}' in prompt."
+        )
+        return prompt_text.replace(search_val, replace_val)
+
     try:
-        regex = re.compile(identifier)
-    except Exception as e:
-        log_error(f"Error compiling search_identifier regex '{identifier}': {e}")
-        regex = None
+        regex = re.compile(search_val)
+        if regex.search(prompt_text):
+            log_info(
+                f"Replacing regex pattern '{search_val}' with '{replace_val}' in prompt."
+            )
+            return regex.sub(replace_val, prompt_text)
+    except Exception:
+        pass
 
-    lines = prompt_text.splitlines()
-    for idx, line in enumerate(lines):
-        if (regex and regex.search(line)) or (not regex and identifier in line):
-            lines[idx] = search_value
-            log_info(f"Replaced criteria line: '{line}' -> '{lines[idx]}'")
-            break
-
-    return "\n".join(lines)
+    log_warn(f"Search string/pattern '{search_val}' not found in prompt text.")
+    return prompt_text
 
 
 # ---------------------------------------------------------------------------
@@ -392,22 +399,20 @@ def run_automation(
     prompt_file: str,
     output_yaml: str,
     profile_name: str,
-    search_value: str,
+    search_val: str,
+    replace_val: str,
     mode: str,
 ) -> None:
     is_headless = mode.lower() != "headed"
     profile_dir = get_profile_dir(profile_name)
 
-    frontmatter, prompt_text = parse_prompt(prompt_file)
-    prompt_text = search_and_replace(frontmatter, prompt_text, search_value)
-
-    expected_blocks = frontmatter.get("data_blocks", 1)
+    prompt_text = parse_prompt(prompt_file)
+    prompt_text = search_and_replace(prompt_text, search_val, replace_val)
 
     log_info(
         f"Starting automation in {'headless' if is_headless else 'headed'} mode "
         f"using profile: {profile_dir}"
     )
-    log_info(f"Expecting {expected_blocks} data blocks.")
 
     # --- Spawn browser ---
     # We spawn a real Chromium process with --user-data-dir pointing at the
@@ -439,7 +444,6 @@ def run_automation(
     log_info(f"Spawning browser on port {port}...")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # Wait for debugging port
     connected = False
     for _ in range(50):
         if proc.poll() is not None:
@@ -460,6 +464,7 @@ def run_automation(
 
     data_blocks: list[str] = []
     exit_code = EXIT_NO_DATA
+    current_sid: str | None = None
 
     try:
         with sync_playwright() as p:
@@ -472,6 +477,7 @@ def run_automation(
             try:
                 page.goto("https://gemini.google.com/app")
                 page.wait_for_load_state("domcontentloaded")
+                current_sid = check_session_id(page, current_sid)
             except Exception as e:
                 log_error(f"Error: Failed to navigate to Gemini: {e}")
                 sys.exit(EXIT_PRE_RESEARCH)
@@ -525,7 +531,6 @@ def run_automation(
                         texts=LOC_DEEP_RESEARCH_TEXTS,
                     )
                     if not dr_opt:
-                        # Also try span/list-item text matches
                         dr_opt = page.locator(
                             ", ".join(
                                 f"span:has-text('{t}')" for t in LOC_DEEP_RESEARCH_TEXTS
@@ -539,7 +544,6 @@ def run_automation(
                         activated = True
                         log_info("Successfully activated Deep Research!")
                     else:
-                        # Close menu if DR option not found
                         plus_btn.click()
             except Exception as e:
                 log_error(f"Error activating Deep Research: {e}")
@@ -568,14 +572,16 @@ def run_automation(
                     pass
 
             if not submitted:
-                # Fallback: press Enter
                 page.keyboard.press("Enter")
                 log_info("Used Enter key fallback to submit.")
+
+            current_sid = check_session_id(page, current_sid)
 
             # --- Wait for plan confirmation ---
             log_info("Waiting for Deep Research plan confirmation...")
             confirmed = False
             for _ in range(TIMEOUT_PLAN_WAIT_S):
+                current_sid = check_session_id(page, current_sid)
                 confirm_btn = find_button(page, texts=LOC_PLAN_CONFIRM_TEXTS)
                 if confirm_btn:
                     log_info("Clicking plan confirmation...")
@@ -594,10 +600,11 @@ def run_automation(
                 )
                 sys.exit(EXIT_PLAN)
 
+            current_sid = check_session_id(page, current_sid)
+
             # --- Generation phase: wait for download blocks ---
             log_info("Waiting for Deep Research blocks generation...")
 
-            # Initialize DOM observer (best-effort)
             dom_observer_active = init_dom_observer(page)
             if dom_observer_active:
                 log_info("DOM change observer initialized.")
@@ -609,16 +616,14 @@ def run_automation(
 
             plan_confirmed_time = time.time()
             last_activity_time = time.time()
-            last_block_count = 0
             generation_done = False
-            have_partial = False
             reloads_triggered = 0
 
             while not generation_done:
+                current_sid = check_session_id(page, current_sid)
                 current_time = time.time()
                 elapsed = current_time - plan_confirmed_time
 
-                # --- Total timeout (15 min) ---
                 if elapsed > TIMEOUT_TOTAL_GENERATION_S:
                     log_warn(
                         f"Total generation timeout ({TIMEOUT_TOTAL_GENERATION_S}s) "
@@ -626,7 +631,7 @@ def run_automation(
                     )
                     break
 
-                # --- Check for "Open" button if we are not in results view yet ---
+                # Check for "Open" button
                 open_btn = find_button(page, texts=LOC_OPEN_RESEARCH_TEXTS)
                 if open_btn:
                     log_info(
@@ -650,21 +655,33 @@ def run_automation(
 
                         dom_observer_active = init_dom_observer(page)
                         last_activity_time = time.time()
+                        current_sid = check_session_id(page, current_sid)
                     except Exception as e:
                         log_error(f"Failed to click 'Open' button: {e}")
 
-                # --- Count download blocks ---
                 block_count = count_download_buttons(page)
                 ts = time.strftime("%H:%M:%S")
-                log_info(f"[{ts}] Code blocks found: {block_count}/{expected_blocks}")
+                log_info(f"[{ts}] Code blocks found: {block_count}")
 
-                # --- Check for connection error or DOM idle reload ---
+                if block_count > 0:
+                    log_info(
+                        f"Found downloadable code block(s) ({block_count}). "
+                        "Waiting 5 seconds before downloading all blocks..."
+                    )
+                    time.sleep(5)
+                    final_count = count_download_buttons(page)
+                    log_info(f"Downloading all {final_count} code block(s)...")
+                    data_blocks = download_blocks(page, final_count)
+                    exit_code = EXIT_OK
+                    generation_done = True
+                    break
+
                 should_reload = False
                 reload_reason = ""
                 if check_connection_error(page):
                     should_reload = True
                     reload_reason = "Connection aborted/reload error message detected"
-                elif block_count == 0:
+                else:
                     idle_s = current_time - last_activity_time
                     if dom_observer_active and idle_s > TIMEOUT_DOM_IDLE_S:
                         should_reload = True
@@ -683,10 +700,6 @@ def run_automation(
                             page.wait_for_load_state("domcontentloaded")
                             time.sleep(3)
                             dom_observer_active = init_dom_observer(page)
-                            if dom_observer_active:
-                                log_info(
-                                    "DOM change observer re-initialized after reload."
-                                )
                             last_activity_time = time.time()
                             continue
                         except Exception as e:
@@ -697,87 +710,21 @@ def run_automation(
                         generation_done = True
                         break
 
-                # Track activity: new blocks = activity
-                if block_count != last_block_count:
-                    last_activity_time = current_time
-                    last_block_count = block_count
-
-                # Track activity: DOM changes
                 if dom_observer_active:
                     ms_idle = ms_since_last_dom_change(page)
                     if ms_idle is not None and ms_idle < POLL_INTERVAL_S * 1000:
                         last_activity_time = current_time
 
-                # --- All expected blocks found → immediate download ---
-                if block_count >= expected_blocks:
-                    log_info(
-                        f"All {expected_blocks} blocks found. Commencing download..."
-                    )
-                    data_blocks = download_blocks(page, expected_blocks)
-                    exit_code = EXIT_OK
-                    generation_done = True
-                    break
-
-                # --- Have some blocks: check partial grace ---
-                if block_count > 0:
-                    idle_s = current_time - last_activity_time
-
-                    if dom_observer_active:
-                        # Use DOM idle for grace
-                        if idle_s > TIMEOUT_PARTIAL_GRACE_S:
-                            log_warn(
-                                f"Only {block_count}/{expected_blocks} blocks found "
-                                f"and {idle_s:.0f}s idle. "
-                                "Downloading available blocks."
-                            )
-                            data_blocks = download_blocks(page, block_count)
-                            exit_code = EXIT_PARTIAL
-                            have_partial = True
-                            generation_done = True
-                            break
-                    else:
-                        # No DOM observer: use time since last new block
-                        if idle_s > TIMEOUT_PARTIAL_GRACE_S:
-                            log_warn(
-                                f"Only {block_count}/{expected_blocks} blocks found "
-                                f"and {idle_s:.0f}s since last new block. "
-                                "Downloading available blocks."
-                            )
-                            data_blocks = download_blocks(page, block_count)
-                            exit_code = EXIT_PARTIAL
-                            have_partial = True
-                            generation_done = True
-                            break
-
-                else:
-                    # No blocks yet: check DOM idle timeout
-                    idle_s = current_time - last_activity_time
-                    if dom_observer_active:
-                        if idle_s > TIMEOUT_DOM_IDLE_S:
-                            log_error(
-                                f"No download blocks found and DOM idle for "
-                                f"{idle_s:.0f}s. Aborting."
-                            )
-                            exit_code = EXIT_NO_DATA
-                            generation_done = True
-                            break
-                    # Without DOM observer: just keep waiting until total timeout
-
                 time.sleep(POLL_INTERVAL_S)
 
-            # If we exited the loop without downloading anything
-            if not data_blocks and not have_partial:
-                # One last check for blocks
+            if not data_blocks:
                 final_count = count_download_buttons(page)
                 if final_count > 0:
                     log_warn(
-                        f"Found {final_count} blocks at timeout. "
-                        "Downloading available blocks."
+                        f"Found {final_count} blocks at timeout. Downloading available blocks."
                     )
                     data_blocks = download_blocks(page, final_count)
-                    exit_code = (
-                        EXIT_OK if final_count >= expected_blocks else EXIT_PARTIAL
-                    )
+                    exit_code = EXIT_OK
 
     finally:
         try:
@@ -793,19 +740,10 @@ def run_automation(
             except Exception:
                 pass
 
-    # --- No data at all ---
     if not data_blocks:
         log_error("Error: Generation completed with no data blocks.")
         sys.exit(EXIT_NO_DATA)
 
-    # --- Concatenate data blocks ---
-    # Blocks are simply appended as raw text, separated by newlines.  No YAML
-    # parsing or structural merging is performed.  This keeps the script
-    # format-agnostic: it works as long as the prompt instructs Gemini to
-    # emit blocks whose content can be concatenated (e.g. YAML dicts with
-    # non-overlapping top-level keys like ``report:``, ``data_01:``,
-    # ``data_02:``).  The caller is responsible for designing prompts
-    # accordingly.
     log_info(f"Concatenating {len(data_blocks)} data blocks...")
     parts: list[str] = []
     for block in data_blocks:
@@ -817,13 +755,6 @@ def run_automation(
         f.write(combined)
 
     log_info(f"Successfully saved combined output to: {output_yaml}")
-
-    if exit_code == EXIT_PARTIAL:
-        log_warn(
-            f"Only {len(data_blocks)}/{expected_blocks} blocks were downloaded. "
-            "Some data may be missing."
-        )
-
     sys.exit(exit_code)
 
 
@@ -888,6 +819,7 @@ def run_download(
 
     data_blocks: list[str] = []
     exit_code = EXIT_NO_DATA
+    current_sid: str | None = None
 
     try:
         with sync_playwright() as p:
@@ -899,16 +831,17 @@ def run_download(
             try:
                 page.goto(url)
                 page.wait_for_load_state("domcontentloaded")
+                current_sid = check_session_id(page, current_sid)
             except Exception as e:
                 log_error(f"Error: Failed to navigate to {url}: {e}")
                 sys.exit(EXIT_PRE_RESEARCH)
 
-            # Wait for "Open" button or download buttons
             log_info(
                 "Waiting for 'Open'/'Öffnen' button or download blocks to appear..."
             )
             open_btn = None
             for _ in range(30):
+                current_sid = check_session_id(page, current_sid)
                 if count_download_buttons(page) > 0:
                     log_info(
                         "Download blocks are already visible, skipping 'Open' button click."
@@ -936,21 +869,26 @@ def run_download(
                         page.wait_for_load_state("domcontentloaded")
                     else:
                         time.sleep(3)
+                    current_sid = check_session_id(page, current_sid)
                 except Exception as e:
                     log_error(f"Error clicking 'Open' button: {e}")
                     sys.exit(EXIT_PRE_RESEARCH)
 
-            # Now wait for download blocks
             log_info("Waiting for download blocks to appear...")
             block_count = 0
             for _ in range(30):
+                current_sid = check_session_id(page, current_sid)
                 block_count = count_download_buttons(page)
                 if block_count > 0:
                     break
                 time.sleep(1)
 
             if block_count > 0:
-                time.sleep(2)  # Let any other buttons render
+                log_info(
+                    f"Found downloadable code block(s) ({block_count}). "
+                    "Waiting 5 seconds before downloading all blocks..."
+                )
+                time.sleep(5)
                 block_count = count_download_buttons(page)
 
             if block_count == 0:
@@ -959,10 +897,7 @@ def run_download(
 
             log_info(f"Found {block_count} download block(s). Downloading...")
             data_blocks = download_blocks(page, block_count)
-            if len(data_blocks) == block_count:
-                exit_code = EXIT_OK
-            else:
-                exit_code = EXIT_PARTIAL
+            exit_code = EXIT_OK
 
     finally:
         try:
@@ -1006,101 +941,106 @@ deep-research-to-yaml.py
   browser [<profile_name>]
     Open an interactive Chromium window to log in to Gemini
 
-  research <prompt_file> [search="..."] [profile=...] [output=...] [headed|headless]
+  research <prompt_file> [--search "<str>"] [--replace "<str>"] [--profile <name>] [--output <path>] [--headed|--headless]
     Run automated Deep Research and download YAML blocks.
 
-  download <url> [profile=...] [output=...] [headed|headless]
+  download <url> [--profile <name>] [--output <path>] [--headed|--headless]
     Navigate to a finished research session, click Open, and download results.
 
 Exit codes:
-  0   Success — all expected blocks downloaded.
+  0   Success — download blocks retrieved.
   1   Setup error (CLI, prompt file, browser spawn/connect).  [retryable]
   2   Pre-research error (navigation, input, Deep Research toggle, submit).  [retryable]
   3   Plan error (confirmation wait/click).  [do NOT retry]
   4   Generation timeout — no data blocks found. [do NOT retry]
-  10  Partial data — some blocks downloaded but fewer than expected.  [do NOT retry]
-
-Retry guidance for automated callers:
-  Exit 1-2  may be analysed and retried (no quota consumed).
-  Exit >= 3 must NEVER be retried automatically.
-  Exit 3    may indicate the current session is blocked for deep-research by Google.
-  Exit 4    Deep Research quota has been consumed or other Deep Research error while researching (eg.abort,timeout)
-  Exit 10   partial output is written; inform the user about missing data.
 """
 
 
 def main() -> None:
-    if len(sys.argv) < 2 or sys.argv[1].lower() in [
-        "help",
-        "[help]",
-        "-h",
-        "--help",
-    ]:
-        print(USAGE)
-        sys.exit(EXIT_OK)
+    parser = argparse.ArgumentParser(
+        description="Automate Gemini Deep Research via Playwright, download YAML code blocks, and merge them."
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    cmd = sys.argv[1].lower()
+    # browser command
+    parser_browser = subparsers.add_parser(
+        "browser", help="Open an interactive Chromium window to log in to Gemini"
+    )
+    parser_browser.add_argument(
+        "profile",
+        nargs="?",
+        default="default",
+        help="Profile name (default: default)",
+    )
 
-    if cmd == "browser":
-        profile_name = sys.argv[2] if len(sys.argv) > 2 else "default"
-        run_interactive(profile_name)
-    elif cmd == "research":
-        if len(sys.argv) < 3:
-            log_error("Error: Missing prompt file for research command.")
-            print(USAGE)
-            sys.exit(EXIT_SETUP)
-        prompt_file = sys.argv[2]
+    # research command
+    parser_research = subparsers.add_parser(
+        "research", help="Run automated Deep Research and download YAML blocks"
+    )
+    parser_research.add_argument("prompt_file", help="Path to prompt file")
+    parser_research.add_argument(
+        "--search", default="", help="String or pattern to search in prompt"
+    )
+    parser_research.add_argument(
+        "--replace", default="", help="Replacement string for search match"
+    )
+    parser_research.add_argument(
+        "--profile", default="default", help="Profile name (default: default)"
+    )
+    parser_research.add_argument("--output", default=None, help="Output YAML file path")
+    res_mode = parser_research.add_mutually_exclusive_group()
+    res_mode.add_argument(
+        "--headed", action="store_true", help="Run browser in headed mode"
+    )
+    res_mode.add_argument(
+        "--headless", action="store_true", help="Run browser in headless mode (default)"
+    )
 
-        kwargs: dict[str, str] = {}
-        for arg in sys.argv[3:]:
-            if "=" in arg:
-                key, val = arg.split("=", 1)
-                kwargs[key.strip().lower()] = val.strip()
-            else:
-                val = arg.strip().lower()
-                if val in ["headed", "headless"]:
-                    kwargs["mode"] = val
+    # download command
+    parser_download = subparsers.add_parser(
+        "download", help="Download results from finished research URL"
+    )
+    parser_download.add_argument("url", help="Finished research conversation URL")
+    parser_download.add_argument(
+        "--profile", default="default", help="Profile name (default: default)"
+    )
+    parser_download.add_argument("--output", default=None, help="Output YAML file path")
+    dl_mode = parser_download.add_mutually_exclusive_group()
+    dl_mode.add_argument(
+        "--headed", action="store_true", help="Run browser in headed mode"
+    )
+    dl_mode.add_argument(
+        "--headless", action="store_true", help="Run browser in headless mode (default)"
+    )
 
-        search_value = kwargs.get("search", "")
-        profile_name = kwargs.get("profile", "default")
-        output_yaml = kwargs.get("output")
+    args = parser.parse_args()
+
+    if args.command == "browser":
+        run_interactive(args.profile)
+    elif args.command == "research":
+        prompt_file = args.prompt_file
+        output_yaml = args.output
         if not output_yaml:
             base = os.path.splitext(os.path.basename(prompt_file))[0]
             output_yaml = f"{base}.yaml"
-
-        mode = kwargs.get("mode", "headless")
-        run_automation(prompt_file, output_yaml, profile_name, search_value, mode)
-
-    elif cmd == "download":
-        if len(sys.argv) < 3:
-            log_error("Error: Missing URL for download command.")
-            print(USAGE)
-            sys.exit(EXIT_SETUP)
-        url = sys.argv[2]
-
-        kwargs: dict[str, str] = {}
-        for arg in sys.argv[3:]:
-            if "=" in arg:
-                key, val = arg.split("=", 1)
-                kwargs[key.strip().lower()] = val.strip()
-            else:
-                val = arg.strip().lower()
-                if val in ["headed", "headless"]:
-                    kwargs["mode"] = val
-
-        profile_name = kwargs.get("profile", "default")
-        output_yaml = kwargs.get("output")
+        mode = "headed" if args.headed else "headless"
+        run_automation(
+            prompt_file,
+            output_yaml,
+            args.profile,
+            args.search,
+            args.replace,
+            mode,
+        )
+    elif args.command == "download":
+        url = args.url
+        output_yaml = args.output
         if not output_yaml:
             match = re.search(r"/app/([a-zA-Z0-9_-]+)", url)
             chat_id = match.group(1) if match else "results"
             output_yaml = f"{chat_id}.yaml"
-
-        mode = kwargs.get("mode", "headless")
-        run_download(url, output_yaml, profile_name, mode)
-
-    else:
-        log_error(f"Error: Unknown command: {cmd}")
-        sys.exit(EXIT_SETUP)
+        mode = "headed" if args.headed else "headless"
+        run_download(url, output_yaml, args.profile, mode)
 
 
 if __name__ == "__main__":
