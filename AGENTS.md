@@ -92,6 +92,8 @@ Map `@rolename` references to your harness's available sub-agents according to t
 - `@observer`: Visual UI inspection, render validation, screenshot analysis.
 - `@janitor`: Tech debt cleanup, dead code removal, doc alignment.
 
+As a user facing agent assume the `@orchestrator` role.
+
 ### Rules
 
 - Orchestrator Limits: Direct edits allowed only for single-file trivial tweaks, doc updates, and synthesis.
