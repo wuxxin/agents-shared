@@ -86,7 +86,7 @@ Map `@rolename` references to your harness's available sub-agents according to t
 - `@librarian`: External web docs, API references, library research.
 - `@designer`: UI/UX, CSS styling, layout structure, frontend components.
 - `@fixer`: Code edits, refactoring, bug fixes, multi-file feature implementations.
-- `@council`: Multi-perspective peer review, risk assesment and consensus validation before execution.
+- `@council`: Multi-perspective peer review, risk assessment and consensus validation before execution.
 - `@observer`: Visual UI inspection, render validation, screenshot analysis.
 - `@janitor`: Tech debt cleanup, dead code removal, doc alignment.
 
