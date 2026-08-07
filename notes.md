@@ -1,37 +1,27 @@
-sandbox-ctl: check const fileExists = (path: string) => path === "/run/user/1000/bus";
-
-update and install https://github.com/huggingface/optimum-onnx/releases
-
-+ hindsight: documented full export/db-reset/re-import workflow for switching embedding+reranker models (see research/hindsight-import-export-reconfiguration.md)
++ change to better model, rememver last review.
++ sandbox-ctl: check const fileExists = (path: string) => path === "/run/user/1000/bus";
 
 + transform local-reranking into multi engine like local-embedding. make a hindsight reranking benchmark, 8k,8k
++ hindsight: documented full export/db-reset/re-import workflow for switching embedding+reranker models (see research/hindsight-import-export-reconfiguration.md)
 + refactor local-benchmark:+ chat, embedding, rerank engines (--engines all default), skip the combined code paths for now, is brittle
 + embedding: perplexity-ai/pplx-embed-context-v1-0.6b
   + pplx-embed-v1 and pplx-embed-context-v1 natively produce unnormalized int8-quantized embeddings. Ensure that you compare them via cosine similarity.
-+ opencode: add opencode llm proxy service sidecar or another proxy
-+ add whisper plugin to opencode
 + local-stt and local-tts: we installed python-faster-whisper , sherpa-onnx , and made crispasr. test and integrate if working good enough as stt and tts
-  + find suiting models, test kokoro
-+ local-chat: add additional gemma26/4 llm to choose.
++ find suiting models, test kokoro
 + local-chat: add fim warmup on benchmark, fix fim benchmark
++ reconsile roles and commands: eg. debugging, git-master, review-work, ulw-plan
 
 
-roles and commands:
++ Models
 
-debugging
-git-master
-review-work
-ulw-plan
-
-		
-https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
-https://huggingface.co/Yiivgeny/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16
-https://huggingface.co/Supertone/supertonic
-https://huggingface.co/csukuangfj/Inflect-Nano-v2-ONNX
-https://huggingface.co/kikiri-tts/kikiri-german-victoria
-https://huggingface.co/kikiri-tts/kikiri-german-martin
-https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
-https://huggingface.co/cryptomilk/kokoro-german-kerstin
+  https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
+  https://huggingface.co/Yiivgeny/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16
+  https://huggingface.co/Supertone/supertonic
+  https://huggingface.co/csukuangfj/Inflect-Nano-v2-ONNX
+  https://huggingface.co/kikiri-tts/kikiri-german-victoria
+  https://huggingface.co/kikiri-tts/kikiri-german-martin
+  https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
+  https://huggingface.co/cryptomilk/kokoro-german-kerstin
 
 + look into
   + https://github.com/mvanhorn/printing-press-library/tree/main/library/developer-tools/agent-desktop
@@ -47,17 +37,17 @@ https://huggingface.co/cryptomilk/kokoro-german-kerstin
   + https://github.com/mvanhorn/last30days-skill
 
 
-https://github.com/RUC-NLPIR/DeepAgent
-https://github.com/google/mantis/
-https://github.com/simonucl/PolySkill
-https://github.com/itigges22/ATLAS
-https://github.com/router-for-me/CLIProxyAPI
-https://github.com/Arize-ai/phoenix
++ look into
+  https://github.com/RUC-NLPIR/DeepAgent
+  https://github.com/google/mantis/
+  https://github.com/simonucl/PolySkill
+  https://github.com/itigges22/ATLAS
+  https://github.com/router-for-me/CLIProxyAPI
+  https://github.com/Arize-ai/phoenix
 
 mcp and other interesting
 
-https://github.com/xberg-io/xberg
-https://github.com/lucasjinreal/Crane
-https://github.com/memvid/memvid
-
+  https://github.com/xberg-io/xberg
+  https://github.com/lucasjinreal/Crane
+  https://github.com/memvid/memvid
 
