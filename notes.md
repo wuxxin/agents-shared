@@ -1,3 +1,13 @@
+model                                      TTFT   TPS      tokens  total
+google-antigravity/tab_flash_lite_preview  355ms  274.7/s  512     1.9s
+google-antigravity/gemini-3.6-flash        597ms  257.9/s  508     2.0s
+google-antigravity/gemini-3-flash          719ms  250.3/s  651     2.6s
+google-antigravity/gemini-2.5-flash        544ms  214.5/s  506     2.4s
+deepseek/deepseek-v4-flash                 913ms  97.6/s   512     5.2s
+deepseek/deepseek-v4-pro                   911ms  45.6/s   512     11.3s
+google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
+
+
 + change to better model, rememver last review.
 + sandbox-ctl: check const fileExists = (path: string) => path === "/run/user/1000/bus";
 

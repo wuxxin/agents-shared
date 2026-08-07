@@ -1,18 +1,6 @@
 # Oh-my-PI (OMP) Orchestration Template
 
-model                                      TTFT   TPS      tokens  total
-google-antigravity/tab_flash_lite_preview  355ms  274.7/s  512     1.9s
-google-antigravity/gemini-3.6-flash        597ms  257.9/s  508     2.0s
-google-antigravity/gemini-3-flash          719ms  250.3/s  651     2.6s
-google-antigravity/gemini-2.5-flash        544ms  214.5/s  506     2.4s
-deepseek/deepseek-v4-flash                 913ms  97.6/s   512     5.2s
-deepseek/deepseek-v4-pro                   911ms  45.6/s   512     11.3s
-google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
-
-
 Complete configuration template for Oh-my-PI (`omp`) with multi-agent orchestration, Arbor graph intelligence, OpenAdapt browser automation, local OpenAI-compatible inference routing (`local-router`), and native Hindsight long-term memory.
-
----
 
 ## Setup, Installation, and Teardown
 
@@ -25,15 +13,13 @@ sandbox-ctl install omp --no-start --new-config-from \
   ~/agent-shared/code/agents-shared/sandbox-templates/omp/omp.env
 ```
 
-Running `sandbox-ctl install` automatically recursively copies `sandbox-templates/omp/omp/*` into `$HOME/.omp/` without deleting existing files, provisions CLI tools (`openadapt`, `arbor-agent`), and runs `update-memory-banks.sh` via `LAUNCHER_INSTALL_CMDS`.
+Running `sandbox-ctl install` automatically recursively copies `sandbox-templates/omp/omp/*` into `$HOME/.omp/` and executes 'LAUNCHER_UNINSTALL_CMDS' and `LAUNCHER_INSTALL_CMDS`.
 
 ### 2. Start Oh-my-PI
 
 ```bash
 omp
 ```
-
----
 
 ## Template Directory Structure (`sandbox-templates/omp/omp/`)
 
@@ -48,12 +34,11 @@ sandbox-templates/omp/omp/
     ├── extensions/             # OMP plugins & extension modules
     ├── hindsight-bankconfig/   # Hindsight memory bank JSON configs
     ├── rules/                  # Time-Traveling Stream Rules (TTSR)
-    ├── skills/                 # Copied skills (arbor, caveman, hindsight, openadapt, etc.)
+    ├── skills/                 # Copied skills
     ├── tools/                  # Custom agent tools
     └── update-memory-banks.sh  # Smart Hindsight memory bank update script
 ```
 
----
 
 ## Configured Local Services & Environment
 
@@ -87,18 +72,8 @@ sandbox-templates/omp/omp/
 
 ## Copied & Installed Skills
 
-Skills located in `sandbox-templates/omp/omp/agent/skills/` are recursively copied into `~/.omp/agent/skills/`:
+Skills located in `sandbox-templates/omp/omp/agent/skills/` (eg. minimal usage of mcp tools) are recursively copied into `~/.omp/agent/skills/`:
 
-| Skill Name | Purpose | Source / Command |
-|---|---|---|
-| **`arbor`** | AST code intelligence and graph traversal without full RAG scans. | `arbor mcp` |
-| **`caveman`** | Ultra-concise, low-overhead reasoning and output formatting. | `oh-my-opencode-slim` / local |
-| **`hindsight`** | Long-term memory query patterns and retention strategies. | `@toady00/opencode-hindsight` |
-| **`hindsight-api`** | Direct REST API interaction with Hindsight server (`http://localhost:8888`). | Hindsight REST API |
-| **`openadapt`** | Headless DOM rendering, visual web element verification, and UI automation. | `openadapt[browser,capture]` |
-| **`sequential-thinking`** | Step-by-step reasoning with hypothesis branching and backtracking. | `@modelcontextprotocol/server-sequential-thinking` |
-
----
 
 ## Hindsight Bank Configuration & Auto-Seeding
 
