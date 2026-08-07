@@ -77,6 +77,11 @@ sandbox-templates/omp/omp/
 | `nanobot-signal` | local | `python3 -m omp_tools.nanobot_mcp` | `omp_tools` (sandbox) | Fetch pending Signal messages and post replies via independent `signal-cli` daemon (port 50889) and Nanobot Gateway. |
 | `cron-scheduler` | local | `python3 -m omp_tools.cron_mcp` | `omp_tools` (sandbox) | Dynamic scheduling (`cron_schedule`, `cron_list`, `cron_cancel`) stored in `$HOME/.omp/cron/schedule.json`. |
 | `local-audio` | local | `python3 -m omp_tools.audio_mcp` | `omp_tools` (sandbox) | Audio transcription (Whisper port 50090) and speech synthesis (TTS port 50095). |
+| `omp-heartbeat` | local | `python3 -m omp_tools.heartbeat` | `omp_tools` (sandbox) | Background cron runner & RPC poke engine for periodic work audits and Hindsight reflection sweeps. |
+| `omp-conveyor` | local | `python3 -m omp_tools.conveyor` | `omp_tools` (sandbox) | Inbox folder file watcher with 10s quiescence gating, SHA256 hashing, sidecar parsing, STT, and Hindsight retention. |
+| `omp-bunker` | local | `python3 -m omp_tools.bunker_monitor` | `omp_tools` (sandbox) | Health monitoring daemon for probing local router (51080), Hindsight (8888), Signal (50889), STT (50090), TTS (50095). |
+| `omp-doctor` | local | `python3 -m omp_tools.doctor` | `omp_tools` (sandbox) | Terminal diagnostic capability checker providing status tables and fix commands. |
+| `omp-signal-bridge` | local | `python3 -m omp_tools.signal_bridge` | `omp_tools` (sandbox) | RPC poke bridge forwarding incoming Signal messages to persistent OMP daemon with Hindsight recall. |
 
 ---
 
@@ -99,6 +104,7 @@ Skills located in `sandbox-templates/omp/omp/agent/skills/` are recursively copi
 
 Hindsight long-term memory is natively integrated into OMP's core engine:
 
-- **Auto-Seeding**: Enabled via `hindsight.mentalModelAutoSeed: true`. OMP automatically creates built-in seed mental models (`user-preferences`, `project-conventions`, `project-decisions`) on the server at session start.
+- **Auto-Seeding**: Enabled via `hindsight.mentalModelAutoSeed: true`. OMP automatically creates built-in seed mental models (`principal-telos`, `user-preferences`, `project-conventions`, `project-decisions`, `active-initiatives-and-commitments`) on the server at session start.
 - **Scoping**: `per-project-tagged` ensures global memories and project-specific memories are seamlessly merged on recall.
 - **Smart Idempotent Updates**: `update-memory-banks.sh` inspects existing bank configs and mental models via `GET /v1/default/banks/<bank_id>/config` and `GET /v1/default/banks/<bank_id>/mental-models`. It issues `PATCH`/`POST`/`DELETE` requests **only when local definitions differ from server state**. Pass `--prune` to remove leftover mental models on the server.
+

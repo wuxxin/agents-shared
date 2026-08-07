@@ -11,9 +11,19 @@
   },
   "mental_models": [
     {
+      "id": "principal-telos",
+      "name": "Principal Telos",
+      "source_query": "What are the principal's long-term vision, core goals, TELOS current state vs ideal state, and non-negotiable constraints? Capture durable personal & strategic goals.",
+      "max_tokens": 1000,
+      "trigger": {
+        "mode": "delta",
+        "refresh_after_consolidation": true
+      }
+    },
+    {
       "id": "user-preferences",
       "name": "User Preferences",
-      "source_query": "What does the user prefer in coding style, tooling, communication, and review? Capture only durable preferences expressed across sessions, not one-off requests.",
+      "source_query": "What does the user prefer in coding style, tooling, communication, and review? Capture durable preferences expressed across sessions.",
       "max_tokens": 600,
       "trigger": {
         "mode": "delta",
@@ -23,7 +33,7 @@
     {
       "id": "project-conventions",
       "name": "Project Conventions",
-      "source_query": "What are this project's conventions for code style, build, testing, release, and pull-request review? Only include conventions that are explicit in the project (settings, scripts, contributor docs, repeatedly enforced in review).",
+      "source_query": "What are this project's conventions for code style, build, testing, release, and pull-request review?",
       "max_tokens": 800,
       "trigger": {
         "mode": "delta",
@@ -33,8 +43,18 @@
     {
       "id": "project-decisions",
       "name": "Project Decisions",
-      "source_query": "What durable architectural or product decisions have been made for this project, and what rationale or trade-offs were recorded? Include only decisions that are stable across sessions; exclude transient plans, unresolved ideas, and active task state.",
+      "source_query": "What durable architectural or product decisions have been made for this project, and what rationale or trade-offs were recorded?",
       "max_tokens": 800,
+      "trigger": {
+        "mode": "delta",
+        "refresh_after_consolidation": true
+      }
+    },
+    {
+      "id": "active-initiatives-and-commitments",
+      "name": "Active Initiatives and Commitments",
+      "source_query": "What are the active project initiatives, open commitments, pending deliverables, task statuses, and work sweep state?",
+      "max_tokens": 1000,
       "trigger": {
         "mode": "delta",
         "refresh_after_consolidation": true
