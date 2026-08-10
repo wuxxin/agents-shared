@@ -40,12 +40,12 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf
+    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-IQ4_XS.gguf
     LCHAT_ALIAS=qwen3
     LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=2
-    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf
-    LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf
+    LCHAT_CHAT_TEMPLATE_FILE=""
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
     LCHAT_MTP=""
     LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
@@ -611,8 +611,8 @@ LCHAT_N_GPU_LAYERS=999
 # Path to the chat model file
 # spec-type mtp Model (original Qwen3.6 MoE)
 # LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
-# non mtp Model (Agents-A1 finetune — better agent fitness)
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf
+# Default Model: BigBang-v1 (Qwen3.6-35B-A3B fine-tune via self-evolving synthetic tasks)
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-IQ4_XS.gguf
 # Separate MTP draft model file path (leave empty when using built-in MTP model)
 LCHAT_MTP=""
 
@@ -633,10 +633,11 @@ LCHAT_CTX_SIZE=240384
 LCHAT_PARALLEL=2
 
 # Multimodal projector arguments (optional)
-LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf
+LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf
 
-# Chat template file (optional)
-LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+# Chat template file (optional; leave empty to use the integrated BigBang-v1 model chat template via 'jinja = on')
+# LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
+LCHAT_CHAT_TEMPLATE_FILE=""
 
 # Additional parameters for the Jinja chat template parser (JSON string)
 # Default '{"enable_thinking": false}' turns off chain-of-thought/thinking by default.

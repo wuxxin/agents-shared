@@ -63,73 +63,107 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ### Default LLM Model
 
-The local service runs **`Agents-A1-APEX-I-Compact`** (a Qwen3.6-35B-A3B agent-optimized finetune) as its primary chat and vision model.
+The local service runs **`BigBang-v1`** (`endless-frontier/BigBang-v1`, served via GGUF quantization `BigBang-v1-IQ4_XS.gguf` paired with `mmproj-endless-frontier_BigBang-v1-f16.gguf`) as its default primary chat, reasoning, and vision model.
+
+#### About BigBang-v1
+
+**BigBang-v1** is a general-purpose LLM evolved from `Qwen3.6-35B-A3B` through an efficient post-training pipeline using an **adversarial, self-evolving synthetic data framework**. The framework employs two core autonomous agent components:
+1. **Generator Agents**: Continually propose and solve increasingly challenging scientific, coding, and technical problems.
+2. **Critic Agents**: Evaluate correctness, difficulty, scalability, and diversity, using held-out real research tasks to calibrate the evolving synthetic data distribution.
+
+Through iterative generator–critic interaction across ~10,000 high-difficulty post-training examples, BigBang-v1 achieves open-ended capability growth, substantially outperforming its base model across scientific research, long-horizon search, coding, and tool-use benchmarks, and achieving aggregate performance exceeding DeepSeek V4 Flash (284B) and matching/exceeding DeepSeek V4 Pro (1.6T) on key evaluations.
 
 #### Service Configuration Defaults
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
-| `LCHAT_CTX_SIZE` | `240384` | Total context length, equals `120192` per slot |
-| `LCHAT_PARALLEL` | `2` | Concurrent chat slots |
-| `LCHAT_EXTRA_ARGS` | `--temp 0.6 --top-k 20 --repeat-penalty 1.1` | agentic workload tuning |
+| `LCHAT_MODEL` | `/data/public/machine-learning/models/vision-text/BigBang-v1-IQ4_XS.gguf` | IQ4_XS GGUF quantization (~17.95 GB VRAM) |
+| `LCHAT_MMPROJ` | `/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf` | Multimodal vision projector (f16, ~840 MB) |
+| `LCHAT_CTX_SIZE` | `240384` | Total allocated context length |
+| `LCHAT_PARALLEL` | `2` | Concurrent chat slots (120,192 tokens per slot) |
+| `LCHAT_EXTRA_ARGS` | `--temp 0.6 --top-k 20 --repeat-penalty 1.1` | Agentic & technical workload tuning |
 
-#### Architecture (Agents-A1 / Qwen3.6-35B-A3B)
+#### Architecture (BigBang-v1 / Qwen3.6-35B-A3B)
 
-| Attribute                  | Value |
-|----------------------------|-------|
-| **Architecture Type**      | Sparse Mixture-of-Experts (MoE) with Hybrid Attention |
-| **Transformer Layers**     | 40 |
-| **Attention Layout**       | Alternating Gated DeltaNet (linear) & Gated Attention |
-| **Total Parameters**       | 35 Billion |
-| **Active Parameters**      | ~3 Billion per token |
-| **Expert Count**           | 256 experts (8 routed + 1 shared active per token) |
+| Attribute | Value |
+|---|---|
+| **Base Model** | `Qwen/Qwen3.6-35B-A3B` (fine-tuned by endless-frontier) |
+| **Architecture Type** | Sparse Mixture-of-Experts (MoE) with Hybrid Attention |
+| **Transformer Layers** | 40 |
+| **Attention Layout** | Alternating Gated DeltaNet (linear) & Gated Attention |
+| **Total Parameters** | 35.95 Billion (35B MoE) |
+| **Active Parameters** | ~3 Billion per token |
+| **Expert Count** | 256 experts (8 routed + 1 shared active per token) |
 | **Expert Intermediate Dim**| 512 |
-| **Hidden Dimension**       | 2048 |
-| **Native Max Context**     | 262,144 tokens (extensible to 1,000,000 via YaRN) |
-| **Multimodal Inputs**      | Text, Image, Video |
+| **Hidden Dimension** | 2048 |
+| **Native Max Context** | 262,144 tokens (extensible to 1,000,000 via YaRN) |
+| **Multimodal Inputs** | Text, Image, Video |
 
-GGUF File (APEX-I-Compact):
-- **File:** `Agents-A1-APEX-I-Compact.gguf`
-- **File Size:** ~17 GiB on disk
-- **Quantization:** APEX-I-Compact — specialized Mixture-of-Experts adaptive quantization using importance matrix calibration.
+GGUF File (`IQ4_XS`):
+- **File:** `BigBang-v1-IQ4_XS.gguf`
+- **File Size:** ~17.95 GiB on disk
+- **Quantization:** `IQ4_XS` — imatrix-calibrated 4-bit quantization providing an optimal balance between VRAM footprint and model accuracy.
+- **Vision Projector:** `BigBang-v1-mmproj-f16.gguf` (~840 MiB).
 
 Key specifications and limits:
-- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**.
-  - In this local deployment, the service allocates a physical context size of **240,000 tokens**, which is divided across **3 parallel slots (80,000 tokens context window size per slot)**.
-- **Max Output (Generation) Limit**: The Qwen3.6 architecture supports a maximum output generation length of **65,536 (64K) tokens** in a single completion request.
-- **Capabilities**: Completion, chat, native tool-calling, multi-modal vision inputs (using the mmproj GGUF file)
-- **Recommended Temperature Settings**
-  - A higher temperature leads to more varied responses and a lower temperature produces more focused and deterministic outputs.
-  - General Tasks: Temperature: **1.0**
-  - Precise Coding Tasks: Recommended Temperature: **0.6**
+- **Context Window**: The Qwen3.6 architecture natively supports a context window of up to **1,000,000 (1M) tokens**. In this local deployment, the service allocates a physical context size of **240,384 tokens**, divided across **2 parallel slots (120,192 tokens per slot)**.
+- **Max Output (Generation) Limit**: Supports a maximum output generation length of **65,536 (64K) tokens** in a single completion request.
+- **Capabilities**: Completion, chat, reasoning, agentic tool execution, long-horizon search, multi-modal vision inputs.
+- **Recommended Temperature Settings**:
+  - **0.6**: Recommended for coding, diff generation, tool execution & precise reasoning.
+  - **1.0**: Recommended for creative writing & open-ended brainstorming.
+
+#### Benchmark Performance Summary
+
+| Benchmark Category | Benchmark Name | Base Model Score (Qwen3.6-35B) | BigBang-v1 Score | Relative Gain | Frontier Comparison |
+|---|---|---:|---:|---:|---|
+| **Coding Tasks** | SWE-Bench Pro | 43.6 (100%) | **54.2 (+24.3%)** | +24.3% | Beats DeepSeek V4 Flash (52.6) & Pro (55.4 near-match) |
+| **Reasoning** | Humanity's Last Exam (HLE) | 36.2 (100%) | **50.3 (+39.0%)** | +39.0% | Exceeds DeepSeek V4 Pro (48.2) & Flash (45.1) |
+| **Long-Horizon Search** | BrowseComp | 67.9 (100%) | **76.5 (+12.7%)** | +12.7% | Exceeds DeepSeek V4 Flash (73.2) |
+| **AI Engineering** | MLE-Bench (Lite) | 31.8 (100%) | **59.1 (+85.8%)** | +85.8% | Matches GPT-5.5 (59.1) & DeepSeek V4 Pro (59.1) |
+| **Scientific Research** | FrontierScience Research (FS-R) | 11.9 (100%) | **46.2 (+288.2%)** | +288.2% | Exceeds Claude Opus 4.8 (45.2) & DeepSeek V4 Pro (40.7) |
+| **Paper Replication** | PaperBench (Code-Dev) | 30.7 (100%) | **53.6 (+74.6%)** | +74.6% | Exceeds DeepSeek V4 Pro (50.4) & Flash (40.4) |
+| **Scientific Coding** | SciCode-V (Main / Sub) | 26.6 / 56.5 (100%) | **50.0 / 68.6 (+88.0% / +21.4%)** | +88.0% / +21.4% | SOTA performance among 35B models |
+| **Bioinformatics** | BioMysteryBench (HD) | 2.0 (100%) | **15.7 (+685.0%)** | +685.0% | Exceeds DeepSeek V4 Pro (13.7) |
+| **AGI Tracking** | XBench | 32.6 (100%) | **58.4 (+79.1%)** | +79.1% | Massive gain in multi-step reasoning |
 
 ### Thinking and Reasoning Capabilities
 
-The local **`Agents-A1-APEX-I-Compact`** model supports native chain-of-thought (CoT) reasoning.
+**BigBang-v1** inherits native chain-of-thought (CoT) reasoning capabilities from its base `Qwen3.6-35B-A3B` architecture, augmented by its self-evolving adversarial synthetic data training across complex scientific research, paper replication, and long-horizon search tasks.
 
-- **Jinja Chat Template Integration**: The model uses a custom template [Qwen3.6-chat_template.jinja](Qwen3.6-chat_template.jinja) which exposes the `enable_thinking` parameter.
-- **Default Behavior**: In our customized template, `enable_thinking` defaults to **`false`** (thinking off/none by default) to keep background memory queries, extraction, and verification tasks fast, cheap, and robust.
-- **Thinking Mode Control**:
-  - **API Request Control (`api_kwargs` / `extra_body`)**: You can explicitly override the default template behavior on a per-request basis by sending `chat_template_kwargs` in the root of the request payload. For example:
-    ```json
-    {
-      "model": "qwen3",
-      "messages": [{"role": "user", "content": "Say ok"}],
-      "chat_template_kwargs": {
-        "enable_thinking": true
-      }
-    }
-    ```
-    To disable it, pass `"enable_thinking": false`. Hindsight and other clients can set this globally by passing it inside their `extra_body` config (e.g. `HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}}'`).
-  - **System Prompt / Prompt Content Injection**: The template automatically inspects prompt messages (system, developer, or user prompts) for control tags:
-    - Prepend **`<|think_on|>`** to the system instructions or prompt content to force the model to think (perform chain-of-thought reasoning).
-    - Prepend **`<|think_off|>`** to force-disable thinking.
-    - *Note: The chat template automatically detects and strips these control tags (`<|think_on|>` / `<|think_off|>`) from the final prompt text, so the model itself never sees them.*
-  - **Local Router Virtual Alias (`qwen3-thinking`)**: For client integrations that do not support custom request payloads or template parameters (such as the Zed Editor), you can point the client to the local-router (port `51080`) and request model **`qwen3-thinking`**. The local-router automatically rewrites the request to use `qwen3` with the `enable_thinking` template argument enabled. (See [local-router.md](local-router.md) for details).
-- **Client Integration**:
-  - In **ZeroClaw**, configuring `reasoning_enabled = true` / `reasoning_effort = "low"` maps to these parameters.
-  - In **LibreFang**, passing `reasoning_effort = "low"` or `thinking = true/false` controls response generation behavior.
-  - In **Hermes Agent**, configuring `agent: reasoning_effort: "xhigh" (max), "high", "medium", "low", "minimal", "none" (disable)
+- **Native `<think>...</think>` CoT Format**:
+  - During reasoning, BigBang-v1 outputs its step-by-step chain-of-thought enclosed within `<think>` and `</think>` XML tags before producing the final answer or executing tool calls (`<tool_call>`).
+  - Standard reasoning parsers (e.g. `--reasoning-parser qwen3` in SGLang/vLLM or `llama-server` Jinja template parsing) automatically extract this reasoning text into `message.reasoning_content`.
+
+- **Integrated Chat Template (`jinja = on`, Default)**:
+  - `endless-frontier/BigBang-v1` embeds the official native `Qwen3.6-35B-A3B` chat template directly inside its GGUF metadata (`tokenizer.ggml.chat_template`).
+  - **Research & Best Practice**: BigBang-v1 was fine-tuned on ~10,000 frontier tasks using this exact native template for multimodal vision tags (`<|vision_start|><|image_pad|><|vision_end|>`), structured tool calls (`<tools>...</tools>`, `<function=...>`, `<parameter=...>`), and reasoning (`<think>...</think>`). Leaving `LCHAT_CHAT_TEMPLATE_FILE=""` in `local-chat.sh` enables `jinja = on` in `preset.ini`, letting `llama-server` use the integrated template natively. This ensures 100% distribution alignment with the training dataset and prevents startup errors due to missing external template files.
+- **External Template Overrides (`LCHAT_CHAT_TEMPLATE_FILE`)**:
+  - If custom Jinja parser logic is required (e.g. `froggeric` fixed template for tool-retry guards), you can specify `LCHAT_CHAT_TEMPLATE_FILE=/path/to/custom_template.jinja`. For standard BigBang-v1 serving, using the integrated model template is recommended.
+- **Service Default (`enable_thinking: false`)**:
+  - In `local-chat.sh`, `LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'` disables thinking by default. This ensures fast, low-latency execution for high-frequency background agent tasks (extraction, RAG memory queries, FIM completions).
+
+- **How to Enable Thinking on Demand**:
+  1. **Per-Request Payload (`chat_template_kwargs`)**:
+     Pass `chat_template_kwargs: {"enable_thinking": true}` in the root of your JSON request body:
+     ```json
+     {
+       "model": "qwen3",
+       "messages": [{"role": "user", "content": "Solve this multi-step scientific problem."}],
+       "chat_template_kwargs": {
+         "enable_thinking": true
+       }
+     }
+     ```
+  2. **Prompt Control Tags**:
+     Prepend `<|think_on|>` in the prompt or system instructions to force-enable thinking. (Prepend `<|think_off|>` to force-disable). The chat template automatically detects and strips these control tags from the input payload.
+  3. **Virtual Alias (`qwen3-thinking`)**:
+     For clients that cannot customize request parameters (e.g., Zed Editor), route requests through `local-router` (port `51080`) using model name **`qwen3-thinking`**. The router automatically injects `enable_thinking: true`.
+
+- **Agent Framework Compatibility**:
+  - **ZeroClaw**: Set `reasoning_enabled = true` / `reasoning_effort = "medium"` (or `"high"`).
+  - **LibreFang**: Set `thinking = true` or `reasoning_effort = "medium"`.
+  - **Hermes Agent**: Set `agent: reasoning_effort: "high"` or `"xhigh"`.
 
 ### Default Completions Model
 
@@ -481,4 +515,59 @@ The chat completion benchmark evaluates prefill speed, generation speed, and Key
 
 > [!NOTE]
 > If `--repeat` is omitted, the chat completion benchmark defaults to `1` run. If `--repeat` is explicitly provided, it will use the specified number of runs.
+
+
+## Old Default Models
+
+### Agents-A1-APEX-I-Compact (Qwen3.6-35B-A3B)
+
+Previous default chat and vision model before the update to BigBang-v1.
+
+#### Service Configuration (Legacy)
+
+| Parameter | Default Value | Notes |
+|---|---|---|
+| `LCHAT_MODEL` | `/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.gguf` | Legacy model file |
+| `LCHAT_MMPROJ` | `/data/public/machine-learning/models/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf` | Legacy vision projector |
+| `LCHAT_CTX_SIZE` | `240384` | Context length (divided across parallel slots) |
+| `LCHAT_PARALLEL` | `2` | Concurrent slots |
+
+#### Architecture (Agents-A1 / Qwen3.6-35B-A3B)
+
+| Attribute | Value |
+|---|---|
+| **Architecture Type** | Sparse Mixture-of-Experts (MoE) with Hybrid Attention |
+| **Transformer Layers** | 40 |
+| **Attention Layout** | Alternating Gated DeltaNet (linear) & Gated Attention |
+| **Total Parameters** | 35.95 Billion |
+| **Active Parameters** | ~3 Billion per token |
+| **Expert Count** | 256 experts (8 routed + 1 shared active per token) |
+| **Expert Intermediate Dim**| 512 |
+| **Hidden Dimension** | 2048 |
+| **Native Max Context** | 262,144 tokens (extensible to 1,000,000 via YaRN) |
+| **Multimodal Inputs** | Text, Image, Video |
+
+GGUF File (APEX-I-Compact):
+- **File:** `Agents-A1-APEX-I-Compact.gguf`
+- **File Size:** ~17 GiB on disk
+- **Quantization:** APEX-I-Compact — specialized Mixture-of-Experts adaptive quantization using importance matrix calibration.
+
+#### Legacy Thinking and Reasoning Capabilities (Agents-A1)
+
+The previous **`Agents-A1-APEX-I-Compact`** model supported chain-of-thought (CoT) reasoning via custom `<|think_on|>` / `<|think_off|>` tags in system/user prompts or `chat_template_kwargs: {"enable_thinking": true/false}`. In `local-chat.sh`, `enable_thinking` defaulted to `false` to keep background tasks fast and deterministic.
+
+#### Legacy Chat Template (`Qwen3.6-chat_template.jinja` / `froggeric`)
+
+The previous model deployment explicitly overrode the embedded GGUF chat template using an external file:
+
+- **File Path:** `/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja`
+- **Source Origin:** Derived from [`froggeric/Qwen-Fixed-Chat-Templates`](https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates).
+- **Service Parameter (Legacy):** `LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja`
+
+##### Key Features of the Legacy Chat Template:
+
+1. **`llama-server` Jinja Compatibility Fixes**: Fixed edge-case bugs in `llama.cpp`'s internal Jinja template engine when rendering multi-turn tool responses (`<tool_response>`) and function call schemas (`<tool_call>`).
+2. **Automatic Tool-Loop Mitigation**: Tracked consecutive tool execution failures (`ns2.consecutive_failures >= 2`). If an agent tool call failed multiple times in succession, the template automatically forced `<think>\n\n</think>\n\n` (disabling CoT thinking) on the next turn to prevent infinite reasoning loops during error recovery.
+3. **Role & Thought Parsing**: Normalized non-standard roles (e.g. `developer` role) into `system` instructions, and parsed reasoning content stored in `message.reasoning_content` or `thought` fields into `<think>...</think>` blocks.
+4. **Prompt Control Directive Stripping**: Scanned input messages for `<|think_on|>` and `<|think_off|>` directives, set the internal `ns_state.thinking` boolean flag accordingly, and automatically stripped the control strings from the prompt text prior to model tokenization.
 
