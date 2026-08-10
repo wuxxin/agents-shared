@@ -1,3 +1,12 @@
+## System Dependencies
+
+### Agent Tools
+
+### AUR
+
+- `agent-browser camofox-browser-bin python-camoufox`
+
+
 model                                      TTFT   TPS      tokens  total
 google-antigravity/tab_flash_lite_preview  355ms  274.7/s  512     1.9s
 google-antigravity/gemini-3.6-flash        597ms  257.9/s  508     2.0s

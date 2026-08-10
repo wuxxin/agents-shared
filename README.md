@@ -1,29 +1,12 @@
-# Local Agent Ecosystem & Assistant Orchestrator
+# Local Inference and Memory Service Agents Ecosystem, Agents Included
 
-This repository is a centralized orchestration hub for deploying, sandboxing, and monitoring local AI assistants, speech-to-text engines, local inference models, and communication integrations. 
+This repository contains orchestration for deploying, sandboxed local AI assistants, using local inference services.
 
 It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure isolated agent execution.
 
-## Assistant Software
+## Services
 
-See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
-
-| Agent | Language | Default Port(s) | Description |
-| :--- | :---: | :---: | :--- |
-| **[ZeroClaw](#zeroclaw)** | Rust | [42617](http://localhost:42617) | ZeroClaw Gateway |
-| **[IronClaw](#ironclaw)** | Rust | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
-| **[LibreFang](#librefang)** | Rust | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
-| **[Hermes](#hermes)** | Python | [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) || **[NanoBot](#nanobot)** | Python | [8790](http://localhost:8790) | NanoBot Gateway API |
-| **[PicoClaw](#picoclaw)** | Go | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
-| **[NanoClaw](#nanoclaw)** | TypeScript | [3000](http://localhost:3000) | Webhook Server |
-
-## Helper Utilities
-
-The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
-
-For details, see the [scripts/README.md](scripts/README.md).
-
-## Integrations
+### Local Inference
 
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
@@ -36,19 +19,34 @@ For details, see the [scripts/README.md](scripts/README.md).
 | **[Local Memory Service](#local-memory-service)** | [8888](http://localhost:8888), [8889](http://localhost:8889), [8890](http://localhost:8890) | Hindsight API (8888), Worker Control Plane (8889) & Control UI (8890) |
 | **[Local Router](#local-combined-inference-router)** | [51080](http://localhost:51080) | Combined service router / OpenAI proxy (HTTP) |
 | **[Local Inference Coordinator](#local-inference-coordinator)** | - | Combined service control script |
+
+### Integration Services
+| Service | Default Port(s) | Description / Protocol |
+|---------------|-----------------|------------------------|
 | **[Signal Integration](#signal-integration)** | [50889](http://localhost:50889), [50888](http://localhost:50888), 50887 |REST-API:50889, HTTP/JSON-RPC: 50888, TCP/JSON-RPC:50887 |
 | **[Syncthing Integration](#syncthing-integration)** | [8384](http://localhost:8384), 22000 | Syncthing Web UI (HTTP) & Sync Protocol (TCP/UDP) |
 
-## System Dependencies
 
-### Agent Tools
+### Assistant/Agent Services
 
-### AUR
+| Agent | Language | Default Port(s) | Description |
+| :--- | :---: | :---: | :--- |
+| **[ZeroClaw](#zeroclaw)** | Rust | [42617](http://localhost:42617) | ZeroClaw Gateway |
+| **[IronClaw](#ironclaw)** | Rust | [8080](http://localhost:8080) | IronClaw Web Gateway & HTTP Webhooks |
+| **[LibreFang](#librefang)** | Rust | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
+| **[Hermes](#hermes)** | Python | [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Messaging Gateway (API: 8642, UI: 9119) || **[NanoBot](#nanobot)** | Python | [8790](http://localhost:8790) | NanoBot Gateway API |
+| **[PicoClaw](#picoclaw)** | Go | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
+| **[NanoClaw](#nanoclaw)** | TypeScript | [3000](http://localhost:3000) | Webhook Server |
 
-- `agent-browser camofox-browser-bin python-camoufox`
+See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
 
+## Helper Utilities
 
----
+The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
+
+For details, see the [scripts/README.md](scripts/README.md).
+
+## Local Inference and Integrations
 
 ### Local Chat Services
 - **Description**: Manages persistent `llama-server` instances for chat/vision LLM completions (`local-chat.sh`).
@@ -129,7 +127,7 @@ To configure them, refer to their specific configuration sections in their respe
 
 ---
 
-## Assistants
+## Assistant Details
 
 
 Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.

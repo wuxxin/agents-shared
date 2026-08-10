@@ -7,8 +7,8 @@
   - Agents: Hermes, LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, ZeroClaw
   - Local inference services (chat, embedding, STT, TTS, rerank, image)
   - Signal Messenger Gateway
-- `sandbox-templates/` — Config templates for `scripts/sandbox-ctl install --new-config-from <env-path>`.
 - `scripts/` — Benchmarking (caching/throughput), token counting, and speed simulation tools.
+- `skills` - Skills
 - `research/` — Development activity reports, LLM adapter research, and notes.
 - `scratch/` — Safe workspace for temp files, source checkouts (`scratch/*-sources`), and testing.
 
@@ -48,7 +48,7 @@
   - **OpenCode:** Keep `sandbox-templates/opencode/opencode.json` and `~/.config/opencode/opencode.json` synced. Run `~/.config/opencode/copy-config-to-target.sh` to save running configs back to the repo.
   - **OMP:** Templates reside in `sandbox-templates/omp/`.
 
-### Benchmarking Rules
+### Local Inference Benchmarking Rules
 - **Script Sync:** Update `scripts/run-local-benchmark.py` whenever local service outputs, performance formats, or env variable prefixes (`LLM_` -> `LCHAT_`, `EMBED_` -> `LMBD_`) change.
 - **Report Protection:** Running `--mock` auto-redirects outputs to `scratch/local-benchmark-mock.*`. For custom tests, explicitly pass `--report scratch/test.md --data scratch/test.json` to prevent overwriting production reports in `assistants/`.
 
@@ -97,7 +97,7 @@ As a user facing agent assume the `@orchestrator` role.
 ### Rules
 
 - Orchestrator Limits: Direct edits allowed only for single-file trivial tweaks, doc updates, and synthesis.
-- Delegate Execution: Multi-file edits or complex tasks go to `@fixer`. If reaching for `edit`/`write`/`bash` to write code, **stop and delegate**.
+- Delegate Execution: Multi-file edits or complex tasks go to `@fixer`, except if running on antigravity or agy harness.
 - Research: Use `@explorer` for codebase searches (no manual grep/glob) and `@librarian` for web/docs.
 - Escalations: Route to `@oracle` for complex bugs or after 2 failed fix attempts. Route to `@council` before risky breaking changes.
 
