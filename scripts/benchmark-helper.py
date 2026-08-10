@@ -1035,7 +1035,10 @@ def run_llm_embed_hindsight(
         token_offset = 0
 
         for rd_idx in range(num_rounds):
-            round_labels = [f"R{rd_idx + 1}_{i + 1}({token_len_per_req // 1024}K)" for i in range(reqs_per_round)]
+            round_labels = [
+                f"R{rd_idx + 1}_{i + 1}({token_len_per_req // 1024}K)"
+                for i in range(reqs_per_round)
+            ]
             round_slices = []
             for _ in range(reqs_per_round):
                 round_slices.append(
