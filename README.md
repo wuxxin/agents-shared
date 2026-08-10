@@ -4,6 +4,15 @@ This repository contains orchestration for deploying, sandboxed local AI assista
 
 It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure isolated agent execution.
 
+## Repository Structure
+
+- `README.md` — Agent/script instructions, default ports, and isolation requirements
+- `assistants/` — Daemon control scripts (`*-ctl`) and configuration documentation
+- `scripts/` — Benchmarking, model downloader (`local-download.sh`), and utility tools
+- `skills/` — Portable skill definitions
+- `research/` — Development activity reports, LLM adapter research, and benchmark notes
+- `scratch/` — Workspace for temporary files and checkout sources (`scratch/*-sources`)
+
 ## Services
 
 ### Local Inference
