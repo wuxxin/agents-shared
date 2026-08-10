@@ -15,16 +15,24 @@ google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
 
 ## not integrated yet, new interesting models
 
+chat/vision LLM:
+  - https://huggingface.co/EschaLabs/Qwen3.6-35B-A3B-Escha-W2
+  - https://huggingface.co/badtheorylabs/BTL-4
+chat-coding LLM:
+  - https://huggingface.co/Akahsizrr/fuse-1-Lite
+  - https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF
+
 Image/video Gen:
-- interesting model: https://huggingface.co/Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot
+  - interesting model: https://huggingface.co/Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot
 
 Vision LLM:
-- interesting vision only model: https://huggingface.co/microsoft/Mage-VL
+  - interesting vision only model: https://huggingface.co/microsoft/Mage-VL
 
 Unknown:
-- https://huggingface.co/Yiivgeny/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16
-- https://huggingface.co/Supertone/supertonic
-- https://huggingface.co/csukuangfj/Inflect-Nano-v2-ONNX
+  - https://huggingface.co/Yiivgeny/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16
+  - https://huggingface.co/Supertone/supertonic
+  - https://huggingface.co/csukuangfj/Inflect-Nano-v2-ONNX
+  - https://huggingface.co/Audio8/Audio8-TTS-Preview-0.6b
   
 ## Chat / Vision LLM
 
