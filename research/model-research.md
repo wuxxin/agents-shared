@@ -1,27 +1,6 @@
 # Models Research
 
-## External Models Speed Observed in OMP
-
-```
-model                                      TTFT   TPS      tokens  total
-google-antigravity/tab_flash_lite_preview  355ms  274.7/s  512     1.9s
-google-antigravity/gemini-3.6-flash        597ms  257.9/s  508     2.0s
-google-antigravity/gemini-3-flash          719ms  250.3/s  651     2.6s
-google-antigravity/gemini-2.5-flash        544ms  214.5/s  506     2.4s
-deepseek/deepseek-v4-flash                 913ms  97.6/s   512     5.2s
-deepseek/deepseek-v4-pro                   911ms  45.6/s   512     11.3s
-google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
-```
-
-## Integrated New Models (Qwen3.6 / MoE / Fusion Variants)
-
-chat/vision LLM:
-  - [EschaLabs/Qwen3.6-35B-A3B-Escha-W2](https://huggingface.co/EschaLabs/Qwen3.6-35B-A3B-Escha-W2) — 2-bit `EschaMoE` quantization (~9.8 GB VRAM, ~98% FP8 retention)
-  - [badtheorylabs/BTL-4](https://huggingface.co/badtheorylabs/BTL-4) — 35B Execution-Gated Reasoning MoE (SWE-bench Verified 78.4%, BFCL v4 AST 73.5%)
-
-chat-coding LLM:
-  - [Akahsizrr/fuse-1-Lite](https://huggingface.co/Akahsizrr/fuse-1-Lite) — 5.72B MoE SLM fusing LFM2.5 base with 960 Qwen3.6 coding experts (~4.2 GB VRAM)
-  - [DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF](https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF) — 27B Multi-Stage Heretic Merge (ARC-C > 700, SWE-bench Verified 77.2%)
+## unintegrated New Models
 
 Image/video Gen:
   - interesting model: https://huggingface.co/Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot
@@ -39,17 +18,18 @@ Unknown:
 
 ### Main Model
 
-#### Current llama-server model: Qwen3-6 35B A3B GGUF
+#### Baseline llama-server model: Qwen3-6 35B A3B GGUF
 
 - LLM: https://huggingface.co/mudler/Qwen3.6-35B-A3B-APEX-GGUF/resolve/main/Qwen3.6-35B-A3B-APEX-I-Compact.gguf
 - Vision: https://huggingface.co/mudler/Qwen3.6-35B-A3B-APEX-GGUF/resolve/main/mmproj.gguf
 - Chat Template: https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja
 - Draft MTP: https://huggingface.co/IHaveNoClueAndIMustPost/Qwen3.6-35A3B-MTP-TENSORS-ONLY/resolve/main/am17an-Qwen3.6-35BA3B-MTP-only.gguf
-- Architecture:
 
 #### Alternatives
 
-##### 📊 Merged Multi-Domain Benchmark Matrix (Qwen3.6-35B Baseline = 100%)
+Current selected Default Model: **BigBang-v1**
+
+##### 📊 Multi-Domain Benchmark Matrix (Qwen3.6-35B Baseline = 100%)
 
 The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, SWE-bench Verified/Pro, Claw-Eval, NL2Repo) with the frontier scientific, search, reasoning, and AI engineering benchmark suite (BrowseComp, XBench, HLE, FS-R, MLE-Bench, PaperBench, SciCode-V, BioMysteryBench). All entries follow the standardized format: **raw_score (+-relative_change%)**.
 

@@ -1,5 +1,3 @@
-+ change to better model, get perf stats for BigBang-v1
-
 + sandbox-ctl: check const fileExists = (path: string) => path === "/run/user/1000/bus";
 + transform local-reranking into multi engine like local-embedding. make a hindsight reranking benchmark, 8k,8k
 + hindsight: documented full export/db-reset/re-import workflow for switching embedding+reranker models (see research/hindsight-import-export-reconfiguration.md)
