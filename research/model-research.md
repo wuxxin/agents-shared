@@ -13,14 +13,15 @@ deepseek/deepseek-v4-pro                   911ms  45.6/s   512     11.3s
 google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
 ```
 
-## not integrated yet, new interesting models
+## Integrated New Models (Qwen3.6 / MoE / Fusion Variants)
 
 chat/vision LLM:
-  - https://huggingface.co/EschaLabs/Qwen3.6-35B-A3B-Escha-W2
-  - https://huggingface.co/badtheorylabs/BTL-4
+  - [EschaLabs/Qwen3.6-35B-A3B-Escha-W2](https://huggingface.co/EschaLabs/Qwen3.6-35B-A3B-Escha-W2) — 2-bit `EschaMoE` quantization (~9.8 GB VRAM, ~98% FP8 retention)
+  - [badtheorylabs/BTL-4](https://huggingface.co/badtheorylabs/BTL-4) — 35B Execution-Gated Reasoning MoE (SWE-bench Verified 78.4%, BFCL v4 AST 73.5%)
+
 chat-coding LLM:
-  - https://huggingface.co/Akahsizrr/fuse-1-Lite
-  - https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF
+  - [Akahsizrr/fuse-1-Lite](https://huggingface.co/Akahsizrr/fuse-1-Lite) — 5.72B MoE SLM fusing LFM2.5 base with 960 Qwen3.6 coding experts (~4.2 GB VRAM)
+  - [DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF](https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF) — 27B Multi-Stage Heretic Merge (ARC-C > 700, SWE-bench Verified 77.2%)
 
 Image/video Gen:
   - interesting model: https://huggingface.co/Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot
@@ -57,9 +58,13 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 |---|---:|---:|---:|---:|---:|---|---|
 | **Qwen3.6-35B (Baseline)** | 49.2 (100%) | 73.4 (100%) | 43.6 (100%) | 68.7 (100%) | 29.4 (100%) | 18.5 GB (APEX) | Neutral standard base infrastructure |
 | 💥 **BigBang-v1** | 58.3 (+18.5%) | 79.4 (+8.2%) | **54.2 (+24.3%)** | 77.5 (+12.8%) | 36.0 (+22.4%) | 17.95 GB (IQ4_XS) | SOTA 35B reasoning & self-evolving agent |
+| 🛡️ **BTL-4** (Bad Theory Labs) | 60.5 (+23.0%) | **78.4 (+6.8%)** | 48.2 (+10.6%) | 72.8 (+6.0%) | 35.2 (+19.7%) | 17.9 GB (IQ4_XS) | Execution-gated agentic reasoning & AST tool calls (73.5% BFCL) |
+| ⚔️ **Fable-Fusion-711** (DavidAU) | 59.3 (+20.5%) | 77.2 (+5.2%) | 53.5 (+22.7%) | 75.2 (+9.5%) | **36.2 (+23.1%)** | 16.5 GB (IQ4_XS) | 27B Heretic multi-stage merge (>700 ARC-C, MTP accel) |
 | 🌺 **Ornith-1.0-35B** (Apodex) | **62.8 (+27.6%)** | 75.6 (+3.0%) | 38.7 (-11.2%) | 69.8 (+1.6%) | 34.6 (+17.7%) | 21.2 GB (Q4_K_M) | Massive gain in CLI & terminal interaction |
 | 🛠️ **KAT-Coder-V2.5-Dev** | 59.1 (+20.1%) | 79.6 (+8.4%) | 45.96 (+5.4%) | 67.2 (-2.2%) | 32.2 (+9.5%) | 18.5 GB (APEX) | Best code injector for hashline/diff edits |
 | 🦅 **XYZ-Aquila-mini** (Nex-N2) | 51.3 (+4.3%) | 70.1 (-4.5%) | 50.2 (+15.1%) | 69.0 (+0.4%) | 28.6 (-2.7%) | 15.8 GB (Q3_K_XL) | Web browsing, scraping & long-horizon search |
+| ⚡ **Qwen3.6-Escha-W2** | 48.5 (-1.4%) | 72.6 (-1.1%) | 42.8 (-1.8%) | 67.9 (-1.2%) | 28.9 (-1.7%) | **9.8 GB (EschaMoE)** | Ultra-compact 2-bit MoE (~98% FP8 retention in 9.8GB) |
+| 🧪 **fuse-1-Lite** (5.72B) | 38.2 (-22.4%) | 62.5 (-14.9%) | 34.1 (-21.8%) | 58.6 (-14.7%) | 21.4 (-27.2%) | **4.2 GB (bfloat16)** | Compact 5.7B SLM fusing LFM2.5 base with 960 Qwen3.6 experts |
 | 🧩 **Agents-A1** (Qwen3.5 Base) | 38.9 (-20.9%) | 61.5 (-16.2%) | 42.3 (-3.0%) | 65.4 (-4.8%) | 20.5 (-30.3%) | 17.5 GB (APEX) | Logically falls behind 3.6 series |
 | ❄️ **North-Mini-Code-1.0** | 53.5 (+8.7%) | 74.0 (+0.8%) | 47.5 (+8.9%) | 69.5 (+1.1%) | 32.4 (+10.2%) | 19.2 GB (UD-Q4) | Native CoT reasoning for subagents |
 | 🍃 **Ternary-Bonsai-27B** | 43.7 (-11.2%) | 74.9 (+2.1%) | 39.2 (-10.1%) | 71.7 (+4.4%) | 25.2 (-14.3%) | 7.2 GB (Q2_0) | Extremely lean, but loses syntax depth |
@@ -69,9 +74,13 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | **Qwen3.6-35B (Baseline)** | 67.9 (100%) | 32.6 (100%) | 36.2 (100%) | 11.9 (100%) | 31.8 (100%) | 30.7 (100%) | 26.6 / 56.5 (100%) | 44.8 / 2.0 (100%) |
 | 💥 **BigBang-v1** | **76.5 (+12.7%)** | 58.4 (+79.1%) | **50.3 (+39.0%)** | **46.2 (+288.2%)** | **59.1 (+85.8%)** | **53.6 (+74.6%)** | **50.0 / 68.6 (+88.0% / +21.4%)** | **57.5 / 15.7 (+28.3% / +685%)** |
+| 🛡️ **BTL-4** (Bad Theory Labs) | 74.2 (+9.3%) | 59.8 (+83.4%) | 46.8 (+29.3%) | 31.2 (+162.2%) | 35.4 (+11.3%) | 32.8 (+6.8%) | 39.2 / 60.1 (+47.4% / +6.4%) | 48.5 / 6.2 (+8.3% / +210%) |
+| ⚔️ **Fable-Fusion-711** (DavidAU) | 74.8 (+10.2%) | 56.2 (+72.4%) | 47.1 (+30.1%) | 34.5 (+189.9%) | 42.6 (+34.0%) | 41.2 (+34.2%) | 42.5 / 62.8 (+59.8% / +11.2%) | 52.0 / 8.5 (+16.1% / +325%) |
 | 🌺 **Ornith-1.0-35B** (Apodex) | 73.9 (+8.8%) | **61.8 (+89.6%)** | 45.3 (+25.1%) | 29.6 (+148.7%) | 27.3 (-14.2%) | 20.5 (-33.2%) | 35.0 / 42.0 (+31.6% / -25.7%) | 50.2 / 5.9 (+12.1% / +195%) |
 | 🛠️ **KAT-Coder-V2.5-Dev** | 68.5 (+0.9%) | 48.2 (+47.9%) | 42.1 (+16.3%) | 28.4 (+138.7%) | 34.2 (+7.5%) | 31.5 (+2.6%) | 38.5 / 59.2 (+44.7% / +4.8%) | 46.5 / 4.0 (+3.8% / +100%) |
 | 🦅 **XYZ-Aquila-mini** (Nex-N2) | 74.1 (+9.1%) | 57.2 (+75.5%) | 38.4 (+6.1%) | 36.8 (+209.2%) | 18.2 (-42.8%) | 14.8 (-51.8%) | 15.6 / 39.0 (-41.4% / -31.0%) | 42.9 / 5.9 (-4.2% / +195%) |
+| ⚡ **Qwen3.6-Escha-W2** | 66.8 (-1.6%) | 32.1 (-1.5%) | 35.6 (-1.7%) | 11.6 (-2.5%) | 31.2 (-1.9%) | 30.2 (-1.6%) | 26.1 / 55.8 (-1.9% / -1.2%) | 44.1 / 1.9 (-1.6% / -5.0%) |
+| 🧪 **fuse-1-Lite** (5.72B) | 51.2 (-24.6%) | 24.5 (-24.8%) | 22.4 (-38.1%) | 8.2 (-31.1%) | 18.5 (-41.8%) | 16.2 (-47.2%) | 19.4 / 41.2 (-27.1% / -27.1%) | 32.0 / 1.0 (-28.6% / -50.0%) |
 | 🧩 **Agents-A1** (Qwen3.5 Base) | 48.5 (-28.6%) | 52.4 (+60.7%) | 46.3 (+27.9%) | 38.4 (+222.7%) | 27.3 (-14.2%) | 17.3 (-43.6%) | 50.0 / 64.1 (+88.0% / +13.5%) | 48.9 / 2.0 (+9.2% / 0.0%) |
 | ❄️ **North-Mini-Code-1.0** | 71.2 (+4.9%) | 45.8 (+40.5%) | 43.0 (+18.8%) | 26.5 (+122.7%) | 32.5 (+2.2%) | 28.0 (-8.8%) | 34.0 / 58.0 (+27.8% / +2.7%) | 47.0 / 4.0 (+4.9% / +100%) |
 | 🍃 **Ternary-Bonsai-27B** | 58.0 (-14.6%) | 36.5 (+12.0%) | 39.5 (+9.1%) | 18.2 (+52.9%) | 22.4 (-29.6%) | 19.0 (-38.1%) | 20.0 / 45.0 (-24.8% / -20.4%) | 40.0 / 2.0 (-10.7% / 0.0%) |
@@ -84,6 +93,7 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 | **DeepSeek V4 Pro** | 1.6T MoE Open-Weights | 83.4 | 55.4 | 48.2 | 40.7 | 59.1 | 50.4 | 13.7 |
 | **DeepSeek V4 Flash** | 284B MoE Open-Weights | 73.2 | 52.6 | 45.1 | 37.7 | 40.9 | 40.4 | 23.5 |
 | 💥 **BigBang-v1** | **35B MoE (Fine-tune)** | **76.5** | **54.2** | **50.3** | **46.2** | **59.1** | **53.6** | **15.7** |
+| ⚔️ **Fable-Fusion-711** | **27B Dense (Merge)** | **74.8** | **53.5** | **47.1** | **34.5** | **42.6** | **41.2** | **8.5** |
 | **Qwen3.6-35B** | 35B MoE (Baseline) | 67.9 | 43.6 | 36.2 | 11.9 | 31.8 | 30.7 | 2.0 |
 
 ###### 4. Cited Benchmark Repositories & Leaderboards Link List
@@ -110,6 +120,35 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 - Selected GGUF (IQ4_XS ~17.95 GB VRAM, closest footprint to APEX-I-Compact): https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/endless-frontier_BigBang-v1-IQ4_XS.gguf
 - Vision Projector: https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/mmproj-endless-frontier_BigBang-v1-f16.gguf
 - **Summary & Relevance for omp**: Outperforms DeepSeek V4 Flash (284B) and matches/exceeds DeepSeek V4 Pro (1.6T) on HLE, FS-R, PaperBench, and BioMysteryBench-HD. Outstanding choice for complex agentic workflows, long-horizon search, and technical tool execution.
+
+##### BTL-4 (Bad Theory Labs)
+
+- Base Model: https://huggingface.co/badtheorylabs/BTL-4 (35B MoE fine-tuned from `Ornith-1.0-35B` on an execution-gated reasoning corpus)
+- GGUF Footprint: ~17.9 GB VRAM (`IQ4_XS`) / ~12.2 GB VRAM (`IQ2_XXS`)
+- **Key Benchmarks**: SWE-bench Verified **78.4%** (SOTA for open 35B models), BFCL v4 AST **73.5%**, LiveCodeBench v6 **66.1%** (99.1% Easy / 86.7% Medium / 60.5% Hard).
+- **Summary & Relevance for omp**: Execution-gated reasoning model where candidate solution trajectories were retained only if the output code actually compiled and passed test suites. High tool-calling fidelity (73.5% BFCL AST checker) makes it an excellent alternative for coding agent subservices.
+
+##### Qwen3.6-35B-A3B-Escha-W2 (EschaLabs)
+
+- Model Repo: https://huggingface.co/EschaLabs/Qwen3.6-35B-A3B-Escha-W2
+- Runtime Engine: [EschaLabs/escha-runtime-qwen3moe](https://huggingface.co/EschaLabs/escha-runtime-qwen3moe) (SGLang & ZML backends)
+- Footprint: **~9.8 GB VRAM** (2-bit `EschaMoE` weight quantization)
+- **Key Benchmarks**: HumanEval+ **92.07%** pass@1, CRUXEval-O **61.75%**, LiveCodeBench v6 **62.64%**, MMLU-Pro **80.9%**, Math-500 **94.2%**.
+- **Summary & Relevance for omp**: Ultra-compact 2-bit quantization of Qwen3.6-35B-A3B retaining ~98% of FP8 accuracy in a 9.8 GB VRAM budget. Enables serving full 35B MoE capabilities on 12GB–16GB consumer GPUs via SGLang or C++ ZML engines.
+
+##### Qwen3.6-27B-Fable-Fusion-711 (DavidAU)
+
+- Model Repo: https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF
+- Footprint: ~16.5 GB VRAM (`IQ4_XS`) / ~28.5 GB VRAM (`Q8_0`)
+- **Key Benchmarks**: ARC-Challenge **>700** (first 27B model to breach 700 ARC-C in both 4-bit and 8-bit), SWE-bench Verified **77.2%**, SWE-bench Pro **53.5%**, Terminal-Bench 2.0 **59.3%**, SkillsBench **48.2%**, NL2Repo **36.2%**.
+- **Summary & Relevance for omp**: Multi-stage fine-tune & merge combining Fable, Polaris, and Claude Opus reasoning traces. Fully uncensored heretic flexibility with MTP (Multi-Token Prediction) GGUF acceleration for fast decode throughput.
+
+##### fuse-1-Lite (Akahsizrr)
+
+- Model Repo: https://huggingface.co/Akahsizrr/fuse-1-Lite
+- Architecture: 5.72B MoE SLM fusing `LiquidAI/LFM2.5-2.6B` host (2.70B frozen params) with 960 coding experts (3.02B params) transplanted from `Qwen3.6-35B-A3B`.
+- Footprint: **~4.2 GB VRAM**
+- **Summary & Relevance for omp**: Novel SLM/MoE fusion architecture that transplants actual Qwen3.6-35B coding expert weights into a lightweight 2.7B base model with a learned router. Ideal for ultra-fast, low-memory on-device coding assistance and local subagent execution.
 
 
 ## embedding / reranking
