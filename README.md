@@ -46,6 +46,46 @@ The repository contains several scripts under `scripts/` to assist with sandboxi
 
 For details, see the [scripts/README.md](scripts/README.md).
 
+## System Architecture
+
+```mermaid
+flowchart LR
+    subgraph Inference["Local Inference Engines"]
+        direction TB
+        CHAT["Chat / Vision"]
+        EMB["Embedding"]
+        RERANK["Reranking"]
+        IMG["Image"]
+        STT["Speech to Text (STT)"]
+        TTS["Text to Speech (TTS)"]
+    end
+
+    ROUTER["Local Router"]
+
+    subgraph SupportServices["Services & Gateways"]
+        direction TB
+        MEMORY["Memory Service"]
+        SYNCTHING["Syncthing Service"]
+        SIGNAL["Signal Gateway"]
+        
+    end
+
+    AGENT["Agent Harness"]
+
+    CHAT --> ROUTER
+    EMB --> ROUTER
+    RERANK --> ROUTER
+    IMG --> ROUTER
+    STT --> ROUTER
+    TTS --> ROUTER
+
+    ROUTER -->|"Chat, Embedding & Rerank"| MEMORY
+    ROUTER -->|"Chat, STT & TTS"| AGENT
+    MEMORY -->|"Memory"| AGENT
+    SYNCTHING -->|"Files"| AGENT
+    SIGNAL -->|"Signal Chat"| AGENT
+```
+
 ## Local Inference and Integrations
 
 ### Local Chat Services
