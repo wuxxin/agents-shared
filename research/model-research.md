@@ -1,6 +1,12 @@
 # Models Research
 
+## Image/video Gen
+
+- interesting model: https://huggingface.co/Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot
+
 ## Chat / Vision LLM
+
+- interesting vision only model: https://huggingface.co/microsoft/Mage-VL
 
 ### Main Model
 
@@ -26,6 +32,13 @@
 | ❄️ North-Mini-Code-1.0 | +8,7% | +0,8% | +1,1% | +10,2% | 19.2 GB (UD-Q4) – Native CoT-Befehle für Subagenten |
 |🍃 Ternary-Bonsai-27B | -11,2% | +2,1% | +4,4% | -14,3% | 7.2 GB (Q2_0) – Extrem schlank, verliert aber an Syntax-Tiefe |
 
+
+##### BigBang-v1
+
+- Base Model: https://huggingface.co/endless-frontier/BigBang-v1 (Qwen3.6-35B-A3B fine-tune)
+- GGUF Repo: https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF
+- Selected GGUF (IQ4_XS ~17.95 GB VRAM, closest footprint to APEX-I-Compact): https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/endless-frontier_BigBang-v1-IQ4_XS.gguf
+- Vision Projector: https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/mmproj-endless-frontier_BigBang-v1-f16.gguf
 
 ##### Gemma4
 

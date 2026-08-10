@@ -42,7 +42,7 @@
 ## Operating Guidelines
 
 ### Workspace & Documentation
-- **Workspace Isolation:** Use `scratch/` in repo root for temporary files, research, and git checkouts (`scratch/*-sources`).
+- **Workspace Isolation:** Use `scratch/` for temporary files, research, and git checkouts (`scratch/*-sources`). Always use the top-level repository root `scratch/`: if checked out independently, use its own root `scratch/`; if checked out as a git submodule, use the parent repository's root `scratch/`.
 - **Docs Maintenance:** Update `README.md`, `assistants/*-ctl.md`, and `scripts/` whenever script behaviors or ports change. Update the "## Sandboxing Architecture" section if isolation profiles change.
 - **Sandbox Templates:**
   - **OpenCode:** Keep `sandbox-templates/opencode/opencode.json` and `~/.config/opencode/opencode.json` synced. Run `~/.config/opencode/copy-config-to-target.sh` to save running configs back to the repo.

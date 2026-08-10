@@ -419,15 +419,15 @@ main() {
             "https://huggingface.co/mudler/Agents-A1-APEX-GGUF/resolve/main/mmproj.gguf" \
             "${target_dir}/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf"
 
-        # 1i. Download full Hugging Face weights for MLC compilation (Qwen3.6-35B-A3B)
-        echo "Downloading full Hugging Face weights for MLC (Qwen3.6-35B-A3B)..."
-        mkdir -p "${target_dir}/vision-text/Qwen3.6-35B-A3B"
-        if command -v hf &>/dev/null; then
-            hf download Qwen/Qwen3.6-35B-A3B --local-dir "${target_dir}/vision-text/Qwen3.6-35B-A3B"
-        else
-            echo "Warning: 'hf' CLI not found. Skipping download of HF safetensors model." >&2
-        fi
-
+        # 1j. Download BigBang-v1 GGUF (IQ4_XS ~17.95 GB) and vision projector
+        acquire_file \
+            "vision-text/BigBang-v1-IQ4_XS.gguf" \
+            "https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/endless-frontier_BigBang-v1-IQ4_XS.gguf" \
+            "${target_dir}/vision-text/BigBang-v1-IQ4_XS.gguf"
+        acquire_file \
+            "vision-text/BigBang-v1-mmproj-f16.gguf" \
+            "https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/mmproj-endless-frontier_BigBang-v1-f16.gguf" \
+            "${target_dir}/vision-text/BigBang-v1-mmproj-f16.gguf"
     fi
 
     # 2. Embedding
