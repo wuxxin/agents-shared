@@ -1,12 +1,32 @@
 # Models Research
 
-## Image/video Gen
+## External Models Speed Observed in OMP
 
+```
+model                                      TTFT   TPS      tokens  total
+google-antigravity/tab_flash_lite_preview  355ms  274.7/s  512     1.9s
+google-antigravity/gemini-3.6-flash        597ms  257.9/s  508     2.0s
+google-antigravity/gemini-3-flash          719ms  250.3/s  651     2.6s
+google-antigravity/gemini-2.5-flash        544ms  214.5/s  506     2.4s
+deepseek/deepseek-v4-flash                 913ms  97.6/s   512     5.2s
+deepseek/deepseek-v4-pro                   911ms  45.6/s   512     11.3s
+google-antigravity/claude-opus-4-6         2.4s   37.0/s   2355    1m3s
+```
+
+## not integrated yet, new interesting models
+
+Image/video Gen:
 - interesting model: https://huggingface.co/Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot
 
-## Chat / Vision LLM
-
+Vision LLM:
 - interesting vision only model: https://huggingface.co/microsoft/Mage-VL
+
+Unknown:
+- https://huggingface.co/Yiivgeny/parakeet-tdt-0.6b-v3-sherpa-onnx-fp16
+- https://huggingface.co/Supertone/supertonic
+- https://huggingface.co/csukuangfj/Inflect-Nano-v2-ONNX
+  
+## Chat / Vision LLM
 
 ### Main Model
 
@@ -20,29 +40,69 @@
 
 #### Alternatives
 
-##### 📊 Benchmark (Qwen3.6-35B Baseline = 100%)
+##### 📊 Merged Multi-Domain Benchmark Matrix (Qwen3.6-35B Baseline = 100%)
 
-| Modell / Finetune | Terminal-Bench 2.1 | SWE-bench Verified | Claw-Eval | NL2Repo  | VRAM-Bedarf & Relevanz für omp |
-|---|---:|---:|---:|---:|---|
-| Qwen3.6-35B (Baseline) | 100% (49.2) | 100% (73.4) | 100% (68.7) | 100% (29.4) | Die neutrale Standard-Infrastruktur |
-| 🌺 Ornith-1.0-35B | +27,6% | +3,0% | +1,6% | +17,7% | 21.2 GB (Q4_K_M) – Brutaler Gewinn bei CLI-Interaktionen |
-| 🛠️ KAT-Coder-V2.5-Dev | +20,1% | +8,4% | -2,2% | +9,5% | 18.5 GB (APEX) – Bester Code-Injektor für Hashline-Edits |
-| 🦅 XYZ-Aquila-mini | +4,3% | -4,5% | +0,4% | -2,7% | 15.8 GB (Q3_K_XL) – Fokus liegt auf Web-Browsing/Scraping |
-| 🧩 Agents-A1 (Qwen3.5 Base) | -20,9% | -16,2% | -4,8% | -30,3% | 17.5 GB (APEX) – Fällt logisch gegenüber der 3.6er-Reihe ab |
-| ❄️ North-Mini-Code-1.0 | +8,7% | +0,8% | +1,1% | +10,2% | 19.2 GB (UD-Q4) – Native CoT-Befehle für Subagenten |
-|🍃 Ternary-Bonsai-27B | -11,2% | +2,1% | +4,4% | -14,3% | 7.2 GB (Q2_0) – Extrem schlank, verliert aber an Syntax-Tiefe |
+The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, SWE-bench Verified/Pro, Claw-Eval, NL2Repo) with the frontier scientific, search, reasoning, and AI engineering benchmark suite (BrowseComp, XBench, HLE, FS-R, MLE-Bench, PaperBench, SciCode-V, BioMysteryBench). All entries follow the standardized format: **raw_score (+-relative_change%)**.
+
+###### 1. CLI & Agentic Repository Engineering
+| Model / Fine-tune | Terminal-Bench 2.1 | SWE-bench Verified | SWE-Bench Pro | Claw-Eval | NL2Repo  | VRAM & Footprint | Primary Specialization |
+|---|---:|---:|---:|---:|---:|---|---|
+| **Qwen3.6-35B (Baseline)** | 49.2 (100%) | 73.4 (100%) | 43.6 (100%) | 68.7 (100%) | 29.4 (100%) | 18.5 GB (APEX) | Neutral standard base infrastructure |
+| 💥 **BigBang-v1** | 58.3 (+18.5%) | 79.4 (+8.2%) | **54.2 (+24.3%)** | 77.5 (+12.8%) | 36.0 (+22.4%) | 17.95 GB (IQ4_XS) | SOTA 35B reasoning & self-evolving agent |
+| 🌺 **Ornith-1.0-35B** (Apodex) | **62.8 (+27.6%)** | 75.6 (+3.0%) | 38.7 (-11.2%) | 69.8 (+1.6%) | 34.6 (+17.7%) | 21.2 GB (Q4_K_M) | Massive gain in CLI & terminal interaction |
+| 🛠️ **KAT-Coder-V2.5-Dev** | 59.1 (+20.1%) | 79.6 (+8.4%) | 45.96 (+5.4%) | 67.2 (-2.2%) | 32.2 (+9.5%) | 18.5 GB (APEX) | Best code injector for hashline/diff edits |
+| 🦅 **XYZ-Aquila-mini** (Nex-N2) | 51.3 (+4.3%) | 70.1 (-4.5%) | 50.2 (+15.1%) | 69.0 (+0.4%) | 28.6 (-2.7%) | 15.8 GB (Q3_K_XL) | Web browsing, scraping & long-horizon search |
+| 🧩 **Agents-A1** (Qwen3.5 Base) | 38.9 (-20.9%) | 61.5 (-16.2%) | 42.3 (-3.0%) | 65.4 (-4.8%) | 20.5 (-30.3%) | 17.5 GB (APEX) | Logically falls behind 3.6 series |
+| ❄️ **North-Mini-Code-1.0** | 53.5 (+8.7%) | 74.0 (+0.8%) | 47.5 (+8.9%) | 69.5 (+1.1%) | 32.4 (+10.2%) | 19.2 GB (UD-Q4) | Native CoT reasoning for subagents |
+| 🍃 **Ternary-Bonsai-27B** | 43.7 (-11.2%) | 74.9 (+2.1%) | 39.2 (-10.1%) | 71.7 (+4.4%) | 25.2 (-14.3%) | 7.2 GB (Q2_0) | Extremely lean, but loses syntax depth |
+
+###### 2. Frontier Research, Search & Scientific Reasoning Benchmarks
+| Model / Fine-tune | BrowseComp (Search) | XBench | HLE (Reasoning) | FS-R (Sci-Research) | MLE-Bench (AI) | PaperBench (Dev) | SciCode-V (Main/Sub) | BioMystery (HS/HD) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **Qwen3.6-35B (Baseline)** | 67.9 (100%) | 32.6 (100%) | 36.2 (100%) | 11.9 (100%) | 31.8 (100%) | 30.7 (100%) | 26.6 / 56.5 (100%) | 44.8 / 2.0 (100%) |
+| 💥 **BigBang-v1** | **76.5 (+12.7%)** | 58.4 (+79.1%) | **50.3 (+39.0%)** | **46.2 (+288.2%)** | **59.1 (+85.8%)** | **53.6 (+74.6%)** | **50.0 / 68.6 (+88.0% / +21.4%)** | **57.5 / 15.7 (+28.3% / +685%)** |
+| 🌺 **Ornith-1.0-35B** (Apodex) | 73.9 (+8.8%) | **61.8 (+89.6%)** | 45.3 (+25.1%) | 29.6 (+148.7%) | 27.3 (-14.2%) | 20.5 (-33.2%) | 35.0 / 42.0 (+31.6% / -25.7%) | 50.2 / 5.9 (+12.1% / +195%) |
+| 🛠️ **KAT-Coder-V2.5-Dev** | 68.5 (+0.9%) | 48.2 (+47.9%) | 42.1 (+16.3%) | 28.4 (+138.7%) | 34.2 (+7.5%) | 31.5 (+2.6%) | 38.5 / 59.2 (+44.7% / +4.8%) | 46.5 / 4.0 (+3.8% / +100%) |
+| 🦅 **XYZ-Aquila-mini** (Nex-N2) | 74.1 (+9.1%) | 57.2 (+75.5%) | 38.4 (+6.1%) | 36.8 (+209.2%) | 18.2 (-42.8%) | 14.8 (-51.8%) | 15.6 / 39.0 (-41.4% / -31.0%) | 42.9 / 5.9 (-4.2% / +195%) |
+| 🧩 **Agents-A1** (Qwen3.5 Base) | 48.5 (-28.6%) | 52.4 (+60.7%) | 46.3 (+27.9%) | 38.4 (+222.7%) | 27.3 (-14.2%) | 17.3 (-43.6%) | 50.0 / 64.1 (+88.0% / +13.5%) | 48.9 / 2.0 (+9.2% / 0.0%) |
+| ❄️ **North-Mini-Code-1.0** | 71.2 (+4.9%) | 45.8 (+40.5%) | 43.0 (+18.8%) | 26.5 (+122.7%) | 32.5 (+2.2%) | 28.0 (-8.8%) | 34.0 / 58.0 (+27.8% / +2.7%) | 47.0 / 4.0 (+4.9% / +100%) |
+| 🍃 **Ternary-Bonsai-27B** | 58.0 (-14.6%) | 36.5 (+12.0%) | 39.5 (+9.1%) | 18.2 (+52.9%) | 22.4 (-29.6%) | 19.0 (-38.1%) | 20.0 / 45.0 (-24.8% / -20.4%) | 40.0 / 2.0 (-10.7% / 0.0%) |
+
+###### 3. Frontier Model Cross-Scale Comparison (35B Scale vs 100B+ / Closed Frontier)
+| Model | Architecture / Scale | BrowseComp | SWE-Bench Pro | HLE | FS-R | MLE-Bench | PaperBench | BioMystery (HD) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| **Claude Opus 4.8** | Frontier Closed API | 84.3 | 69.2 | 57.9 | 45.2 | 63.6 | - | 42.4 |
+| **GPT 5.5** | Frontier Closed API | 84.4 | 58.6 | 52.2 | 58.3 | 59.1 | 64.2 | 23.5 |
+| **DeepSeek V4 Pro** | 1.6T MoE Open-Weights | 83.4 | 55.4 | 48.2 | 40.7 | 59.1 | 50.4 | 13.7 |
+| **DeepSeek V4 Flash** | 284B MoE Open-Weights | 73.2 | 52.6 | 45.1 | 37.7 | 40.9 | 40.4 | 23.5 |
+| 💥 **BigBang-v1** | **35B MoE (Fine-tune)** | **76.5** | **54.2** | **50.3** | **46.2** | **59.1** | **53.6** | **15.7** |
+| **Qwen3.6-35B** | 35B MoE (Baseline) | 67.9 | 43.6 | 36.2 | 11.9 | 31.8 | 30.7 | 2.0 |
+
+###### 4. Cited Benchmark Repositories & Leaderboards Link List
+| Benchmark | Official Homepage / Leaderboard | Code Repository / Dataset |
+|---|---|---|
+| **Terminal-Bench 2.1** | [tbench.ai Leaderboard](https://tbench.ai) | [harbor-framework/terminal-bench-2-1 (GitHub)](https://github.com/harbor-framework/terminal-bench-2-1) |
+| **SWE-bench (Verified & Pro)** | [swebench.com Leaderboard](https://www.swebench.com/) | [princeton-nlp/SWE-bench (GitHub)](https://github.com/princeton-nlp/SWE-bench) |
+| **Claw-Eval** | [claw-eval.github.io](https://claw-eval.github.io/) | [claw-eval/claw-eval (GitHub)](https://github.com/claw-eval/claw-eval) \| [claw-eval/Claw-Eval (HF)](https://huggingface.co/datasets/claw-eval/Claw-Eval) |
+| **NL2Repo-Bench** | [AweAgent Meta-NL2Repo (HF)](https://huggingface.co/datasets/AweAI-Team/AweAgent-Meta-NL2Repo) | [Awesome-Long-Horizon-Agents (GitHub)](https://github.com/RUC-NLPIR/Awesome-Long-Horizon-Agents) |
+| **BrowseComp** | [OpenAI BrowseComp Blog](https://openai.com/index/browsecomp/) | [openai/simple-evals (GitHub)](https://github.com/openai/simple-evals) |
+| **XBench** | [xbench.org](https://xbench.org) | [xbench-ai/xbench-evals (GitHub)](https://github.com/xbench-ai/xbench-evals) \| [xbench (HF)](https://huggingface.co/xbench) |
+| **Humanity's Last Exam (HLE)** | [lastexam.ai Leaderboard](https://lastexam.ai) | [centerforaisafety/hle (GitHub)](https://github.com/centerforaisafety/hle) \| [cais/hle (HF)](https://huggingface.co/datasets/cais/hle) |
+| **FrontierScience Research (FS-R)** | [frontier-science/FS-R (HF)](https://huggingface.co/datasets/frontier-science/FS-R) | [frontier-science/FS-R (HF Dataset)](https://huggingface.co/datasets/frontier-science/FS-R) |
+| **MLE-Bench** | [OpenAI MLE-Bench Announcement](https://openai.com/index/mle-bench/) | [openai/mle-bench (GitHub)](https://github.com/openai/mle-bench) |
+| **PaperBench** | [PaperBench ICML 2024](https://icml.cc) | [EnvCommons/PaperBench (GitHub)](https://github.com/EnvCommons/PaperBench) \| [josancamon/paperbench (HF)](https://huggingface.co/datasets/josancamon/paperbench) |
+| **SciCode / SciCode-V** | [scicode-bench.github.io](https://scicode-bench.github.io) | [scicode-bench/SciCode (GitHub)](https://github.com/scicode-bench/SciCode) |
+| **BioMysteryBench** | [Anthropic BioMysteryBench (HF)](https://huggingface.co/datasets/Anthropic/BioMysteryBench-full) | [Anthropic/BioMysteryBench-full (HF)](https://huggingface.co/datasets/Anthropic/BioMysteryBench-full) |
 
 
 ##### BigBang-v1
 
-- Base Model: https://huggingface.co/endless-frontier/BigBang-v1 (Qwen3.6-35B-A3B fine-tune)
+- Base Model: https://huggingface.co/endless-frontier/BigBang-v1 (Qwen3.6-35B-A3B fine-tune via self-evolving synthetic data framework on ~10,000 frontier scientific & technical tasks)
 - GGUF Repo: https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF
 - Selected GGUF (IQ4_XS ~17.95 GB VRAM, closest footprint to APEX-I-Compact): https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/endless-frontier_BigBang-v1-IQ4_XS.gguf
 - Vision Projector: https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/mmproj-endless-frontier_BigBang-v1-f16.gguf
+- **Summary & Relevance for omp**: Outperforms DeepSeek V4 Flash (284B) and matches/exceeds DeepSeek V4 Pro (1.6T) on HLE, FS-R, PaperBench, and BioMysteryBench-HD. Outstanding choice for complex agentic workflows, long-horizon search, and technical tool execution.
 
-##### Gemma4
-
-- https://huggingface.co/HauhauCS/Gemma4-26B-A4B-QAT-Uncensored-HauhauCS-Balanced-MTP
 
 ## embedding / reranking
 
@@ -81,7 +141,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
    - **Expected GPU Perf (RX 7900 XTX)**: Single query (512 tkn): ~3.2ms | 8x8K batch (65K tkn): ~210ms.
    - *Best for*: Long-context contextual RAG requiring late-chunking support.
 
-##### Silber Tier (Context Window $\le$ 8K tokens)
+##### Silver Tier (Context Window $\le$ 8K tokens)
 1. **[jina-embeddings-v3](https://huggingface.co/jinaai/jina-embeddings-v3)** (685M parameters)
    - **MTEB German Retrieval**: ~71.8
    - **Context Window**: 8,192 (8K) tokens (via RoPE)
@@ -635,6 +695,14 @@ Below is the verified sitemap of ready-to-download ONNX variants for all models 
 | :--- | :--- | :--- | :--- |
 | **Kokoro-82M** | `onnx-community/Kokoro-82M-ONNX`<br>`hexgrad/Kokoro-82M` | `model.onnx`, `voices.json` | High-quality, fast ONNX TTS engine used by Sherpa-ONNX & Kokoro-FastAPI. |
 | **Qwen3-TTS-0.6B** | `onnx-community/Qwen3-TTS-0.6B-ONNX` (or custom `optimum-cli`) | `model.onnx`, `tokenizer.onnx` | ONNX export for Qwen3-TTS decoder. |
+
+#### Kokoro, Kikiri German Voice Models
+
+-  https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
+-  https://huggingface.co/kikiri-tts/kikiri-german-victoria
+-  https://huggingface.co/kikiri-tts/kikiri-german-martin
+-  https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
+-  https://huggingface.co/cryptomilk/kokoro-german-kerstin
 
 ---
 
