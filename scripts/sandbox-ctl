@@ -94,6 +94,8 @@ init_app_vars() {
         set -u
     fi
 
+    export LAUNCHER_INSTALL_SOURCE="${LAUNCHER_INSTALL_SOURCE:-}"
+
     # Apply defaults using constants
     LAUNCHER_PRIVATE_BASEPATH=$(resolve_path "${LAUNCHER_PRIVATE_BASEPATH:-$DEFAULT_LAUNCHER_PRIVATE_BASEPATH}")
     work_dir="$LAUNCHER_PRIVATE_BASEPATH/$app_name"
@@ -890,6 +892,7 @@ cmd_install() {
     local no_git_config=false
     local new_config=false
     local new_config_from=""
+    local install_source_dir=""
     local no_start=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -898,12 +901,23 @@ cmd_install() {
         --new-config-from)
             shift
             if [[ $# -eq 0 ]]; then
-                echo "Error: --new-config-from requires a path argument." >&2
+                echo "Error: --new-config-from requires a directory or file path argument." >&2
                 exit 1
             fi
-            new_config_from="$1"
-            if [[ ! -f "$new_config_from" || ! -r "$new_config_from" ]]; then
-                echo "Error: --new-config-from file '$new_config_from' does not exist or is not readable." >&2
+            local raw_config_path="$1"
+            if [[ -d "$raw_config_path" ]]; then
+                local candidate_env="$raw_config_path/${app_name}.env"
+                if [[ ! -f "$candidate_env" || ! -r "$candidate_env" ]]; then
+                    echo "Error: --new-config-from directory '$raw_config_path' does not contain readable '${app_name}.env'." >&2
+                    exit 1
+                fi
+                new_config_from="$candidate_env"
+                install_source_dir="$(realpath "$raw_config_path")"
+            elif [[ -f "$raw_config_path" && -r "$raw_config_path" ]]; then
+                new_config_from="$raw_config_path"
+                install_source_dir="$(realpath "$(dirname "$raw_config_path")")"
+            else
+                echo "Error: --new-config-from path '$raw_config_path' does not exist or is not readable." >&2
                 exit 1
             fi
             ;;
@@ -971,6 +985,14 @@ cmd_install() {
         mkdir -p "$(dirname "$env_file")"
         cp "$new_config_from" "$env_file"
         chmod 600 "$env_file"
+
+        if [[ -n "$install_source_dir" ]]; then
+            if grep -q "^LAUNCHER_INSTALL_SOURCE=" "$env_file" 2>/dev/null; then
+                sed -i "s|^LAUNCHER_INSTALL_SOURCE=.*|LAUNCHER_INSTALL_SOURCE=\"$install_source_dir\"|" "$env_file"
+            else
+                echo -e "\nLAUNCHER_INSTALL_SOURCE=\"$install_source_dir\"" >> "$env_file"
+            fi
+        fi
 
         # Re-source environment to load freshly copied settings
         init_app_vars "$app_name"

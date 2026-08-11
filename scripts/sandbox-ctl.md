@@ -90,7 +90,9 @@ Copies the `sandbox-ctl` executable script itself to `~/.local/bin/sandbox-ctl` 
 Sets up:
 - the persistent sandbox home directory (`~/.local/sandbox/<app_name>`)
 - the workspace (`~/agent-private/<app_name>`)
-- creates the `.env` configuration file, establishes the symlink in `~/.local/bin/<app_name>`, generates the systemd user service unit file, and creates desktop files if `LAUNCHER_GUI=true` is configured.
+- creates/copies the environment configuration file (`~/.config/systemd/user/<app_name>.env`), establishes the symlink in `~/.local/bin/<app_name>`, generates the systemd user service unit file, and creates desktop files if `LAUNCHER_GUI=true` is configured.
+- `--new-config-from <path>` accepts a directory path by default (e.g. `--new-config-from ./`) and searches for `<dir>/<app_name>.env` (e.g. `./omp.env`), or accepts an explicit file path.
+- Automatically inserts/updates `LAUNCHER_INSTALL_SOURCE="<source_dir>"` in `~/.config/systemd/user/<app_name>.env` and exports `LAUNCHER_INSTALL_SOURCE` across all hook scripts, container sessions, and sidecar processes via `LAUNCHER_EXPORTS`.
 - copies your host's `~/.gitconfig` into the sandbox home to preserve your Git identity (unless `--no-git-config` is supplied).
 - **Sandboxed Install Hooks**: Executes all commands listed in `LAUNCHER_INSTALL_CMDS` sequentially **inside the sandbox**. Commands execute from first to last (logging warnings if an individual command fails) seeing only the sandboxed filesystem and environment.
 - Use `--no-start` to register files without automatically enabling/starting the service (if `LAUNCHER_SERVICE_ENABLED=true` is configured).
