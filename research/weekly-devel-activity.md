@@ -4,30 +4,16 @@ This document tracks repository activity, commit counts, merge frequency, and re
 
 ---
 
-#### 📊 Summary of Last 7 Days Activity (July 08, 2026 – July 15, 2026)
+#### 📊 Summary of Last 7 Days Activity (August 10, 2026 – August 17, 2026)
 
 <!-- START_TABLES -->
 #### Repository Overview & Package Status
 | Assistant Repo | Stars | Forks | Main Branch | Last Commit | Installed Pkg | Commits Since Pkg | Status |
 | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: |
-| **hermes-agent** | 215,412 | 40,168 | `main` | 2026-07-15 | `hermes-agent-git` @ `0.18.2.r783.g8b209e0dd-1` | 12 | **Highly Active** |
-| **ironclaw** | 12,523 | 1,471 | `main` | 2026-07-15 | `ironclaw-reborn-git` @ `0.29.1.r1679.g85c02c2-1` | 180 | **Highly Active** |
-| **zeroclaw** | 32,275 | 4,802 | `master` | 2026-07-15 | `zeroclaw-git` @ `0.8.2.r244.g3ec71f114-1` | 137 | **Active** |
-| **librefang** | 338 | 65 | `main` | 2026-07-15 | `librefang-git` @ `2026.6.29.r24.g7be487fe3-1` | 46 | **Active** |
-| **nanobot** | 45,661 | 8,050 | `main` | 2026-07-15 | — | — | **Highly Active** |
-| **nanoclaw** | 30,260 | 12,879 | `main` | 2026-07-15 | `nanoclaw-git` @ `r1996.b6cb53e21-1` | 181 | **Highly Active** |
-| **picoclaw** | 29,758 | 4,443 | `main` | 2026-07-09 | `picoclaw-git` @ `0.3.1.nightly.20260702.2cf030d2-1` | 28 | **Stale** |
 
 #### Weekly Activity Metrics (Human vs Bot)
 | Assistant Repo | Commits / Week | Lines Added (Human/Bot) | Lines Deleted (Human/Bot) | Merges (Last Wk) | Releases/Tags (Last Wk) | Avg Commits/Wk (4 Wks) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **hermes-agent** | **663** / 1 | 105.2k / 7 | 32.0k / 0 | 54 | 0 | 853.0 |
-| **ironclaw** | **102** / 8 | 110.4k / 1.6k | 24.5k / 90 | 0 | 0 | 109.5 |
-| **zeroclaw** | **49** / 0 | 33.5k / 0 | 3.3k / 0 | 0 | 0 | 139.5 |
-| **librefang** | **26** / 8 | 50.2k / 883 | 1.6k / 647 | 0 | 2 | 47.8 |
-| **nanobot** | **115** / 0 | 33.0k / 0 | 8.9k / 0 | 0 | 0 | 115.2 |
-| **nanoclaw** | **66** / 20 | 10.7k / 41 | 3.3k / 41 | 32 | 0 | 67.8 |
-| **picoclaw** | 0 / 0 | 0 / 0 | 0 / 0 | 1 | 0 | 13.8 |
 <!-- END_TABLES -->
 
 ---
