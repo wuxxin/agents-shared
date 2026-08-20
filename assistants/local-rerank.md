@@ -95,10 +95,10 @@ Key specifications:
 
 ## Service Configuration & Ports
 
-- **Default Port**: `50086` (HTTP)
+- **Default Port**: `20086` (HTTP)
 - **Default Host**: `127.0.0.1`
 
-### Service Endpoints (Port `50086`)
+### Service Endpoints (Port `20086`)
 
 Cohere-compatible /v1/rerank endpoint for generative classification-based reranking.
 
@@ -159,7 +159,7 @@ Alternatively, you can test it manually using `curl`:
 
 ```bash
 # Rerank documents using the /v1/rerank endpoint
-curl -s -X POST http://localhost:50086/v1/rerank \
+curl -s -X POST http://localhost:20086/v1/rerank \
   -H "Content-Type: application/json" \
   -d '{
     "model": "qwen3-reranker",

@@ -6,13 +6,13 @@ Input:
 
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
-| **Local-Chat** | [50080](http://localhost:50080) | Llama-server serving OpenAI Chat/Vision LLM, FIM Code Completions (qwen-coder-fim), and optional text embeddings |
-| **Local-Embedding** | [50082](http://localhost:50082) | Llama-server serving OpenAI Text Embeddings |
-| **Local-Rerank** | [50086](http://localhost:50086) | Llama-server serving Document Reranking |
-| **Local-Speech-To-Text** | [50090](http://localhost:50090) | Whisper-server OpenAI audio transcription |
-| **Local-Text-to-Speech** | [50095](http://localhost:50095) | Qwen3-tts-server OpenAI audio synthesis |
-| **Local-Image** | [50100](http://localhost:50100) | sd-server OpenAI and Automatic1111 compatible image generation|
-| **Local-Router** | [51080](http://localhost:51080) | combined service router / OpenAI proxy |
+| **Local-Chat** | [20080](http://localhost:20080) | Llama-server serving OpenAI Chat/Vision LLM, FIM Code Completions (qwen-coder-fim), and optional text embeddings |
+| **Local-Embedding** | [20082](http://localhost:20082) | Llama-server serving OpenAI Text Embeddings |
+| **Local-Rerank** | [20086](http://localhost:20086) | Llama-server serving Document Reranking |
+| **Local-Speech-To-Text** | [20090](http://localhost:20090) | Whisper-server OpenAI audio transcription |
+| **Local-Text-to-Speech** | [20095](http://localhost:20095) | Qwen3-tts-server OpenAI audio synthesis |
+| **Local-Image** | [20100](http://localhost:20100) | sd-server OpenAI and Automatic1111 compatible image generation|
+| **Local-Router** | [21080](http://localhost:21080) | combined service router / OpenAI proxy |
 
 
 ## Usage
@@ -68,8 +68,8 @@ LROUT_ENABLED=1
 - **`restart`** stops/disables all services set to `0`, and enables/restarts all services set to `1`.
 
 #### Combined Embeddings Mode
-By default, the embedding service runs as a standalone server on port 50082 (`LMBD_ENABLED=1`).
-To run in **Combined Mode** (serving both Chat and Embeddings in a single `llama-server` instance on port 50080):
+By default, the embedding service runs as a standalone server on port 20082 (`LMBD_ENABLED=1`).
+To run in **Combined Mode** (serving both Chat and Embeddings in a single `llama-server` instance on port 20080):
 1. Set `LMBD_ENABLED=0` in `local-inference.env` to disable the separate service.
 2. Add `'LCHAT_EMBEDDING_ENABLED=true'` inside the `LCHAT_OVERRIDE` array in `local-inference.env`:
    ```env

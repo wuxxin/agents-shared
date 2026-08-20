@@ -16,25 +16,25 @@ LMEM_HOME="${HOME}/.local/sandbox/local-memory"
 VENV_DIR="${LMEM_HOME}/venv"
 
 # Default Configuration Constants
-DEFAULT_LMEM_PORT=8888
+DEFAULT_LMEM_PORT=28888
 DEFAULT_LMEM_HOST=127.0.0.1
 DEFAULT_LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
-DEFAULT_LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
+DEFAULT_LMEM_SERVICE_ARGS="--port 28888 --host 127.0.0.1"
 DEFAULT_LMEM_SIDECARS="worker controlui"
 DEFAULT_LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
 DEFAULT_LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
 DEFAULT_LMEM_SIDECAR_CONTROLUI_CMD="%h/.local/sandbox/local-memory/control-plane/node_modules/.bin/hindsight-control-plane"
-DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:8888"
+DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:28888"
 
 DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
 DEFAULT_HINDSIGHT_API_WORKER_ENABLED="false"
-DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT=8889
+DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT=28889
 DEFAULT_HINDSIGHT_API_MCP_ENABLED="true"
 
 # hindsight chat / LLM (2 parallel LLM calls available)
 DEFAULT_HINDSIGHT_API_LLM_PROVIDER="openai"
 DEFAULT_HINDSIGHT_API_LLM_API_KEY="unused"
-DEFAULT_HINDSIGHT_API_LLM_BASE_URL="http://localhost:51080/v1"
+DEFAULT_HINDSIGHT_API_LLM_BASE_URL="http://localhost:21080/v1"
 DEFAULT_HINDSIGHT_API_LLM_MODEL="qwen3"
 DEFAULT_HINDSIGHT_API_LLM_EXTRA_BODY='{"chat_template_kwargs": {"enable_thinking": false}, "client_id": "hindsight"}'
 DEFAULT_HINDSIGHT_API_LLM_TIMEOUT=180
@@ -44,7 +44,7 @@ DEFAULT_HINDSIGHT_API_LLM_REASONING_EFFORT="low"
 # hindsight embedding (6 parallel recall calls, 8K max context, llama-server / Qwen3-Embedding-0.6B)
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_PROVIDER="openai"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY="unused"
-DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="http://localhost:51080/v1"
+DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL="http://localhost:21080/v1"
 DEFAULT_HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL="qwen3-embedding"
 # recall 4-way parallel search + 2 background (matches 6×8K llama-server slots)
 DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRENT=1
@@ -54,10 +54,10 @@ DEFAULT_HINDSIGHT_API_RECALL_CHUNKS_MAX_TOKENS=500
 
 # hindsight rerank (sequential after recall fusion, 12K max context, llama-server / Qwen3-Reranker)
 # Uses Cohere-compatible /v1/rerank endpoint with yes/no generative classification.
-# Routes through local-router (port 51080) for unified access, or directly to local-rerank (port 50086).
+# Routes through local-router (port 21080) for unified access, or directly to local-rerank (port 20086).
 DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER="cohere"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY="unused"
-DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:51080/v1/rerank"
+DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL="http://localhost:21080/v1/rerank"
 DEFAULT_HINDSIGHT_API_RERANKER_COHERE_MODEL="qwen3-reranker"
 DEFAULT_HINDSIGHT_API_RERANKER_MAX_CONCURRENT=1
 
@@ -373,7 +373,7 @@ LMEM_SIDECAR_CONTROLUI_ARGS="${DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS}"
 HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="${DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP}"
 # Main API daemon worker is set to false because worker runs as a dedicated sidecar process below
 HINDSIGHT_API_WORKER_ENABLED="${DEFAULT_HINDSIGHT_API_WORKER_ENABLED}"
-# Hindsight worker control plane / metrics HTTP port (default: 8889). Set to 0 to disable control plane.
+# Hindsight worker control plane / metrics HTTP port (default: 28889). Set to 0 to disable control plane.
 HINDSIGHT_API_WORKER_HTTP_PORT="${DEFAULT_HINDSIGHT_API_WORKER_HTTP_PORT}"
 HINDSIGHT_API_MCP_ENABLED="${DEFAULT_HINDSIGHT_API_MCP_ENABLED}"
 
@@ -400,7 +400,7 @@ HINDSIGHT_API_RECALL_MAX_CONCURRENT="${DEFAULT_HINDSIGHT_API_RECALL_MAX_CONCURRE
 
 # document rerank (sequential after recall fusion, 16K max context, llama-server / Qwen3-Reranker)
 # Uses Cohere-compatible /v1/rerank endpoint with yes/no generative classification.
-# Routes directly to local-rerank (port 50086), or through local-router at http://localhost:51080/v1/rerank
+# Routes directly to local-rerank (port 20086), or through local-router at http://localhost:21080/v1/rerank
 HINDSIGHT_API_RERANKER_PROVIDER="${DEFAULT_HINDSIGHT_API_RERANKER_PROVIDER}"
 HINDSIGHT_API_RERANKER_COHERE_API_KEY="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_API_KEY}"
 HINDSIGHT_API_RERANKER_COHERE_BASE_URL="${DEFAULT_HINDSIGHT_API_RERANKER_COHERE_BASE_URL}"

@@ -15,7 +15,7 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # Load environment
 load_env() {
     # Default parameters
-    LIMG_PORT=50100
+    LIMG_PORT=20100
     LIMG_HOST=127.0.0.1
     LIMG_MODEL=/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf
     LIMG_VAE=/data/public/machine-learning/models/image/ae.safetensors
@@ -226,8 +226,8 @@ generate_env_file() {
 # Reload with:  local-image.sh restart
 
 
-# Port to bind the server to (default: 50100)
-LIMG_PORT=50100
+# Port to bind the server to (default: 20100)
+LIMG_PORT=20100
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LIMG_HOST=127.0.0.1
@@ -481,7 +481,7 @@ cmd_test() {
     load_env
 
     local host="${LIMG_HOST:-127.0.0.1}"
-    local port="${LIMG_PORT:-50100}"
+    local port="${LIMG_PORT:-20100}"
     local base_url="http://${host}:${port}"
 
     local benchmark=false

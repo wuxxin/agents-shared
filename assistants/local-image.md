@@ -35,7 +35,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 The service runs `sd-server` which loads a GGUF diffusion model, a VAE, and a GGUF text encoder (LLM), exposing a REST API.
 
-### Endpoints (all on port 50100)
+### Endpoints (all on port 20100)
 
 | Endpoint | Purpose |
 |---|---|
@@ -93,7 +93,7 @@ Because `sd-server` requires direct access to GPU device nodes:
 - **Isolation**: The home directory (`%h` / `$HOME`) is bind-mounted, and system paths are kept read-only.
 
 ### Configuration & Ports
-- **Default Port**: `50100`
+- **Default Port**: `20100`
 - **Configuration File**: Environment parameters are stored in `~/.config/systemd/user/local-image.env`.
 
 ## Verification & Test Results

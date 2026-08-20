@@ -21,7 +21,7 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
 load_env() {
     # Default parameters
-    LTTS_PORT=50095
+    LTTS_PORT=20095
     LTTS_HOST=127.0.0.1
     LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
     LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
@@ -264,8 +264,8 @@ generate_env_file() {
 # Reload with:  local-text-to-speech.sh restart
 
 
-# Port to bind the server to (default: 50095)
-LTTS_PORT=50095
+# Port to bind the server to (default: 20095)
+LTTS_PORT=20095
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LTTS_HOST=127.0.0.1
@@ -585,7 +585,7 @@ cmd_test() {
     done
 
     local host="${LTTS_HOST:-127.0.0.1}"
-    local port="${LTTS_PORT:-50095}"
+    local port="${LTTS_PORT:-20095}"
 
     if [ "$benchmark" = "true" ]; then
         local repeat_arg=()
@@ -643,7 +643,7 @@ cmd_test() {
         source "$lstt_env_file" || true
     fi
     local lstt_host="${LSTT_HOST:-127.0.0.1}"
-    local lstt_port="${LSTT_PORT:-50090}"
+    local lstt_port="${LSTT_PORT:-20090}"
     local lstt_inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
     local lstt_model_alias="${LSTT_ALIAS:-whisper-1}"
 

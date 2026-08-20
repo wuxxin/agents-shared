@@ -2,9 +2,9 @@
 
 `local-chat.sh` manages the local `llama-server` systemd user service (`local-chat.service`), serving the Chat/Vision LLM and optionally the text embedding model in a combined multi-model setup.
 
-Note: Text embeddings can be served combined directly within this service instance on port 50080 (enabled by default), or separately via the standalone [local-embedding.md](local-embedding.md) service.
+Note: Text embeddings can be served combined directly within this service instance on port 20080 (enabled by default), or separately via the standalone [local-embedding.md](local-embedding.md) service.
 
-When combined embedding mode is enabled, a **port mirror sidecar** automatically mirrors port `50082` → `50080` via `socat`, ensuring clients configured for the standalone embedding port work transparently.
+When combined embedding mode is enabled, a **port mirror sidecar** automatically mirrors port `20082` → `20080` via `socat`, ensuring clients configured for the standalone embedding port work transparently.
 
 - **Source Code**: [GitHub - ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp`
@@ -158,7 +158,7 @@ Key specifications and limits:
   2. **Prompt Control Tags**:
      Prepend `<|think_on|>` in the prompt or system instructions to force-enable thinking. (Prepend `<|think_off|>` to force-disable). The chat template automatically detects and strips these control tags from the input payload.
   3. **Virtual Alias (`qwen3-thinking`)**:
-     For clients that cannot customize request parameters (e.g., Zed Editor), route requests through `local-router` (port `51080`) using model name **`qwen3-thinking`**. The router automatically injects `enable_thinking: true`.
+     For clients that cannot customize request parameters (e.g., Zed Editor), route requests through `local-router` (port `21080`) using model name **`qwen3-thinking`**. The router automatically injects `enable_thinking: true`.
 
 - **Agent Framework Compatibility**:
   - **ZeroClaw**: Set `reasoning_enabled = true` / `reasoning_effort = "medium"` (or `"high"`).
@@ -240,8 +240,8 @@ GGUF File (Q8_0):
 
 ## Service Ports
 
-- **Default Port**: `50080` (HTTP) — primary chat and embedding API
-- **Default Mirror Port**: `50082` (HTTP) — embedding-only port mirror (via socat sidecar)
+- **Default Port**: `20080` (HTTP) — primary chat and embedding API
+- **Default Mirror Port**: `20082` (HTTP) — embedding-only port mirror (via socat sidecar)
 - **Default Host**: `127.0.0.1`
 
 ### Service Endpoints 
@@ -256,11 +256,11 @@ GGUF File (Q8_0):
 - **`GET /v1/models`**: Lists all active model aliases.
 - **`GET /health`**: Returns JSON details regarding slots, queue metrics, and service health.
 
-### Embedding Port Mirror (Port `50082`)
+### Embedding Port Mirror (Port `20082`)
 
-When `LMBD_ENABLED=true`, the **portmirror** sidecar runs `socat` to forward port `50082` → `50080`. This ensures that clients configured for the standalone `local-embedding` service (which defaults to port 50082) work transparently when using the combined server.
+When `LMBD_ENABLED=true`, the **portmirror** sidecar runs `socat` to forward port `20082` → `20080`. This ensures that clients configured for the standalone `local-embedding` service (which defaults to port 20082) work transparently when using the combined server.
 
-All embedding endpoints available on port `50080` are accessible on port `50082`:
+All embedding endpoints available on port `20080` are accessible on port `20082`:
 - **`POST /v1/embeddings`** and **`POST /embedding`** work identically on both ports.
 
 The mirror port is configurable via `LMBD_MIRROR_PORT` in the env file. When `LMBD_ENABLED=false`, the sidecar runs `sleep infinity` and the port is not used.
@@ -422,14 +422,14 @@ For detailed breakdowns of memory usage and concurrent execution scenarios (co-r
 
 ### Zed Editor Integration
 
-To configure the Zed editor to use the local services for both chat and inline edit predictions (tab completions), add the following configuration block to your Zed `settings.json` file. This directs chat requests to the main `qwen3` model and code completions to the lightweight `qwen-coder-fim` model through the local service router (port `51080`):
+To configure the Zed editor to use the local services for both chat and inline edit predictions (tab completions), add the following configuration block to your Zed `settings.json` file. This directs chat requests to the main `qwen3` model and code completions to the lightweight `qwen-coder-fim` model through the local service router (port `21080`):
 
 ```json
 {
   "language_models": {
     "openai_compatible": {
       "local-inference": {
-        "api_url": "http://localhost:51080",
+        "api_url": "http://localhost:21080",
         "available_models": [
           {
             "name": "qwen3",
@@ -452,7 +452,7 @@ To configure the Zed editor to use the local services for both chat and inline e
   "edit_predictions": {
     "provider": "open_ai_compatible_api",
     "open_ai_compatible_api": {
-      "api_url": "http://localhost:51080",
+      "api_url": "http://localhost:21080",
       "model": "qwen-coder-fim",
       "max_output_tokens": 250
     },

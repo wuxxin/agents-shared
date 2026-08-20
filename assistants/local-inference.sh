@@ -101,7 +101,7 @@ generate_env_file() {
 # for individual service environment files.
 #
 # Note on Combined Embeddings Mode:
-# To serve both Chat and Embedding models on the same llama-server instance (on port 50080):
+# To serve both Chat and Embedding models on the same llama-server instance (on port 20080):
 # 1. Set LMBD_ENABLED=0 to disable the separate local-embedding service.
 # 2. Add 'LCHAT_EMBEDDING_ENABLED=true' inside LCHAT_OVERRIDE.
 
@@ -127,7 +127,7 @@ LCHAT_OVERRIDE=(
     # Unified Cache: If enabled, cparams.n_ctx_seq is set equal to cparams.n_ctx,
     #   allowing slots to dynamically share a single unified KV buffer up to the full total context capacity.
     'LCHAT_EXTRA_ARGS="--kv-unified"'
-    # Disable combined embedding on port 50080
+    # Disable combined embedding on port 20080
     'LCHAT_EMBEDDING_ENABLED=false'
     # Enable code completion service model
     'LCOMP_ENABLED=true'
@@ -165,8 +165,8 @@ LROUT_OVERRIDE=(
 LMEM_OVERRIDE=(
     # set the actual db uri
     'HINDSIGHT_API_DATABASE_URL="postgresql://username:password@localhost:5432/dbname"'
-    # Hindsight worker control plane / metrics HTTP port (default: 8889, set to 0 to disable control plane)
-    'HINDSIGHT_API_WORKER_HTTP_PORT="8889"'
+    # Hindsight worker control plane / metrics HTTP port (default: 28889, set to 0 to disable control plane)
+    'HINDSIGHT_API_WORKER_HTTP_PORT="28889"'
 )
 
 EOF

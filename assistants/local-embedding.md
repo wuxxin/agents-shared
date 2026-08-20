@@ -6,7 +6,7 @@ The service supports two backend engines via the `LMBD_ENGINE` configuration par
 1. **Llama-Server Engine (`LMBD_ENGINE=llama`, Default)**: Serves GGUF embedding models using `llama-server` (from `llama.cpp`). Default model: Qwen3-Embedding-0.6B Q8_0 GGUF with 1 × 8K kv context (benchmarked: 2.01 GB VRAM, 8,211 t/s hindsight throughput).
 2. **TEI Engine (`LMBD_ENGINE=tei`, ABANDONED)**: Serves native safetensors models using Hugging Face's `text-embeddings-inference`. Kept for reference only; not actively used.
 
-Note: Text embeddings can also be served combined inside the [local-chat.md](local-chat.md) service on port 50080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 50082 should be disabled.
+Note: Text embeddings can also be served combined inside the [local-chat.md](local-chat.md) service on port 20080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 20082 should be disabled.
 
 - **Source Code**: [HuggingFace - text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference) / [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `tei-rocm` / `text-embeddings-inference` (TEI) and `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp` (llama-server)
@@ -169,10 +169,10 @@ Serves GGUF embedding models via `llama-server`. Uses kv-unified shared KV pool 
 
 ## Service Configuration & Ports
 
-- **Default Port**: `50082` (HTTP)
+- **Default Port**: `20082` (HTTP)
 - **Default Host**: `127.0.0.1`
 
-### Service Endpoints (Port `50082`)
+### Service Endpoints (Port `20082`)
 
 - **`POST /v1/embeddings`**: OpenAI-compatible embeddings endpoint.
 - **`POST /tokenize`**: Tokenizes input text into integer token IDs (supports TEI `{"inputs": text}` and llama-server `{"content": text}` formats).
@@ -248,7 +248,7 @@ Run with:
 ### Manual Curl Test
 
 ```bash
-curl -s -X POST http://localhost:50082/v1/embeddings \
+curl -s -X POST http://localhost:20082/v1/embeddings \
   -H "Content-Type: application/json" \
   -d '{
     "model": "qwen3-embedding",

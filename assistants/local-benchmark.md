@@ -119,7 +119,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="true"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -130,14 +130,14 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_DEVICE="ROCm0"`
   - `LMBD_ENABLED="true"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_N_CTX="8192"`
   - `LMBD_N_GPU_LAYERS="999"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS="portmirror"`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Warmup (Phase 0):**
@@ -181,7 +181,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="true"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -192,14 +192,14 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_DEVICE="ROCm0"`
   - `LMBD_ENABLED="true"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_N_CTX="8192"`
   - `LMBD_N_GPU_LAYERS="999"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS="portmirror"`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Metrics:**
@@ -242,10 +242,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -262,7 +262,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -311,7 +311,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_LLAMA_THREADS="4"`
   - `LMBD_N_CTX="8192"`
   - `LMBD_N_GPU_LAYERS="999"`
-  - `LMBD_PORT="50082"`
+  - `LMBD_PORT="20082"`
   - `LMBD_TEI_DEVICE="rocm:0"`
   - `LMBD_TEI_EXTRA_ARGS="--dtype float32"`
   - `LMBD_TEI_MAX_BATCH_TOKENS="49152"`
@@ -353,7 +353,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -372,12 +372,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="8192"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS=""`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Warmup (Phase 0):**
@@ -415,7 +415,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="99"`
-  - `LRR_PORT="50086"`
+  - `LRR_PORT="20086"`
   - `LRR_TEI_DEVICE="rocm:0"`
   - `LRR_TEI_EXTRA_ARGS="--dtype bfloat16"`
   - `LRR_TEI_MAX_BATCH_TOKENS="8192"`
@@ -449,7 +449,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
   - `LSTT_NO_GPU="false"`
-  - `LSTT_PORT="50090"`
+  - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 1
 - **Top Errors:**
@@ -476,7 +476,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="gpu"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -505,7 +505,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_HOST="127.0.0.1"`
   - `LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"`
   - `LIMG_MODEL="/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf"`
-  - `LIMG_PORT="50100"`
+  - `LIMG_PORT="20100"`
   - `LIMG_STEPS="8"`
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
@@ -547,10 +547,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="48076"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -567,7 +567,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -614,7 +614,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_LLAMA_THREADS="4"`
   - `LMBD_N_CTX="8192"`
   - `LMBD_N_GPU_LAYERS="999"`
-  - `LMBD_PORT="50082"`
+  - `LMBD_PORT="20082"`
   - `LMBD_TEI_DEVICE="rocm:0"`
   - `LMBD_TEI_EXTRA_ARGS="--dtype float32"`
   - `LMBD_TEI_MAX_BATCH_TOKENS="49152"`
@@ -656,7 +656,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -675,12 +675,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="8192"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS=""`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Warmup (Phase 0):**
@@ -718,7 +718,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="99"`
-  - `LRR_PORT="50086"`
+  - `LRR_PORT="20086"`
   - `LRR_TEI_DEVICE="rocm:0"`
   - `LRR_TEI_EXTRA_ARGS="--dtype bfloat16"`
   - `LRR_TEI_MAX_BATCH_TOKENS="8192"`
@@ -752,7 +752,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
   - `LSTT_NO_GPU="false"`
-  - `LSTT_PORT="50090"`
+  - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Package Version:** `1.9.2 (592feef04)`
@@ -777,7 +777,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="gpu"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -806,7 +806,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_HOST="127.0.0.1"`
   - `LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"`
   - `LIMG_MODEL="/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf"`
-  - `LIMG_PORT="50100"`
+  - `LIMG_PORT="20100"`
   - `LIMG_STEPS="8"`
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
@@ -848,10 +848,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="240384"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -868,7 +868,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -915,7 +915,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_LLAMA_THREADS="4"`
   - `LMBD_N_CTX="4096"`
   - `LMBD_N_GPU_LAYERS="999"`
-  - `LMBD_PORT="50082"`
+  - `LMBD_PORT="20082"`
   - `LMBD_TEI_DEVICE="rocm:0"`
   - `LMBD_TEI_EXTRA_ARGS="--dtype float32"`
   - `LMBD_TEI_MAX_BATCH_TOKENS="49152"`
@@ -958,7 +958,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -977,12 +977,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="8192"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS=""`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Warmup (Phase 0):**
@@ -1020,7 +1020,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="99"`
-  - `LRR_PORT="50086"`
+  - `LRR_PORT="20086"`
   - `LRR_TEI_DEVICE="rocm:0"`
   - `LRR_TEI_EXTRA_ARGS="--dtype bfloat16"`
   - `LRR_TEI_MAX_BATCH_TOKENS="8192"`
@@ -1054,7 +1054,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
   - `LSTT_NO_GPU="false"`
-  - `LSTT_PORT="50090"`
+  - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Package Version:** `1.9.2 (592feef04)`
@@ -1079,7 +1079,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="gpu"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 1
@@ -1110,7 +1110,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_HOST="127.0.0.1"`
   - `LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"`
   - `LIMG_MODEL="/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf"`
-  - `LIMG_PORT="50100"`
+  - `LIMG_PORT="20100"`
   - `LIMG_STEPS="8"`
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
@@ -1150,10 +1150,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="12019"`
   - `LCHAT_N_GPU_LAYERS="0"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -1170,7 +1170,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -1217,7 +1217,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_LLAMA_THREADS="4"`
   - `LMBD_N_CTX="8192"`
   - `LMBD_N_GPU_LAYERS="0"`
-  - `LMBD_PORT="50082"`
+  - `LMBD_PORT="20082"`
   - `LMBD_TEI_DEVICE="rocm:0"`
   - `LMBD_TEI_EXTRA_ARGS="--dtype float32"`
   - `LMBD_TEI_MAX_BATCH_TOKENS="49152"`
@@ -1260,7 +1260,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -1279,12 +1279,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="8192"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS=""`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Warmup (Phase 0):**
@@ -1322,7 +1322,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="0"`
-  - `LRR_PORT="50086"`
+  - `LRR_PORT="20086"`
   - `LRR_TEI_DEVICE="rocm:0"`
   - `LRR_TEI_EXTRA_ARGS="--dtype bfloat16"`
   - `LRR_TEI_MAX_BATCH_TOKENS="8192"`
@@ -1356,7 +1356,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
   - `LSTT_NO_GPU="true"`
-  - `LSTT_PORT="50090"`
+  - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Package Version:** `1.9.2 (592feef04)`
@@ -1381,7 +1381,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="cpu"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 1
@@ -1412,7 +1412,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_HOST="127.0.0.1"`
   - `LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"`
   - `LIMG_MODEL="/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf"`
-  - `LIMG_PORT="50100"`
+  - `LIMG_PORT="20100"`
   - `LIMG_STEPS="8"`
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
@@ -1452,10 +1452,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_N_CTX="12019"`
   - `LCHAT_N_GPU_LAYERS="0"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -1472,7 +1472,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -1519,7 +1519,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_LLAMA_THREADS="4"`
   - `LMBD_N_CTX="8192"`
   - `LMBD_N_GPU_LAYERS="0"`
-  - `LMBD_PORT="50082"`
+  - `LMBD_PORT="20082"`
   - `LMBD_TEI_DEVICE="rocm:0"`
   - `LMBD_TEI_EXTRA_ARGS="--dtype float32"`
   - `LMBD_TEI_MAX_BATCH_TOKENS="49152"`
@@ -1562,7 +1562,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf"`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="3"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SERVE_EMBEDDINGS="false"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
@@ -1581,12 +1581,12 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="8192"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="512"`
   - `LOCAL_SIDECARS=""`
-  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
 - **Package Version:** `10358 (030ebb558a)`
 - **Warmup (Phase 0):**
@@ -1624,7 +1624,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
   - `LRR_N_GPU_LAYERS="0"`
-  - `LRR_PORT="50086"`
+  - `LRR_PORT="20086"`
   - `LRR_TEI_DEVICE="rocm:0"`
   - `LRR_TEI_EXTRA_ARGS="--dtype bfloat16"`
   - `LRR_TEI_MAX_BATCH_TOKENS="8192"`
@@ -1658,7 +1658,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
   - `LSTT_NO_GPU="true"`
-  - `LSTT_PORT="50090"`
+  - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Package Version:** `1.9.2 (592feef04)`
@@ -1683,7 +1683,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="cpu"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -1712,7 +1712,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_HOST="127.0.0.1"`
   - `LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"`
   - `LIMG_MODEL="/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf"`
-  - `LIMG_PORT="50100"`
+  - `LIMG_PORT="20100"`
   - `LIMG_STEPS="8"`
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
@@ -1742,7 +1742,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="hybrid"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -1772,7 +1772,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="hybrid"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 1
@@ -1806,7 +1806,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="hybrid"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -1838,7 +1838,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="hybrid"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -1876,9 +1876,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MTP=""`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -1895,7 +1895,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -1937,7 +1937,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_LLAMA_N_UBATCH="1024"`
   - `LMBD_LLAMA_PARALLEL="1"`
   - `LMBD_LLAMA_THREADS="4"`
-  - `LMBD_PORT="50082"`
+  - `LMBD_PORT="20082"`
   - `LMBD_TEI_DEVICE="rocm:0"`
   - `LMBD_TEI_EXTRA_ARGS="--dtype float32"`
   - `LMBD_TEI_MAX_BATCH_TOKENS="49152"`
@@ -1979,9 +1979,9 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LCHAT_MTP=""`
   - `LCHAT_N_GPU_LAYERS="999"`
   - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="50080"`
+  - `LCHAT_PORT="20080"`
   - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"`
+  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
   - `LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"`
   - `LCHAT_THREADS="4"`
   - `LCOMP_ALIAS="qwen-coder-fim"`
@@ -1998,7 +1998,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_CTX_SIZE="16384"`
   - `LMBD_ENABLED="false"`
   - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="50082"`
+  - `LMBD_MIRROR_PORT="20082"`
   - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
@@ -2052,7 +2052,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LRR_LLAMA_N_UBATCH="12288"`
   - `LRR_LLAMA_PARALLEL="2"`
   - `LRR_LLAMA_THREADS="4"`
-  - `LRR_PORT="50086"`
+  - `LRR_PORT="20086"`
   - `LRR_TEI_DEVICE="rocm:0"`
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
@@ -2081,7 +2081,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_INFERENCE_PATH="/v1/audio/transcriptions"`
   - `LSTT_LANG="auto"`
   - `LSTT_MODEL="/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin"`
-  - `LSTT_PORT="50090"`
+  - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
 - **Package Version:** `1.9.2 (592feef04)`
@@ -2104,7 +2104,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LTTS_HOST="127.0.0.1"`
   - `LTTS_MODE="cpu"`
   - `LTTS_MODEL="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"`
-  - `LTTS_PORT="50095"`
+  - `LTTS_PORT="20095"`
   - `LTTS_THREADS="8"`
   - `LTTS_VOCODER="/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"`
 - **Errors Count:** 0
@@ -2132,7 +2132,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_HOST="127.0.0.1"`
   - `LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"`
   - `LIMG_MODEL="/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf"`
-  - `LIMG_PORT="50100"`
+  - `LIMG_PORT="20100"`
   - `LIMG_STEPS="8"`
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`

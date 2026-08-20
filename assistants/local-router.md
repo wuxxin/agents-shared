@@ -1,6 +1,6 @@
 # Local Inference Router Service
 
-`local-router.sh` manages the local services router systemd user service (`local-router.service`), running a FastAPI web application served by `uvicorn` on port `51080`. It aggregates all underlying local inference services into a single OpenAI-compatible entrypoint with additional features.
+`local-router.sh` manages the local services router systemd user service (`local-router.service`), running a FastAPI web application served by `uvicorn` on port `21080`. It aggregates all underlying local inference services into a single OpenAI-compatible entrypoint with additional features.
 
 On installation, the Python code is copied from `scripts/local-router.py` to the systemd user directory (`~/.config/systemd/user/local-router.py`), and is served directly from there.
 
@@ -44,14 +44,14 @@ The service is configured in:
 
 Default configuration values:
 ```env
-LROUT_PORT=51080
+LROUT_PORT=21080
 LROUT_HOST=127.0.0.1
 LROUT_EXTRA_ARGS=""
 LROUT_DEFAULT_MODEL="qwen3"
 LROUT_LOG_LEVEL="info"
 ```
 
-### Route Map (Port 51080)
+### Route Map (Port 21080)
 
 | Route | Service | Default Model | Target Port | Description |
 | :--- | :---: | :---: | :---: | :---: |
@@ -60,17 +60,17 @@ LROUT_LOG_LEVEL="info"
 | `GET /v1/usage` or `/usage` | Usage API | - | - | Cumulative token, call, cost, and error metrics (JSON or text) |
 | `GET /v1/metrics` or `/metrics` | Prometheus Metrics | - | - | Prometheus metric scrapable endpoint |
 | `GET /routing/ui` or `/ui` | Web Dashboard | - | - | Standalone single-page Web Dashboard SPA |
-| `GET /v1/props` or `/props` | Local-Chat | - | 50080 | Engine model properties query (proxied to chat service) |
+| `GET /v1/props` or `/props` | Local-Chat | - | 20080 | Engine model properties query (proxied to chat service) |
 | `POST /v1/tokenize` or `/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (routes to model's service backend) |
 | `POST /v1/detokenize` or `/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (routes to model's service backend) |
-| `POST /v1/chat/completions` | Local-Chat | `qwen3` | 50080 | LLM completions (uses default template settings) |
-| `POST /v1/chat/completions` | Local-Chat | `qwen3-thinking` | 50080 | LLM completions (forces thinking/CoT reasoning ON) |
-| `POST /v1/completions` or `/completion` | Local-Chat | `qwen-coder-fim` | 50080 | Text & FIM code completions |
-| `POST /v1/embeddings` or `/embedding` | Local-Chat or Embedding | `qwen3-embedding` | 50082 or 50080 | Vector text embeddings |
-| `POST /v1/rerank` or `/rerank` | Local-Rerank | `qwen3-reranker` | 50086 | Text document ranking & scoring |
-| `POST /v1/audio/transcriptions` | Local-Speech-To-Text | `whisper-1` | 50090 | Whisper speech transcription |
-| `POST /v1/audio/speech` | Local-Text-To-Speech | `qwen3-tts` | 50095 | Speech synthesis |
-| `POST /v1/images/generations` | Local-Image | `z-image-turbo` | 50100 | Image generation |
+| `POST /v1/chat/completions` | Local-Chat | `qwen3` | 20080 | LLM completions (uses default template settings) |
+| `POST /v1/chat/completions` | Local-Chat | `qwen3-thinking` | 20080 | LLM completions (forces thinking/CoT reasoning ON) |
+| `POST /v1/completions` or `/completion` | Local-Chat | `qwen-coder-fim` | 20080 | Text & FIM code completions |
+| `POST /v1/embeddings` or `/embedding` | Local-Chat or Embedding | `qwen3-embedding` | 20082 or 20080 | Vector text embeddings |
+| `POST /v1/rerank` or `/rerank` | Local-Rerank | `qwen3-reranker` | 20086 | Text document ranking & scoring |
+| `POST /v1/audio/transcriptions` | Local-Speech-To-Text | `whisper-1` | 20090 | Whisper speech transcription |
+| `POST /v1/audio/speech` | Local-Text-To-Speech | `qwen3-tts` | 20095 | Speech synthesis |
+| `POST /v1/images/generations` | Local-Image | `z-image-turbo` | 20100 | Image generation |
 | `/{path:path}` | Catch-all | - | - | Graceful 404 handler for unmapped proxy paths |
 
 ### Health Check Endpoint (`GET /health` or `/healthz`)
@@ -93,13 +93,13 @@ If a backend service is stopped or unreachable, its status is marked as `"offlin
 
 ### Properties Endpoint (`GET /props` or `/v1/props`)
 
-Queries engine properties (e.g. `llama-server` runtime parameters, context limit, build flags). The router proxies this request directly to the default `chat` service (port `50080`).
+Queries engine properties (e.g. `llama-server` runtime parameters, context limit, build flags). The router proxies this request directly to the default `chat` service (port `20080`).
 
 ### Tokenization & Detokenization Endpoints (`POST /tokenize`, `/detokenize`)
 
 Allows callers to tokenize prompt text into raw token IDs or convert token IDs back into text:
 - The router parses the `"model"` property in the JSON body to resolve the target backend service.
-- If no model is specified, it uses `LROUT_DEFAULT_MODEL` to resolve the service (defaulting to `chat` on port `50080`).
+- If no model is specified, it uses `LROUT_DEFAULT_MODEL` to resolve the service (defaulting to `chat` on port `20080`).
 - The payload is forwarded to the corresponding backend server's `/tokenize` or `/detokenize` endpoint.
 
 ### Special Model Aliases & Parameter Rewriting
@@ -160,13 +160,13 @@ The pricing values are modeled based on corresponding commercial standards:
 
 When clients request tokenization (`/tokenize` or `/detokenize`) without specifying a `model` parameter in the request body, the router checks if `LROUT_DEFAULT_MODEL` is configured in `local-router.env` and maps to an active service in the inventory.
 - If found, the request is routed to the corresponding service (e.g. `embedding` if `LROUT_DEFAULT_MODEL="qwen3-embedding"`).
-- Otherwise, it falls back to routing to the `chat` service on port `50080`.
+- Otherwise, it falls back to routing to the `chat` service on port `20080`.
 
 ### Dynamic Embedding Routing
 
 The router inspects `~/.config/systemd/user/local-inference.env`:
-- If `LMBD_ENABLED=1` (standard setup): `/v1/embeddings` is routed to the dedicated `local-embedding` service on port `50082`.
-- If `LMBD_ENABLED=0` (combined embeddings mode): `/v1/embeddings` is routed to `local-chat` on port `50080`.
+- If `LMBD_ENABLED=1` (standard setup): `/v1/embeddings` is routed to the dedicated `local-embedding` service on port `20082`.
+- If `LMBD_ENABLED=0` (combined embeddings mode): `/v1/embeddings` is routed to `local-chat` on port `20080`.
 
 ### Error Propagation
 
@@ -174,7 +174,7 @@ If any backend service is down, offline, or returns an error, the router respond
 ```json
 {
   "error": {
-    "message": "Local service backend (http://127.0.0.1:50080) is currently offline or unreachable. [Errno 111] Connection refused",
+    "message": "Local service backend (http://127.0.0.1:20080) is currently offline or unreachable. [Errno 111] Connection refused",
     "type": "gateway_error",
     "code": 502
   }
@@ -289,7 +289,7 @@ Context caching optimizes processing costs for repetitive large prompts (e.g., c
 
 ### Web Dashboard UI (`GET /routing/ui` or `/ui`)
 
-The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:51080/routing/ui` (or `/ui`).
+The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:21080/routing/ui` (or `/ui`).
 
 ![Local Router Dashboard - KPI Cards & Visualization](../assets/local-router-ui-1.png)
 

@@ -35,7 +35,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 The service runs `qwen3-tts-server` which loads a Qwen3-TTS talker model and a WavTokenizer vocoder model, exposing a REST API.
 
-### Endpoints (all on port 50095)
+### Endpoints (all on port 20095)
 
 | Endpoint | Purpose |
 |---|---|
@@ -66,7 +66,7 @@ Info: the --language parameter is only available in the patched libggml-git-hip 
 When running the local text-to-speech service with the default custom voice model (`Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`), you can query the available voices via the `/v1/audio/voices` endpoint:
 
 ```bash
-curl -s http://127.0.0.1:50095/v1/audio/voices
+curl -s http://127.0.0.1:20095/v1/audio/voices
 ```
 
 This returns the active voice presets loaded by the model. The table below lists the characteristics and native pronunciation/dialect profiles of these voices:
@@ -154,7 +154,7 @@ Because `qwen3-tts-server` requires direct access to GPU device nodes:
 - **Isolation**: The home directory (`%h` / `$HOME`) is bind-mounted, and system paths are kept read-only.
 
 ### Configuration & Ports
-- **Default Port**: `50095`
+- **Default Port**: `20095`
 - **Configuration File**: Environment parameters are stored in `~/.config/systemd/user/local-text-to-speech.env`.
 
 ## Verification & Test Results

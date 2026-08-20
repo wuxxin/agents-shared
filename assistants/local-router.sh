@@ -19,7 +19,7 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
 load_env() {
     # Default parameters
-    LROUT_PORT=51080
+    LROUT_PORT=21080
     LROUT_HOST=127.0.0.1
     LROUT_EXTRA_ARGS=""
 
@@ -193,8 +193,8 @@ generate_env_file() {
 # Edit this file to switch ports or tune runtime parameters.
 # Reload with:  local-router.sh restart
 
-# Port to bind the router to (default: 51080)
-LROUT_PORT=51080
+# Port to bind the router to (default: 21080)
+LROUT_PORT=21080
 
 # Host to bind the router to (127.0.0.1 for local access only)
 LROUT_HOST=127.0.0.1

@@ -35,7 +35,7 @@ load_env() {
     local env_lcomp_extra_args="${LCOMP_EXTRA_ARGS:-}"
 
     # Default parameters for server/chat section
-    LCHAT_PORT=50080
+    LCHAT_PORT=20080
     LCHAT_HOST=127.0.0.1
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
@@ -80,7 +80,7 @@ load_env() {
     LCOMP_EXTRA_ARGS=""
 
     # Embedding port mirror
-    LMBD_MIRROR_PORT=50082
+    LMBD_MIRROR_PORT=20082
 
     # Sidecar configuration
     LCHAT_SIDECARS="portmirror"
@@ -142,7 +142,7 @@ load_env() {
 
     # Compute default portmirror sidecar CMD if not explicitly set by user
     if [[ -z "${LCHAT_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
-        LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
+        LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -584,8 +584,8 @@ generate_env_file() {
 
 # ### SERVER SETTINGS
 
-# Port to bind the server to (default: 50080)
-LCHAT_PORT=50080
+# Port to bind the server to (default: 20080)
+LCHAT_PORT=20080
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LCHAT_HOST=127.0.0.1
@@ -663,7 +663,7 @@ LCHAT_SIDECARS=""
 # --- Port Mirror Sidecar (default built-in)
 # Checks LMBD_ENABLED at runtime: socat port mirror when true, sleep when false.
 # To disable the portmirror, remove "portmirror" from LCHAT_SIDECARS.
-LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-50082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-50080}; else exec sleep infinity; fi'"
+LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"
 
 # Custom sidecar example:
 # LCHAT_SIDECARS="portmirror mycustom"
@@ -677,10 +677,10 @@ LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; t
 LMBD_ENABLED=true
 
 # EMBEDDING PORT MIRROR
-# Port to mirror embedding API on (default: 50082, matching standalone local-embedding)
+# Port to mirror embedding API on (default: 20082, matching standalone local-embedding)
 # When LMBD_ENABLED=true, the portmirror sidecar forwards this port → LCHAT_PORT
 # When LMBD_ENABLED=false, the portmirror sidecar sleeps (port unused)
-LMBD_MIRROR_PORT=50082
+LMBD_MIRROR_PORT=20082
 
 # Path to the text embedding model file
 LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
@@ -1004,7 +1004,7 @@ cmd_test() {
     load_env
 
     local host="${LCHAT_HOST:-127.0.0.1}"
-    local port="${LCHAT_PORT:-50080}"
+    local port="${LCHAT_PORT:-20080}"
     local alias="${LCHAT_ALIAS:-qwen3}"
 
     local base_url="http://${host}:${port}"

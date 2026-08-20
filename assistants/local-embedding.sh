@@ -21,7 +21,7 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
 load_env() {
     # General parameters
-    LMBD_PORT=50082
+    LMBD_PORT=20082
     LMBD_HOST=127.0.0.1
     LMBD_ENGINE=llama
 
@@ -352,8 +352,8 @@ LMBD_ENGINE=llama
 # Model alias used by client integrations (default: qwen3-embedding)
 LMBD_ALIAS=qwen3-embedding
 
-# Port to bind the server to (default: 50082)
-LMBD_PORT=50082
+# Port to bind the server to (default: 20082)
+LMBD_PORT=20082
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LMBD_HOST=127.0.0.1
@@ -689,7 +689,7 @@ cmd_test() {
     load_env
 
     local host="${LMBD_HOST:-127.0.0.1}"
-    local port="${LMBD_PORT:-50082}"
+    local port="${LMBD_PORT:-20082}"
     local alias="${LMBD_ALIAS:-${LMBD_MODEL}}"
 
     local base_url="http://${host}:${port}"

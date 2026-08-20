@@ -21,7 +21,7 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
 load_env() {
     # Default parameters
-    LSTT_PORT=50090
+    LSTT_PORT=20090
     LSTT_HOST=127.0.0.1
     LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
     # shellcheck disable=SC2034
@@ -194,8 +194,8 @@ generate_env_file() {
 # Reload with:  local-speech-to-text.sh restart
 
 
-# Port to bind the server to (default: 50090)
-LSTT_PORT=50090
+# Port to bind the server to (default: 20090)
+LSTT_PORT=20090
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LSTT_HOST=127.0.0.1
@@ -493,7 +493,7 @@ cmd_test() {
 
     # Apply defaults if values are not set
     local host="${LSTT_HOST:-127.0.0.1}"
-    local port="${LSTT_PORT:-50090}"
+    local port="${LSTT_PORT:-20090}"
     local inference_path="${LSTT_INFERENCE_PATH:-/v1/audio/transcriptions}"
     local model_alias="${LSTT_ALIAS:-whisper-1}"
 

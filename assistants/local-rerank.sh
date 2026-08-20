@@ -21,7 +21,7 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 
 load_env() {
     # General parameters
-    LRR_PORT=50086
+    LRR_PORT=20086
     LRR_HOST=127.0.0.1
     LRR_ENGINE=llama
     LRR_ALIAS=qwen3-reranker
@@ -80,7 +80,7 @@ load_env() {
         export INFINITY_COMPILE="${LRR_INF_COMPILE:-${INFINITY_COMPILE:-false}}"
         export INFINITY_BETTERTRANSFORMER="${LRR_INF_BETTERTRANSFORMER:-${INFINITY_BETTERTRANSFORMER:-false}}"
         export INFINITY_HOST="${LRR_HOST:-127.0.0.1}"
-        export INFINITY_PORT="${LRR_PORT:-50086}"
+        export INFINITY_PORT="${LRR_PORT:-20086}"
         export INFINITY_TRUST_REMOTE_CODE=true
     else
         LRR_MODEL="${LRR_LLAMA_MODEL:-${LRR_MODEL:-}}"
@@ -349,8 +349,8 @@ LRR_ENGINE=llama
 # Model alias for client integrations (default: qwen3-reranker)
 LRR_ALIAS=qwen3-reranker
 
-# Port to bind the server to (default: 50086)
-LRR_PORT=50086
+# Port to bind the server to (default: 20086)
+LRR_PORT=20086
 
 # Host to bind the server to (127.0.0.1 for local access only)
 LRR_HOST=127.0.0.1
@@ -688,7 +688,7 @@ cmd_test() {
     load_env
 
     local host="${LRR_HOST:-127.0.0.1}"
-    local port="${LRR_PORT:-50086}"
+    local port="${LRR_PORT:-20086}"
     local alias="${LRR_ALIAS:-qwen3-reranker}"
 
     local base_url="http://${host}:${port}"

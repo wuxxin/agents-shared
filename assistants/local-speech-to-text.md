@@ -37,7 +37,7 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 The service runs `whisper-server` which loads a GGML Whisper model and exposes a REST API. By default, it runs with Flash Attention and audio transcoding enabled.
 
-### Endpoints (all on port 50090)
+### Endpoints (all on port 20090)
 
 | Endpoint | Purpose |
 |---|---|
@@ -166,7 +166,7 @@ Because `whisper-server` requires direct access to GPU device nodes:
 - **Isolation**: The home directory (`%h` / `$HOME`) is bind-mounted, and system paths are kept read-only.
 
 ### Configuration & Ports
-- **Default Port**: `50090`
+- **Default Port**: `20090`
 - **Configuration File**: Environment parameters are stored in `~/.config/systemd/user/local-speech-to-text.env`.
 
 ## Verification & Test Results

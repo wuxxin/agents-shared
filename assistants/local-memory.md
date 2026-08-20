@@ -1,6 +1,6 @@
 # Standalone Hindsight Memory Service Guide
 
-`local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `8888` alongside a dedicated task worker sidecar (`hindsight-worker`) serving a control plane / metrics server on port `8889` and a Next.js Control Plane Web UI sidecar (`hindsight-control-plane`) on port `8890`. It provides long-term temporal, semantic, and entity-graph memory for local agents.
+`local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `28888` alongside a dedicated task worker sidecar (`hindsight-worker`) serving a control plane / metrics server on port `28889` and a Next.js Control Plane Web UI sidecar (`hindsight-control-plane`) on port `8890`. It provides long-term temporal, semantic, and entity-graph memory for local agents.
 
 - **Control Wrapper**: [assistants/local-memory.sh](assistants/local-memory.sh)
 
@@ -8,17 +8,17 @@
 
 ## Architectural Interconnection
 
-Hindsight functions as an agentic memory hub, coordinating with the other standalone services managed by `local-inference.sh`. It delegates heavy tasks (like embedding generation, chat reasoning, and re-ranking) to these external dedicated servers via the central `local-router` (port `51080`):
+Hindsight functions as an agentic memory hub, coordinating with the other standalone services managed by `local-inference.sh`. It delegates heavy tasks (like embedding generation, chat reasoning, and re-ranking) to these external dedicated servers via the central `local-router` (port `21080`):
 
 ```mermaid
 graph TD
-    Agent[Agent Client] -->|Recall / Retain / Reflect| Memory[Local-Memory Port 8888]
-    Worker[Worker Control-Plane Port 8889] -.->|Health / Metrics| Memory
+    Agent[Agent Client] -->|Recall / Retain / Reflect| Memory[Local-Memory Port 28888]
+    Worker[Worker Control-Plane Port 28889] -.->|Health / Metrics| Memory
     ControlUI[Control UI Port 8890] -->|Web Management Dashboard| Memory
-    Memory -->|LLM / Embedding / Reranking Requests| Router[Local-Router Port 51080]
-    Router -->|Completions| Chat[Local-Chat Port 50080]
-    Router -->|Embeddings| Embed[Local-Embedding Port 50082]
-    Router -->|Rerank| Rerank[Local-Rerank Port 50086]
+    Memory -->|LLM / Embedding / Reranking Requests| Router[Local-Router Port 21080]
+    Router -->|Completions| Chat[Local-Chat Port 20080]
+    Router -->|Embeddings| Embed[Local-Embedding Port 20082]
+    Router -->|Rerank| Rerank[Local-Rerank Port 20086]
     Memory -->|Semantic, Vector and FTS Storage| Postgres[(PostgreSQL Port 5432)]
 ```
 
@@ -115,20 +115,20 @@ The service is configured in:
 Default configuration values:
 ```env
 # Service Configuration
-LMEM_PORT="8888"
+LMEM_PORT="28888"
 LMEM_HOST="127.0.0.1"
 LMEM_SERVICE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-api"
-LMEM_SERVICE_ARGS="--port 8888 --host 127.0.0.1"
+LMEM_SERVICE_ARGS="--port 28888 --host 127.0.0.1"
 LMEM_SIDECARS="worker controlui"
 LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
 LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
 LMEM_SIDECAR_CONTROLUI_CMD="%h/.local/sandbox/local-memory/control-plane/node_modules/.bin/hindsight-control-plane"
-LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:8888"
+LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:28888"
 
 # Hindsight daemon configuration
 HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
 HINDSIGHT_API_WORKER_ENABLED="false"
-HINDSIGHT_API_WORKER_HTTP_PORT="8889"
+HINDSIGHT_API_WORKER_HTTP_PORT="28889"
 HINDSIGHT_API_MCP_ENABLED="true"
 
 # Extra body parameters passed to local-router (including client identification)
@@ -193,16 +193,16 @@ To configure a sidecar:
    LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
    LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
 
-   # Worker control plane / metrics port (default: 8889)
-   # Set to 8889 to enable the control plane (/health, /metrics), or set to 0 to disable it completely
-   HINDSIGHT_API_WORKER_HTTP_PORT="8889"
+   # Worker control plane / metrics port (default: 28889)
+   # Set to 28889 to enable the control plane (/health, /metrics), or set to 0 to disable it completely
+   HINDSIGHT_API_WORKER_HTTP_PORT="28889"
    ```
 
 3. **Or run transiently via CLI**:
    ```bash
    LMEM_SIDECARS="controlplane" \
    LMEM_SIDECAR_CONTROLPLANE_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker" \
-   LMEM_SIDECAR_CONTROLPLANE_ARGS="--http-port 8889" \
+   LMEM_SIDECAR_CONTROLPLANE_ARGS="--http-port 28889" \
    ./local-memory.sh exec
    ```
 
@@ -260,7 +260,7 @@ You can manually trigger memory consolidation or force refreshes of specific men
 Consolidation processes recent unconsolidated memories (facts) under a scope into observations. It also automatically triggers refreshes for any mental models configured with `"refresh_after_consolidation": true`.
 
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{}' http://127.0.0.1:8888/v1/default/banks/{bank_id}/consolidate
+curl -X POST -H "Content-Type: application/json" -d '{}' http://127.0.0.1:28888/v1/default/banks/{bank_id}/consolidate
 ```
 
 Response:
@@ -276,7 +276,7 @@ Response:
 To get a list of registered mental models and their IDs for a specific bank:
 
 ```bash
-curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/mental-models
+curl -s http://127.0.0.1:28888/v1/default/banks/{bank_id}/mental-models
 ```
 
 ### 3. Trigger Individual Mental Model Refresh
@@ -284,7 +284,7 @@ curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/mental-models
 To force a full re-synthesis and update for a specific mental model:
 
 ```bash
-curl -X POST http://127.0.0.1:8888/v1/default/banks/{bank_id}/mental-models/{mental_model_id}/refresh
+curl -X POST http://127.0.0.1:28888/v1/default/banks/{bank_id}/mental-models/{mental_model_id}/refresh
 ```
 
 Response:
@@ -300,13 +300,13 @@ Response:
 Track the status of background task operations (e.g. `pending`, `processing`, `completed`):
 
 ```bash
-curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/operations/{operation_id}
+curl -s http://127.0.0.1:28888/v1/default/banks/{bank_id}/operations/{operation_id}
 ```
 
 Or list all operations for a bank:
 
 ```bash
-curl -s http://127.0.0.1:8888/v1/default/banks/{bank_id}/operations
+curl -s http://127.0.0.1:28888/v1/default/banks/{bank_id}/operations
 ```
 
 ## Verification & Troubleshooting
