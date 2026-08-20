@@ -4,7 +4,7 @@ set -euo pipefail
 # signal-cfg.sh - installation and management wrapper for signal-cli
 #
 # Manages a systemd user service (signal-cli.service) that runs signal-cli
-# in daemon mode, exposing a JSON-RPC HTTP interface at 127.0.5.1:50888.
+# in daemon mode, exposing a JSON-RPC HTTP interface at 127.0.5.1:20888.
 #
 # Register/link an account first with signal-cli directly before starting
 # the service. Configuration is read from the env file.
@@ -288,7 +288,7 @@ EOF
 
 # Public bind address and port for the REST API.
 HOST_IP=127.0.0.1
-PORT=50889
+PORT=20889
 
 # Execution mode. 'json-rpc' connects to the external signal-cli daemon.
 MODE=json-rpc
@@ -412,7 +412,7 @@ EOF
             echo "signal-cli service is running."
             if [ "$rest_enabled" = "true" ]; then
                 echo "signal-rest-api service is running."
-                echo "  REST API endpoint: http://127.0.0.1:50889"
+                echo "  REST API endpoint: http://127.0.0.1:20889"
             fi
         else
             echo "Systemd is not running. Services generated but not started."
@@ -425,8 +425,8 @@ EOF
     fi
     echo "  UNIX RPC socket:   $socket_path"
     if [ -n "${SC_HOST:-}" ]; then
-        echo "  TCP RPC endpoint:  $SC_HOST:${SC_TCP_PORT:-50887}"
-        echo "  HTTP RPC endpoint: $SC_HOST:${SC_HTTP_PORT:-50888}"
+        echo "  TCP RPC endpoint:  $SC_HOST:${SC_TCP_PORT:-20887}"
+        echo "  HTTP RPC endpoint: $SC_HOST:${SC_HTTP_PORT:-20888}"
     fi
     echo "  Logs: signal-ctl logs"
 }
@@ -581,7 +581,7 @@ cmd_test() {
     local rest_host
     rest_host=$(_get_env_val "$ENV_REST_FILE" "HOST_IP" "127.0.0.1")
     local rest_port
-    rest_port=$(_get_env_val "$ENV_REST_FILE" "PORT" "50889")
+    rest_port=$(_get_env_val "$ENV_REST_FILE" "PORT" "20889")
     local rest_auth_token
     rest_auth_token=$(_get_env_val "$ENV_REST_FILE" "AUTH_TOKEN")
 
@@ -825,7 +825,7 @@ JSON-RPC socket (internal):
   %h/signal.sock
 
 REST API endpoint:
-  http://127.0.0.1:50889
+  http://127.0.0.1:20889
 
 
 Account setup (one-time, before first start):
