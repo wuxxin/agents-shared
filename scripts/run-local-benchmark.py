@@ -74,44 +74,44 @@ SERVICES: Dict[str, Dict[str, Any]] = {
     "chat": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-chat.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-chat.env"),
-        "port": 50080,
-        "proc_pattern": "llama-server.*--port 50080",
+        "port": 20080,
+        "proc_pattern": "llama-server.*--port 20080",
     },
     "completion": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-chat.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-chat.env"),
-        "port": 50080,
-        "proc_pattern": "llama-server.*--port 50080",
+        "port": 20080,
+        "proc_pattern": "llama-server.*--port 20080",
     },
     "embedding": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-embedding.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-embedding.env"),
-        "port": 50082,
-        "proc_pattern": "llama-server.*--port 50082",
+        "port": 20082,
+        "proc_pattern": "llama-server.*--port 20082",
     },
     "rerank": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-rerank.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-rerank.env"),
-        "port": 50086,
-        "proc_pattern": "(llama-server|text-embeddings-router).*--port 50086",
+        "port": 20086,
+        "proc_pattern": "(llama-server|text-embeddings-router).*--port 20086",
     },
     "stt": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-speech-to-text.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-speech-to-text.env"),
-        "port": 50090,
-        "proc_pattern": "whisper-server.*--port 50090",
+        "port": 20090,
+        "proc_pattern": "whisper-server.*--port 20090",
     },
     "tts": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-text-to-speech.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-text-to-speech.env"),
-        "port": 50095,
-        "proc_pattern": "qwen3-tts-server.*--port 50095",
+        "port": 20095,
+        "proc_pattern": "qwen3-tts-server.*--port 20095",
     },
     "image": {
         "script": os.path.join(REPO_ROOT, "assistants", "local-image.sh"),
         "env_file": os.path.join(SYSTEMD_USER_DIR, "local-image.env"),
-        "port": 50100,
-        "proc_pattern": "sd-server.*--listen-port 50100",
+        "port": 20100,
+        "proc_pattern": "sd-server.*--listen-port 20100",
     },
 }
 
@@ -1351,7 +1351,7 @@ def get_mock_output(mode: str, config: str) -> str:
     if mode == "chat":
         return f"""
 Running local-chat validation tests...
-Using endpoint base: http://127.0.0.1:50080
+Using endpoint base: http://127.0.0.1:20080
 --- Phase 0: Warmup ---
   Prompt Tokens:        19
   Completion Tokens:    148
@@ -2200,7 +2200,7 @@ def main() -> None:
     parser.add_argument(
         "--use-router",
         action="store_true",
-        help="Use the router service URL (http://127.0.0.1:51080) for all services instead of individual ports (useful for --configs running)",
+        help="Use the router service URL (http://127.0.0.1:21080) for all services instead of individual ports (useful for --configs running)",
     )
 
     if len(sys.argv) == 1:
@@ -2210,7 +2210,7 @@ def main() -> None:
     args = parser.parse_args()
 
     router_host = os.environ.get("LROUT_HOST", "127.0.0.1")
-    router_port = int(os.environ.get("LROUT_PORT", "51080"))
+    router_port = int(os.environ.get("LROUT_PORT", "21080"))
     router_url = f"http://{router_host}:{router_port}"
 
     if args.mock:

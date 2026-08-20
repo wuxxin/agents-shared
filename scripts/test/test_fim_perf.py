@@ -17,7 +17,7 @@ TEST_CASES = [
     {"device": "blas", "cache_type": "q4_0", "ctx_size": 4096},
 ]
 
-PORT = 50095
+PORT = 20095
 MODEL_PATH = "/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 CONTEXT_FILE = "/data/public/machine-learning/models/completion/test_fim.py"
 

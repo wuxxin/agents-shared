@@ -88,7 +88,7 @@ def main():
         description="Hindsight Memory API integration tests"
     )
     parser.add_argument("--host", default="127.0.0.1", help="Hindsight service host")
-    parser.add_argument("--port", type=int, default=8888, help="Hindsight service port")
+    parser.add_argument("--port", type=int, default=28888, help="Hindsight service port")
     parser.add_argument(
         "--bank", default="hermes-test-bank", help="Test bank identifier"
     )

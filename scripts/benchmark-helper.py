@@ -1779,7 +1779,7 @@ def main() -> None:
     parser.add_argument(
         "--url",
         required=True,
-        help="Base API endpoint URL (e.g. http://127.0.0.1:50080)",
+        help="Base API endpoint URL (e.g. http://127.0.0.1:20080)",
     )
     parser.add_argument(
         "--model", required=True, help="Model name or alias to benchmark"

@@ -71,7 +71,7 @@ Simulates token-per-second (TPS) throughput for various models to help calibrate
 
 ## `local-router.py`
 
-FastAPI web application that unifies local inference services into a single OpenAI-compatible port (51080). Operates token tracking, cost estimations, text tables (`/usage?format=text`), and Prometheus scraping endpoints (`/metrics`).
+FastAPI web application that unifies local inference services into a single OpenAI-compatible port (21080). Operates token tracking, cost estimations, text tables (`/usage?format=text`), and Prometheus scraping endpoints (`/metrics`).
 
 Documentation: [local-router.md](../assistants/local-router.md)
 

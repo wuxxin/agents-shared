@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # scripts/local-router.py - Combined Local Inference Router (OpenAI Proxy)
 #
-# Listens on port 51080 and routes incoming requests dynamically to
+# Listens on port 21080 and routes incoming requests dynamically to
 # local chat, embedding, rerank, speech-to-text, text-to-speech, and image services.
 
 import os
@@ -1632,23 +1632,23 @@ def resolve_config() -> dict:
             port = default_port
         return host, port
 
-    chat_host, chat_port = load_addr("local-chat", "LCHAT", "127.0.0.1", 50080)
+    chat_host, chat_port = load_addr("local-chat", "LCHAT", "127.0.0.1", 20080)
 
     # Embedding destination depends on whether the dedicated embedding service is active
     if lmbd_enabled:
         embed_host, embed_port = load_addr(
-            "local-embedding", "LMBD", "127.0.0.1", 50082
+            "local-embedding", "LMBD", "127.0.0.1", 20082
         )
     else:
         # Combined mode: routes embedding directly to local-chat port
         embed_host, embed_port = chat_host, chat_port
 
-    rerank_host, rerank_port = load_addr("local-rerank", "LRR", "127.0.0.1", 50086)
+    rerank_host, rerank_port = load_addr("local-rerank", "LRR", "127.0.0.1", 20086)
     rerank_env = parse_env_file(os.path.join(user_dir, "local-rerank.env"))
     rerank_api_path = rerank_env.get("LRR_API_PATH", "/v1/rerank")
-    stt_host, stt_port = load_addr("local-speech-to-text", "LSTT", "127.0.0.1", 50090)
-    tts_host, tts_port = load_addr("local-text-to-speech", "LTTS", "127.0.0.1", 50095)
-    image_host, image_port = load_addr("local-image", "LIMG", "127.0.0.1", 50100)
+    stt_host, stt_port = load_addr("local-speech-to-text", "LSTT", "127.0.0.1", 20090)
+    tts_host, tts_port = load_addr("local-text-to-speech", "LTTS", "127.0.0.1", 20095)
+    image_host, image_port = load_addr("local-image", "LIMG", "127.0.0.1", 20100)
 
     return {
         "chat": f"http://{chat_host}:{chat_port}",
@@ -1749,7 +1749,7 @@ async def handle_mock_backend(
         return JSONResponse({"text": "Mock transcribed text."})
     elif service == "image":
         return JSONResponse(
-            {"data": [{"url": "http://127.0.0.1:51080/mock_image.png"}]}
+            {"data": [{"url": "http://127.0.0.1:21080/mock_image.png"}]}
         )
 
     return JSONResponse({"error": "Unsupported mock service"}, status_code=400)
