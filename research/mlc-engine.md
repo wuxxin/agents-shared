@@ -142,5 +142,5 @@ python -m mlc_llm compile \
     -o /path/to/output/model-rocm.so /path/to/output
 
 # Serve
-python -m mlc_llm serve /path/to/output --device rocm --port 50080
+python -m mlc_llm serve /path/to/output --device rocm --port 20080
 ```

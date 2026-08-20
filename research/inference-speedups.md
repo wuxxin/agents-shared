@@ -258,7 +258,7 @@ CrispASR natively implements **48 TTS engines** (including Kokoro, Qwen3-TTS, Co
 * **Model Size:** 82M parameters.
 * **Memory footprint:** **`~100 MB`** VRAM/RAM total.
 * **Performance:** **10x to 50x faster than real-time** (synthesizes audio in `< 0.5s` on CPU/iGPU).
-* **Integration:** Running `crispasr-server --port 50095 --backend kokoro -m kokoro-82m.gguf --device vulkan0` hosts an OpenAI-compatible `/v1/audio/speech` endpoint on the iGPU Vulkan with zero Python/PyTorch runtime overhead.
+* **Integration:** Running `crispasr-server --port 20095 --backend kokoro -m kokoro-82m.gguf --device vulkan0` hosts an OpenAI-compatible `/v1/audio/speech` endpoint on the iGPU Vulkan with zero Python/PyTorch runtime overhead.
 
 #### **B. Qwen3-TTS Engine (Hybrid Split Mode)**
 CrispASR implements custom patches to accelerate the Qwen3-TTS architecture on host systems:

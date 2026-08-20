@@ -18,7 +18,7 @@ When you change the embedding model or reranker model in Hindsight, existing vec
 |----------|-------|
 | API version | `0.8.5` |
 | Health | healthy, database connected |
-| Endpoint | `http://localhost:8888` |
+| Endpoint | `http://localhost:28888` |
 | PostgreSQL | external, `postgresql://username:password@localhost:5432/dbname` |
 | Vector extension | `pgvector` |
 | Text search | `pgroonga` |
@@ -28,10 +28,10 @@ When you change the embedding model or reranker model in Hindsight, existing vec
 | Setting | Value |
 |---------|-------|
 | Embedding provider | `openai` (local endpoint) |
-| Embedding URL | `http://localhost:51080/v1` |
+| Embedding URL | `http://localhost:21080/v1` |
 | Embedding model | `pplx-embedding` |
 | Reranker provider | `cohere` (local endpoint) |
-| Reranker URL | `http://localhost:51080/v1/rerank` |
+| Reranker URL | `http://localhost:21080/v1/rerank` |
 | Reranker model | `qwen3-reranker` |
 
 ### Banks
@@ -112,7 +112,7 @@ cd /tmp
 for bank in hermes-test-bank hermes-assistant hermes-test; do
   echo "Exporting $bank..."
   curl -sS -o "${bank}.zip" \
-    "http://localhost:8888/v1/default/banks/${bank}/document-transfer?include_observations=true"
+    "http://localhost:28888/v1/default/banks/${bank}/document-transfer?include_observations=true"
   echo "  size: $(ls -lh ${bank}.zip | awk '{print $5}')"
 done
 ```
@@ -180,7 +180,7 @@ If it didn't restart automatically:
 ### Phase 5: Wait for Startup
 
 ```bash
-until curl -sf http://localhost:8888/health > /dev/null; do
+until curl -sf http://localhost:28888/health > /dev/null; do
   echo "Waiting for Hindsight..."
   sleep 2
 done
@@ -198,7 +198,7 @@ for bank in hermes-test-bank hermes-assistant hermes-test; do
   echo "Importing $bank..."
   RESP=$(curl -sS -X POST \
     -F "file=@${bank}.zip" \
-    "http://localhost:8888/v1/default/banks/${bank}/document-transfer")
+    "http://localhost:28888/v1/default/banks/${bank}/document-transfer")
   echo "$RESP" | python3 -m json.tool
   OP_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['operation_id'])")
   echo "  -> operation_id: $OP_ID (bank: $bank)"
@@ -213,8 +213,8 @@ Each import generates a `retain_batch` parent + child operations. Poll until all
 wait_for_imports() {
   for bank in hermes-test-bank hermes-assistant hermes-test; do
     while true; do
-      PENDING=$(curl -sf "http://localhost:8888/v1/default/banks/${bank}/operations?status=pending" | python3 -c "import sys,json;print(json.load(sys.stdin)['total'])" 2>/dev/null || echo 0)
-      PROCESSING=$(curl -sf "http://localhost:8888/v1/default/banks/${bank}/operations?status=processing" | python3 -c "import sys,json;print(json.load(sys.stdin)['total'])" 2>/dev/null || echo 0)
+      PENDING=$(curl -sf "http://localhost:28888/v1/default/banks/${bank}/operations?status=pending" | python3 -c "import sys,json;print(json.load(sys.stdin)['total'])" 2>/dev/null || echo 0)
+      PROCESSING=$(curl -sf "http://localhost:28888/v1/default/banks/${bank}/operations?status=processing" | python3 -c "import sys,json;print(json.load(sys.stdin)['total'])" 2>/dev/null || echo 0)
       printf "\r  %-20s  pending: %3s  processing: %3s" "$bank" "$PENDING" "$PROCESSING"
       if [ "$PENDING" = "0" ] && [ "$PROCESSING" = "0" ]; then
         echo ""
@@ -234,7 +234,7 @@ Check for any failures:
 ```bash
 for bank in hermes-test-bank hermes-assistant hermes-test; do
   echo "=== $bank failures ==="
-  curl -sf "http://localhost:8888/v1/default/banks/${bank}/operations?status=failed" | \
+  curl -sf "http://localhost:28888/v1/default/banks/${bank}/operations?status=failed" | \
     python3 -c "
 import sys,json
 d=json.load(sys.stdin)
@@ -256,7 +256,7 @@ RETAIN_MISSION='Consolidate the user'\''s preferences, recurring patterns in beh
 OBSERVATIONS_MISSION='Extract the user'\''s preferences, recurring patterns in the user'\''s habits, routines, constraints, values, decisions, physical wellness (fasting, sleep, health, supplements), mood and emotional state, personal context (extract what they ask for repeatedly and what they care about. What annoys them? What makes them laugh?), people and the relationships to them, social engagement/encounters, and ADHD-specific coping strategies. Extract the user'\''s running machine configuration, and available tools, and paths/services shared with the agent, the agent harness and its current available tools and activate features. Capture behavioral cues for future adaptation. Track how their constraints and priorities evolve over time.'
 
 # Apply to hermes-assistant
-curl -sS -X PATCH "http://localhost:8888/v1/default/banks/hermes-assistant/config" \
+curl -sS -X PATCH "http://localhost:28888/v1/default/banks/hermes-assistant/config" \
   -H "Content-Type: application/json" \
   -d "$(python3 -c "
 import json
@@ -267,7 +267,7 @@ print(json.dumps({
 ")"
 
 # Apply to hermes-test
-curl -sS -X PATCH "http://localhost:8888/v1/default/banks/hermes-test/config" \
+curl -sS -X PATCH "http://localhost:28888/v1/default/banks/hermes-test/config" \
   -H "Content-Type: application/json" \
   -d "$(python3 -c "
 import json
@@ -281,7 +281,7 @@ print(json.dumps({
 > **Tip:** The single-quote escaping above works but is fragile. A cleaner alternative is to write the missions to a JSON file and use `curl -d @file.json`. Or, use the Hindsight Python SDK:
 > ```python
 > from hindsight_client import HindsightClient
-> client = HindsightClient(base_url="http://localhost:8888")
+> client = HindsightClient(base_url="http://localhost:28888")
 > client.update_bank_config("hermes-assistant",
 >     retain_mission="...",
 >     observations_mission="...")
@@ -293,7 +293,7 @@ print(json.dumps({
 # 1. Check bank stats match pre-export counts
 for bank in hermes-test-bank hermes-assistant hermes-test; do
   echo "=== $bank ==="
-  curl -sf "http://localhost:8888/v1/default/banks/${bank}/stats" | \
+  curl -sf "http://localhost:28888/v1/default/banks/${bank}/stats" | \
     python3 -c "
 import sys,json
 d=json.load(sys.stdin)
@@ -310,7 +310,7 @@ done
 # 2. Verify bank configs were restored
 for bank in hermes-assistant hermes-test; do
   echo "=== $bank overrides ==="
-  curl -sf "http://localhost:8888/v1/default/banks/${bank}/config" | \
+  curl -sf "http://localhost:28888/v1/default/banks/${bank}/config" | \
     python3 -c "
 import sys,json
 d=json.load(sys.stdin)
@@ -324,7 +324,7 @@ for k,v in o.items():
 done
 
 # 3. Run a recall query to confirm semantic search works
-curl -sf -X POST "http://localhost:8888/v1/default/banks/hermes-test/recall" \
+curl -sf -X POST "http://localhost:28888/v1/default/banks/hermes-test/recall" \
   -H "Content-Type: application/json" \
   -d '{"query": "user preferences and habits", "max_tokens": 500}' | \
   python3 -c "
@@ -345,7 +345,7 @@ Imported observations are restored as-is. To force a fresh consolidation pass wi
 ```bash
 for bank in hermes-test-bank hermes-assistant hermes-test; do
   echo "Triggering consolidation for $bank..."
-  curl -sS -X POST "http://localhost:8888/v1/default/banks/${bank}/consolidate"
+  curl -sS -X POST "http://localhost:28888/v1/default/banks/${bank}/consolidate"
 done
 ```
 
@@ -353,7 +353,7 @@ Wait for consolidation to complete (check `pending_consolidation` goes to 0):
 
 ```bash
 for bank in hermes-test-bank hermes-assistant hermes-test; do
-  STATS=$(curl -sf "http://localhost:8888/v1/default/banks/${bank}/stats")
+  STATS=$(curl -sf "http://localhost:28888/v1/default/banks/${bank}/stats")
   PENDING=$(echo "$STATS" | python3 -c "import sys,json;print(json.load(sys.stdin)['pending_consolidation'])")
   echo "$bank: pending_consolidation=$PENDING"
 done

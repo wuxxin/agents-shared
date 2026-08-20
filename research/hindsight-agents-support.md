@@ -6,7 +6,7 @@ This document provides a comprehensive analysis of **Hindsight** memory support 
 
 - **Hermes Agent** and **OMP (Oh-My-Pi)** are the primary agent runtimes with **first-class native core configuration** for Hindsight.
 - **Claude Code, OpenCode, OpenHands, Roo Code, Cline, Aider, Continue, AutoGen, CrewAI, and LangChain/LangGraph** feature **official plugins, lifecycle hooks, or custom memory adapters**.
-- **LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, and ZeroClaw** do not have native core code support, but connect to Hindsight via standard Model Context Protocol (**MCP**) or REST API calls to the local memory daemon (`assistants/local-memory.sh` on port 8888).
+- **LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, and ZeroClaw** do not have native core code support, but connect to Hindsight via standard Model Context Protocol (**MCP**) or REST API calls to the local memory daemon (`assistants/local-memory.sh` on port 28888).
 
 ---
 
@@ -16,11 +16,11 @@ This document provides a comprehensive analysis of **Hindsight** memory support 
 | :--- | :--- | :--- | :--- |
 | **Hermes Agent** | **Full Native Core** | Built-in provider (`plugins/memory/hindsight`) | Native tools (`hindsight_recall`, `hindsight_reflect`, `hindsight_retain`), `cloud`, `local_embedded`, and `local_external` connection modes, AUR patches, Desktop UI controls. |
 | **OMP (Oh-My-Pi)** | **Full Native Core** | Built-in backend (`memory.backend: hindsight`) | Native **Mental Model Auto-Seeding** (`user-preferences`, `project-conventions`, `project-decisions`), declarative JSON bank schemas, MCP tool access. |
-| **LibreFang** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `8888`. |
-| **NanoBot** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `8888`. |
-| **NanoClaw** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `8888`. |
-| **PicoClaw** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `8888`. |
-| **IronClaw** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `8888`. |
+| **LibreFang** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `28888`. |
+| **NanoBot** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `28888`. |
+| **NanoClaw** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `28888`. |
+| **PicoClaw** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `28888`. |
+| **IronClaw** | Generic MCP / REST | No native core code | Uses `hindsight-mcp` or direct REST API requests to port `28888`. |
 | **ZeroClaw** | Generic MCP / REST | No native core code | Modular memory architecture (`zeroclaw-memory`), consumes Hindsight via `hindsight-mcp`. |
 
 ---

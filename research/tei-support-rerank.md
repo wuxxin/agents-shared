@@ -27,7 +27,7 @@ Add TEI (Text Embeddings Inference) as a second engine alongside `llama-server` 
 ## Open Questions
 
 > [!IMPORTANT]
-> 1. **Router path translation**: Does `local-router` already translate `/v1/rerank` → `/rerank` for TEI, or do we need to update the router config? Alternatively, should Hindsight call the TEI reranker directly (port `50086`) instead of through the router (port `51080`)?
+> 1. **Router path translation**: Does `local-router` already translate `/v1/rerank` → `/rerank` for TEI, or do we need to update the router config? Alternatively, should Hindsight call the TEI reranker directly (port `20086`) instead of through the router (port `21080`)?
 >
 > 2. **sitecustomize.py sharing**: Both `local-embedding.sh` and `local-rerank.sh` need the same `sitecustomize.py` patch in `~/.config/systemd/user/`. Since `local-embedding.sh` already installs it during `install`, should `local-rerank.sh` just verify it exists (and warn if missing), or should it also install/overwrite it independently?
 >
@@ -44,7 +44,7 @@ Add TEI (Text Embeddings Inference) as a second engine alongside `llama-server` 
 ```bash
 load_env() {
     # General parameters
-    LRR_PORT=50086
+    LRR_PORT=20086
     LRR_HOST=127.0.0.1
     LRR_ENGINE=tei
 
@@ -109,7 +109,7 @@ Copy `scripts/tei-helper.py` → `~/.config/systemd/user/sitecustomize.py` if no
 
 LRR_ENGINE=tei
 LRR_ALIAS=jina-reranker
-LRR_PORT=50086
+LRR_PORT=20086
 LRR_HOST=127.0.0.1
 
 # TEI ENGINE SETTINGS
@@ -173,6 +173,6 @@ shfmt -i 4 -d assistants/local-rerank.sh
 ```
 
 ### Manual Verification
-- Verify TEI reranker starts and serves on port 50086
+- Verify TEI reranker starts and serves on port 20086
 - Verify `/rerank` endpoint returns correct relevance scores
 - Verify Hindsight can reach the reranker through `local-router`

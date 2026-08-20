@@ -27,7 +27,7 @@ This file contains exact files, line numbers, directory names, and commands used
 
 ### A. Legacy Code Paths and Engine
 - **OpenAI Proxy / Override Support**:
-  - **Chat + Vision**: Setting `LLM_BACKEND=openai_compatible` and `LLM_BASE_URL` (typically `http://localhost:51080/v1`) overrides Chat + Vision.
+  - **Chat + Vision**: Setting `LLM_BACKEND=openai_compatible` and `LLM_BASE_URL` (typically `http://localhost:21080/v1`) overrides Chat + Vision.
   - **Embedding**: Fully supported. Configured in [embeddings.rs:L1-110](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/src/config/embeddings.rs#L1-L110) and resolves via `EMBEDDING_BASE_URL`.
   - **Rerank**: Not supported.
   - **Image Gen**: Supported via `image_generate` tool in [image_gen.rs:L1-200](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/src/tools/builtin/image_gen.rs#L1-L200). Uses standard OpenAI `/images/generations` payload. No Automatic1111 support.

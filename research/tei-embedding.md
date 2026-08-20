@@ -4,7 +4,7 @@ This document details our findings, configuration details, and execution paramet
 
 ## Model Configuration & Serving Parameters
 * **Model ID:** `/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B`
-* **Port:** `50082`
+* **Port:** `20082`
 * **Data Type:** `bfloat16`
 * **Pooling:** `mean` (must be explicitly provided on the CLI command since the HF repository lacks a `1_Pooling/config.json`).
 
@@ -13,7 +13,7 @@ The server was started via:
 ```bash
 text-embeddings-router \
   --model-id /data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B \
-  -p 50082 \
+  -p 20082 \
   --pooling mean
 ```
 
@@ -33,7 +33,7 @@ text-embeddings-router \
 ---
 
 ## Validation
-Functionality was verified by querying `http://localhost:50082/v1/embeddings` using the system script:
+Functionality was verified by querying `http://localhost:20082/v1/embeddings` using the system script:
 ```bash
 ./local-embedding.sh test
 ```

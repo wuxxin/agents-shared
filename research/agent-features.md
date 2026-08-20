@@ -20,7 +20,7 @@ This report summarizes feature discovery across the 7 agents. All findings are v
 
 ## 2. Key Findings Summary
 
-### OpenAI Proxy Compatibility (Port 51080)
+### OpenAI Proxy Compatibility (Port 21080)
 - **Chat + Vision**: Supported by almost all agents. 
   - **Hermes** supports it under custom providers.
   - **IronClaw** via `LLM_BASE_URL` with `openai_compatible` backend.

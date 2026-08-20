@@ -12,8 +12,8 @@ The current setup uses two different engines:
 
 | Service | Engine | Model | Port | Format |
 |---|---|---|---|---|
-| Embedding | TEI (`tei-rocm`) | Qwen3-Embedding-0.6B | 50082 | fp16 Safetensors |
-| Reranking | llama-server | Qwen3-Reranker-0.6B | 50086 | Q4_K_M GGUF |
+| Embedding | TEI (`tei-rocm`) | Qwen3-Embedding-0.6B | 20082 | fp16 Safetensors |
+| Reranking | llama-server | Qwen3-Reranker-0.6B | 20086 | Q4_K_M GGUF |
 
 This split is operationally suboptimal:
 - Two different engines with different configuration models
@@ -142,7 +142,7 @@ After evaluating all alternatives, we will keep TEI as the embedding and reranki
 
 **Reasons:**
 
-1. **It works today.** TEI serves `pplx-embed-context-v1-0.6b` (embedding, port 50082) and can serve BERT-based rerankers natively. The build infrastructure (PKGBUILD) is already fixed for glibc 2.41.
+1. **It works today.** TEI serves `pplx-embed-context-v1-0.6b` (embedding, port 20082) and can serve BERT-based rerankers natively. The build infrastructure (PKGBUILD) is already fixed for glibc 2.41.
 
 2. **No KV cache overhead.** Unlike llama-server, TEI runs pure forward-pass inference — zero wasted VRAM on KV cache slots for non-generative workloads.
 
@@ -189,20 +189,20 @@ After evaluating all alternatives, we will keep TEI as the embedding and reranki
 
 ### Current
 ```
-embedding (50082) ← TEI → Qwen3-Embedding-0.6B (fp16)
-reranking  (50086) ← llama-server → Qwen3-Reranker-0.6B (GGUF Q4_K_M)
+embedding (20082) ← TEI → Qwen3-Embedding-0.6B (fp16)
+reranking  (20086) ← llama-server → Qwen3-Reranker-0.6B (GGUF Q4_K_M)
 ```
 
 ### Target (Phase 1 — replace models, same engine structure)
 ```
-embedding (50082) ← TEI → bge-m3 or pplx-embed-context-v1-0.6b
-reranking  (50086) ← TEI → bge-reranker-v2-m3
+embedding (20082) ← TEI → bge-m3 or pplx-embed-context-v1-0.6b
+reranking  (20086) ← TEI → bge-reranker-v2-m3
 ```
 
 ### Target (Phase 2 — unified single engine)
 ```
-embedding (50082) ← TEI → [chosen embed model]
-reranking  (50086) ← TEI → [chosen rerank model, or jina-reranker-v3 after patch]
+embedding (20082) ← TEI → [chosen embed model]
+reranking  (20086) ← TEI → [chosen rerank model, or jina-reranker-v3 after patch]
 ```
 
 Both services run under TEI with no KV cache waste. The Python backend handles Qwen-based models (pplx-embed, jina-reranker-v3) while Candle handles BERT/XLM-RoBERTa models (bge-m3, bge-reranker-v2-m3).
