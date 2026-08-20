@@ -40,7 +40,7 @@ To edit the configuration files and the custom provider files together in your `
 ```
 
 ### 1. Chat (LLM) Configuration
-Chat is routed through the custom `local-chat` provider (configured in `providers/local-chat.toml` pointing to `llama-server` on port `50080`):
+Chat is routed through the custom `local-chat` provider (configured in `providers/local-chat.toml` pointing to `llama-server` on port `20080`):
 ```toml
 [default_model]
 provider = "local-chat"
@@ -49,7 +49,7 @@ api_key_env = "LOCAL_CHAT_API_KEY"
 ```
 
 ### 2. Vector Memory & Embeddings Configuration
-Semantic memory embeddings are routed through the custom `local-embedding` provider (configured in `providers/local-embedding.toml` pointing to the embedding server on port `50082`):
+Semantic memory embeddings are routed through the custom `local-embedding` provider (configured in `providers/local-embedding.toml` pointing to the embedding server on port `20082`):
 ```toml
 [memory]
 embedding_provider = "local-embedding"
@@ -57,17 +57,17 @@ embedding_model = "qwen3-embedding"
 ```
 
 ### 3. Speech-to-Text (STT) Configuration
-Voice transcription is configured to use the built-in `"openai"` provider, but redirected to the local `whisper-server` (port `50090`) via `audio_base_url`:
+Voice transcription is configured to use the built-in `"openai"` provider, but redirected to the local `whisper-server` (port `20090`) via `audio_base_url`:
 ```toml
 [media]
 audio_transcription = true
 audio_provider = "openai"
 audio_model = "whisper-1"
-audio_base_url = "http://localhost:50090/v1"
+audio_base_url = "http://localhost:20090/v1"
 ```
 
 ### 4. Text-to-Speech (TTS) Configuration
-Speech synthesis is configured to use the built-in `"openai"` provider, but redirected to the local `qwen3-tts-server` (port `50095`) via `[tts.openai]` `base_url`:
+Speech synthesis is configured to use the built-in `"openai"` provider, but redirected to the local `qwen3-tts-server` (port `20095`) via `[tts.openai]` `base_url`:
 ```toml
 [tts]
 enabled = true
@@ -75,17 +75,17 @@ provider = "openai"
 timeout_secs = 60
 
 [tts.openai]
-base_url = "http://localhost:50095/v1"
+base_url = "http://localhost:20095/v1"
 model = "qwen3-tts"
 voice = "serena"
 format = "wav"
 ```
 
 ### 5. Local Image Generation Configuration
-Image generation is configured to use the built-in `"openai"` provider, but redirected to the local `sd-server` (port `50100`) via `[provider_urls]` base URL override:
+Image generation is configured to use the built-in `"openai"` provider, but redirected to the local `sd-server` (port `20100`) via `[provider_urls]` base URL override:
 ```toml
 [provider_urls]
-openai = "http://localhost:50100/v1"
+openai = "http://localhost:20100/v1"
 ```
 
 ## Signal Channel Configuration
@@ -102,13 +102,13 @@ name = "signal"
 channel_type = "signal"
 
 [sidecar_channels.env]
-SIGNAL_API_URL = "http://localhost:50889/"
+SIGNAL_API_URL = "http://localhost:20889/"
 SIGNAL_NUMBER = "+10987654321"       # The bot's Signal phone number
 SIGNAL_ALLOW_LOCAL = "1"
 SIGNAL_ALLOWED_USERS = "+1234567890"  # Your Signal phone number (allowed user)
 ```
 
-Ensure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. LibreFang will connect to the REST wrapper to retrieve message updates and send replies.
+Ensure both the `signal-cli` daemon and the REST API wrapper (listening on port `20889`) are active. LibreFang will connect to the REST wrapper to retrieve message updates and send replies.
 
 
 ## User Management and Authentication

@@ -297,12 +297,12 @@ cmd_install() {
     "openai_compatible": {
       "local": {
         "api_key": "unused",
-        "base_url": "http://localhost:50080/v1"
+        "base_url": "http://localhost:20080/v1"
       }
     },
     "openai": {
       "api_key": "unused",
-      "api_base": "http://localhost:50100/v1"
+      "api_base": "http://localhost:20100/v1"
     }
   },
   "agents": {
@@ -316,7 +316,7 @@ cmd_install() {
     "provider": "openai_compatible/local",
     "model": "qwen3-embedding",
     "api_key": "unused",
-    "base_url": "http://localhost:50082/v1"
+    "base_url": "http://localhost:20082/v1"
   },
   "tools": {
     "image_generation": {
@@ -329,7 +329,7 @@ cmd_install() {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-fetch"],
         "env": {
-          "RERANK_URL": "http://localhost:50086/v1/rerank",
+          "RERANK_URL": "http://localhost:20086/v1/rerank",
           "RERANK_MODEL": "qwen3-reranker"
         }
       }
@@ -339,7 +339,7 @@ cmd_install() {
     "provider": "openai",
     "openai": {
       "api_key": "dummy",
-      "base_url": "http://localhost:50090/v1"
+      "base_url": "http://localhost:20090/v1"
     }
   }
 }

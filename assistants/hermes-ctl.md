@@ -82,16 +82,16 @@ Hermes defaults to connecting to local hardware-accelerated services rather than
 
 | Service | Port | Endpoint / URL | Default Model | 
 | :--- | :--- | :--- | :--- |
-| **Local Chat** | `50080` | `http://localhost:50080/v1` | `qwen3-chat` | 
-| **Local Embeddings** | `50082` | `http://localhost:50082/v1` | `qwen3-embedding` | 
-| **Local Reranker** | `50086` | `http://localhost:50086/v1/rerank` | `qwen3-reranker` | 
-| **Local Speech-to-Text (STT)** | `50090` | `http://localhost:50090/v1` | `whisper-1` |
-| **Local Text-to-Speech (TTS)** | `50095` | `http://localhost:50095/v1` | `qwen3-tts` |
-| **Local Image Gen** | `50100` | `http://localhost:50100/v1` |
+| **Local Chat** | `20080` | `http://localhost:20080/v1` | `qwen3-chat` | 
+| **Local Embeddings** | `20082` | `http://localhost:20082/v1` | `qwen3-embedding` | 
+| **Local Reranker** | `20086` | `http://localhost:20086/v1/rerank` | `qwen3-reranker` | 
+| **Local Speech-to-Text (STT)** | `20090` | `http://localhost:20090/v1` | `whisper-1` |
+| **Local Text-to-Speech (TTS)** | `20095` | `http://localhost:20095/v1` | `qwen3-tts` |
+| **Local Image Gen** | `20100` | `http://localhost:20100/v1` |
 
 ### Local Router Client Identification Headers
 
-Hermes includes identification headers (`X-Client-ID: hermes` and `X-Agent-ID: hermes`) in `default_headers` / `extra_headers` inside `config.yaml` so that inference calls routed through `local-router` (port 51080) are attributed to `hermes` in Prometheus metrics and token usage tracking.
+Hermes includes identification headers (`X-Client-ID: hermes` and `X-Agent-ID: hermes`) in `default_headers` / `extra_headers` inside `config.yaml` so that inference calls routed through `local-router` (port 21080) are attributed to `hermes` in Prometheus metrics and token usage tracking.
 
 ### Provider Cost Structure
 For tracking token usage and cost guardrails, local model costs (matching the `openai/qwen3` rates in `zeroclaw-ctl`) are:
@@ -115,7 +115,7 @@ Add the following to `~/.config/systemd/user/hermes-gateway.env` (via `./assista
 ```bash
 # Enable Signal by supplying the account phone number and daemon endpoint
 SIGNAL_ACCOUNT="+1234567890"               # The bot's Signal phone number
-SIGNAL_HTTP_URL="http://localhost:50888"   # Local signal-cli JSON-RPC over HTTP
+SIGNAL_HTTP_URL="http://localhost:20888"   # Local signal-cli JSON-RPC over HTTP
 SIGNAL_ALLOWED_USERS="+0000000000"         # Comma-separated allowed users (owner binding)
 ```
 
@@ -193,7 +193,7 @@ Hermes implements memory as profile-scoped plugins. Select your preferred plugin
 - **Description**: Long-term memory graph with temporal decay and multi-strategy recall.
 - **Self-Hosting Options**:
   - **Local Embedded Mode**: Auto-spawns a local PostgreSQL background daemon. Installs on first use and shuts down after 5 minutes of idle time. Requires: `pip install hindsight-all` (downloads ~200MB, requires a valid LLM key).
-  - **Local External Mode**: Connect to a running self-hosted instance or Docker container on port 8888.
+  - **Local External Mode**: Connect to a running self-hosted instance or Docker container on port 28888.
 - **Configuration**:
   ```yaml
   memory:
@@ -202,7 +202,7 @@ Hermes implements memory as profile-scoped plugins. Select your preferred plugin
   And specify in env file:
   ```bash
   HINDSIGHT_MODE="local_embedded"    # or "local_external"
-  HINDSIGHT_API_URL="http://localhost:8888" # (if using local_external)
+  HINDSIGHT_API_URL="http://localhost:28888" # (if using local_external)
   ```
 
 ### 6. Supermemory

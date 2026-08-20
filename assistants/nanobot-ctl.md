@@ -41,12 +41,12 @@ To run NanoBot fully locally using local services (Ollama for chat/vision, local
   },
   "providers": {
     "custom": {
-      "apiBase": "http://localhost:51080/v1",
+      "apiBase": "http://localhost:21080/v1",
       "apiKey": "chat-vision-unused"
       # custom: openai_compat used for chat AND Image generation
     },
     "siliconflow": {
-      "apiBase": "http://localhost:51080/v1",
+      "apiBase": "http://localhost:21080/v1",
       "apiKey": "whisper-unused
       # siliconflow: OpenAITranscriptionProvider
     },
@@ -69,7 +69,7 @@ To run NanoBot fully locally using local services (Ollama for chat/vision, local
     "signal": {
       "enabled": true,
       "account": "+1234567890",
-      "apiBase": "http://localhost:50888",
+      "apiBase": "http://localhost:20888",
       "streaming": true
     }
   }

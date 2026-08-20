@@ -284,27 +284,27 @@ cmd_install() {
       "provider": "openai",
       "model": "qwen3",
       "api_keys": ["unused"],
-      "api_base": "http://localhost:50080/v1"
+      "api_base": "http://localhost:20080/v1"
     },
     {
       "model_name": "local_stt",
       "provider": "openai",
       "model": "whisper-1",
       "api_keys": ["dummy"],
-      "api_base": "http://localhost:50090/v1"
+      "api_base": "http://localhost:20090/v1"
     },
     {
       "model_name": "local_tts",
       "provider": "openai",
       "model": "qwen3-tts",
       "api_keys": ["dummy"],
-      "api_base": "http://localhost:50095/v1"
+      "api_base": "http://localhost:20095/v1"
     }
   ],
   "embeddings": {
     "provider": "openai",
     "model": "qwen3-embedding",
-    "base_url": "http://localhost:50082/v1",
+    "base_url": "http://localhost:20082/v1",
     "api_key": "unused"
   },
   "tools": {
@@ -314,7 +314,7 @@ cmd_install() {
           "command": "npx",
           "args": ["-y", "@modelcontextprotocol/server-fetch"],
           "env": {
-            "RERANK_URL": "http://localhost:50086/v1/rerank",
+            "RERANK_URL": "http://localhost:20086/v1/rerank",
             "RERANK_MODEL": "qwen3-reranker"
           }
         }

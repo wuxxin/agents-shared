@@ -283,7 +283,7 @@ aliases = ["local-chat/qwen3"]
 id = "local-chat"
 display_name = "Local Chat"
 api_key_env = "LOCAL_CHAT_API_KEY"
-base_url = "http://localhost:50080/v1"
+base_url = "http://localhost:20080/v1"
 key_required = false
 EOF
         ;;
@@ -303,7 +303,7 @@ aliases = ["local-embedding/qwen3-embedding"]
 id = "local-embedding"
 display_name = "Local Embedding"
 api_key_env = "LOCAL_EMBEDDING_API_KEY"
-base_url = "http://localhost:50082/v1"
+base_url = "http://localhost:20082/v1"
 key_required = false
 EOF
         ;;
@@ -399,10 +399,10 @@ embedding_model = "qwen3-embedding"
 audio_transcription = true
 audio_provider = "openai"
 audio_model = "whisper-1"
-audio_base_url = "http://localhost:50090/v1"
+audio_base_url = "http://localhost:20090/v1"
 image_description = true
 image_provider = "openai"
-image_base_url = "http://localhost:50100/v1"
+image_base_url = "http://localhost:20100/v1"
 image_model = ""
 video_description = false
 
@@ -413,7 +413,7 @@ provider = "openai"
 timeout_secs = 60
 
 [tts.openai]
-base_url = "http://localhost:50095/v1"
+base_url = "http://localhost:20095/v1"
 model = "qwen3-tts"
 voice = "serena"
 format = "wav"
@@ -426,7 +426,7 @@ args = ["-m", "librefang.sidecar.adapters.signal"]
 channel_type = "signal"
 
 [sidecar_channels.env]
-SIGNAL_API_URL = "http://localhost:50889/"
+SIGNAL_API_URL = "http://localhost:20889/"
 SIGNAL_NUMBER = "+1234567890"
 SIGNAL_ALLOW_LOCAL = "1"
 

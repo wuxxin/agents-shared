@@ -54,17 +54,17 @@ To route LLM queries, vectors, and embeddings, update `~/.config/systemd/user/na
 ```env
 # Default OpenAI-compatible LLM provider
 LLM_PROVIDER="openai"
-LLM_BASE_URL="http://localhost:50080/v1"
+LLM_BASE_URL="http://localhost:20080/v1"
 LLM_API_KEY="unused"
 LLM_MODEL="qwen3"
 
-# Embeddings endpoint (llama-server on port 50082)
+# Embeddings endpoint (llama-server on port 20082)
 EMBEDDING_PROVIDER="local"
 EMBEDDING_MODEL="qwen3-embedding"
-EMBEDDING_BASE_URL="http://localhost:50082/v1"
+EMBEDDING_BASE_URL="http://localhost:20082/v1"
 EMBEDDING_API_KEY="unused"
 
-# Reranker endpoint (llama-server on port 50086)
-RERANK_URL="http://localhost:50086/v1/rerank"
+# Reranker endpoint (llama-server on port 20086)
+RERANK_URL="http://localhost:20086/v1/rerank"
 RERANK_MODEL="qwen3-reranker"
 ```

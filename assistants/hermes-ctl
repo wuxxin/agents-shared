@@ -24,7 +24,7 @@ DEFAULT_AGENT_SIDECAR_DASHBOARD_CMD="/usr/bin/hermes"
 DEFAULT_AGENT_SIDECAR_DASHBOARD_ARGS="-p ${DEFAULT_AGENT_PROFILE} dashboard --no-open"
 
 # Local Router Ports/URLS
-DEFAULT_ROUTER_BASE_URL="http://localhost:51080/v1"
+DEFAULT_ROUTER_BASE_URL="http://localhost:21080/v1"
 DEFAULT_ROUTER_KEY="unused"
 DEFAULT_CHAT_MODEL="qwen3"
 DEFAULT_CHAT_CTX=120192
@@ -55,7 +55,7 @@ resolve_profile_vars() {
 
 # Signal Channel Configuration
 DEFAULT_SIGNAL_ACCOUNT="+1234567890"
-DEFAULT_SIGNAL_HTTP_URL="http://localhost:50888"
+DEFAULT_SIGNAL_HTTP_URL="http://localhost:20888"
 DEFAULT_SIGNAL_HOME_CHANNEL="+9876543210"
 DEFAULT_SIGNAL_ALLOWED_USERS="$DEFAULT_SIGNAL_HOME_CHANNEL"
 
@@ -547,7 +547,7 @@ AGENT_TMPFILES_CLEANUP="${DEFAULT_AGENT_TMPFILES_CLEANUP}"
 
 # Hindsight Hermes Configuration
 HINDSIGHT_MODE=local_external
-HINDSIGHT_API_URL="http://localhost:8888"
+HINDSIGHT_API_URL="http://localhost:28888"
 HINDSIGHT_API_LLM_API_KEY="${DEFAULT_ROUTER_KEY}"
 
 
@@ -572,12 +572,12 @@ EOF
 
 # Default openai compatible backend URL
 
-# Local-Router (OpenAI compatible on port 51080 for all services)
+# Local-Router (OpenAI compatible on port 21080 for all services)
 # OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
 # OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
 # OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
 
-# local-image (openAI compatible image generation on port 50100)
+# local-image (openAI compatible image generation on port 20100)
 OPENAI_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
 OPENAI_API_BASE_URL="${DEFAULT_ROUTER_BASE_URL}"
 OPENAI_API_KEY="${DEFAULT_ROUTER_KEY}"
@@ -605,7 +605,7 @@ SIGNAL_HOME_CHANNEL_THREAD_ID=""
 # Hindsight Hermes configuration
 # Note: Activate hindsight as memory provider by configuring memory: provider: hindsight in config.yaml, and dont disable buildin memory plugin
 HINDSIGHT_MODE=local_external
-HINDSIGHT_API_URL="http://localhost:8888"
+HINDSIGHT_API_URL="http://localhost:28888"
 HINDSIGHT_API_KEY=""
 HINDSIGHT_BANK_ID="hermes-assistant"
 HINDSIGHT_RECALL_BUDGET="low"

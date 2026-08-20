@@ -40,7 +40,7 @@ To switch ZeroClaw to use the local llama-server, set the following parameters i
 ```toml
 [llm]
 model = "qwen3"
-base_url = "http://localhost:50080/v1"
+base_url = "http://localhost:20080/v1"
 api_key = "unused"
 temperature = 1.0
 ```
@@ -63,7 +63,7 @@ For credentials and dynamic overrides, configure environment variables in the ce
 ```env
 # Centralized Signal Account & Endpoint Overrides
 ZEROCLAW_channels__signal__default__account="+1234567890"
-ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
+ZEROCLAW_channels__signal__default__http_url="http://localhost:20889"
 
 # Centralized Peer Group Routing Overrides
 # Map Signal senders to the target agents (e.g. allowing '+1234567890' or wildcard '*' for all)
@@ -77,7 +77,7 @@ Add the Signal channel and peer group routing config to `~/.local/sandbox/zerocl
 # 1. Configure the Signal channel instance
 [channels.signal.default]
 enabled = true
-http_url = "http://localhost:50889"
+http_url = "http://localhost:20889"
 account = "+1234567890"
 approval_timeout_secs = 300
 dm_only = true
@@ -91,7 +91,7 @@ agents = ["default"]                       # Routes inbound messages to the 'def
 external_peers = ["+1234567890", "uuid:xxxx-xxxx-xxxx"] # Allowed senders (E.164 phone numbers or UUIDs)
 ```
 
-Make sure both the `signal-cli` daemon and the REST API wrapper (listening on port `50889`) are active. ZeroClaw will retrieve message payloads and send messages through this endpoint.
+Make sure both the `signal-cli` daemon and the REST API wrapper (listening on port `20889`) are active. ZeroClaw will retrieve message payloads and send messages through this endpoint.
 
 #### Tying Senders to Agents
 Unlike other systems that map senders to a global `default_owner`, ZeroClaw utilizes **Peer Groups** to authorize senders and route them to specific agents:
@@ -123,7 +123,7 @@ Add the following to your `config.toml` configuration file (located in the sandb
 backend = "sqlite.default"
 
 embedding_model = "qwen3-embedding"
-embedding_provider = "custom:http://localhost:50082/v1"
+embedding_provider = "custom:http://localhost:20082/v1"
 
 ```
 
@@ -170,7 +170,7 @@ Add the transcription provider configuration to `~/.local/sandbox/zeroclaw/.zero
 ```toml
 # 1. Define the transcription provider
 [providers.transcription.local_whisper.localstt]
-uri = "http://localhost:50090/v1/audio/transcriptions"
+uri = "http://localhost:20090/v1/audio/transcriptions"
 bearer_token = "dummy"
 model = "whisper-1"
 
@@ -186,7 +186,7 @@ Alternatively, you can configure it globally in the legacy `[transcription]` sec
 enabled = true
 
 [transcription.local_whisper]
-url = "http://localhost:50090/v1/audio/transcriptions"
+url = "http://localhost:20090/v1/audio/transcriptions"
 bearer_token = "dummy"
 ```
 
@@ -203,7 +203,7 @@ enabled = true
 
 # 2. Define the TTS provider
 [providers.tts.openai.local]
-uri = "http://localhost:50095/v1/audio/speech"
+uri = "http://localhost:20095/v1/audio/speech"
 model = "qwen3-tts"
 api_key = "unused"
 

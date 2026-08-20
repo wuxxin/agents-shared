@@ -282,7 +282,7 @@ ZEROCLAW_HOST=127.0.0.1
 # ZEROCLAW_channels__signal__default__account: Your registered Signal phone number
 # ZEROCLAW_channels__signal__default__account="+1234567890"
 # ZEROCLAW_channels__signal__default__http_url: URL of the signal-cli HTTP REST API daemon
-# ZEROCLAW_channels__signal__default__http_url="http://localhost:50889"
+# ZEROCLAW_channels__signal__default__http_url="http://localhost:20889"
 # ZEROCLAW_peer_groups__signal_group__external_peers: JSON list of allowed senders (e.g. ['+9876543210', '*'])
 # ZEROCLAW_peer_groups__signal_group__external_peers='["+9876543219"]'
 
@@ -341,7 +341,7 @@ completed_sections = ["storage", "memory"]
 
 # --- Chat / LLM Provider
 [providers.models.openai.local]
-uri = "http://localhost:50080/v1"
+uri = "http://localhost:20080/v1"
 model = "qwen3"
 api_key = "unused"
 max_tokens = 67584
@@ -350,21 +350,21 @@ temperature = 1.0
 # --- Speech-to-Text
 
 [providers.transcription.local_whisper.local]
-uri = "http://localhost:50090/v1/audio/transcriptions"
+uri = "http://localhost:20090/v1/audio/transcriptions"
 bearer_token = "dummy"
 model = "whisper-1"
 
 # --- Text-to-Speech
 
 [providers.tts.openai.local]
-uri = "http://localhost:50095/v1/audio/speech"
+uri = "http://localhost:20095/v1/audio/speech"
 model = "qwen3-tts"
 api_key = "unused"
 
 # --- Image
 
 [providers.images.openai.local]
-uri = "http://localhost:50100/v1"
+uri = "http://localhost:20100/v1"
 default_model = "txt2img"
 api_key = "unused"
 
@@ -393,7 +393,7 @@ cached_input_per_mtok = 0.15
 # --- Signal Channel
 [channels.signal.default]
 enabled = true
-http_url = "http://localhost:50888"
+http_url = "http://localhost:20888"
 approval_timeout_secs = 0
 dm_only = true
 ignore_attachments = false
@@ -468,7 +468,7 @@ default_namespace = "default"
 search_mode = "hybrid"
 retrieval_stages = ["cache", "fts", "vector"]
 embedding_model = "qwen3-embedding"
-embedding_provider = "custom:http://localhost:50082/v1"
+embedding_provider = "custom:http://localhost:20082/v1"
 hygiene_enabled = true
 response_cache_enabled = true
 rerank_enabled = false

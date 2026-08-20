@@ -46,7 +46,7 @@ To route PicoClaw to local inference servers, configure `~/.local/sandbox/picocl
       "provider": "openai",
       "model": "qwen3",
       "api_keys": ["unused"],
-      "api_base": "http://localhost:50080/v1"
+      "api_base": "http://localhost:20080/v1"
     }
   ]
 }
@@ -63,7 +63,7 @@ Configure `~/.local/sandbox/picoclaw/config.json` to load local MCP fetch-rerank
   "embeddings": {
     "provider": "openai",
     "model": "qwen3-embedding",
-    "base_url": "http://localhost:50082/v1",
+    "base_url": "http://localhost:20082/v1",
     "api_key": "unused"
   },
   "tools": {
@@ -73,7 +73,7 @@ Configure `~/.local/sandbox/picoclaw/config.json` to load local MCP fetch-rerank
           "command": "npx",
           "args": ["-y", "@modelcontextprotocol/server-fetch"],
           "env": {
-            "RERANK_URL": "http://localhost:50086/v1/rerank",
+            "RERANK_URL": "http://localhost:20086/v1/rerank",
             "RERANK_MODEL": "qwen3-reranker"
           }
         }
@@ -86,14 +86,14 @@ Configure `~/.local/sandbox/picoclaw/config.json` to load local MCP fetch-rerank
       "provider": "openai",
       "model": "whisper-1",
       "api_keys": ["dummy"],
-      "api_base": "http://localhost:50090/v1"
+      "api_base": "http://localhost:20090/v1"
     },
     {
       "model_name": "local_tts",
       "provider": "openai",
       "model": "qwen3-tts",
       "api_keys": ["dummy"],
-      "api_base": "http://localhost:50095/v1"
+      "api_base": "http://localhost:20095/v1"
     }
   ],
   "voice": {

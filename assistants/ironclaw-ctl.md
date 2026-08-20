@@ -55,7 +55,7 @@ The Signal channel connects the IronClaw agent to a running [signal-cli](https:/
 ##### Environment Configuration
 Configure the Signal channel by adding these variables to `~/.config/systemd/user/ironclaw.env` or the application `.env` file:
 
-* **`SIGNAL_HTTP_URL`** (Default: `http://127.0.0.1:50889`): The endpoint of the running `signal-cli` daemon.
+* **`SIGNAL_HTTP_URL`** (Default: `http://127.0.0.1:20889`): The endpoint of the running `signal-cli` daemon.
 * **`SIGNAL_ACCOUNT`**: The phone number associated with the registered Signal bot account (e.g. `+1234567890`).
 * **`SIGNAL_ALLOW_FROM`**: A comma-separated list of phone numbers or UUIDs allowed to message the bot (e.g. `+1987654321,uuid:xxxx-xxxx-xxxx`)
     *  Set to `*` to allow all senders. Leaving it empty forces new senders to go through the pairing flow.
@@ -65,7 +65,7 @@ Configure the Signal channel by adding these variables to `~/.config/systemd/use
 ##### Signal Daemon Setup (signal-cli)
 To link your account and receive messages, run `signal-cli` in daemon mode:
 ```bash
-signal-cli -a "+1234567890" daemon --http 127.0.0.1:50889
+signal-cli -a "+1234567890" daemon --http 127.0.0.1:20889
 ```
 
 #### Senders Pairing Flow
@@ -171,9 +171,9 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
     "api_key_env": "LLM_API_KEY",
     "api_key_required": false,
     "model_env": "LOCAL_MODEL",
-    "default_base_url": "http://localhost:50080/v1",
+    "default_base_url": "http://localhost:20080/v1",
     "default_model": "qwen3",
-    "description": "Local llama-server Chat/Vision (port 50080)",
+    "description": "Local llama-server Chat/Vision (port 20080)",
     "setup": {
       "kind": "api_key",
       "secret_name": "llm_local_chat_api_key",
@@ -187,9 +187,9 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
     "api_key_env": "EMBEDDING_API_KEY",
     "api_key_required": false,
     "model_env": "LOCAL_MODEL",
-    "default_base_url": "http://localhost:50082/v1",
+    "default_base_url": "http://localhost:20082/v1",
     "default_model": "qwen3-embedding",
-    "description": "Local llama-server Embeddings (port 50082)",
+    "description": "Local llama-server Embeddings (port 20082)",
     "setup": {
       "kind": "api_key",
       "secret_name": "llm_local_embedding_api_key",
@@ -203,9 +203,9 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
     "api_key_env": "RERANK_API_KEY",
     "api_key_required": false,
     "model_env": "LOCAL_MODEL",
-    "default_base_url": "http://localhost:50086/v1",
+    "default_base_url": "http://localhost:20086/v1",
     "default_model": "qwen3-reranker",
-    "description": "Local llama-server Reranker (port 50086)",
+    "description": "Local llama-server Reranker (port 20086)",
     "setup": {
       "kind": "api_key",
       "secret_name": "llm_local_rerank_api_key",
@@ -219,9 +219,9 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
     "api_key_env": "TRANSCRIPTION_API_KEY",
     "api_key_required": false,
     "model_env": "LOCAL_MODEL",
-    "default_base_url": "http://localhost:50090/v1",
+    "default_base_url": "http://localhost:20090/v1",
     "default_model": "whisper-1",
-    "description": "Local Whisper STT (port 50090)",
+    "description": "Local Whisper STT (port 20090)",
     "setup": {
       "kind": "api_key",
       "secret_name": "llm_local_stt_api_key",
@@ -235,9 +235,9 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
     "api_key_env": "TTS_API_KEY",
     "api_key_required": false,
     "model_env": "LOCAL_MODEL",
-    "default_base_url": "http://localhost:50095/v1",
+    "default_base_url": "http://localhost:20095/v1",
     "default_model": "qwen3-tts",
-    "description": "Local Qwen3 TTS (port 50095)",
+    "description": "Local Qwen3 TTS (port 20095)",
     "setup": {
       "kind": "api_key",
       "secret_name": "llm_local_tts_api_key",
@@ -251,9 +251,9 @@ Reborn manages LLM providers and local endpoints through a JSON catalog. By defa
     "api_key_env": "IMAGE_API_KEY",
     "api_key_required": false,
     "model_env": "LOCAL_MODEL",
-    "default_base_url": "http://localhost:50100/v1",
+    "default_base_url": "http://localhost:20100/v1",
     "default_model": "sd-image",
-    "description": "Local sd-server Image Generation (port 50100)",
+    "description": "Local sd-server Image Generation (port 20100)",
     "setup": {
       "kind": "api_key",
       "secret_name": "llm_local_image_api_key",
@@ -275,10 +275,10 @@ api_key_env = "LLM_API_KEY"
 
 In the Reborn engine, specialized services (embeddings, reranking, STT, TTS, and image generation) are not managed via direct, static blocks in `config.toml`. Instead, they are loaded dynamically via skills and extension plugins which leverage the catalog definitions in `providers.json` or query the environment overrides:
 
-*   **Embeddings & Reranking**: Used by search and memory capabilities. The embedding requests target the `local-embedding` provider (port `50082`). Reranking is performed natively via the Reciprocal Rank Fusion (RRF) algorithm (port `50086` for `local-rerank` is available for plugins if custom reranking is needed).
-*   **Speech-to-Text (STT)**: Transcribes incoming audio files (e.g. from Signal voice messages). The transcription requests target the `local-speech-to-text` provider (port `50090`).
-*   **Text-to-Speech (TTS)**: Synthesizes spoken replies from text. TTS requests target the `local-text-to-speech` provider (port `50095`).
-*   **Image Generation**: Generates images on demand (e.g. via drawing tools). Image requests target the `local-image` provider (port `50100`).
+*   **Embeddings & Reranking**: Used by search and memory capabilities. The embedding requests target the `local-embedding` provider (port `20082`). Reranking is performed natively via the Reciprocal Rank Fusion (RRF) algorithm (port `20086` for `local-rerank` is available for plugins if custom reranking is needed).
+*   **Speech-to-Text (STT)**: Transcribes incoming audio files (e.g. from Signal voice messages). The transcription requests target the `local-speech-to-text` provider (port `20090`).
+*   **Text-to-Speech (TTS)**: Synthesizes spoken replies from text. TTS requests target the `local-text-to-speech` provider (port `20095`).
+*   **Image Generation**: Generates images on demand (e.g. via drawing tools). Image requests target the `local-image` provider (port `20100`).
 
 ### Signal Senders Pairing
 
