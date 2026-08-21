@@ -990,7 +990,7 @@ cmd_install() {
             if grep -q "^LAUNCHER_INSTALL_SOURCE=" "$env_file" 2>/dev/null; then
                 sed -i "s|^LAUNCHER_INSTALL_SOURCE=.*|LAUNCHER_INSTALL_SOURCE=\"$install_source_dir\"|" "$env_file"
             else
-                echo -e "\nLAUNCHER_INSTALL_SOURCE=\"$install_source_dir\"" >> "$env_file"
+                echo -e "\nLAUNCHER_INSTALL_SOURCE=\"$install_source_dir\"" >>"$env_file"
             fi
         fi
 
@@ -1034,6 +1034,11 @@ cmd_install() {
 # LAUNCHER_GUI_CATEGORIES="${DEFAULT_LAUNCHER_GUI_CATEGORIES}"
 # LAUNCHER_GUI_TERMINAL="${DEFAULT_LAUNCHER_GUI_TERMINAL}"
 
+# --- Application Startup Options ---
+# LAUNCHER_APP_FLAGS="${DEFAULT_LAUNCHER_APP_FLAGS}"     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
+# LAUNCHER_DEFAULT_ARGS="${DEFAULT_LAUNCHER_DEFAULT_ARGS}"   # Default args passed if none are provided (e.g. '\$work_dir/default')
+# LAUNCHER_INIT_DEFAULT_PROJECT="${DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT}" # Set to true to run 'git init' on the default project workspace
+
 # --- Service & Sidecar Options ---
 # Set LAUNCHER_SERVICE_ENABLED="true" to enable background systemd service execution.
 # Example launcher service command that outputs environment exports and waits until stopped:
@@ -1052,10 +1057,6 @@ LAUNCHER_SIDECAR_SLEEP_ARGS="${DEFAULT_LAUNCHER_SIDECAR_SLEEP_ARGS}"
 #   'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true'
 # )
 
-# --- Application Startup Options ---
-# LAUNCHER_APP_FLAGS="${DEFAULT_LAUNCHER_APP_FLAGS}"     # Extra flags appended to binary (e.g. '--no-sandbox' for Electron)
-# LAUNCHER_DEFAULT_ARGS="${DEFAULT_LAUNCHER_DEFAULT_ARGS}"   # Default args passed if none are provided (e.g. '\$work_dir/default')
-# LAUNCHER_INIT_DEFAULT_PROJECT="${DEFAULT_LAUNCHER_INIT_DEFAULT_PROJECT}" # Set to true to run 'git init' on the default project workspace
 
 # --- Install/Uninstall Hooks ---
 # Array of bash commands executed during install. Must be idempotent — should recreate everything needed as if it were a fresh install.
