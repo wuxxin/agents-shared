@@ -24,7 +24,7 @@ DEFAULT_LMEM_SIDECARS="worker controlui"
 DEFAULT_LMEM_SIDECAR_WORKER_CMD="%h/.local/sandbox/local-memory/venv/bin/hindsight-worker"
 DEFAULT_LMEM_SIDECAR_WORKER_ARGS="--poll-interval 500"
 DEFAULT_LMEM_SIDECAR_CONTROLUI_CMD="%h/.local/sandbox/local-memory/control-plane/node_modules/.bin/hindsight-control-plane"
-DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS="--port 8890 --hostname 0.0.0.0 --api-url http://127.0.0.1:28888"
+DEFAULT_LMEM_SIDECAR_CONTROLUI_ARGS="--port 28890 --hostname 0.0.0.0 --api-url http://127.0.0.1:28888"
 
 DEFAULT_HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP="true"
 DEFAULT_HINDSIGHT_API_WORKER_ENABLED="false"
