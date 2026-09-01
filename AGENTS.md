@@ -8,7 +8,7 @@
   - Local inference services (chat, embedding, STT, TTS, rerank, image)
   - Signal Messenger Gateway
 - `scripts/` — Benchmarking (caching/throughput), token counting, and speed simulation tools.
-- `skills` - Skills
+- `skills/` - Skills for Assistents to deploy
 - `research/` — Development activity reports, LLM adapter research, and notes.
 - `scratch/` — Safe workspace for temp files, source checkouts (`scratch/*-sources`), and testing.
 
