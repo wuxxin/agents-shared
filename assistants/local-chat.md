@@ -140,12 +140,11 @@ Key specifications and limits:
   - **Research & Best Practice**: BigBang-v1 was fine-tuned on ~10,000 frontier tasks using this exact native template for multimodal vision tags (`<|vision_start|><|image_pad|><|vision_end|>`), structured tool calls (`<tools>...</tools>`, `<function=...>`, `<parameter=...>`), and reasoning (`<think>...</think>`). Leaving `LCHAT_CHAT_TEMPLATE_FILE=""` in `local-chat.sh` enables `jinja = on` in `preset.ini`, letting `llama-server` use the integrated template natively. This ensures 100% distribution alignment with the training dataset and prevents startup errors due to missing external template files.
 - **External Template Overrides (`LCHAT_CHAT_TEMPLATE_FILE`)**:
   - If custom Jinja parser logic is required (e.g. `froggeric` fixed template for tool-retry guards), you can specify `LCHAT_CHAT_TEMPLATE_FILE=/path/to/custom_template.jinja`. For standard BigBang-v1 serving, using the integrated model template is recommended.
-- **Service Default (`enable_thinking: false`)**:
-  - In `local-chat.sh`, `LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'` disables thinking by default. This ensures fast, low-latency execution for high-frequency background agent tasks (extraction, RAG memory queries, FIM completions).
-
+- **Service Default (`enable_thinking: true`)**:
+  - In `local-chat.sh`, `LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'` enables thinking by default. This ensures execution-gated reasoning models (such as `BigBang-v1` and `Qwen3.6-35B-A3B`) maintain their Chain-of-Thought scratchpad to accurately interpret tool execution outputs, track multi-step state, and avoid infinite tool-call loops.
 - **How to Enable Thinking on Demand**:
-  1. **Per-Request Payload (`chat_template_kwargs`)**:
-     Pass `chat_template_kwargs: {"enable_thinking": true}` in the root of your JSON request body:
+1. **Per-Request Payload (`chat_template_kwargs`)**:
+   Pass `chat_template_kwargs: {"enable_thinking": false}` in the root of your JSON request body to disable thinking for high-frequency extraction or FIM:
      ```json
      {
        "model": "qwen3",

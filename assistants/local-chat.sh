@@ -46,7 +46,7 @@ load_env() {
     LCHAT_PARALLEL=2
     LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf
     LCHAT_CHAT_TEMPLATE_FILE=""
-    LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+    LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
     LCHAT_MTP=""
     LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
     LCHAT_CACHE_TYPE_K=q4_0
@@ -640,8 +640,8 @@ LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-
 LCHAT_CHAT_TEMPLATE_FILE=""
 
 # Additional parameters for the Jinja chat template parser (JSON string)
-# Default '{"enable_thinking": false}' turns off chain-of-thought/thinking by default.
-LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+# Default '{"enable_thinking": true}' enables chain-of-thought/thinking by default.
+LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
 
 # KV cache type (default: q4_0)
 LCHAT_CACHE_TYPE_K=q4_0

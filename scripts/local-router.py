@@ -2421,12 +2421,40 @@ async def route_chat(request: Request):
     try:
         data = json.loads(body)
         model = data.get("model", "qwen3")
-        if model == "qwen3-thinking":
+
+        reasoning_effort = data.get("reasoning_effort")
+        thinking_dict = data.get("thinking")
+        chat_template_kwargs = data.get("chat_template_kwargs")
+        if not isinstance(chat_template_kwargs, dict):
+            chat_template_kwargs = {}
+
+        explicit_disable = (
+            reasoning_effort == "none"
+            or chat_template_kwargs.get("enable_thinking") is False
+            or (isinstance(thinking_dict, dict) and thinking_dict.get("enabled") is False)
+        )
+
+        explicit_enable = (
+            model == "qwen3-thinking"
+            or (isinstance(model, str) and model.endswith("-thinking"))
+            or (isinstance(reasoning_effort, str) and reasoning_effort.lower() in ["minimal", "low", "medium", "high", "xhigh", "true", "enabled"])
+            or (isinstance(thinking_dict, dict) and thinking_dict.get("enabled") is True)
+            or chat_template_kwargs.get("enable_thinking") is True
+        )
+
+        if explicit_disable:
+            chat_template_kwargs["enable_thinking"] = False
+        elif explicit_enable:
+            chat_template_kwargs["enable_thinking"] = True
+        else:
+            # Default to True for chat service routes so reasoning models retain CoT scratchpad
+            chat_template_kwargs["enable_thinking"] = True
+
+        if model == "qwen3-thinking" or (isinstance(model, str) and model.endswith("-thinking")):
             data["model"] = "qwen3"
-            kwargs = data.get("chat_template_kwargs") or {}
-            kwargs["enable_thinking"] = True
-            data["chat_template_kwargs"] = kwargs
-            body = json.dumps(data).encode("utf-8")
+
+        data["chat_template_kwargs"] = chat_template_kwargs
+        body = json.dumps(data).encode("utf-8")
     except Exception:
         pass
     agent = extract_request_agent(request, data)
