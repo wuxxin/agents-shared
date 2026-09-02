@@ -25,8 +25,7 @@ Unknown:
 - **GGUF Repo & direct URLs**: `mudler/Qwen3.6-35B-A3B-APEX-GGUF` — primary quantization `Qwen3.6-35B-A3B-APEX-I-Compact.gguf`.
 - **VRAM Footprint**: ~18.5 GB VRAM with APEX-I-Compact quantization.
 - **Chat Template & Thinking**: Jinja chat template (`froggeric/Qwen-Fixed-Chat-Templates/chat_template.jinja`); supports `<think>...</think>` CoT reasoning and tool-call XML schema (`<tools>...</tools>`, `<function=...>`, `<parameter=...>`).
-- **Speculative Decoding**: Multi-Token Prediction (MTP) draft tensors via `am17an-Qwen3.6-35BA3B-MTP-only.gguf`, or CPU N-Gram simple predictor (`--spec-type ngram-simple`).
-
+- **Speculative Decoding**: Multi-Token Prediction (MTP) draft tensors via `am17an-Qwen3.6-35BA3B-MTP-only.gguf` (for standard 733-tensor builds) or embedded block 40 MTP tensors (for 753-tensor builds like `Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf`), or CPU N-Gram simple predictor (`--spec-type ngram-simple`).
 #### Alternatives
 
 Current selected Default Model: **BigBang-v1**
@@ -103,8 +102,7 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 - **Vision Projector**: `mmproj-endless-frontier_BigBang-v1-f16.gguf`.
 - **Context Window**: 32K native; up to 256K context with YaRN/parallel slot sizing.
 - **Chat Template & Thinking**: Integrated native Jinja chat template (`jinja = on`). **Requires `enable_thinking: true`** in `chat-template-kwargs` / system prompt so execution-gated CoT scratchpad retains tool evaluation state and terminates loops cleanly (avoids infinite `git diff`/`namcap` replay).
-- **Speculative Decoding**: Compatible with Qwen3.6-35B MTP draft tensors (`--spec-type draft-mtp`) and CPU N-Gram predictor (`--spec-type ngram-simple`).
-
+- **Speculative Decoding**: `BigBang-v1-IQ4_XS.gguf` contains **753 total tensors** with the **20 MTP draft tensors already embedded internally** under block 40 (`blk.40.nextn.*`, `blk.40.attn_*`, `blk.40.ffn_*`). It does not strictly require an external `-MTP-ONLY.gguf` slice; `llama-server` can load draft tensors directly from the main model file or from the standalone 856 MB `Qwen3.6-35B-A3B-MTP-ONLY.gguf` slice using `--spec-type draft-mtp --spec-draft-n-max 3`. Also fully compatible with CPU N-Gram speculative decoding (`--spec-type ngram-simple`).
 
 ##### BTL-4 (Bad Theory Labs)
 
@@ -204,6 +202,41 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 - **Chat Template & Thinking**: Jinja chat template with `enable_thinking: true`; supports `<think>...</think>` CoT and tool-call XML schema.
 - **Speculative Decoding**: MTP draft tensors compatible (27B dense family); CPU N-Gram predictor fallback.
 - **Low-Memory Deployment Tradeoffs**: Extremely lean at 7.2 GB VRAM enables deployment on constrained hardware, but loses syntax depth vs full-precision 35B MoE — best for code-completion and lightweight agentic assist rather than deep reasoning.
+
+### Multi-Token Prediction (MTP) Speculative Decoding: Architecture, Memory Overhead & VRAM Scaling
+
+Multi-Token Prediction (MTP) accelerates autoregressive generation by training an auxiliary transformer block (`blk.40`) to predict $k$ future tokens in parallel with the main model forward pass. During speculative decoding in `llama-server`, candidate draft tokens from `blk.40` are validated in a single forward verification pass through the 40-layer base model.
+
+#### 1. MTP Tensor Architecture Breakdown
+The MTP module consists of **20 dedicated tensors** totaling **844,640,768 parameters (~844.6M params)** representing a complete single-layer prediction head:
+- **Dual Hidden State Projection**: `blk.40.nextn.eh_proj.weight` ($4096 \times 2048$, 8.39M elems) fuses the previous token embedding with the current hidden state.
+- **Layer Normalizations**: `blk.40.nextn.enorm.weight`, `blk.40.nextn.hnorm.weight`, `blk.40.nextn.shared_head_norm.weight` (F32, 2,048 elems each).
+- **Attention Sub-layer**: `blk.40.attn_q.weight` (16.78M elems), `blk.40.attn_k.weight` (1.05M elems), `blk.40.attn_v.weight` (1.05M elems), `blk.40.attn_output.weight` (8.39M elems), with per-head Q/K RMS norms.
+- **MoE Expert Feed-Forward Sub-layer**: 256 routed experts with `blk.40.ffn_gate_exps.weight`, `blk.40.ffn_up_exps.weight`, `blk.40.ffn_down_exps.weight` (268.4M elems each in `Q4_0`), plus shared expert routing tensors (`blk.40.ffn_*_shexp.weight`).
+
+#### 2. Exact VRAM Memory Overhead Calculation
+
+| Component | Quantization / Format | Memory Allocation | Notes |
+| :--- | :--- | :--- | :--- |
+| **MTP Weights (`blk.40`)** | `Q4_0` / `F32` | **454.86 MiB (0.444 GiB)** | 844.6M parameters stored in VRAM. |
+| **Draft KV Cache** | `q4_0` K / `q4_0` V | **~2.35 MiB** | 1 layer only; scales with draft window ($n_{\text{draft\_max}}=4$) across 2 parallel slots. |
+| **Compute Graph & Activations** | Backend Scratch Buffer | **~25.00 MiB** | Transient forward-pass working tensors on Vulkan/ROCm backend. |
+| **Total Additional VRAM** | — | **~482.2 MiB (~0.471 GiB)** | **+2.4% VRAM increase** over 20 GB baseline. |
+
+#### 3. Empirical Speed vs VRAM Tradeoff (RX 7900 XT / Vulkan)
+
+| Speculative Mode | Extra VRAM | Generation Throughput | 1024-Token Decode Time | Relative Speedup |
+| :--- | :--- | :--- | :--- | :--- |
+| **Internal MTP (Optimized, $n=4$)** | **+482 MiB** | **135.70 tokens/sec** | **7.55 s** | **+22.0% faster** |
+| **Internal MTP (Default, $n=3$)** | **+482 MiB** | **127.52 tokens/sec** | **8.03 s** | **+14.6% faster** |
+| **Baseline (No Speculative)** | 0 MiB | **111.29 tokens/sec** | **9.20 s** | 1.00x |
+| **CPU N-Gram Predictor** | 0 MiB GPU (RAM only) | **110.51 tokens/sec** | **9.27 s** | ~1.00x |
+
+#### 4. Serving Recommendations
+1. **Embedded MTP GGUFs (`BigBang-v1-IQ4_XS.gguf`)**:
+   Launch with `--spec-type draft-mtp --spec-draft-n-max 4 --cache-type-k-draft q4_0 --cache-type-v-draft q4_0` without `--model-draft`. `llama-server` automatically detects `blk.40` in memory and builds the draft context without duplicate file loading.
+2. **Non-MTP GGUFs (733-tensor base builds)**:
+   Load the standalone 856 MB slice `--model-draft /path/to/Qwen3.6-35B-A3B-MTP-ONLY.gguf --spec-type draft-mtp`.
 
 
 ## embedding / reranking

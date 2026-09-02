@@ -48,7 +48,7 @@ load_env() {
     LCHAT_CHAT_TEMPLATE_FILE=""
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
     LCHAT_MTP=""
-    LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
+    LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 4 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
     LCHAT_CACHE_TYPE_K=q4_0
     LCHAT_CACHE_TYPE_V=q4_0
     LCHAT_EXTRA_ARGS=""
@@ -618,10 +618,10 @@ LCHAT_MTP=""
 
 # Speculative Decoding config (default: CPU N-Gram speculative decoding)
 # To enable MTP and use MTP speculative decoding with 2 draft tokens instead:
-#   1. Use model in LCHAT_MODEL with integrated mtp, or add path to mtp draft model in LCHAT_MTP
-#   2. Set LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
-# LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 3 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
-LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+#   1. Use model in LCHAT_MODEL with integrated mtp (e.g. BigBang-v1), or add path to mtp draft model in LCHAT_MTP
+#   2. Set LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 4 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
+# N-Gram fallback: LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
+LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 4 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
 
 # Model alias used by client integrations (default: qwen3)
 LCHAT_ALIAS=qwen3
