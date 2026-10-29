@@ -40,11 +40,11 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-IQ4_XS.gguf
+    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.IQ4_XS.gguf
     LCHAT_ALIAS=qwen3
     LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=2
-    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf
+    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.mmproj-Q8_0.gguf
     LCHAT_CHAT_TEMPLATE_FILE=""
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
     LCHAT_MTP=""
@@ -612,7 +612,7 @@ LCHAT_N_GPU_LAYERS=999
 # spec-type mtp Model (original Qwen3.6 MoE)
 # LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
 # Default Model: BigBang-v1 (Qwen3.6-35B-A3B fine-tune via self-evolving synthetic tasks)
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-IQ4_XS.gguf
+LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.IQ4_XS.gguf
 # Separate MTP draft model file path (leave empty when using built-in MTP model)
 LCHAT_MTP=""
 
@@ -633,7 +633,7 @@ LCHAT_CTX_SIZE=240384
 LCHAT_PARALLEL=2
 
 # Multimodal projector arguments (optional)
-LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf
+LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.mmproj-f16.gguf
 
 # Chat template file (optional; leave empty to use the integrated BigBang-v1 model chat template via 'jinja = on')
 # LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
