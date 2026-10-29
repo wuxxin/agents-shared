@@ -150,6 +150,12 @@ Sandbox-Ctl
     - Run a custom command inside the sandbox
 - shell <app_name>
     - Spawn an interactive shell inside the sandbox
+- hotshell <app_name> [args...]
+    - Spawn an interactive shell with elevated/hot access (sudo permitted,
+      SSH agent forwarded, DBus/systemd enabled, and SANDBOX 🌶️ indicator)
+- guishell <app_name> [args...]
+    - Spawn an interactive shell with GUI, GPU acceleration, Wayland,
+      audio, and USB access (SANDBOX 🎨 indicator)
 
 Service Control Commands:
 - start <app_name>     - Start the systemd user service
@@ -199,11 +205,46 @@ initialize_sandbox() {
     fi
 }
 
+# Helper: Find active SSH agent socket if not set or invalid
+find_ssh_agent_socket() {
+    if [[ -n "${SSH_AUTH_SOCK:-}" && -S "${SSH_AUTH_SOCK:-}" ]]; then
+        echo "$SSH_AUTH_SOCK"
+        return 0
+    fi
+
+    local xdg_run="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local candidates=(
+        "$xdg_run/gcr/ssh"
+        "$xdg_run/keyring/ssh"
+        "$xdg_run/gnupg/S.gpg-agent.ssh"
+        "$xdg_run/ssh-agent.socket"
+        "$xdg_run/openssh_agent"
+    )
+
+    for sock in "${candidates[@]}"; do
+        if [[ -S "$sock" ]]; then
+            echo "$sock"
+            return 0
+        fi
+    done
+
+    local tmp_sock
+    while IFS= read -r tmp_sock; do
+        if [[ -S "$tmp_sock" ]]; then
+            echo "$tmp_sock"
+            return 0
+        fi
+    done < <(find /tmp -maxdepth 2 -type s -name "agent.*" 2>/dev/null)
+
+    return 1
+}
+
 # Helper: Build unified sandbox configurations
 build_sandbox_config() {
     local target_mode="$1" # "systemd" or "bwrap"
     local target_cwd="${2:-$HOME}"
-
+    local allow_sudo="${_LAUNCHER_ALLOW_SUDO:-false}"
+    local sandbox_name="${_LAUNCHER_SANDBOX_NAME:-$app_name}"
     # Extract values from environment with defaults
     local disable_ipc_share="${DISABLE_IPC_SHARE:-$DEFAULT_DISABLE_IPC_SHARE}"
     local disable_pid_share="${DISABLE_PID_SHARE:-$DEFAULT_DISABLE_PID_SHARE}"
@@ -224,21 +265,32 @@ build_sandbox_config() {
     local xauthority="${XAUTHORITY:-}"
     local xdg_runtime_dir="${XDG_RUNTIME_DIR:-}"
     local ssh_auth_sock="${SSH_AUTH_SOCK:-}"
-
+    if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" ]]; then
+        if [[ -z "$ssh_auth_sock" || ! -S "$ssh_auth_sock" ]]; then
+            ssh_auth_sock=$(find_ssh_agent_socket || true)
+        fi
+    fi
     if [[ "$target_mode" == "systemd" ]]; then
         # Return systemd properties
-        echo "NoNewPrivileges=yes"
-        echo "CapabilityBoundingSet="
-        echo "AmbientCapabilities="
-        echo "ProtectSystem=strict"
-        echo "PrivateTmp=yes"
-
+        if [[ "$allow_sudo" == "true" || "$allow_sudo" == "1" ]]; then
+            echo "NoNewPrivileges=no"
+            echo "ProtectSystem=no"
+            echo "PrivateTmp=no"
+            echo "RestrictSUIDSGID=no"
+            echo "KeyringMode=inherit"
+        else
+            echo "NoNewPrivileges=yes"
+            echo "CapabilityBoundingSet="
+            echo "AmbientCapabilities="
+            echo "ProtectSystem=strict"
+            echo "PrivateTmp=yes"
+        fi
         # Relocated HOME
         echo "TemporaryFileSystem=$HOME"
         echo "BindPaths=$persistent_home:$HOME"
         echo "WorkingDirectory=$target_cwd"
         echo "Environment=HOME=$HOME"
-        echo "Environment=SANDBOX_NAME=$app_name"
+        echo "Environment=\"SANDBOX_NAME=$sandbox_name\""
         echo "Environment=SANDBOX_ENGINE=systemd"
         echo "Environment=SANDBOX=$app_name"
 
@@ -269,16 +321,18 @@ build_sandbox_config() {
         fi
 
         # Extra hardening
-        echo "ProtectKernelTunables=yes"
-        echo "ProtectKernelModules=yes"
-        echo "ProtectKernelLogs=yes"
-        echo "ProtectControlGroups=yes"
-        echo "ProtectClock=yes"
-        echo "ProtectHostname=yes"
-        echo "LockPersonality=yes"
-        echo "RestrictSUIDSGID=yes"
+        if [[ "$allow_sudo" != "true" && "$allow_sudo" != "1" ]]; then
+            echo "ProtectKernelTunables=yes"
+            echo "ProtectKernelModules=yes"
+            echo "ProtectKernelLogs=yes"
+            echo "ProtectControlGroups=yes"
+            echo "ProtectClock=yes"
+            echo "ProtectHostname=yes"
+            echo "LockPersonality=yes"
+            echo "RestrictSUIDSGID=yes"
+            echo "KeyringMode=private"
+        fi
         echo "RestrictRealtime=yes"
-        echo "KeyringMode=private"
         echo "UMask=0077"
 
         # GUI display environment variables
@@ -331,6 +385,9 @@ build_sandbox_config() {
             if [[ "$disable_dbus" != "true" && "$disable_dbus" != "1" ]]; then
                 if [[ -e "$xdg_runtime_dir/bus" ]]; then
                     echo "BindPaths=$xdg_runtime_dir/bus:$xdg_runtime_dir/bus"
+                fi
+                if [[ -d "$xdg_runtime_dir/systemd" ]]; then
+                    echo "BindPaths=$xdg_runtime_dir/systemd:$xdg_runtime_dir/systemd"
                 fi
             fi
         fi
@@ -410,9 +467,15 @@ build_sandbox_config() {
         # Return bubblewrap arguments (space-separated, line-by-line)
         echo "--die-with-parent"
         echo "--new-session"
-        echo "--ro-bind"
-        echo "/"
-        echo "/"
+        if [[ "$allow_sudo" == "true" || "$allow_sudo" == "1" ]]; then
+            echo "--bind"
+            echo "/"
+            echo "/"
+        else
+            echo "--ro-bind"
+            echo "/"
+            echo "/"
+        fi
         echo "--tmpfs"
         echo "/tmp"
         echo "--ro-bind"
@@ -435,7 +498,7 @@ build_sandbox_config() {
         echo "$HOME"
         echo "--setenv"
         echo "SANDBOX_NAME"
-        echo "$app_name"
+        echo "$sandbox_name"
         echo "--setenv"
         echo "SANDBOX_ENGINE"
         echo "bwrap"
@@ -568,6 +631,11 @@ build_sandbox_config() {
                     echo "$xdg_runtime_dir/bus"
                     echo "$xdg_runtime_dir/bus"
                 fi
+                if [[ -d "$xdg_runtime_dir/systemd" ]]; then
+                    echo "--bind"
+                    echo "$xdg_runtime_dir/systemd"
+                    echo "$xdg_runtime_dir/systemd"
+                fi
             fi
         fi
 
@@ -576,11 +644,17 @@ build_sandbox_config() {
             echo "--setenv"
             echo "SSH_AUTH_SOCK"
             echo "$ssh_auth_sock"
+            local ssh_sock_dir
+            ssh_sock_dir=$(dirname "$ssh_auth_sock")
+            if [[ -n "$ssh_sock_dir" && "$ssh_sock_dir" != "/" && "$ssh_sock_dir" != "." ]]; then
+                echo "--dir"
+                echo "$ssh_sock_dir"
+            fi
             echo "--bind"
             echo "$ssh_auth_sock"
             echo "$ssh_auth_sock"
-        fi
 
+        fi
         # LAUNCHER_PRIVATE_MOUNTS
         for m in $launcher_private_mounts; do
             if [[ -n "$m" ]]; then
@@ -1645,6 +1719,41 @@ main() {
             run_sandbox "$@"
             ;;
         shell)
+            if [[ $# -eq 0 ]]; then
+                run_sandbox "${SHELL:-/bin/bash}" -l
+            else
+                run_sandbox "${SHELL:-/bin/bash}" "$@"
+            fi
+            ;;
+        hotshell)
+            _LAUNCHER_ALLOW_SUDO="true"
+            export _LAUNCHER_ALLOW_SUDO
+            export DISABLE_SSH_AUTH="false"
+            export DISABLE_DBUS="false"
+            _LAUNCHER_SANDBOX_NAME="SANDBOX 🌶️"
+            export _LAUNCHER_SANDBOX_NAME
+            export SANDBOX_NAME="SANDBOX 🌶️"
+            local discovered_sock
+            discovered_sock=$(find_ssh_agent_socket || true)
+            if [[ -n "$discovered_sock" ]]; then
+                export SSH_AUTH_SOCK="$discovered_sock"
+            fi
+            if [[ $# -eq 0 ]]; then
+                run_sandbox "${SHELL:-/bin/bash}" -l
+            else
+                run_sandbox "${SHELL:-/bin/bash}" "$@"
+            fi
+            ;;
+        guishell)
+            export DISABLE_WAYLAND="false"
+            export DISABLE_AUDIO="false"
+            export DISABLE_HARDWARE="false"
+            export DISABLE_IPC_SHARE="false"
+            export DISABLE_XDG_RUNTIME="false"
+            export DISABLE_DBUS="false"
+            _LAUNCHER_SANDBOX_NAME="SANDBOX 🎨"
+            export _LAUNCHER_SANDBOX_NAME
+            export SANDBOX_NAME="SANDBOX 🎨"
             if [[ $# -eq 0 ]]; then
                 run_sandbox "${SHELL:-/bin/bash}" -l
             else

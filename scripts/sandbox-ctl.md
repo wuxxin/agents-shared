@@ -37,6 +37,13 @@ sandbox-ctl exec opencode
 
 # Run an interactive login shell ($SHELL -l) in the opencode sandbox
 sandbox-ctl shell opencode
+# Run an elevated shell with sudo access, SSH agent socket forwarding,
+# DBus/systemd enabled, and SANDBOX_NAME="SANDBOX 🌶️"
+sandbox-ctl hotshell opencode
+
+# Run an interactive GUI shell with Wayland, audio, USB hardware access,
+# DRI/GPU sharing, and SANDBOX_NAME="SANDBOX 🎨"
+sandbox-ctl guishell opencode
 
 # Execute a custom command in the opencode sandbox
 sandbox-ctl run opencode ls -la
@@ -128,6 +135,25 @@ Runs automated sanity checks and diagnostic tests for the application:
    - Key environment variables (`SHELL`, `XDG_RUNTIME_DIR`, `SSH_AUTH_SOCK`, `DISPLAY`, `WAYLAND_DISPLAY`)
    - Unresolved specifier check in runtime environment (`env | grep -E "%[hHtSEuUbB]"`)
 
+
+### `shell`
+
+Spawns an interactive shell (`${SHELL:-/bin/bash} -l`) inside the sandbox under standard hardened restrictions. If arguments are provided after `<app_name>`, they are passed directly to the shell (e.g. `sandbox-ctl shell opencode -c "cargo test"`).
+
+### `hotshell`
+
+Spawns an interactive shell with elevated/hot privileges and runtime access overrides:
+- **Sudo Access**: Allows executing setuid root binaries like `sudo` by setting internal runtime flag `_LAUNCHER_ALLOW_SUDO="true"`. In systemd, relaxes `NoNewPrivileges`, `ProtectSystem`, `PrivateTmp`, `RestrictSUIDSGID`, `KeyringMode`, and retains root capability bounding sets; in Bubblewrap, mounts the root filesystem as read-write (`--bind / /`).
+- **SSH Agent Auto-Discovery & Forwarding**: Automatically discovers host SSH agent sockets across candidate paths (`gcr/ssh`, `keyring/ssh`, `gnupg/S.gpg-agent.ssh`, `ssh-agent.socket`, `/tmp/agent.*`) and sets `DISABLE_SSH_AUTH="false"`. In Bubblewrap, automatically creates the parent socket directory before binding.
+- **Systemd & DBus Access**: Overrides `DISABLE_DBUS="false"` and bind-mounts `$XDG_RUNTIME_DIR/systemd` so `systemctl --user` commands can reach the user daemon.
+- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🌶️"`.
+
+### `guishell`
+
+Spawns an interactive shell configured for graphical and hardware-accelerated applications:
+- **Display & Audio Overrides**: Automatically forces `DISABLE_WAYLAND="false"`, `DISABLE_AUDIO="false"`, `DISABLE_HARDWARE="false"`, `DISABLE_IPC_SHARE="false"`, `DISABLE_XDG_RUNTIME="false"`, and `DISABLE_DBUS="false"`.
+- **GPU & USB Hardware Access**: Unshares device isolation (`PrivateDevices=no` in systemd, `--dev-bind /dev /dev` in Bubblewrap) and IPC namespace sharing for DRI/GPU rendering and USB device communication.
+- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🎨"`.
 ---
 
 ## Execution Engines & Engine Differences
@@ -153,7 +179,7 @@ Runs automated sanity checks and diagnostic tests for the application:
 ### Environment Identifiers & Shell Prompt Integration
 
 `sandbox-ctl` automatically injects identity environment variables into every sandboxed session:
-- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`).
+- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `SANDBOX 🌶️` in `hotshell` and `SANDBOX 🎨` in `guishell`.
 - **`SANDBOX_ENGINE`**: Set to the active engine (`systemd` or `bwrap`).
 - **`SANDBOX`**: Set to the target application name (`opencode`).
 
