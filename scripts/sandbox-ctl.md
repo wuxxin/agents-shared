@@ -13,7 +13,7 @@ By default, it runs the application inside a native **systemd user transient ser
 - **Configurable Environment File**: Automatically sources and exports variables from `~/.config/systemd/user/<app_name>.env` before execution.
 - **Dual Execution Engines**: Supports systemd transient service execution (`systemd-run`), Bubblewrap confinement (`bwrap`), or automatic engine detection and fallback.
 - **Sandboxed Hook Execution**: Executes `LAUNCHER_INSTALL_CMDS` and `LAUNCHER_UNINSTALL_CMDS` inside the sandbox environment so package managers (`bun`, `uv`, `npm`) install strictly inside the isolated sandbox home.
-- **Graphic & Audio Controls**: Securely forwards X11, Wayland, Pipewire, PulseAudio, and DBus sockets into systemd and bubblewrap environments.
+- **Graphic, Audio & IPC Controls**: Securely forwards X11, Wayland, Pipewire, PulseAudio, DBus, and systemd user daemon sockets into systemd and bubblewrap environments.
 - **SSH Agent Forwarding**: Forwards the host's `SSH_AUTH_SOCK` socket for Git operations.
 - **Generic GUI / Desktop Lifecycle**: Automatically creates standard desktop entries (`.desktop` files) and menus for graphical applications during installation.
 - **Sandbox Environment Indicators**: Automatically injects `SANDBOX_NAME="<app_name>"`, `SANDBOX_ENGINE="<engine>"`, and `SANDBOX="<app_name>"` into all container sessions, making it easy for scripts, tools, and shell prompts (`zsh`, `bash`) to detect and display the active sandbox name.
@@ -37,8 +37,8 @@ sandbox-ctl exec opencode
 
 # Run an interactive login shell ($SHELL -l) in the opencode sandbox
 sandbox-ctl shell opencode
-# Run an elevated shell with sudo access, SSH agent socket forwarding,
-# DBus/systemd enabled, and SANDBOX_NAME="SANDBOX 🌶️"
+# Run an elevated hot shell with SSH agent forwarding, DBus/systemd enabled,
+# KVM access (if permitted), and SANDBOX_NAME="SANDBOX 🟣"
 sandbox-ctl hotshell opencode
 
 # Run an interactive GUI shell with Wayland, audio, USB hardware access,
@@ -142,11 +142,11 @@ Spawns an interactive shell (`${SHELL:-/bin/bash} -l`) inside the sandbox under 
 
 ### `hotshell`
 
-Spawns an interactive shell with elevated/hot privileges and runtime access overrides:
-- **Sudo Access**: Allows executing setuid root binaries like `sudo` by setting internal runtime flag `_LAUNCHER_ALLOW_SUDO="true"`. In systemd, relaxes `NoNewPrivileges`, `ProtectSystem`, `PrivateTmp`, `RestrictSUIDSGID`, `KeyringMode`, and retains root capability bounding sets; in Bubblewrap, mounts the root filesystem as read-write (`--bind / /`).
+Spawns an interactive shell with elevated hot privileges and runtime access overrides:
 - **SSH Agent Auto-Discovery & Forwarding**: Automatically discovers host SSH agent sockets across candidate paths (`gcr/ssh`, `keyring/ssh`, `gnupg/S.gpg-agent.ssh`, `ssh-agent.socket`, `/tmp/agent.*`) and sets `DISABLE_SSH_AUTH="false"`. In Bubblewrap, automatically creates the parent socket directory before binding.
-- **Systemd & DBus Access**: Overrides `DISABLE_DBUS="false"` and bind-mounts `$XDG_RUNTIME_DIR/systemd` so `systemctl --user` commands can reach the user daemon.
-- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🌶️"`.
+- **Systemd & DBus Access**: Overrides `DISABLE_DBUS="false"` and `DISABLE_SYSTEMD="false"`, bind-mounting `$XDG_RUNTIME_DIR/bus` and `$XDG_RUNTIME_DIR/systemd` so `systemctl --user` commands can reach the user daemon.
+- **KVM Access**: Automatically bind-mounts `/dev/kvm` into the sandbox if `/dev/kvm` exists and is readable/writable by the current user.
+- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🟣"`.
 
 ### `guishell`
 
@@ -179,7 +179,7 @@ Spawns an interactive shell configured for graphical and hardware-accelerated ap
 ### Environment Identifiers & Shell Prompt Integration
 
 `sandbox-ctl` automatically injects identity environment variables into every sandboxed session:
-- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `SANDBOX 🌶️` in `hotshell` and `SANDBOX 🎨` in `guishell`.
+- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `SANDBOX 🟣` in `hotshell` and `SANDBOX 🎨` in `guishell`.
 - **`SANDBOX_ENGINE`**: Set to the active engine (`systemd` or `bwrap`).
 - **`SANDBOX`**: Set to the target application name (`opencode`).
 
@@ -227,6 +227,9 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 
 - **`DISABLE_DBUS`** (Default: `"false"`)
   Disables forwarding the DBus session socket.
+
+- **`DISABLE_SYSTEMD`** (Default: `"true"`)
+  Disables forwarding the systemd user manager socket directory (`$XDG_RUNTIME_DIR/systemd`). When set to `"false"`, enables `systemctl --user` commands inside the sandbox to communicate with the host's systemd user daemon. Automatically forced to `"true"` whenever `DISABLE_DBUS` is set to `"true"`.
 
 - **`DISABLE_IPC_SHARE`** (Default: `"true"`)
   Disables host IPC namespace sharing (set to `"false"` for GPU/ROCm hardware IPC access).

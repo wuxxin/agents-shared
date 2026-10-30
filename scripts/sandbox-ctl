@@ -13,6 +13,7 @@ DEFAULT_DISABLE_SSH_AUTH="false"
 DEFAULT_DISABLE_WAYLAND="false"
 DEFAULT_DISABLE_AUDIO="false"
 DEFAULT_DISABLE_DBUS="false"
+DEFAULT_DISABLE_SYSTEMD="true"
 DEFAULT_DISABLE_HARDWARE="false"
 DEFAULT_DISABLE_IPC_SHARE="true"
 DEFAULT_DISABLE_PID_SHARE="true"
@@ -151,8 +152,8 @@ Sandbox-Ctl
 - shell <app_name>
     - Spawn an interactive shell inside the sandbox
 - hotshell <app_name> [args...]
-    - Spawn an interactive shell with elevated/hot access (sudo permitted,
-      SSH agent forwarded, DBus/systemd enabled, and SANDBOX 🌶️ indicator)
+    - Spawn an interactive shell with elevated hot access (SSH agent,
+      DBus, systemd, KVM if permitted, and SANDBOX 🟣 indicator)
 - guishell <app_name> [args...]
     - Spawn an interactive shell with GUI, GPU acceleration, Wayland,
       audio, and USB access (SANDBOX 🎨 indicator)
@@ -243,7 +244,7 @@ find_ssh_agent_socket() {
 build_sandbox_config() {
     local target_mode="$1" # "systemd" or "bwrap"
     local target_cwd="${2:-$HOME}"
-    local allow_sudo="${_LAUNCHER_ALLOW_SUDO:-false}"
+    local allow_kvm="${_LAUNCHER_ALLOW_KVM:-false}"
     local sandbox_name="${_LAUNCHER_SANDBOX_NAME:-$app_name}"
     # Extract values from environment with defaults
     local disable_ipc_share="${DISABLE_IPC_SHARE:-$DEFAULT_DISABLE_IPC_SHARE}"
@@ -259,6 +260,16 @@ build_sandbox_config() {
     local disable_wayland="${DISABLE_WAYLAND:-$DEFAULT_DISABLE_WAYLAND}"
     local disable_audio="${DISABLE_AUDIO:-$DEFAULT_DISABLE_AUDIO}"
     local disable_dbus="${DISABLE_DBUS:-$DEFAULT_DISABLE_DBUS}"
+    local disable_systemd="${DISABLE_SYSTEMD:-$DEFAULT_DISABLE_SYSTEMD}"
+    if [[ "$disable_dbus" == "true" || "$disable_dbus" == "1" ]]; then
+        disable_systemd="true"
+    fi
+    local can_access_kvm="false"
+    if [[ "$allow_kvm" == "true" || "$allow_kvm" == "1" ]]; then
+        if [[ -c /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+            can_access_kvm="true"
+        fi
+    fi
 
     # Determine DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR, SSH_AUTH_SOCK
     local display="${DISPLAY:-}"
@@ -272,19 +283,11 @@ build_sandbox_config() {
     fi
     if [[ "$target_mode" == "systemd" ]]; then
         # Return systemd properties
-        if [[ "$allow_sudo" == "true" || "$allow_sudo" == "1" ]]; then
-            echo "NoNewPrivileges=no"
-            echo "ProtectSystem=no"
-            echo "PrivateTmp=no"
-            echo "RestrictSUIDSGID=no"
-            echo "KeyringMode=inherit"
-        else
-            echo "NoNewPrivileges=yes"
-            echo "CapabilityBoundingSet="
-            echo "AmbientCapabilities="
-            echo "ProtectSystem=strict"
-            echo "PrivateTmp=yes"
-        fi
+        echo "NoNewPrivileges=yes"
+        echo "CapabilityBoundingSet="
+        echo "AmbientCapabilities="
+        echo "ProtectSystem=strict"
+        echo "PrivateTmp=yes"
         # Relocated HOME
         echo "TemporaryFileSystem=$HOME"
         echo "BindPaths=$persistent_home:$HOME"
@@ -309,6 +312,9 @@ build_sandbox_config() {
         # Private devices/hardware
         if [[ "$disable_hardware" == "true" || "$disable_hardware" == "1" ]]; then
             echo "PrivateDevices=yes"
+            if [[ "$can_access_kvm" == "true" ]]; then
+                echo "BindPaths=/dev/kvm:/dev/kvm"
+            fi
         else
             echo "PrivateDevices=no"
         fi
@@ -321,17 +327,15 @@ build_sandbox_config() {
         fi
 
         # Extra hardening
-        if [[ "$allow_sudo" != "true" && "$allow_sudo" != "1" ]]; then
-            echo "ProtectKernelTunables=yes"
-            echo "ProtectKernelModules=yes"
-            echo "ProtectKernelLogs=yes"
-            echo "ProtectControlGroups=yes"
-            echo "ProtectClock=yes"
-            echo "ProtectHostname=yes"
-            echo "LockPersonality=yes"
-            echo "RestrictSUIDSGID=yes"
-            echo "KeyringMode=private"
-        fi
+        echo "ProtectKernelTunables=yes"
+        echo "ProtectKernelModules=yes"
+        echo "ProtectKernelLogs=yes"
+        echo "ProtectControlGroups=yes"
+        echo "ProtectClock=yes"
+        echo "ProtectHostname=yes"
+        echo "LockPersonality=yes"
+        echo "RestrictSUIDSGID=yes"
+        echo "KeyringMode=private"
         echo "RestrictRealtime=yes"
         echo "UMask=0077"
 
@@ -386,7 +390,7 @@ build_sandbox_config() {
                 if [[ -e "$xdg_runtime_dir/bus" ]]; then
                     echo "BindPaths=$xdg_runtime_dir/bus:$xdg_runtime_dir/bus"
                 fi
-                if [[ -d "$xdg_runtime_dir/systemd" ]]; then
+                if [[ "$disable_systemd" != "true" && "$disable_systemd" != "1" && -d "$xdg_runtime_dir/systemd" ]]; then
                     echo "BindPaths=$xdg_runtime_dir/systemd:$xdg_runtime_dir/systemd"
                 fi
             fi
@@ -467,15 +471,9 @@ build_sandbox_config() {
         # Return bubblewrap arguments (space-separated, line-by-line)
         echo "--die-with-parent"
         echo "--new-session"
-        if [[ "$allow_sudo" == "true" || "$allow_sudo" == "1" ]]; then
-            echo "--bind"
-            echo "/"
-            echo "/"
-        else
-            echo "--ro-bind"
-            echo "/"
-            echo "/"
-        fi
+        echo "--ro-bind"
+        echo "/"
+        echo "/"
         echo "--tmpfs"
         echo "/tmp"
         echo "--ro-bind"
@@ -523,6 +521,11 @@ build_sandbox_config() {
         if [[ "$disable_hardware" == "true" || "$disable_hardware" == "1" ]]; then
             echo "--dev"
             echo "/dev"
+            if [[ "$can_access_kvm" == "true" ]]; then
+                echo "--dev-bind"
+                echo "/dev/kvm"
+                echo "/dev/kvm"
+            fi
         else
             echo "--dev-bind"
             echo "/dev"
@@ -631,7 +634,7 @@ build_sandbox_config() {
                     echo "$xdg_runtime_dir/bus"
                     echo "$xdg_runtime_dir/bus"
                 fi
-                if [[ -d "$xdg_runtime_dir/systemd" ]]; then
+                if [[ "$disable_systemd" != "true" && "$disable_systemd" != "1" && -d "$xdg_runtime_dir/systemd" ]]; then
                     echo "--bind"
                     echo "$xdg_runtime_dir/systemd"
                     echo "$xdg_runtime_dir/systemd"
@@ -1088,6 +1091,7 @@ cmd_install() {
 # DISABLE_WAYLAND="${DEFAULT_DISABLE_WAYLAND}"       # Disable Wayland display access
 # DISABLE_AUDIO="${DEFAULT_DISABLE_AUDIO}"         # Disable audio playback/recording
 # DISABLE_DBUS="${DEFAULT_DISABLE_DBUS}"          # Disable DBus session bus communication
+# DISABLE_SYSTEMD="${DEFAULT_DISABLE_SYSTEMD}"       # Disable systemd user manager socket communication (auto-disabled if DBus disabled)
 
 # --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
 # DISABLE_HARDWARE="${DEFAULT_DISABLE_HARDWARE}"     # Isolate host GPU/DRI devices (set to true to run headless)
@@ -1726,13 +1730,14 @@ main() {
             fi
             ;;
         hotshell)
-            _LAUNCHER_ALLOW_SUDO="true"
-            export _LAUNCHER_ALLOW_SUDO
             export DISABLE_SSH_AUTH="false"
             export DISABLE_DBUS="false"
-            _LAUNCHER_SANDBOX_NAME="SANDBOX 🌶️"
+            export DISABLE_SYSTEMD="false"
+            _LAUNCHER_ALLOW_KVM="true"
+            export _LAUNCHER_ALLOW_KVM
+            _LAUNCHER_SANDBOX_NAME="SANDBOX 🟣"
             export _LAUNCHER_SANDBOX_NAME
-            export SANDBOX_NAME="SANDBOX 🌶️"
+            export SANDBOX_NAME="SANDBOX 🟣"
             local discovered_sock
             discovered_sock=$(find_ssh_agent_socket || true)
             if [[ -n "$discovered_sock" ]]; then
