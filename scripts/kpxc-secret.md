@@ -55,3 +55,13 @@ eval "$(./scripts/kpxc-secret export OPENAI_API_KEY="kpxc://api.openai.com" GITH
 ```bash
 ./scripts/kpxc-secret status
 ```
+
+### 5. List Database Groups
+```bash
+# Tabular view with parent hierarchy and UUIDs
+./scripts/kpxc-secret ls
+
+# Raw JSON output
+./scripts/kpxc-secret groups --raw
+```
+*(Note: KeePassXC's browser protocol intentionally does not expose an unrestricted "dump all entry titles" API over the socket to prevent malicious browser extensions from exfiltrating database catalogs; secret entries are fetched on demand via `get`).*

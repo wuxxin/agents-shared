@@ -239,7 +239,7 @@ Sourcing this file automatically loads and exports variables into the sandbox en
   Disables forwarding the systemd user manager socket directory (`$XDG_RUNTIME_DIR/systemd`). When set to `"false"`, enables `systemctl --user` commands inside the sandbox to communicate with the host's systemd user daemon. Automatically forced to `"true"` whenever `DISABLE_DBUS` is set to `"true"`.
 
 - **`DISABLE_KEEPASSXC_BROWSER_SOCKET`** (Default: `"true"`)
-  Disables forwarding the host's KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` / `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`). When set to `"false"`, mounts the socket and exports `KEEPASSXC_BROWSER_SOCKET_PATH` inside the container if present on the host. Overridden to `"false"` in `hotshell`. Sandboxes do not receive host single-instance lock files or unencrypted CLI sockets.
+  Disables forwarding the host's KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` / `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`). When set to `"false"`, mounts the socket and exports `KEEPASSXC_BROWSER_SOCKET_PATH` inside the container if present on the host. Overridden to `"false"` in `hotshell`. Sandboxes do not receive host single-instance lock files or unencrypted CLI sockets. See [KeePassXC Secret Retrieval & Socket Integration](#keepassxc-secret-retrieval--socket-integration) for configuration and usage.
 
 - **`DISABLE_IPC_SHARE`** (Default: `"true"`)
   Disables host IPC namespace sharing (set to `"false"` for GPU/ROCm hardware IPC access).
@@ -290,4 +290,57 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 
 - **`LAUNCHER_UNINSTALL_CMDS`** (Default: `()`)
   Bash array of commands executed **inside the sandbox** during `uninstall` to clean up installed tools or packages.
+
+---
+
+## KeePassXC Secret Retrieval & Socket Integration
+
+`sandbox-ctl` integrates with KeePassXC using native messaging browser protocol sockets rather than DBus Secret Service (`org.freedesktop.secrets`), avoiding keyring daemon conflicts and unencrypted IPC.
+
+### 1. Socket Forwarding (`DISABLE_KEEPASSXC_BROWSER_SOCKET`)
+- **Forwarded Endpoint**: Only the encrypted Native Messaging BrowserServer UNIX domain socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` or `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`) is forwarded into the sandbox.
+- **Excluded Endpoints**: Generic `/tmp/keepassxc-*.socket` and lock files are never mounted, preventing sandbox processes from issuing unauthenticated CLI commands or database lock/unlock actions.
+- **Activation**:
+  - `hotshell` automatically overrides `DISABLE_KEEPASSXC_BROWSER_SOCKET="false"`.
+  - In standard execution modes, enable by setting `DISABLE_KEEPASSXC_BROWSER_SOCKET="false"` in `~/.config/systemd/user/<app_name>.env`.
+  - When mounted, `sandbox-ctl` automatically exports `KEEPASSXC_BROWSER_SOCKET_PATH` inside the container.
+
+### 2. Secret Retrieval Helper (`kpxc-secret`)
+The standalone companion script `scripts/kpxc-secret` provides client communication with the KeePassXC browser socket:
+
+```bash
+# Get entry password
+scripts/kpxc-secret get "kpxc://api.openai.com"
+
+# Target specific nested groups and custom fields
+scripts/kpxc-secret get "kpxc://browser/important/github.com:test"
+
+# Inspect group hierarchy
+scripts/kpxc-secret ls
+```
+
+#### URI Scheme Specification: `kpxc://[<group>/]<target>[:<field>]`
+- **Target**: URL, host, or entry title (e.g. `github.com`, `https://api.openai.com`).
+- **Hierarchical Groups**: Supports nested paths (e.g. `kpxc://browser/important/github.com:test`). The parser automatically resolves the leaf group (`important`) and target identifier (`github.com`).
+- **Fields**:
+  - `password` (default if omitted)
+  - `username`
+  - `url`
+  - `totp` (calculates and returns current TOTP 6-digit token)
+  - Custom attributes (e.g. `:test` or `:KPH: test`)
+
+### 3. KeePassXC Security Policy & Custom Attributes (`KPH: `)
+KeePassXC's browser integration enforces security restrictions to prevent malicious clients or browser extensions from exfiltrating arbitrary entry metadata:
+
+1. **Browser Integration Setting**:
+   - In KeePassXC, open **Tools** → **Settings** → **Browser Integration** → **Advanced**.
+   - Ensure **Return advanced string fields which start with "KPH: "** is enabled.
+2. **Attribute Naming Convention**:
+   - Custom string attributes inside an entry's **Advanced** tab must be prefixed with `KPH: `, for example:
+     - Field Name: `KPH: test` (or `KPH: api_key`)
+     - Field Value: `<secret-value>`
+   - Attributes without `KPH: ` are withheld by KeePassXC and will return `Field not found`.
+   - `kpxc-secret` normalizes field lookups so both `:test` and `:KPH: test` successfully match `KPH: test`.
+3. **Desktop Notifications**:
+   - KeePassXC emits a desktop notification (or authorization dialog if configured) whenever an external client queries credentials via the socket.
 
