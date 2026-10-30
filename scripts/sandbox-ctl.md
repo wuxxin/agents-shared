@@ -8,7 +8,7 @@ By default, it runs the application inside a native **systemd user transient ser
 
 ## Features
 
-- **Persistent Relocated HOME**: Maps the persistent sandbox home directory (`$HOME/.local/sandbox/<app_name>`) as the user's real `$HOME` inside the sandbox across all execution modes (`exec`, `run`, `shell`, `service`, and install/uninstall hooks). The application cannot see or access `.local/sandbox/<app_name>` from the inside because `$HOME` IS the persistent sandbox directory.
+- **Persistent Relocated HOME and protected /run/user/**: Maps the persistent sandbox home directory (`$HOME/.local/sandbox/<app_name>`) as the user's real `$HOME` inside the sandbox across all execution modes (`exec`, `run`, `shell`, `service`, and install/uninstall hooks). The application cannot see or access `.local/sandbox/<app_name>` from the inside because `$HOME` IS the persistent sandbox directory.
 - **Dual Calling Modes**: Supports being called directly as a manager/orchestrator or called transparently as a symlink named after the target application.
 - **Configurable Environment File**: Automatically sources and exports variables from `~/.config/systemd/user/<app_name>.env` before execution.
 - **Dual Execution Engines**: Supports systemd transient service execution (`systemd-run`), Bubblewrap confinement (`bwrap`), or automatic engine detection and fallback.
@@ -37,9 +37,9 @@ sandbox-ctl exec opencode
 
 # Run an interactive login shell ($SHELL -l) in the opencode sandbox
 sandbox-ctl shell opencode
-# Run an elevated hot shell with SSH agent forwarding, DBus/systemd enabled,
-# KVM access (if permitted), and SANDBOX_NAME="SANDBOX 🟣"
-sandbox-ctl hotshell opencode
+# Run an elevated hot shell with SSH agent forwarding, DBus/systemd, KeePassXC browser socket enabled,
+# KVM access (if permitted), and SANDBOX_NAME="SANDBOX 🟣" (or --all-access with SANDBOX 🚨)
+sandbox-ctl hotshell [--all-access] opencode
 
 # Run an interactive GUI shell with Wayland, audio, USB hardware access,
 # DRI/GPU sharing, and SANDBOX_NAME="SANDBOX 🎨"
@@ -146,8 +146,15 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
 - **SSH Agent Auto-Discovery & Forwarding**: Automatically discovers host SSH agent sockets across candidate paths (`gcr/ssh`, `keyring/ssh`, `gnupg/S.gpg-agent.ssh`, `ssh-agent.socket`, `/tmp/agent.*`) and sets `DISABLE_SSH_AUTH="false"`. In Bubblewrap, automatically creates the parent socket directory before binding.
 - **Systemd & DBus Access**: Overrides `DISABLE_DBUS="false"` and `DISABLE_SYSTEMD="false"`, bind-mounting `$XDG_RUNTIME_DIR/bus` and `$XDG_RUNTIME_DIR/systemd` so `systemctl --user` commands can reach the user daemon.
 - **KVM Access**: Automatically bind-mounts `/dev/kvm` into the sandbox if `/dev/kvm` exists and is readable/writable by the current user.
-- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🟣"`.
-
+- **KeePassXC Browser Socket Integration**: Overrides `DISABLE_KEEPASSXC_BROWSER_SOCKET="false"`, bind-mounting host KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` and `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`) into the container and exporting `KEEPASSXC_BROWSER_SOCKET_PATH` if present on host.
+- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🟣"` by default.
+- **`--all-access` Option & Containment Circumvention**:
+  - **Syntax**: `sandbox-ctl hotshell --all-access <app_name> [args...]`
+  - **Unified Elevated Debugging**: Provides unified unconfined debugging inside the sandbox by exposing both the host filesystem (`~/real_home`) and the real host user runtime daemon sockets (`/run/user/<id>`).
+  - **Runtime Access Behavior**: Ignores any `DISABLE_XDG_RUNTIME=true` setting in the application configuration, eliminates the `tmpfs` isolation layer over `$XDG_RUNTIME_DIR`, and directly bind-mounts the host user's `/run/user/<id>` read/write into the sandbox.
+  - **Host Filesystem Access**: Mounts the real host user `$HOME` read/write at `~/real_home` and creates a convenience symlink at `~/real_<username>`, exporting `$REAL_HOME="$HOME/real_home"`. Automatically maps host working directories outside the sandbox container home into `~/real_home/<subpath>`.
+  - **Security Warning**: `--all-access` is an **intentional circumvention** of sandbox containment. Any file modifications or deletions performed under `~/real_home` directly mutate your actual host files, and unconfined access to `/run/user/<id>` exposes user daemon IPC endpoints without sandbox isolation.
+  - **Visual Alert**: In `--all-access` mode, the prompt indicator switches to high-contrast `SANDBOX_NAME="SANDBOX 🚨"` (optimally visible against themes and orange terminal backgrounds) and emits an alert banner on terminal startup.
 ### `guishell`
 
 Spawns an interactive shell configured for graphical and hardware-accelerated applications:
@@ -179,7 +186,7 @@ Spawns an interactive shell configured for graphical and hardware-accelerated ap
 ### Environment Identifiers & Shell Prompt Integration
 
 `sandbox-ctl` automatically injects identity environment variables into every sandboxed session:
-- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `SANDBOX 🟣` in `hotshell` and `SANDBOX 🎨` in `guishell`.
+- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `SANDBOX 🟣` in `hotshell`, `SANDBOX 🚨` in `hotshell --all-access`, and `SANDBOX 🎨` in `guishell`.
 - **`SANDBOX_ENGINE`**: Set to the active engine (`systemd` or `bwrap`).
 - **`SANDBOX`**: Set to the target application name (`opencode`).
 
@@ -231,6 +238,9 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 - **`DISABLE_SYSTEMD`** (Default: `"true"`)
   Disables forwarding the systemd user manager socket directory (`$XDG_RUNTIME_DIR/systemd`). When set to `"false"`, enables `systemctl --user` commands inside the sandbox to communicate with the host's systemd user daemon. Automatically forced to `"true"` whenever `DISABLE_DBUS` is set to `"true"`.
 
+- **`DISABLE_KEEPASSXC_BROWSER_SOCKET`** (Default: `"true"`)
+  Disables forwarding the host's KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` / `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`). When set to `"false"`, mounts the socket and exports `KEEPASSXC_BROWSER_SOCKET_PATH` inside the container if present on the host. Overridden to `"false"` in `hotshell`. Sandboxes do not receive host single-instance lock files or unencrypted CLI sockets.
+
 - **`DISABLE_IPC_SHARE`** (Default: `"true"`)
   Disables host IPC namespace sharing (set to `"false"` for GPU/ROCm hardware IPC access).
 
@@ -280,10 +290,4 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 
 - **`LAUNCHER_UNINSTALL_CMDS`** (Default: `()`)
   Bash array of commands executed **inside the sandbox** during `uninstall` to clean up installed tools or packages.
-
----
-
-## Complete Application Configuration Example (`opencode`)
-
-See [opencode.env](../sandbox-templates/opencode/opencode.env) and [README.md](../sandbox-templates/opencode/README.md)
 

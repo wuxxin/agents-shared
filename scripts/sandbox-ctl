@@ -17,6 +17,7 @@ DEFAULT_DISABLE_SYSTEMD="true"
 DEFAULT_DISABLE_HARDWARE="false"
 DEFAULT_DISABLE_IPC_SHARE="true"
 DEFAULT_DISABLE_PID_SHARE="true"
+DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET="true"
 DEFAULT_LAUNCHER_PRIVATE_BASEPATH="$HOME/agent-private"
 DEFAULT_LAUNCHER_PRIVATE_MOUNTS=""
 DEFAULT_LAUNCHER_SANDBOX_MOUNTS=""
@@ -151,9 +152,13 @@ Sandbox-Ctl
     - Run a custom command inside the sandbox
 - shell <app_name>
     - Spawn an interactive shell inside the sandbox
-- hotshell <app_name> [args...]
+- hotshell [--all-access] <app_name> [args...]
     - Spawn an interactive shell with elevated hot access (SSH agent,
-      DBus, systemd, KVM if permitted, and SANDBOX 🟣 indicator)
+      DBus, systemd, KeePassXC browser socket, KVM if permitted, and SANDBOX 🟣 indicator).
+      Pass --all-access to mount real host $HOME read/write at ~/real_home
+      (with ~/real_<username> symlink), grant unrestricted read/write access
+      to host /run/user/<id> (ignoring DISABLE_XDG_RUNTIME and tmpfs isolation),
+      and display high-contrast SANDBOX 🚨 indicator with alert banner
 - guishell <app_name> [args...]
     - Spawn an interactive shell with GUI, GPU acceleration, Wayland,
       audio, and USB access (SANDBOX 🎨 indicator)
@@ -245,6 +250,7 @@ build_sandbox_config() {
     local target_mode="$1" # "systemd" or "bwrap"
     local target_cwd="${2:-$HOME}"
     local allow_kvm="${_LAUNCHER_ALLOW_KVM:-false}"
+    local allow_all_access="${_LAUNCHER_ALL_ACCESS:-false}"
     local sandbox_name="${_LAUNCHER_SANDBOX_NAME:-$app_name}"
     # Extract values from environment with defaults
     local disable_ipc_share="${DISABLE_IPC_SHARE:-$DEFAULT_DISABLE_IPC_SHARE}"
@@ -264,6 +270,7 @@ build_sandbox_config() {
     if [[ "$disable_dbus" == "true" || "$disable_dbus" == "1" ]]; then
         disable_systemd="true"
     fi
+    local disable_keepassxc_browser_socket="${DISABLE_KEEPASSXC_BROWSER_SOCKET:-$DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET}"
     local can_access_kvm="false"
     if [[ "$allow_kvm" == "true" || "$allow_kvm" == "1" ]]; then
         if [[ -c /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
@@ -275,12 +282,41 @@ build_sandbox_config() {
     local display="${DISPLAY:-}"
     local xauthority="${XAUTHORITY:-}"
     local xdg_runtime_dir="${XDG_RUNTIME_DIR:-}"
+    local host_run_user
+    host_run_user="/run/user/$(id -u)"
     local ssh_auth_sock="${SSH_AUTH_SOCK:-}"
     if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" ]]; then
         if [[ -z "$ssh_auth_sock" || ! -S "$ssh_auth_sock" ]]; then
             ssh_auth_sock=$(find_ssh_agent_socket || true)
         fi
     fi
+    local host_real_home="${HOME:-}"
+    if [[ -z "$host_real_home" ]]; then
+        host_real_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+    fi
+    local host_username
+    host_username="$(id -un 2>/dev/null || echo user)"
+    local kpxc_browser_sock=""
+    local kpxc_symlink_sock=""
+    if [[ "$disable_keepassxc_browser_socket" != "true" && "$disable_keepassxc_browser_socket" != "1" ]]; then
+        local xdg_run="${xdg_runtime_dir:-$host_run_user}"
+        local target_sock="$xdg_run/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer"
+        local symlink_sock="$xdg_run/org.keepassxc.KeePassXC.BrowserServer"
+        if [[ -S "$target_sock" || -e "$target_sock" ]]; then
+            kpxc_browser_sock="$target_sock"
+            if [[ -S "$symlink_sock" || -e "$symlink_sock" || -L "$symlink_sock" ]]; then
+                kpxc_symlink_sock="$symlink_sock"
+            fi
+        elif [[ -S "$symlink_sock" || -e "$symlink_sock" || -L "$symlink_sock" ]]; then
+            kpxc_browser_sock="$symlink_sock"
+        fi
+    fi
+
+    if [[ "$allow_all_access" == "true" ]]; then
+        mkdir -p "$persistent_home/real_home" 2>/dev/null || true
+        ln -sfn "real_home" "$persistent_home/real_${host_username}" 2>/dev/null || true
+    fi
+
     if [[ "$target_mode" == "systemd" ]]; then
         # Return systemd properties
         echo "NoNewPrivileges=yes"
@@ -349,8 +385,17 @@ build_sandbox_config() {
             echo "BindReadOnlyPaths=/tmp/.X11-unix:/tmp/.X11-unix"
         fi
 
-        # Wayland, Audio, DBus (selective runtime mounting)
-        if [[ "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
+        # Wayland, Audio, DBus (selective runtime mounting or full runtime under --all-access)
+        if [[ "$allow_all_access" == "true" ]]; then
+            local run_dir="${xdg_runtime_dir:-$host_run_user}"
+            echo "Environment=XDG_RUNTIME_DIR=$run_dir"
+            if [[ -d "$host_run_user" ]]; then
+                echo "BindPaths=$host_run_user:$host_run_user"
+            fi
+            if [[ -n "$xdg_runtime_dir" && "$xdg_runtime_dir" != "$host_run_user" && -d "$xdg_runtime_dir" ]]; then
+                echo "BindPaths=$xdg_runtime_dir:$xdg_runtime_dir"
+            fi
+        elif [[ "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
             echo "Environment=XDG_RUNTIME_DIR=$xdg_runtime_dir"
             echo "TemporaryFileSystem=$xdg_runtime_dir"
 
@@ -400,6 +445,25 @@ build_sandbox_config() {
         if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" && -n "$ssh_auth_sock" && -S "$ssh_auth_sock" ]]; then
             echo "Environment=SSH_AUTH_SOCK=$ssh_auth_sock"
             echo "BindPaths=$ssh_auth_sock:$ssh_auth_sock"
+        fi
+
+        # KeePassXC BrowserServer socket forwarding
+        if [[ "$disable_keepassxc_browser_socket" != "true" && "$disable_keepassxc_browser_socket" != "1" ]]; then
+            if [[ -n "$kpxc_browser_sock" ]]; then
+                echo "Environment=KEEPASSXC_BROWSER_SOCKET_PATH=$kpxc_browser_sock"
+                if [[ "$allow_all_access" != "true" ]]; then
+                    echo "BindPaths=$kpxc_browser_sock:$kpxc_browser_sock"
+                    if [[ -n "$kpxc_symlink_sock" && "$kpxc_symlink_sock" != "$kpxc_browser_sock" ]]; then
+                        echo "BindPaths=$kpxc_symlink_sock:$kpxc_symlink_sock"
+                    fi
+                fi
+            fi
+        fi
+
+        # Real host home mount
+        if [[ "$allow_all_access" == "true" ]]; then
+            echo "BindPaths=$host_real_home:$HOME/real_home"
+            echo "Environment=REAL_HOME=$HOME/real_home"
         fi
 
         # LAUNCHER_PRIVATE_MOUNTS
@@ -579,8 +643,23 @@ build_sandbox_config() {
             echo "/tmp/.X11-unix"
         fi
 
-        # Wayland, Audio, DBus (selective runtime mounting)
-        if [[ "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
+        # Wayland, Audio, DBus (selective runtime mounting or full runtime under --all-access)
+        if [[ "$allow_all_access" == "true" ]]; then
+            local run_dir="${xdg_runtime_dir:-$host_run_user}"
+            if [[ -d "$host_run_user" ]]; then
+                echo "--bind"
+                echo "$host_run_user"
+                echo "$host_run_user"
+            fi
+            if [[ -n "$xdg_runtime_dir" && "$xdg_runtime_dir" != "$host_run_user" && -d "$xdg_runtime_dir" ]]; then
+                echo "--bind"
+                echo "$xdg_runtime_dir"
+                echo "$xdg_runtime_dir"
+            fi
+            echo "--setenv"
+            echo "XDG_RUNTIME_DIR"
+            echo "$run_dir"
+        elif [[ "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" && -n "$xdg_runtime_dir" && -d "$xdg_runtime_dir" ]]; then
             echo "--tmpfs"
             echo "$xdg_runtime_dir"
             echo "--setenv"
@@ -649,14 +728,68 @@ build_sandbox_config() {
             echo "$ssh_auth_sock"
             local ssh_sock_dir
             ssh_sock_dir=$(dirname "$ssh_auth_sock")
-            if [[ -n "$ssh_sock_dir" && "$ssh_sock_dir" != "/" && "$ssh_sock_dir" != "." ]]; then
-                echo "--dir"
-                echo "$ssh_sock_dir"
+            local ssh_already_bound="false"
+            if [[ "$allow_all_access" == "true" ]]; then
+                if [[ "$ssh_auth_sock" == "$host_run_user"/* || (-n "$xdg_runtime_dir" && "$ssh_auth_sock" == "$xdg_runtime_dir"/*) ]]; then
+                    ssh_already_bound="true"
+                fi
             fi
-            echo "--bind"
-            echo "$ssh_auth_sock"
-            echo "$ssh_auth_sock"
+            if [[ "$ssh_already_bound" != "true" ]]; then
+                if [[ -n "$ssh_sock_dir" && "$ssh_sock_dir" != "/" && "$ssh_sock_dir" != "." ]]; then
+                    echo "--dir"
+                    echo "$ssh_sock_dir"
+                fi
+                echo "--bind"
+                echo "$ssh_auth_sock"
+                echo "$ssh_auth_sock"
+            fi
+        fi
 
+        # KeePassXC BrowserServer socket forwarding
+        if [[ "$disable_keepassxc_browser_socket" != "true" && "$disable_keepassxc_browser_socket" != "1" ]]; then
+            if [[ -n "$kpxc_browser_sock" ]]; then
+                echo "--setenv"
+                echo "KEEPASSXC_BROWSER_SOCKET_PATH"
+                echo "$kpxc_browser_sock"
+                local kpxc_already_bound="false"
+                if [[ "$allow_all_access" == "true" ]]; then
+                    if [[ "$kpxc_browser_sock" == "$host_run_user"/* || (-n "$xdg_runtime_dir" && "$kpxc_browser_sock" == "$xdg_runtime_dir"/*) ]]; then
+                        kpxc_already_bound="true"
+                    fi
+                fi
+                if [[ "$kpxc_already_bound" != "true" ]]; then
+                    local kpxc_sock_dir
+                    kpxc_sock_dir=$(dirname "$kpxc_browser_sock")
+                    if [[ -n "$kpxc_sock_dir" && "$kpxc_sock_dir" != "/" && "$kpxc_sock_dir" != "." ]]; then
+                        echo "--dir"
+                        echo "$kpxc_sock_dir"
+                    fi
+                    echo "--bind"
+                    echo "$kpxc_browser_sock"
+                    echo "$kpxc_browser_sock"
+                    if [[ -n "$kpxc_symlink_sock" && "$kpxc_symlink_sock" != "$kpxc_browser_sock" ]]; then
+                        local kpxc_symlink_dir
+                        kpxc_symlink_dir=$(dirname "$kpxc_symlink_sock")
+                        if [[ -n "$kpxc_symlink_dir" && "$kpxc_symlink_dir" != "/" && "$kpxc_symlink_dir" != "." ]]; then
+                            echo "--dir"
+                            echo "$kpxc_symlink_dir"
+                        fi
+                        echo "--bind"
+                        echo "$kpxc_symlink_sock"
+                        echo "$kpxc_symlink_sock"
+                    fi
+                fi
+            fi
+        fi
+
+        # Real host home mount
+        if [[ "$allow_all_access" == "true" ]]; then
+            echo "--bind"
+            echo "$host_real_home"
+            echo "$HOME/real_home"
+            echo "--setenv"
+            echo "REAL_HOME"
+            echo "$HOME/real_home"
         fi
         # LAUNCHER_PRIVATE_MOUNTS
         for m in $launcher_private_mounts; do
@@ -899,8 +1032,16 @@ run_sandbox() {
             fi
 
             if [[ ! -d "$check_host_dir" ]]; then
-                echo "Warning: Current working directory '$cwd' is mapped to '$target_cwd' inside the sandbox, which does not exist." >&2
-                echo "This will likely cause the sandbox execution to fail." >&2
+                if [[ "${_LAUNCHER_ALL_ACCESS:-false}" == "true" ]]; then
+                    if [[ "$rel_path" == "." || -z "$rel_path" ]]; then
+                        target_cwd="$HOME/real_home"
+                    else
+                        target_cwd="$HOME/real_home/$rel_path"
+                    fi
+                else
+                    echo "Warning: Current working directory '$cwd' is mapped to '$target_cwd' inside the sandbox, which does not exist." >&2
+                    echo "This will likely cause the sandbox execution to fail." >&2
+                fi
             fi
         else
             # Outside HOME
@@ -1092,6 +1233,7 @@ cmd_install() {
 # DISABLE_AUDIO="${DEFAULT_DISABLE_AUDIO}"         # Disable audio playback/recording
 # DISABLE_DBUS="${DEFAULT_DISABLE_DBUS}"          # Disable DBus session bus communication
 # DISABLE_SYSTEMD="${DEFAULT_DISABLE_SYSTEMD}"       # Disable systemd user manager socket communication (auto-disabled if DBus disabled)
+# DISABLE_KEEPASSXC_BROWSER_SOCKET="${DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET}" # Disable KeePassXC browser integration socket forwarding
 
 # --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
 # DISABLE_HARDWARE="${DEFAULT_DISABLE_HARDWARE}"     # Isolate host GPU/DRI devices (set to true to run headless)
@@ -1485,6 +1627,19 @@ cmd_selftest() {
         echo "INFO: Service file not found at ${SERVICE_FILE} (run 'install' to generate)."
     fi
 
+    if [[ "${DISABLE_KEEPASSXC_BROWSER_SOCKET:-$DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET}" != "true" && "${DISABLE_KEEPASSXC_BROWSER_SOCKET:-$DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET}" != "1" ]]; then
+        local kpxc_check_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        local kpxc_t="$kpxc_check_dir/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer"
+        local kpxc_s="$kpxc_check_dir/org.keepassxc.KeePassXC.BrowserServer"
+        if [[ -S "$kpxc_t" || -e "$kpxc_t" ]]; then
+            echo "OK: KeePassXC BrowserServer target socket found at $kpxc_t"
+        elif [[ -S "$kpxc_s" || -e "$kpxc_s" || -L "$kpxc_s" ]]; then
+            echo "OK: KeePassXC BrowserServer socket found at $kpxc_s"
+        else
+            echo "INFO: KeePassXC BrowserServer socket not found at $kpxc_t or $kpxc_s (KeePassXC not running or browser integration disabled)."
+        fi
+    fi
+
     echo ""
     echo "--- Systemd Service Unit Status ---"
     if is_systemd_running; then
@@ -1519,6 +1674,7 @@ echo "    XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
 echo "    SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-unset}"
 echo "    DISPLAY=${DISPLAY:-unset}"
 echo "    WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
+echo "    KEEPASSXC_BROWSER_SOCKET_PATH=${KEEPASSXC_BROWSER_SOCKET_PATH:-unset}"
 echo "  Specifier Check:"
 env | grep -E "%[hHtSEuUbB]" || echo "    OK: no unresolved specifiers in environment"
 '
@@ -1649,6 +1805,23 @@ main() {
             exit 0
         fi
 
+        local all_access_enabled=false
+        if [[ "$cmd" == "hotshell" ]]; then
+            local filtered_args=()
+            for arg in "$@"; do
+                if [[ "$arg" == "--all-access" ]]; then
+                    all_access_enabled=true
+                else
+                    filtered_args+=("$arg")
+                fi
+            done
+            if [[ ${#filtered_args[@]} -gt 0 ]]; then
+                set -- "${filtered_args[@]}"
+            else
+                set --
+            fi
+        fi
+
         if [[ $# -lt 1 ]]; then
             echo "Error: Application name (app_name) is required for command '$cmd'." >&2
             show_help >&2
@@ -1733,11 +1906,39 @@ main() {
             export DISABLE_SSH_AUTH="false"
             export DISABLE_DBUS="false"
             export DISABLE_SYSTEMD="false"
+            export DISABLE_KEEPASSXC_BROWSER_SOCKET="false"
             _LAUNCHER_ALLOW_KVM="true"
             export _LAUNCHER_ALLOW_KVM
-            _LAUNCHER_SANDBOX_NAME="SANDBOX 🟣"
-            export _LAUNCHER_SANDBOX_NAME
-            export SANDBOX_NAME="SANDBOX 🟣"
+            if [[ "$all_access_enabled" == "true" ]]; then
+                _LAUNCHER_ALL_ACCESS="true"
+                export _LAUNCHER_ALL_ACCESS
+                _LAUNCHER_SANDBOX_NAME="SANDBOX 🚨"
+                export _LAUNCHER_SANDBOX_NAME
+                export SANDBOX_NAME="SANDBOX 🚨"
+                export REAL_HOME="$HOME/real_home"
+                LAUNCHER_EXPORTS+=("REAL_HOME=$HOME/real_home")
+                local user_name
+                user_name="${USER:-$(id -un 2>/dev/null || echo user)}"
+                local host_run_dir
+                host_run_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+                if [[ -t 2 ]]; then
+                    printf '\033[1;33m[WARNING] ALL-ACCESS HOTSHELL ACTIVATED\033[0m\n' >&2
+                    printf '\033[1;37mHost home (%s) is mounted read/write at: \033[1;32m~/real_home\033[0m\n' "$HOME" >&2
+                    printf '\033[1;37mConvenience symlink: \033[1;32m~/real_%s\033[0m\n' "$user_name" >&2
+                    printf '\033[1;37mHost user runtime (%s) is mounted read/write in sandbox\033[0m\n' "$host_run_dir" >&2
+                    printf '\033[1;31mSandbox containment circumvented: edits mutate host files and runtime sockets!\033[0m\n' >&2
+                else
+                    printf '[WARNING] ALL-ACCESS HOTSHELL ACTIVATED\n' >&2
+                    printf 'Host home (%s) is mounted read/write at: ~/real_home\n' "$HOME" >&2
+                    printf 'Convenience symlink: ~/real_%s\n' "$user_name" >&2
+                    printf 'Host user runtime (%s) is mounted read/write in sandbox\n' "$host_run_dir" >&2
+                    printf 'Sandbox containment circumvented: edits mutate host files and runtime sockets!\n' >&2
+                fi
+            else
+                _LAUNCHER_SANDBOX_NAME="SANDBOX 🟣"
+                export _LAUNCHER_SANDBOX_NAME
+                export SANDBOX_NAME="SANDBOX 🟣"
+            fi
             local discovered_sock
             discovered_sock=$(find_ssh_agent_socket || true)
             if [[ -n "$discovered_sock" ]]; then
