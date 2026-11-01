@@ -2128,12 +2128,14 @@ async def proxy_request(
 
         try:
             # Build and send the streaming request
+            req_timeout = float(os.environ.get("LROUT_IMAGE_TIMEOUT", "600.0")) if service == "image" else 120.0
             req = client.build_request(
                 method=request.method,
                 url=target_url,
                 headers=headers,
                 content=body,
                 params=request.query_params,
+                timeout=req_timeout,
             )
 
             response = await client.send(req, stream=True)
@@ -2398,7 +2400,8 @@ def extract_request_agent(
             custom = "hindsight"
         elif "hermes" in ua_lower:
             custom = "hermes"
-
+        elif "omp/" in ua_lower or "oh-my-pi" in ua_lower:
+            custom = "oh-my-pi"
     agent = resolve_client_id(custom)
     if agent == "unknown":
         client_host = request.client.host if request.client else "unknown"
