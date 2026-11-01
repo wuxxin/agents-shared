@@ -60,8 +60,8 @@ LOC_OPEN_RESEARCH_TEXTS = ["Open", "Öffnen", "Open report", "Bericht öffnen"]
 #
 # Timeout configuration (seconds unless noted)
 #
-TIMEOUT_PLAN_WAIT_S = 90
-TIMEOUT_DOM_IDLE_S = 120
+TIMEOUT_PLAN_WAIT_S = 120
+TIMEOUT_DOM_IDLE_S = 240
 TIMEOUT_TOTAL_GENERATION_S = 900  # 15 minutes
 POLL_INTERVAL_S = 10
 TIMEOUT_DOWNLOAD_MS = 20000
@@ -328,17 +328,13 @@ def search_and_replace(prompt_text: str, search_val: str, replace_val: str) -> s
         return prompt_text
 
     if search_val in prompt_text:
-        log_info(
-            f"Replacing search string '{search_val}' with '{replace_val}' in prompt."
-        )
+        log_info(f"Replacing search string '{search_val}' with '{replace_val}' in prompt.")
         return prompt_text.replace(search_val, replace_val)
 
     try:
         regex = re.compile(search_val)
         if regex.search(prompt_text):
-            log_info(
-                f"Replacing regex pattern '{search_val}' with '{replace_val}' in prompt."
-            )
+            log_info(f"Replacing regex pattern '{search_val}' with '{replace_val}' in prompt.")
             return regex.sub(replace_val, prompt_text)
     except Exception:
         pass
@@ -366,12 +362,8 @@ def run_interactive(profile_name: str) -> None:
        without requiring a fresh login.
     """
     profile_dir = get_profile_dir(profile_name)
-    log_info(
-        f"Opening interactive browser window using profile directory: {profile_dir}"
-    )
-    log_info(
-        "Please log in to Gemini and then close the browser window to save the session."
-    )
+    log_info(f"Opening interactive browser window using profile directory: {profile_dir}")
+    log_info("Please log in to Gemini and then close the browser window to save the session.")
 
     binary = get_chromium_binary()
     if not binary:
@@ -423,10 +415,7 @@ def run_automation(
     # would not have the login session.
     binary = get_chromium_binary()
     if not binary:
-        log_error(
-            "Error: 'chromium', 'google-chrome', or 'chromium-browser' not found "
-            "on PATH."
-        )
+        log_error("Error: 'chromium', 'google-chrome', or 'chromium-browser' not found " "on PATH.")
         sys.exit(EXIT_SETUP)
 
     port = get_free_port()
@@ -532,9 +521,7 @@ def run_automation(
                     )
                     if not dr_opt:
                         dr_opt = page.locator(
-                            ", ".join(
-                                f"span:has-text('{t}')" for t in LOC_DEEP_RESEARCH_TEXTS
-                            )
+                            ", ".join(f"span:has-text('{t}')" for t in LOC_DEEP_RESEARCH_TEXTS)
                         ).first
                         if dr_opt.count() == 0:
                             dr_opt = None
@@ -626,17 +613,14 @@ def run_automation(
 
                 if elapsed > TIMEOUT_TOTAL_GENERATION_S:
                     log_warn(
-                        f"Total generation timeout ({TIMEOUT_TOTAL_GENERATION_S}s) "
-                        "reached."
+                        f"Total generation timeout ({TIMEOUT_TOTAL_GENERATION_S}s) " "reached."
                     )
                     break
 
                 # Check for "Open" button
                 open_btn = find_button(page, texts=LOC_OPEN_RESEARCH_TEXTS)
                 if open_btn:
-                    log_info(
-                        "Found 'Open' research button. Clicking it to access results view..."
-                    )
+                    log_info("Found 'Open' research button. Clicking it to access results view...")
                     try:
                         new_page = None
                         try:
@@ -685,9 +669,7 @@ def run_automation(
                     idle_s = current_time - last_activity_time
                     if dom_observer_active and idle_s > TIMEOUT_DOM_IDLE_S:
                         should_reload = True
-                        reload_reason = (
-                            f"No download blocks and DOM idle for {idle_s:.0f}s"
-                        )
+                        reload_reason = f"No download blocks and DOM idle for {idle_s:.0f}s"
 
                 if should_reload:
                     if reloads_triggered < MAX_RELOADS:
@@ -779,9 +761,7 @@ def run_download(
 
     binary = get_chromium_binary()
     if not binary:
-        log_error(
-            "Error: 'chromium', 'google-chrome', or 'chromium-browser' not found on PATH."
-        )
+        log_error("Error: 'chromium', 'google-chrome', or 'chromium-browser' not found on PATH.")
         sys.exit(EXIT_SETUP)
 
     port = get_free_port()
@@ -836,16 +816,12 @@ def run_download(
                 log_error(f"Error: Failed to navigate to {url}: {e}")
                 sys.exit(EXIT_PRE_RESEARCH)
 
-            log_info(
-                "Waiting for 'Open'/'Öffnen' button or download blocks to appear..."
-            )
+            log_info("Waiting for 'Open'/'Öffnen' button or download blocks to appear...")
             open_btn = None
             for _ in range(30):
                 current_sid = check_session_id(page, current_sid)
                 if count_download_buttons(page) > 0:
-                    log_info(
-                        "Download blocks are already visible, skipping 'Open' button click."
-                    )
+                    log_info("Download blocks are already visible, skipping 'Open' button click.")
                     break
                 open_btn = find_button(page, texts=LOC_OPEN_RESEARCH_TEXTS)
                 if open_btn:
@@ -989,9 +965,7 @@ def main() -> None:
     )
     parser_research.add_argument("--output", default=None, help="Output YAML file path")
     res_mode = parser_research.add_mutually_exclusive_group()
-    res_mode.add_argument(
-        "--headed", action="store_true", help="Run browser in headed mode"
-    )
+    res_mode.add_argument("--headed", action="store_true", help="Run browser in headed mode")
     res_mode.add_argument(
         "--headless", action="store_true", help="Run browser in headless mode (default)"
     )
@@ -1006,9 +980,7 @@ def main() -> None:
     )
     parser_download.add_argument("--output", default=None, help="Output YAML file path")
     dl_mode = parser_download.add_mutually_exclusive_group()
-    dl_mode.add_argument(
-        "--headed", action="store_true", help="Run browser in headed mode"
-    )
+    dl_mode.add_argument("--headed", action="store_true", help="Run browser in headed mode")
     dl_mode.add_argument(
         "--headless", action="store_true", help="Run browser in headless mode (default)"
     )
