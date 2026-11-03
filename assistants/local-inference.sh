@@ -9,12 +9,14 @@ set -euo pipefail
 # Paths
 
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-ENV_FILE="${SYSTEMD_USER_DIR}/local-inference.env"
+ENV_FILE="${ENV_FILE:-${SYSTEMD_USER_DIR}/local-inference.env}"
 
 # Default parameters
 
 # shellcheck disable=SC2034
 LCHAT_ENABLED=1
+# shellcheck disable=SC2034
+LCHAT_STRATA_ENABLED=0
 # shellcheck disable=SC2034
 LMBD_ENABLED=1
 # shellcheck disable=SC2034
@@ -101,11 +103,17 @@ generate_env_file() {
 # for individual service environment files.
 #
 # Note on Combined Embeddings Mode:
-# To serve both Chat and Embedding models on the same llama-server instance (on port 20080):
 # 1. Set LMBD_ENABLED=0 to disable the separate local-embedding service.
 # 2. Add 'LCHAT_EMBEDDING_ENABLED=true' inside LCHAT_OVERRIDE.
+#
+# Note on Strata Chat Mode (Alternative Engine):
+# To use Strata (Qwen3.8-Flash-Next on RX 7900 XTX) instead of local-chat on port 20080:
+# 1. Set LCHAT_STRATA_ENABLED=1
+# 2. Set LCHAT_ENABLED=0
+# Note: Strata provides Chat + Vision (no FIM, no text embeddings). Keep LMBD_ENABLED=1 for embeddings.
 
 LCHAT_ENABLED=1
+LCHAT_STRATA_ENABLED=0
 LMBD_ENABLED=1
 LRR_ENABLED=1
 LSTT_ENABLED=1
@@ -131,6 +139,10 @@ LCHAT_OVERRIDE=(
     'LCHAT_EMBEDDING_ENABLED=false'
     # Enable code completion service model
     'LCOMP_ENABLED=true'
+)
+# Strata Chat Engine (alternative to local-chat on port 20080: Qwen3.8-Flash-Next on RX 7900 XTX)
+# Provides Chat LLM + Multimodal Vision (no FIM, no text embeddings).
+LCHAT_STRATA_OVERRIDE=(
 )
 # run EMBEDDING on vulkan/dgpu
 LMBD_OVERRIDE=(
@@ -197,8 +209,8 @@ cmd_install() {
     # Reload variables from env file
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -225,7 +237,7 @@ cmd_install() {
 
 cmd_uninstall() {
     echo "Uninstalling all managed local services..."
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -244,9 +256,25 @@ match_subservice_index() {
     local query_lower
     query_lower="$(echo "$query" | tr '[:upper:]' '[:lower:]')"
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
-    local aliases=("chat" "embedding" "rerank" "stt" "tts" "image" "router" "memory")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local aliases=("chat" "strata" "embedding" "rerank" "stt" "tts" "image" "router" "memory")
+
+    if [[ "$query_lower" == "strata" || "$query_lower" == "chat-strata" || "$query_lower" == "local-chat-strata" || "$query_lower" == "lchat_strata" ]]; then
+        echo "1"
+        return 0
+    fi
+
+    if [[ "$query_lower" == "chat" || "$query_lower" == "local-chat" || "$query_lower" == "lchat" ]]; then
+        load_env
+        if [ "${LCHAT_STRATA_ENABLED:-0}" = "1" ] && [ "${LCHAT_ENABLED:-1}" != "1" ]; then
+            echo "1"
+            return 0
+        else
+            echo "0"
+            return 0
+        fi
+    fi
 
     for i in "${!services[@]}"; do
         local svc="${services[$i]}"
@@ -265,7 +293,7 @@ match_subservice_index() {
 
 cmd_status() {
     local target_service="${1:-}"
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
 
     if [ -n "$target_service" ]; then
         local idx
@@ -289,7 +317,7 @@ cmd_status() {
 }
 
 cmd_logs() {
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
     local log_args=()
     for svc in "${services[@]}"; do
         log_args+=("-u" "${svc}.service")
@@ -305,12 +333,24 @@ cmd_edit() {
     cmd_restart
 }
 
+check_port_conflicts() {
+    load_env
+    local chat_en="${LCHAT_ENABLED:-0}"
+    local strata_en="${LCHAT_STRATA_ENABLED:-0}"
+    if [ "$chat_en" = "1" ] && [ "$strata_en" = "1" ]; then
+        echo "Error: Both local-chat and local-chat-strata are enabled in configuration." >&2
+        echo "Strata is an alternative to local-chat on port 20080 (either or)." >&2
+        echo "Set LCHAT_ENABLED=0 in local-inference.env when enabling LCHAT_STRATA_ENABLED=1." >&2
+        exit 1
+    fi
+}
+
 cmd_start() {
     local target_service="${1:-}"
-    load_env
+    check_port_conflicts
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -365,8 +405,8 @@ cmd_stop() {
     local target_service="${1:-}"
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -417,10 +457,10 @@ cmd_stop() {
 
 cmd_restart() {
     local target_service="${1:-}"
-    load_env
+    check_port_conflicts
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -494,8 +534,8 @@ cmd_restart() {
 cmd_test() {
     load_env
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 
@@ -530,8 +570,8 @@ cmd_cat() {
     fi
     echo ""
 
-    local services=("local-chat" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
-    local prefixes=("LCHAT" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
+    local services=("local-chat" "local-chat-strata" "local-embedding" "local-rerank" "local-speech-to-text" "local-text-to-speech" "local-image" "local-router" "local-memory")
+    local prefixes=("LCHAT" "LCHAT_STRATA" "LMBD" "LRR" "LSTT" "LTTS" "LIMG" "LROUT" "LMEM")
     local script_dir
     script_dir="$(dirname "$0")"
 

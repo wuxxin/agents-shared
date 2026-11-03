@@ -7,6 +7,7 @@ Input:
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
 | **Local-Chat** | [20080](http://localhost:20080) | Llama-server serving OpenAI Chat/Vision LLM, FIM Code Completions (qwen-coder-fim), and optional text embeddings |
+| **Local-Chat-Strata** | [20080](http://localhost:20080) | Strata serving OpenAI Chat/Vision LLM (Qwen3.8-Flash-Next on RX 7900 XTX, alternative to local-chat) |
 | **Local-Embedding** | [20082](http://localhost:20082) | Llama-server serving OpenAI Text Embeddings |
 | **Local-Rerank** | [20086](http://localhost:20086) | Llama-server serving Document Reranking |
 | **Local-Speech-To-Text** | [20090](http://localhost:20090) | Whisper-server OpenAI audio transcription |
@@ -55,6 +56,7 @@ You can toggle which services are enabled or disabled by editing `local-inferenc
 
 ```env
 LCHAT_ENABLED=1
+LCHAT_STRATA_ENABLED=0
 LMBD_ENABLED=1
 LRR_ENABLED=1
 LSTT_ENABLED=1
@@ -88,6 +90,23 @@ LCHAT_OVERRIDE=(
     'LCOMP_CACHE_TYPE_V="q4_0"'
 )
 ```
+#### Strata Chat Mode (Alternative Engine)
+`local-chat-strata.sh` is available as a dedicated alternative to `local-chat.sh` on port `20080`, serving Qwen3.8-Flash-Next optimized for AMD RDNA3 (Navi 31 / RX 7900 XTX).
+
+To switch from `local-chat` to `local-chat-strata`:
+1. Set `LCHAT_STRATA_ENABLED=1` in `local-inference.env`.
+2. Set `LCHAT_ENABLED=0` in `local-inference.env`.
+3. Ensure `LMBD_ENABLED=1` (Strata provides Chat + Vision without text embeddings, so text embeddings are handled by `local-embedding`).
+
+Overrides can be passed via `LCHAT_STRATA_OVERRIDE=()` in `local-inference.env`:
+```env
+LCHAT_STRATA_OVERRIDE=(
+    'LCHAT_STRATA_SPEED="faster"'
+)
+```
+
+Both services share port 20080 ("either or"). If both `LCHAT_ENABLED=1` and `LCHAT_STRATA_ENABLED=1` are active simultaneously, `local-inference.sh` aborts with a port conflict error.
+
 
 ### Propagating Service Overrides
 

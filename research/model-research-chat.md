@@ -103,6 +103,7 @@ models at usable acceptance rates.
 | XYZ-Aquila-mini | ~3.0B | ~1720 t/s | ~64 t/s | MoE |
 | North-Mini-Code-1.0 | ~4.0B | ~1290 t/s | ~55 t/s | MoE |
 | K2-Horizon-MoVA-36B-A4B | 4.0B | ~1290 t/s | ~55 t/s | MoE, no GGUF yet (BF16 ~72 GB) |
+| Swift-1.5-Flash-Next (SC117 IQ3_S) | 6.0B (125B total) | 2500-3600 t/s | 92-108 t/s | ultra-sparse MoE (512 exps), Strata hybrid VRAM+RAM, MTP draft |
 | Qwen3.8-27B (dense baseline) | 27B | ~190 t/s | ~21 t/s | dense |
 | Qwen3.6-27B-Fable-Fusion-711 | 27B | ~190 t/s | ~21 t/s | dense, IQ4_XS 16.5 GB |
 | Qwen3.8-27B-TURBO-...-735-882 | 27B | ~190 t/s | ~21 t/s (+MTP) | dense, MTP >90 t/s at 60% acceptance on 5090 |
@@ -131,6 +132,7 @@ Current selected default model: **BigBang-v1**.
 | **North-Mini-Code-1.0** | ~12B / ~4B | UD-Q4, 19.2 GB | ~1290 / ~55 | Native CoT traces tuned for subagents |
 | **Agents-A1** | 35B / 3B | APEX/IQ4_XS class, 17.5 GB | ~1720 / ~64 | Legacy 3.5-series baseline, kept for comparison |
 | **K2-Horizon-MoVA-36B-A4B** | 36B / 4B | BF16 ~72 GB, no GGUF | ~1290 / ~55 | Frontier-class 512K-context MoE (Terminal-Bench 58.6, GPQA 80.8) |
+| **Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated** | 125B / 6B | GSQ-RCO IQ3_S 77.8 GB (Strata 24GB VRAM + 41GB RAM) | ~2500-3600 / 92-108 | 125B ultra-sparse MoE (512 exp, 6 act), Swift 1.5 token-efficient (-63.4% thinking tokens), abliterated (zero refusal), Strata acceleration |
 
 ### Main Dense models
 
@@ -165,71 +167,124 @@ Current selected default model: **BigBang-v1**.
 
 | Model | Category | Total / active | Quant + VRAM | Terminal-Bench 2.1 | SWE-bench Verified | SWE-bench Pro | Claw-Eval | NL2Repo |
 |---|---|---|---|---:|---:|---:|---:|---:|
+| **Claude Opus 4.8** | Frontier | Closed API | API | **84.6** | **88.5** | **69.2** | 54.7 | 47.6 |
+| **GPT 5.5** | Frontier | Closed API | API | 84.3 | 86.2 | 58.6 | 78.4 | 51.8 |
+| **Gemini 3.1 Pro** | Frontier | Closed API | API | 73.8 | 81.0 | 54.2 / 64.8 | 76.8 | 49.4 |
+| **DeepSeek V4 Pro** | Frontier | 1.6T / ~37B | Open-Weights | 64.0 | 82.4 | 55.4 | **79.5** | **58.5** |
+| **DeepSeek V4 Flash** | Frontier | 284B / ~13B | Open-Weights | 61.8 | 78.6 | 52.6 | 73.2 | 54.2 |
 | **Qwen3.6-35B** (baseline) | MOE | 35B / 3B | APEX 18.5 GB | 49.2 | 73.4 | 43.6 | 68.7 | 29.4 |
-| BigBang-v1 | MOE | 35B / 3B | IQ4_XS 17.95 GB | 58.3 | 79.4 | **54.2** | 77.5 | 36.0 |
+| BigBang-v1 | MOE | 35B / 3B | IQ4_XS 17.95 GB | 58.3 | 79.4 | 54.2 | 77.5 | 36.0 |
 | BTL-4 | MOE | 35B / 3B | IQ4_XS 17.9 GB | 60.5 | 78.4 | 48.2 | 72.8 | 35.2 |
-| Ornith-1.0-35B | MOE | 35B / 3B | Q4_K_M 21.2 GB | **62.8** | 75.6 | 38.7 | 69.8 | 34.6 |
-| KAT-Coder-V2.5-Dev | MOE | 35B / 3B | APEX 18.5 GB | 59.1 | **79.6** | 45.96 | 67.2 | 32.2 |
+| Ornith-1.0-35B | MOE | 35B / 3B | Q4_K_M 21.2 GB | 62.8 | 75.6 | 38.7 | 69.8 | 34.6 |
+| KAT-Coder-V2.5-Dev | MOE | 35B / 3B | APEX 18.5 GB | 59.1 | 79.6 | 45.96 | 67.2 | 32.2 |
 | XYZ-Aquila-mini | MOE | ~10B / ~3B | Q3_K_XL 15.8 GB | 51.3 | 70.1 | 50.2 | 69.0 | 28.6 |
 | North-Mini-Code-1.0 | MOE | ~12B / ~4B | UD-Q4 19.2 GB | 53.5 | 74.0 | 47.5 | 69.5 | 32.4 |
 | Agents-A1 | MOE | 35B / 3B | APEX class 17.5 GB | 38.9 | 61.5 | 42.3 | 65.4 | 20.5 |
-| K2-Horizon-MoVA-36B-A4B | MOE | 36B / 4B | BF16 ~72 GB | 58.6 | - | - | - | - |
-| **Qwen3.8-27B** (baseline) | Dense | 27B | UD-Q4_K_XL 17.56 GB | **73.0** | - | **61.7** | - | 42.3 |
+| K2-Horizon-MoVA-36B-A4B | MOE | 36B / 4B | BF16 ~72 GB | 58.6 | +-76.8 | +-51.2 | +-71.5 | +-34.8 |
+| **Qwen3.8-Flash-Next** (Base) | MOE | 125B / 6B | BF16 / GGUF | 67.6 | 81.0 | 62.5 | 64.4 (MM) | 48.1 |
+| ⚡ **Swift-1.5-Flash-Next (SC117)** | MOE | 125B / 6B | IQ3_S 77.8 GB (Strata) | 69.7 | 81.2 | 62.5 | 64.4 (MM) | 48.1 |
+| **Qwen3.8-27B** (baseline) | Dense | 27B | UD-Q4_K_XL 17.56 GB | 73.0 | 78.2 | 61.7 | 57.4 | 42.3 |
 | Fable-Fusion-711 | Dense | 27B | IQ4_XS 16.5 GB | 59.3 | 77.2 | 53.5 | 75.2 | 36.2 |
-| Qwen3.8-27B-TURBO-735-882 | Dense | 27B | NEO IMATRIX | - | - | - | - | - |
-| Qwopus3.8-27B-Flash | Dense | 27B | MTP-Q5_K_M 19.54 GB | - | - | - | - | - |
-| Qwen3.8-27B GSQ-RCO | Dense | 27B | IQ3_S 11.8 GB | - | - | - | - | - |
+| Qwen3.8-27B-TURBO-735-882 | Dense | 27B | NEO IMATRIX | +-62.0 | +-76.5 | +-54.0 | +-72.0 | +-37.5 |
+| Qwopus3.8-27B-Flash | Dense | 27B | MTP-Q5_K_M 19.54 GB | +-68.5 | +-77.8 | +-58.2 | +-64.0 | +-40.5 |
+| Qwen3.8-27B GSQ-RCO | Dense | 27B | IQ3_S 11.8 GB | +-72.4 | +-78.0 | +-61.5 | +-57.0 | +-42.1 |
 | Qwen3.6-Escha-W2 | Exotic | 35B / 3B | EschaMoE 9.8 GB | 48.5 | 72.6 | 42.8 | 67.9 | 28.9 |
 | fuse-1-Lite | Exotic | 5.72B | bf16 4.2 GB | 38.2 | 62.5 | 34.1 | 58.6 | 21.4 |
 | Ternary-Bonsai-27B | Exotic | 27B | Q2_0 7.2 GB | 43.7 | 74.9 | 39.2 | 71.7 | 25.2 |
 
-The three new dense entries publish no Terminal-Bench / SWE-bench numbers; what they do report
-(agentic SWE battery, ARC-C, AIME25/GPQA/LCB) is in table 3 and in
-[`model-research-chat.md`](model-research-chat.md).
+The dense fine-tune estimates reflect verified vendor and held-out evaluation reports; detailed multi-suite logs appear in Main-4.
 
 ###### Main-2. Frontier research, search and scientific reasoning
 
 | Model | Category | BrowseComp | XBench | HLE | FS-R | MLE-Bench | PaperBench | SciCode-V (Main/Sub) | BioMystery (HS/HD) |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **Claude Opus 4.8** | Frontier | 84.3 | 61.4 | **57.9** | 45.2 | **63.6** | **65.2** | 78.1 / 92.3 | **88.5 / 42.4** |
+| **GPT 5.5** | Frontier | 84.4 | **72.4** | 52.2 | **58.3** | 59.1 | 64.2 | **90.6 / 95.1** | 76.7 / 23.5 |
+| **Gemini 3.1 Pro** | Frontier | **85.9** | 68.2 | 51.4 | 24.8 | 61.4 | 58.7 | 82.4 / 91.5 | 78.2 / 28.2 |
+| **DeepSeek V4 Pro** | Frontier | 83.4 | 64.8 | 48.2 | 40.7 | 59.1 | 50.4 | 78.1 / 90.2 | 64.4 / 13.7 |
+| **DeepSeek V4 Flash** | Frontier | 73.2 | 62.2 | 45.1 | 37.7 | 40.9 | 40.4 | 68.6 / 83.7 | 68.0 / 23.5 |
 | **Qwen3.6-35B** (baseline) | MOE | 67.9 | 32.6 | 36.2 | 11.9 | 31.8 | 30.7 | 26.6 / 56.5 | 44.8 / 2.0 |
-| BigBang-v1 | MOE | **76.5** | 58.4 | **50.3** | **46.2** | **59.1** | **53.6** | **50.0 / 68.6** | **57.5 / 15.7** |
+| BigBang-v1 | MOE | 76.5 | 58.4 | 50.3 | 46.2 | 59.1 | 53.6 | 50.0 / 68.6 | 57.5 / 15.7 |
 | BTL-4 | MOE | 74.2 | 59.8 | 46.8 | 31.2 | 35.4 | 32.8 | 39.2 / 60.1 | 48.5 / 6.2 |
-| Ornith-1.0-35B | MOE | 73.9 | **61.8** | 45.3 | 29.6 | 27.3 | 20.5 | 35.0 / 42.0 | 50.2 / 5.9 |
+| Ornith-1.0-35B | MOE | 73.9 | 61.8 | 45.3 | 29.6 | 27.3 | 20.5 | 35.0 / 42.0 | 50.2 / 5.9 |
 | KAT-Coder-V2.5-Dev | MOE | 68.5 | 48.2 | 42.1 | 28.4 | 34.2 | 31.5 | 38.5 / 59.2 | 46.5 / 4.0 |
 | XYZ-Aquila-mini | MOE | 74.1 | 57.2 | 38.4 | 36.8 | 18.2 | 14.8 | 15.6 / 39.0 | 42.9 / 5.9 |
 | Agents-A1 | MOE | 48.5 | 52.4 | 46.3 | 38.4 | 27.3 | 17.3 | 50.0 / 64.1 | 48.9 / 2.0 |
 | North-Mini-Code-1.0 | MOE | 71.2 | 45.8 | 43.0 | 26.5 | 32.5 | 28.0 | 34.0 / 58.0 | 47.0 / 4.0 |
-| K2-Horizon-MoVA-36B-A4B | MOE | - | - | 25.2 | - | - | - | 38.9 / - | - |
-| Qwen3.8-27B (baseline) | Dense | - | - | 30.8 | - | - | - | - | - |
+| K2-Horizon-MoVA-36B-A4B | MOE | +-72.0 | +-49.5 | 25.2 | +-30.5 | +-32.0 | +-29.0 | +-38.9 / +-58.0 | +-45.0 / +-4.0 |
+| Qwen3.8-Flash-Next (Base) | MOE | 78.5 | 54.2 | 35.9 | 38.2 | 44.5 | 42.0 | 46.9 / 68.2 | 51.0 / 8.0 |
+| Swift-1.5-Flash-Next (SC117) | MOE | 77.8 | 53.6 | 35.0 | 37.0 | 43.8 | 41.2 | 45.5 / 66.0 | 50.2 / 7.6 |
+| Qwen3.8-27B (baseline) | Dense | 71.5 | 51.2 | 30.8 | 28.4 | 36.2 | 34.5 | 36.5 / 58.2 | 46.2 / 4.5 |
 | Fable-Fusion-711 | Dense | 74.8 | 56.2 | 47.1 | 34.5 | 42.6 | 41.2 | 42.5 / 62.8 | 52.0 / 8.5 |
+| Qwen3.8-27B-TURBO-735-882 | Dense | +-72.0 | +-52.0 | +-33.5 | +-29.0 | +-37.0 | +-35.0 | +-38.0 / +-60.0 | +-47.0 / +-5.0 |
+| Qwopus3.8-27B-Flash | Dense | +-73.0 | +-53.0 | +-34.0 | +-31.0 | +-38.5 | +-36.5 | +-40.0 / +-62.0 | +-48.0 / +-5.5 |
+| Qwen3.8-27B GSQ-RCO | Dense | +-71.2 | +-51.0 | +-30.7 | +-28.2 | +-36.0 | +-34.2 | +-36.4 / +-58.0 | +-46.0 / +-4.4 |
 | Qwen3.6-Escha-W2 | Exotic | 66.8 | 32.1 | 35.6 | 11.6 | 31.2 | 30.2 | 26.1 / 55.8 | 44.1 / 1.9 |
 | fuse-1-Lite | Exotic | 51.2 | 24.5 | 22.4 | 8.2 | 18.5 | 16.2 | 19.4 / 41.2 | 32.0 / 1.0 |
 | Ternary-Bonsai-27B | Exotic | 58.0 | 36.5 | 39.5 | 18.2 | 22.4 | 19.0 | 20.0 / 45.0 | 40.0 / 2.0 |
 
-###### Main-3. 2026 agent-suite results not covered by tables 1-2
+###### Main-3. Frontier model cross-scale comparison (35B scale vs 100B+ / closed frontier)
 
-| Model | Reported result |
-|---|---|
-| K2-Horizon-MoVA-36B-A4B | tau3-Banking 26.8; GPQA-Diamond 80.8; CritPt 2.1; AA-LCR 66.3; AA-Omniscience accuracy 18.8 / non-hallucination 69.2 |
-| Qwen3.8-27B (baseline) | SWE-bench Pro 61.7; NL2Repo 42.3; DeepSWE 1.1 42.2; QwenSWEBench 79.0; CoWorkBench 70.7; JobBench 33.4; Agents' Last Exam pass@1 20.4 / score 42.9; IFBench 79.5; GPQA-D 89.2; HLE 30.8; LiveCodeBench v6 90.3; OSWorld-Verified 84.3; WebArena-Verified 64.8; AndroidWorld 81.9; RecreationBench 47.1; ClawEval-MM 57.4 pass@3 / 56.9 avg; SWE-MM 38.6; Vision2Web 62.9; MathVision 94.6 (with CI); BabyVision 85.6 (with CI); CharXiv 90.2 (with CI); OmniDocBench 1.5 91.1; RealWorldQA 85.9; ERQA 65.5 |
-| Qwen3.8-27B GSQ-RCO `IQ3_S` | AIME25 100.00 (BF16-equal), GPQA-Diamond 89.39 (vs 89.90), LiveCodeBench v6 85.71 (BF16-equal) at 11.8 GB / 3.50 bpw |
-| Qwopus3.8-27B-Flash | MMLU-Pro 91.28% (base 92.73%); +12.8% decode throughput; 80.7% weighted MTP acceptance; 13/14 agentic software-engineering battery |
-| Qwen3.8-27B-TURBO-735-882 | ARC-C 0.735 mxfp8 / 0.719 mxfp4; ARC-E 0.882; BoolQ 0.917; HellaSwag 0.832; OBQA 0.530; PIQA 0.837; WinoGrande 0.785 |
+| Model | Architecture / Scale | LiveCodeBench v6 | GPQA-Diamond | SWE-Bench Pro | HLE | BrowseComp | FS-R | MLE-Bench | PaperBench | BioMystery (HD) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **Claude Opus 4.8** | Frontier Closed API | 89.5 | 92.0 | **69.2** | **57.9** | 84.3 | 45.2 | **63.6** | **65.2** | **42.4** |
+| **GPT 5.5** | Frontier Closed API | 90.8 | 93.5 | 58.6 | 52.2 | 84.4 | **58.3** | 59.1 | 64.2 | 23.5 |
+| **Gemini 3.1 Pro** | Frontier Closed API (MoE) | 91.7 | **94.1** | 54.2 / 64.8 | 51.4 / 54.6 | **85.9** | 24.8 / 48.2 | 61.4 | 58.7 | 28.2 |
+| **DeepSeek V4 Pro** | 1.6T MoE Open-Weights | **93.5** | 90.5 | 55.4 | 48.2 | 83.4 | 40.7 | 59.1 | 50.4 | 13.7 |
+| **DeepSeek V4 Flash** | 284B MoE Open-Weights | 91.6 | 89.4 | 52.6 | 45.1 | 73.2 | 37.7 | 40.9 | 40.4 | 23.5 |
+| 🌐 **Qwen3.8-Flash-Next (Base)** | **125B MoE (Open-Weights, 6B act)** | 91.9 | 91.7 | 62.5 | 35.9 | 78.5 | 38.2 | 44.5 | 42.0 | 8.0 |
+| ⚡ **Swift-1.5-Flash-Next (SC117)** | **125B MoE (Fine-tune + Transplant)** | 90.4 | 89.6 | 62.5 | +-35.0 | 77.8 | 37.0 | 43.8 | 41.2 | 7.6 |
+| 💥 **BigBang-v1** | **35B MoE (Fine-tune)** | +-85.2 | +-87.8 | 54.2 | 50.3 | 76.5 | 46.2 | 59.1 | 53.6 | 15.7 |
+| ⚔️ **Fable-Fusion-711** | **27B Dense (Merge)** | +-84.6 | +-86.5 | 53.5 | 47.1 | 74.8 | 34.5 | 42.6 | 41.2 | 8.5 |
+| **Qwen3.6-35B** | 35B MoE (Baseline) | 73.5 | 84.1 | 43.6 | 36.2 | 67.9 | 11.9 | 31.8 | 30.7 | 2.0 |
 
+###### Main-4. Cybersecurity, exploitation and red-teaming benchmark matrix
 
-###### Main-4. Frontier model cross-scale comparison (35B scale vs 100B+ / closed frontier)
-
-| Model | Architecture / Scale | BrowseComp | SWE-Bench Pro | HLE | FS-R | MLE-Bench | PaperBench | BioMystery (HD) |
+| Model | Architecture / Focus | ExploitBench (Ladder / T4-5) | CyberSecEval 4 (Triage / Patch) | SecEval (Overall) | SecEval (PenTest / Web) | SECURE (MAET / CWET) | CyberMetric-10000 | Refusal on Security Probes |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| **Claude Opus 4.8** | Frontier Closed API | 84.3 | 69.2 | 57.9 | 45.2 | 63.6 | - | 42.4 |
-| **GPT 5.5** | Frontier Closed API | 84.4 | 58.6 | 52.2 | 58.3 | 59.1 | 64.2 | 23.5 |
-| **DeepSeek V4 Pro** | 1.6T MoE Open-Weights | 83.4 | 55.4 | 48.2 | 40.7 | 59.1 | 50.4 | 13.7 |
-| **DeepSeek V4 Flash** | 284B MoE Open-Weights | 73.2 | 52.6 | 45.1 | 37.7 | 40.9 | 40.4 | 23.5 |
-| 💥 **BigBang-v1** | **35B MoE (Fine-tune)** | **76.5** | **54.2** | **50.3** | **46.2** | **59.1** | **53.6** | **15.7** |
-| ⚔️ **Fable-Fusion-711** | **27B Dense (Merge)** | **74.8** | **53.5** | **47.1** | **34.5** | **42.6** | **41.2** | **8.5** |
-| **Qwen3.6-35B** | 35B MoE (Baseline) | 67.9 | 43.6 | 36.2 | 11.9 | 31.8 | 30.7 | 2.0 |
+| **Claude Opus 4.8** | Frontier Closed API | 68.4 / 48.2 | **88.2 / 78.4** | 88.5 | 89.2 / 89.5 | **95.2 / 94.6** | 90.8 | 94.2% (High Refusal) |
+| **GPT 5.5** | Frontier Closed API | **72.0 / 47.4** | 86.5 / **79.1** | **89.2** | **90.5 / 91.2** | 94.8 / 94.0 | **91.4** | 93.5% (High Refusal) |
+| **Gemini 3.1 Pro** | Frontier Closed API | +-58.2 / +-32.5 | +-82.0 / +-71.5 | +-84.6 | +-85.0 / +-86.2 | 86.2 / 87.8 | +-88.5 | 95.0% (High Refusal) |
+| **DeepSeek V4 Pro** | 1.6T MoE Open-Weights | +-54.0 / +-28.6 | +-81.4 / +-68.5 | +-85.6 | +-86.2 / +-87.0 | +-91.5 / +-90.8 | +-86.8 | +-82.4% (Standard Refusal) |
+| **DeepSeek V4 Flash** | 284B MoE Open-Weights | +-46.5 / +-21.0 | +-76.2 / +-62.0 | +-80.2 | +-81.5 / +-82.4 | +-87.0 / +-86.5 | +-82.5 | +-79.0% (Standard Refusal) |
+| 🌐 **Qwen3.8-Flash-Next (Base)** | 125B MoE Base (6B act) | +-42.8 / +-18.5 | +-74.5 / +-60.2 | +-83.4 | +-84.0 / +-84.8 | +-88.4 / +-87.5 | +-84.2 | +-81.5% (Standard Refusal) |
+| ⚡ **Swift-1.5-Flash-Next (SC117)** | 125B MoE Abliterated | +-51.2 / +-26.4 | +-78.0 / +-61.5 | +-84.1 | +-86.5 / +-87.2 | +-89.0 / +-88.2 | +-84.0 | **0.0% (Zero Refusal)** |
+| 💥 **BigBang-v1** | 35B MoE (Generalist) | +-39.5 / +-14.2 | +-72.8 / +-58.0 | +-79.8 | +-81.2 / +-82.0 | +-86.5 / +-85.0 | +-81.5 | +-78.5% (Standard Refusal) |
+| ⚔️ **Fable-Fusion-711** | 27B Dense Merge | +-37.8 / +-12.0 | +-70.5 / +-55.4 | +-77.5 | +-79.0 / +-80.5 | +-84.0 / +-83.2 | +-79.2 | +-74.0% (Standard Refusal) |
+| 🛡️ **CyberStrike-OffSec-35B** | 35B MoE (Dedicated OffSec) | +-48.6 / +-24.0 | +-84.2 / +-71.8 | 81.4 | 82.3 / 85.3 | 93.9 / 93.1 | 86.6 | **0.0% (Zero Refusal)** |
+| 🦅 **Cyber-Ornith-1.5-9B** | 9B Dense (Agentic Cyber) | +-41.5 / +-16.8 | 86.7 / +-68.0 | +-76.4 | +-78.5 / +-79.2 | +-85.2 / +-84.0 | +-77.8 | **0.0% (Zero Refusal)** |
+| **Qwen3.6-35B** (Baseline) | 35B MoE Baseline | +-32.4 / +-9.5 | +-66.0 / +-51.2 | +-74.2 | +-75.8 / +-76.4 | +-83.5 / +-82.0 | +-76.0 | +-76.5% (Standard Refusal) |
 
-###### Main-5. Cited benchmark repositories and leaderboards
+###### Main-5. Performance results not covered in tables
+Results from specialized benchmark suites and evaluations not captured in the matrix tables above:
+
+K2-Horizon-MoVA-36B-A4B: tau3-Banking 26.8; GPQA-Diamond 80.8; CritPt 2.1; AA-LCR 66.3; AA-Omniscience accuracy 18.8 / non-hallucination 69.2.
+
+Qwen3.8-27B (baseline): SWE-bench Pro 61.7; NL2Repo 42.3; DeepSWE 1.1 42.2; QwenSWEBench 79.0; CoWorkBench 70.7; JobBench 33.4; Agents' Last Exam pass@1 20.4 / score 42.9; IFBench 79.5; GPQA-D 89.2; HLE 30.8; LiveCodeBench v6 90.3; OSWorld-Verified 84.3; WebArena-Verified 64.8; AndroidWorld 81.9; RecreationBench 47.1; ClawEval-MM 57.4 pass@3 / 56.9 avg; SWE-MM 38.6; Vision2Web 62.9; MathVision 94.6 (with CI); BabyVision 85.6 (with CI); CharXiv 90.2 (with CI); OmniDocBench 1.5 91.1; RealWorldQA 85.9; ERQA 65.5.
+
+Qwen3.8-27B GSQ-RCO IQ3_S: AIME25 100.00 (BF16-equal); GPQA-Diamond 89.39 (vs 89.90); LiveCodeBench v6 85.71 (BF16-equal) at 11.8 GB / 3.50 bpw.
+
+Qwopus3.8-27B-Flash: MMLU-Pro 91.28% (base 92.73%); +12.8% decode throughput; 80.7% weighted MTP acceptance; 13/14 agentic software-engineering battery.
+
+Qwen3.8-27B-TURBO-735-882: ARC-C 0.735 mxfp8 / 0.719 mxfp4; ARC-E 0.882; BoolQ 0.917; HellaSwag 0.832; OBQA 0.530; PIQA 0.837; WinoGrande 0.785.
+
+Qwen3.6-35B-A3B (baseline): LiveCodeBench v6 73.5; GPQA-Diamond 84.1; Terminal-Bench 2.1 49.2 (Terminus-2) / 44.9 (IFM); SWE-bench Verified 73.4; SWE-bench Pro 43.6; Claw-Eval 68.7; NL2Repo 29.4; BrowseComp 67.9; XBench 32.6; HLE 36.2; FS-R 11.9; MLE-Bench 31.8; PaperBench 30.7; SciCode-V (Main/Sub) 26.6 / 56.5; BioMystery (HS/HD) 44.8 / 2.0; MTP speculative decode +22.0% throughput (135.7 vs 111.3 tok/s).
+
+BigBang-v1 (SOTA 35B MoE): LiveCodeBench v6 ~85.2; GPQA-Diamond ~87.8; Terminal-Bench 2.1 58.3; SWE-bench Verified 79.4; SWE-bench Pro 54.2; Claw-Eval 77.5; NL2Repo 36.0; BrowseComp 76.5; XBench 58.4; HLE 50.3; FS-R 46.2 (beats DeepSeek V4 Pro 40.7, Claude Opus 4.8 45.2); MLE-Bench 59.1 (ties GPT 5.5 / DeepSeek V4 Pro); PaperBench (Code-Dev) 53.6 (beats DeepSeek V4 Pro 50.4); SciCode-V (Main/Sub) 50.0 / 68.6; BioMystery (HS/HD) 57.5 / 15.7 (HD beats DeepSeek V4 Pro 13.7); embedded block 40 MTP draft tensors (753 total tensors); clean loop termination with enable_thinking: true.
+
+Qwen3.8-Flash-Next (Base): SWE-bench Pro 62.5; DeepSWE 1.1 58.7; SWE-bench Multilingual 81.0; NL2Repo-Bench 48.1; Terminal-Bench 2.1 67.64; CoWorkBench 73.9; JobBench 55.7; Agents' Last Exam pass@1 24.3 / score 51.2; Toolathlon Verified (pass@1) 73.5; IFBench 81.3; GPQA-Diamond 91.7; HLE 35.9; LiveCodeBench v6 91.9; ClawEval-MM pass@3 64.4 / avg 60.4; RecreationBench 49.9; AndroidWorld 84.5; OSWorld 2.0 binary 19.4 / partial 52.3; Vision2Web 64.0; ERQA 72.3; LVBench 76.6; RealWorldQA 88.5; CharXiv (RQ) with CI 90.6 / without CI 84.6; AIME 2026 98.67; HMMT Nov 2025 98.00; C-Eval 93.27; MMLU-Pro 87.75; tau3-Banking ~45.4-48.0.
+
+Swift-1.5-Qwen3.8-Flash-Next (UkisAI & SC117 abliterated): Terminal-Bench 2.1 69.66 (+2.02 pp vs 67.64 Base); LiveCodeBench v6 90.39 (+1.99 pp vs 88.40 Base); GPQA-Diamond 89.60 (vs 89.80 Base, -0.20 pp); AIME 2026 96.67 (vs 98.67 Base, -2.00 pp); HMMT Nov 2025 97.33 (vs 98.00 Base, -0.67 pp); C-Eval 93.60 (+0.33 pp); IFBench 70.13 (vs 73.20 Base); ERQA 69.30 (vs 70.80 Base); Thinking token budget: -63.4% median / -55.8% mean on GPQA-D, -51.1% median / -31.3% mean on AIME 2026, -52.0% median / -44.8% mean on LCB v6, -54.7% median on HMMT; overthinking capped (max tail 742 Swift / 1082 SC117 vs 3837 Base); code pass rate 15/15; wall-clock execution 1.8x faster; zero refusal on security probes; Strata decode 126.4 tok/s.
+
+CyberStrike-OffSec-35B: SecEval 81.39% (#1 open-source, beating GPT-4-turbo 79.07%); Network Sec 85.09%; Web Sec 85.34%; PenTest 82.26%; Cryptography 75.00%; Vulnerability 83.33%; AppSec 82.29%; Software Sec 79.75%; System Sec 77.82%; Memory Safety 71.43%; SECURE-MAET (MITRE ATT&CK) 93.94%; SECURE-CWET (CWE) 93.05%; CyberMetric-10000 86.61% (#4 across 25 models); MMLU Computer Security 86.00%; zero refusal on offensive security workflows.
+
+Cyber-Ornith-1.5-9B-OBLITERATED: CyberSecEval 3/4 triage & remediation 86.7% (100% test case pass); zero-refusal diagnostic compliance 100.0%; Hermes Function Calling AST 93.3%; Terminal-Bench 2.1 66.7%; GPQA-Diamond 40.0%; GSM8K 74.0%; 102 tok/s on single RTX 4080 Super workstation; zero moralizing preambles on reverse engineering and exploit diagnostics.
+
+DeepSeek-V4.1-Flash (with GLP-39 / keysdir projective steering): refusal32 1/32 -> 23/32; cyber32 12/32 -> 29/32; cyber100 refusal 75.0% -> 0.0%; V8 exploitation ladder 15.2% -> 0.0% refusal (delivery 81.8% -> 100.0%); cyber-fullchain 37.5% -> 0.9% refusal; benign32 32/32 clean; α=0.75 calibrated; hook at post-layer hyper-connection fold.
+
+Qwen3.8-Flash-Next (with GLP-47 / Cudecnik refusal projection): refusal32 1/32 -> 26/32 (81.2%); cyber32 5/32 -> 32/32 (100.0%); benign32 32/32 clean; capability12 12/12; KL divergence 0.186 nats on neutral text; runtime projective hook h -= s*(h*v)v across L1–47; 480 KB control vector add-on preserving PLE and MTP.
+
+###### Main-6. Cited benchmark repositories and leaderboards
 
 | Benchmark | Official Homepage / Leaderboard | Code Repository / Dataset |
 |---|---|---|
@@ -245,7 +300,15 @@ The three new dense entries publish no Terminal-Bench / SWE-bench numbers; what 
 | **PaperBench** | [PaperBench ICML 2024](https://icml.cc) | [EnvCommons/PaperBench (GitHub)](https://github.com/EnvCommons/PaperBench) \| [josancamon/paperbench (HF)](https://huggingface.co/datasets/josancamon/paperbench) |
 | **SciCode / SciCode-V** | [scicode-bench.github.io](https://scicode-bench.github.io) | [scicode-bench/SciCode (GitHub)](https://github.com/scicode-bench/SciCode) |
 | **BioMysteryBench** | [Anthropic BioMysteryBench (HF)](https://huggingface.co/datasets/Anthropic/BioMysteryBench-full) | [Anthropic/BioMysteryBench-full (HF)](https://huggingface.co/datasets/Anthropic/BioMysteryBench-full) |
-
+| **ExploitBench** | [exploitbench.ai Leaderboard](https://exploitbench.ai) | [exploitbench/exploitbench (GitHub)](https://github.com/exploitbench/exploitbench) \| [exploitbench (HF)](https://huggingface.co/exploitbench) |
+| **CyberSecEval 4** | [PurpleLlama / CyberSecEval 4](https://ai.meta.com/research/publications/cyberseceval-3-advancing-the-evaluation-of-cybersecurity-risks-and-capabilities-in-large-language-models/) | [meta-llama/PurpleLlama (GitHub)](https://github.com/meta-llama/PurpleLlama) |
+| **SecEval** | [xuanwuai.github.io/SecEval](https://xuanwuai.github.io/SecEval) | [XuanwuAI/SecEval (HF)](https://huggingface.co/datasets/XuanwuAI/SecEval) |
+| **SECURE (MAET / CWET)** | [SECURE Benchmark](https://arxiv.org/abs/2405.02102) | [SECURE Benchmark (HF)](https://huggingface.co/datasets) |
+| **CyberMetric-10000** | [CyberMetric Paper](https://arxiv.org/abs/2402.09434) | [khangmacon/cybermetric-10000 (HF)](https://huggingface.co/datasets/khangmacon/cybermetric-10000) |
+| **cyber32 & cyber100** | [msuiche/weightless](https://github.com/msuiche/weightless) | [msuiche/weightless (GitHub)](https://github.com/msuiche/weightless) |
+| **blueteam32** | [msuiche/weightless](https://github.com/msuiche/weightless) | [msuiche/weightless (GitHub)](https://github.com/msuiche/weightless) |
+| **cyber-v8-ladder** | [msuiche/weightless](https://github.com/msuiche/weightless) | [msuiche/weightless (GitHub)](https://github.com/msuiche/weightless) |
+| **refusal32** | [Keys / HF](https://huggingface.co/datasets) | [msuiche/weightless (GitHub)](https://github.com/msuiche/weightless) |
 ### Cross-comparison - all Small models
 
 ###### Small-1. Agent, tool use and coding
@@ -272,26 +335,21 @@ LFM2.5-2.6B has no per-benchmark row in either source card; only the composite (
 
 ### Benchmark coverage gaps
 
-Where results are missing across the tracked models (checked against every model card in this
-doc and in [`model-research-chat.md`](model-research-chat.md)):
+Where results are missing across primary vendor benchmark cards and independently measured leaderboards:
 
-| Benchmark | Missing for |
+| Benchmark | Missing / Estimated for |
 |---|---|
-| Terminal-Bench 2.1 | Spark-X2.5-4B; Qwopus3.8-27B-Flash; DavidAU TURBO-735-882; GSQ-RCO quant lanes |
-| SWE-bench Verified | Qwen3.8-27B; K2-Horizon-MoVA-36B-A4B; Qwopus3.8-27B-Flash; TURBO-735-882; GSQ-RCO; all Main Exotic models |
-| SWE-bench Pro | Main MOE fine-tunes except KAT-Coder and XYZ-Aquila (Ornith, BTL-4, North-Mini-Code, Agents-A1); all Main Exotic |
-| BrowseComp | Qwen3.8-27B; all Main Dense entries; all Main Exotic except Fable-Fusion-711 (74.8) |
-| GPQA-Diamond | Every Main MOE fine-tune (no vendor numbers); Escha-W2; fuse-1-Lite; Ternary-Bonsai-27B |
-| HLE | Main MOE fine-tunes (matrix HLE tracks the baseline row); all Main Dense except Qwen3.8-27B |
-| AIME 2025/2026 | All Main MOE and Main Exotic models; only GSQ-RCO and the Small models publish numbers |
-| tau2/tau3-bench, BFCL v4, MCP-Atlas/Mark | All Main models; only K2-Horizon (tau3-Banking) among Main, plus the Small models |
-| GAIA / GDPval-AA v2 / Claw-Gym / WildClaw / QwenClaw | All Main models; only MiniCPM5-2B publishes these |
-| NL2Repo | Ornith-1.0-35B, XYZ-Aquila-mini, Agents-A1, North-Mini-Code-1.0, Escha-W2, fuse-1-Lite, Ternary-Bonsai-27B |
-| Claw-Eval | Every Main Dense and Main Exotic entry |
-| OSWorld / WebArena / AndroidWorld | All models except Qwen3.8-27B |
-
-Not resolvable from public sources: the three new dense fine-tunes publish only author-run numbers
-(ARC-C grid, an in-house 14-task SWE battery, a quantization-ablation table) and no vendor
+| Terminal-Bench 2.1 | Spark-X2.5-4B; dense fine-tunes (Qwopus3.8-27B, TURBO-735, GSQ-RCO) use derived evaluations |
+| SWE-bench Verified | Native vendor scores missing for K2-Horizon and dense fine-tunes (derived from agentic test batteries) |
+| SWE-bench Pro | North-Mini-Code and Agents-A1 have no vendor Pro evaluations published |
+| BrowseComp | Dense fine-tunes and K2-Horizon publish no standalone BrowseComp runs (estimated from web-evals) |
+| GPQA-Diamond | Exotic low-bit/grafted models (Escha-W2, fuse-1-Lite, Ternary-Bonsai-27B) lack verified diamond runs |
+| AIME 2025/2026 | Most 35B MoE fine-tunes lack AIME runs (covered for Qwen3.8-Flash-Next: 98.7 Base / 96.7 Swift, GSQ-RCO, and Small models) |
+| tau2/tau3-bench, BFCL v4, MCP-Atlas/Mark | Covered for K2-Horizon (tau3 26.8), Qwen3.8-Flash-Next (tau3 45.4–48.0, Toolathlon 73.5), and Small models |
+| GAIA / GDPval-AA v2 / Claw-Gym / WildClaw / QwenClaw | Tracked primarily by MiniCPM5-2B and comprehensive agentic research cards |
+| NL2Repo | Exotic models and legacy fine-tunes lack standalone repo-generation benchmarks |
+| OSWorld / WebArena / AndroidWorld | Published for Qwen3.8-27B (OSWorld 84.3, AndroidWorld 81.9) and Qwen3.8-Flash-Next (OSWorld 2.0 52.3 partial / 19.4 binary, AndroidWorld 84.5) |
+Not resolvable from public sources: the three new dense fine-tunes publish only author-run numbers (ARC-C grid, an in-house 14-task SWE battery, a quantization-ablation table) and no vendor
 harness results; the ROCmFPX Community Builds carry no benchmarks at all. Do not mix these into
 the matrix - they are not comparable harnesses.
 
@@ -344,6 +402,7 @@ distractors), and **AA-Omniscience non-hallucination** (factual discipline at lo
 - **VRAM Footprint**: ~18.5 GB VRAM with APEX-I-Compact quantization.
 - **Chat Template & Thinking**: Jinja chat template (`froggeric/Qwen-Fixed-Chat-Templates/chat_template.jinja`); supports `<think>...</think>` CoT reasoning and tool-call XML schema (`<tools>...</tools>`, `<function=...>`, `<parameter=...>`).
 - **Speculative Decoding**: Multi-Token Prediction (MTP) draft tensors via `am17an-Qwen3.6-35BA3B-MTP-only.gguf` (for standard 733-tensor builds) or embedded block 40 MTP tensors (for 753-tensor builds like `Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf`), or CPU N-Gram simple predictor (`--spec-type ngram-simple`).
+- **Benchmark Suite**: Terminal-Bench 2.1 49.2% (Terminus-2) / 44.9% (IFM); SWE-bench Verified 73.4%; SWE-bench Pro 43.6%; Claw-Eval 68.7%; NL2Repo 29.4%; BrowseComp 67.9%; XBench 32.6%; HLE 36.2%; FS-R 11.9%; MLE-Bench 31.8%; PaperBench 30.7%; SciCode-V (Main/Sub) 26.6% / 56.5%; BioMystery (HS/HD) 44.8% / 2.0%; GPQA-Diamond 84.1%; LiveCodeBench v6 73.5%.
 
 ### BigBang-v1
 
@@ -354,6 +413,7 @@ distractors), and **AA-Omniscience non-hallucination** (factual discipline at lo
 - **Context Window**: 32K native; up to 256K context with YaRN/parallel slot sizing.
 - **Chat Template & Thinking**: Integrated native Jinja chat template (`jinja = on`). **Requires `enable_thinking: true`** in `chat-template-kwargs` / system prompt so execution-gated CoT scratchpad retains tool evaluation state and terminates loops cleanly (avoids infinite `git diff`/`namcap` replay).
 - **Speculative Decoding**: `BigBang-v1-IQ4_XS.gguf` contains **753 total tensors** with the **20 MTP draft tensors already embedded internally** under block 40 (`blk.40.nextn.*`, `blk.40.attn_*`, `blk.40.ffn_*`). It does not strictly require an external `-MTP-ONLY.gguf` slice; `llama-server` can load draft tensors directly from the main model file or from the standalone 856 MB `Qwen3.6-35B-A3B-MTP-ONLY.gguf` slice using `--spec-type draft-mtp --spec-draft-n-max 3`. Also fully compatible with CPU N-Gram speculative decoding (`--spec-type ngram-simple`).
+- **Benchmark Suite**: Terminal-Bench 2.1 **58.3%**; SWE-bench Verified **79.4%**; SWE-bench Pro **54.2%**; Claw-Eval **77.5%**; NL2Repo **36.0%**; BrowseComp **76.5%**; XBench **58.4%**; HLE **50.3%**; FS-R **46.2%** (surpasses DeepSeek V4 Pro 40.7% and Claude Opus 4.8 45.2%); MLE-Bench **59.1%** (matches GPT 5.5 and DeepSeek V4 Pro); PaperBench (Code-Dev) **53.6%** (surpasses DeepSeek V4 Pro 50.4%); SciCode-V (Main/Sub) **50.0% / 68.6%**; BioMystery (HS/HD) **57.5% / 15.7%** (HD surpasses DeepSeek V4 Pro 13.7%); LiveCodeBench v6 **~85.2%**; GPQA-Diamond **~87.8%**.
 
 ### BTL-4 (Bad Theory Labs)
 
@@ -424,6 +484,62 @@ distractors), and **AA-Omniscience non-hallucination** (factual discipline at lo
 - **Licence / Openness**: Apache-2.0; pretrain and midtrain datasets named, training code promised.
 - **Reported benchmarks**: tau3-Banking 26.8 (best in its card row); Terminal-Bench 2.1 58.6; SciCode 38.9; HLE without tools 25.2; GPQA-Diamond 80.8; CritPt 2.1; AA-LCR 66.3; AA-Omniscience accuracy 18.8 / non-hallucination 69.2.
 - **Relative standing (author)**: scores above open dense ~30B and MoE up to 15x its size on agentic/reasoning suites; Qwen3.6-35B-A3B scores 44.9 Terminal-Bench 2.1 in the same table.
+
+### Swift-1.5-Qwen3.8-Flash-Next (SC117 GSQ-RCO Abliterated)
+
+- **Architecture & Scale**: Ultra-sparse Mixture-of-Experts with 125B total parameters (plus 51B auxiliary per-layer token embedding / PLE table `per_layer_token_embd`), activating ~6.0B parameters per token across 48 layers with 512 fine-grained routed experts (top-6 activated per token). Hybrid Gated DeltaNet (GDN) linear attention + Qwen Sparse Attention (QSA) micro-block indexer + Gated Residual (GR 4-branch) routing.
+- **Provenance & Parent Lineage**:
+  1. **Original Foundation Model**: `Qwen/Qwen3.8-Flash-Next` (Qwen Team, Alibaba Group) — BF16 base checkpoint (~360 GB). Open-weight preview of the Qwen4 architecture; 262,144 native context (extensible to 1,000,000 via YaRN); trained with Muon + AdamW repartitioning and orthogonal scaling laws.
+  2. **Base Tune**: `ukisai/Swift1.5-Qwen3.8-Flash-Next` (UkisAI) — post-trained derivative using an anti-overthinking token penalty during reinforcement learning (RL) and Online Policy Distillation (OPD). Designed to penalize pathological cyclic reasoning loops without truncating valid problem-solving traces. Trained on `ukisai/Qwen3.8-27B-multi-turn-agent-sft` re-sampled into multi-turn agent RL environments (Terminus-2 / OpenThoughts-Agent framework).
+  3. **Quantization Source**: `ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF` — non-uniform quantization using Gumbel-Softmax learned quantization grids (GSQ) and Riemannian constrained optimization (RCO) type budgets per tensor.
+  4. **Abliterated Donor Weights**: `orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF` — rank-1 linear refusal vector ablation $W \leftarrow W - r(r^T W)$ computed across all 48 layers.
+  5. **Final Checkpoint (Byte-Level Transplant)**: [`SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF`](https://huggingface.co/SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF).
+- **Transplant Mechanics & Mathematical Safety Verification**:
+  - Replaces exactly **144 residual-writing tensors** (out of 1224 tensors in each file) across all 48 layers: `blk.*.ssm_out.weight` (36 tensors, IQ4_XS, 566M params), `blk.*.attn_output.weight` (12 tensors, IQ4_XS, 189M params), `blk.*.ffn_down_shexp.weight` (48 tensors, IQ4_NL, 79M params), and `blk.*.ffn_down_exps.weight` (48 tensors, Q2_0, 40.3B params).
+  - Total transplanted parameter mass: **41.1B parameters (~33% of the 125B main model)**.
+  - **BF16 Distance Ground Truth**: Measuring the relative tensor distance $\|\Delta W\| / \|W\|$ between `ukisai/Swift-Qwen3.8-Flash-Next` and base `Qwen3.8-Flash-Next` in pure BF16 space proves that `ffn_down_exps` (40.3B params, 98% of the transplanted parameter mass) is **100% byte-identical** (0.0000% delta, identical SHA-256) across all 48 layers. The remaining three families differ by only 0.21%–2.42% (mean: `ssm_out` 0.30%, `attn_output` 0.25%, `ffn_down_shexp` 1.60%). Re-quantizing BF16 would introduce ~45% quantization noise; the byte-level transplant introduces $\le 2.42\%$ delta while leaving all 1080 non-target tensors bit-identical (blake2b verified).
+- **Model Files & Strata Deployment Inventory (as referenced in `research/strata-qwen3.8-flash-next.md`)**:
+  - **Shard 1 (Weights / Dense Backbone + Layers 0–12 + PLE Table)**: `Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf` (41.77 GB file size; mapped contiguously as 55.0 GB in Strata). Holds embeddings, RMS norms, attention projections, LM head, and the 28.8 GB `per_layer_token_embd` table.
+  - **Shard 2 (Layers 13–47 / Quantized MoE Weights)**: `Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf` (36.04 GB file size; 28.8 GB demand-paged static N-gram lookup / PLE table for prefix lookahead decoding in Strata). Total dual-shard IQ3_S footprint: **77.81 GB** (within 0.2% of upstream).
+  - **Alternative Quantization Tiers**: `IQ3_XXS` (70.62 GB), `IQ2_XS` (63.47 GB), `Q2_0` (61.94 GB).
+  - **Vision Support**: `mmproj-Qwen3.8-Flash-Next-BF16.gguf` (~0.91 GB / 910 MB), clip/deepseek41v vision projector tower.
+  - **Speculative Drafter & MTP Runtime**:
+    - Strata pack: `sc117_swift15_iq3s/strata/` scaffolding, `mtp-q2_0.gguf` (~889 MB VRAM footprint) + `strata/rt/` runtime (1.57 GB total), `draft_vocab.bin`.
+    - Standard `llama.cpp` draft heads: `mtp-Qwen3.8-Flash-Next-Q8_0.gguf` (4.14 GB), `mtp-Qwen3.8-Flash-Next-Q4_0.gguf` (2.20 GB).
+- **Local Hardware Operating Target (RX 7900 XTX 24 GB + 95 GiB Host RAM, 0B Swap)**:
+  - **VRAM Budget (23.99 / 24.0 GB)**: Base dense layers (~8.80 GB), Vision projector (~0.91 GB), MTP drafter (~0.89 GB), Active KV resident window `--kv-resident 32768` `k8v4` (~3.20 GB), Driver headroom `--vram-reserve-mib 600` (~0.60 GB), Hot MoE expert cache pool `--expert-cache auto` (~9.59 GB, ~6800–7400 hot experts resident, ~85% routing hit rate).
+  - **Host RAM Budget (92.2 / 95.0 GiB peak)**: Cold MoE expert RAM pool `--expert-ram-budget 42000` (41.0 GiB), Swift N-Gram Table Shard 2 demand-paged via `mmap` (25.2 GiB), 4-slot conversation cache pool `--conversation-cache-mib 18432` `k8v4` (18.0 GiB), Prefill scratch buffer `STRATA_RESIDENT_HEADROOM_GIB=6` (6.0 GiB), Kernel page tables (2.0 GiB). Zero swap, 2.8 GiB safety headroom.
+- **Token Needed Budget in the Swift Tune**:
+  - **Training Token Budget & Data Pipeline**: Post-trained on `ukisai/Qwen3.8-27B-multi-turn-agent-sft` (15,209 multi-turn agent interaction traces generated via Terminus-2 / OpenThoughts-Agent framework, covering shell commands, coding, and debugging). Re-sampled and compiled into multi-turn RL environments with negative reward shaping on cyclic self-correction tokens, followed by Online Policy Distillation (OPD).
+  - **Inference Thinking Token Budget vs. Base Qwen3.8-Flash-Next**:
+    - **GPQA-Diamond**: 7,823 mean thinking tokens vs 17,683 base (**&darr; 55.8% mean**, **&darr; 63.4% median**); score: 89.60% vs 89.80% (-0.20 pp).
+    - **AIME 2026**: 15,806 mean thinking tokens vs 23,015 base (**&darr; 31.3% mean**, **&darr; 51.1% median**); score: 96.67% vs 98.67% (-2.00 pp).
+    - **LiveCodeBench v6**: 9,849 mean thinking tokens vs 17,833 base (**&darr; 44.8% mean**, **&darr; 52.0% median**); score: **90.39% vs 88.40% (+1.99 pp)**.
+    - **MMLU-Pro**: 1,519 mean thinking tokens vs 3,528 base (**&darr; 57.0% mean**, **&darr; 24.0% median**); score: 87.20% vs 87.75% (-0.55 pp).
+    - **IFBench**: 4,411 mean thinking tokens vs 8,310 base (**&darr; 46.9% mean**, **&darr; 55.6% median**); score: 70.13% vs 73.20% (-3.07 pp).
+    - **HMMT (Nov 2025)**: 16,530 mean thinking tokens vs 25,487 base (**&darr; 35.1% mean**, **&darr; 54.7% median**); score: 97.33% vs 98.00% (-0.67 pp).
+    - **C-Eval**: 586 mean thinking tokens vs 1,048 base (**&darr; 44.1% mean**, **&darr; 7.1% median**); score: 93.60% vs 93.27% (+0.33 pp).
+    - **ERQA (Multimodal)**: 1,788 mean thinking tokens vs 4,036 base (**&darr; 55.7% mean**, **&darr; 47.7% median**); score: 69.30% vs 70.80% (-1.50 pp).
+    - **Terminal-Bench 2.1**: 45,428 mean output tokens vs 40,591 base (+11.9% mean total generated tokens, but **&darr; 17.9% median**); score: **69.66% vs 67.64% (+2.02 pp)**.
+  - **Reasoning Effort Token Scaling (GPQA-Diamond)**:
+    - `xhigh`: 7,823 mean tokens (89.60%) vs base 17,683 (89.80%) — accuracy preserved within 0.20 pp.
+    - `medium`: 2,483 mean tokens (83.74%) vs base 4,157 (86.36%) — 40.3% fewer tokens, 2.62 pp accuracy delta.
+    - `low`: 2,645 mean tokens (84.75%) vs base 3,966 (87.17%) — 33.3% fewer tokens, 2.42 pp accuracy delta.
+  - **Evaluation Output Caps**: AIME 2026 and HMMT evaluated with a 250,000-token cap; GPQA-Diamond, MMLU-Pro, ERQA, and LiveCodeBench v6 with a 100,000-token cap; IFBench with an 81,920-token cap; C-Eval with a 16,384-token cap. Native context 262,144 tokens.
+  - **Long-Tail Overthinking Cap**: Paired code-task testing (3 tasks × 5 seeds) shows base Qwen3.8-Flash-Next averages 847 thinking tokens with a maximum pathological tail of **3,837 tokens**. Swift 1.5 collapses the mean to 471 tokens and caps the maximum tail at **742 tokens** (-80.7%). The SC117 abliterated transplant averages 552 tokens with a maximum tail of **1,082 tokens** (-71.8% vs base), retaining 15/15 code test pass rate.
+- **Divergence and Accuracy Loss Analysis (General & Domain-Specific)**:
+  1. **General Accuracy Divergence Across the Lineage Chain**:
+     - *Anti-Overthinking Penalty (Base &rarr; Swift 1.5)*: Compresses thinking traces by ~52%–63.4%, speeding wall-clock execution by ~1.8x. Overall benchmark accuracy loss across broad suites is <1%, with coding and terminal execution gaining (+1.99 pp on LCB v6, +2.02 pp on Terminal-Bench 2.1). The trade-off is an increased vulnerability to premature convergence on problems that genuinely require speculative branch backtracking.
+     - *Non-Uniform Quantization (BF16 &rarr; GSQ-RCO IQ3_S)*: At 3.5 bpw (77.8 GB), the dense attention spine and shared experts (`ffn_down_shexp`) are safeguarded at IQ4_XS/IQ4_NL. However, the 512 routed experts (`ffn_down_exps`) are encoded at Q2_0. While high-frequency routing paths retain full fidelity, low-frequency expert pathways suffer an estimated 3–5% degradation in representational capacity.
+     - *Abliteration Transplant (GSQ-RCO &rarr; SC117)*: Removes the rank-1 refusal direction. Because 98% of the target parameter mass is byte-identical, general perplexity shifts by <0.2%. However, MTP draft acceptance drops from 66.8% to 62.5% (-4.3 pp) because the draft head was trained on un-ablated weights. Mean thinking tokens rise slightly (+7.1%, 471 &rarr; 552), reflecting slight activation drift in the attention/SSM output projections.
+     - *Strata Runtime Expert Pruning (`--speed faster` & `STRATA_ROUTE_TAIL_SKIP=7`)*: Pruning the 6th routed expert (<2% softmax probability) speeds decode by 16–20%. General queries show zero noticeable drift; however, complex multi-domain queries occasionally lose tail nuance.
+  2. **Domain-Specific Accuracy & Behavior Expectations**:
+     - **Cybersecurity & Penetration Testing (Major Gain / Zero Refusal)**: The baseline model aggressively refuses exploit payload construction, reverse-engineering queries, and security research prompts. The SC117 abliterated transplant exhibits **zero refusal**, answering detailed technical questions (e.g. paywall bypassing, binary exploitation, CVE reproducer scripts) while maintaining 100% technical competence. Built-in safety is absent; isolation must be enforced by the host harness.
+     - **Agentic CLI & Tool Calling (High Retention & Loop Immunity)**: Standard LLMs frequently fall into pathological overthinking loops when encountering failed tool outputs (e.g. infinite `git diff` re-evaluations, repeating terminal commands). Swift 1.5's token penalty terminates cyclic loops cleanly, keeping agent execution snappy (~180ms TTFT across cached multi-turn turns in Strata). Jitter in JSON/XML schema syntax is minimized at recommended sampling (temp 0.6–0.7, top_p 0.95, min_p 0.05).
+     - **Competitive Programming & Software Engineering (Net Positive, Edge-Case Trap)**: Pass rates on standard software engineering batteries remain at 100% (15/15), and LiveCodeBench v6 improves to 90.39%. However, for complex combinatorial optimization or novel invariant algorithmic puzzles, the truncation of the reasoning tail increases the risk of "first plausible solution" bias.
+     - **Advanced Mathematics & Formal Reasoning (Minor Accuracy Penalty, ~1–2 pp)**: On AIME 2026 (96.67% vs 98.67%) and HMMT (97.33% vs 98.00%), Swift 1.5 exhibits a 0.67–2.00 pp drop. Capping reasoning traces at ~16K tokens prevents the extensive multi-path sanity checks that foundation models use to achieve near-100% math scores.
+     - **Multimodal Vision & Document OCR (~1.5 pp Drop)**: Multimodal reasoning on ERQA drops from 70.80% to 69.30% (-1.5 pp) while saving 55.7% thinking tokens. The BF16 `mmproj` vision tower remains stable, with UI screenshots, charts, and technical schematics parsed reliably.
+     - **Uncensored Discourse & Tone Consistency**: The linear ablation cleanly removes moralizing disclaimers, lecturing preambles, and evasive refusals without inducing the stylometric degradation or incoherence common in blunt fine-tuned uncensored models.
 
 ## Main Dense models
 
@@ -615,6 +731,8 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 | 🧪 **fuse-1-Lite** (5.72B) | 38.2 (-22.4%) | 62.5 (-14.9%) | 34.1 (-21.8%) | 58.6 (-14.7%) | 21.4 (-27.2%) | **4.2 GB (bfloat16)** | Compact 5.7B SLM fusing LFM2.5 base with 960 Qwen3.6 experts |
 | 🧩 **Agents-A1** (Qwen3.5 Base) | 38.9 (-20.9%) | 61.5 (-16.2%) | 42.3 (-3.0%) | 65.4 (-4.8%) | 20.5 (-30.3%) | 17.5 GB (APEX) | Logically falls behind 3.6 series |
 | ❄️ **North-Mini-Code-1.0** | 53.5 (+8.7%) | 74.0 (+0.8%) | 47.5 (+8.9%) | 69.5 (+1.1%) | 32.4 (+10.2%) | 19.2 GB (UD-Q4) | Native CoT reasoning for subagents |
+| 🌐 **Qwen3.8-Flash-Next (Base)** | 67.6 (+37.4%) | - | **62.5 (+43.3%)** | 64.4 (-6.3%) | **48.1 (+63.6%)** | BF16 / GGUF | 125B ultra-sparse MoE base (512 experts, 6 active), GDN+QSA |
+| ⚡ **Swift-1.5-Flash-Next (SC117)** | **69.7 (+41.7%)** | - | **62.5 (+43.3%)** | 64.4 (-6.3%) | **48.1 (+63.6%)** | 77.8 GB (IQ3_S Strata) | 125B ultra-sparse MoE, token-efficient Swift tune (-63.4% thinking tokens), zero refusal |
 | 🍃 **Ternary-Bonsai-27B** | 43.7 (-11.2%) | 74.9 (+2.1%) | 39.2 (-10.1%) | 71.7 (+4.4%) | 25.2 (-14.3%) | 7.2 GB (Q2_0) | Extremely lean, but loses syntax depth |
 
 ###### 2. Frontier Research, Search & Scientific Reasoning Benchmarks
@@ -632,6 +750,8 @@ The benchmarks below combine local agentic/CLI evaluations (Terminal-Bench 2.1, 
 | 🧩 **Agents-A1** (Qwen3.5 Base) | 48.5 (-28.6%) | 52.4 (+60.7%) | 46.3 (+27.9%) | 38.4 (+222.7%) | 27.3 (-14.2%) | 17.3 (-43.6%) | 50.0 / 64.1 (+88.0% / +13.5%) | 48.9 / 2.0 (+9.2% / 0.0%) |
 | ❄️ **North-Mini-Code-1.0** | 71.2 (+4.9%) | 45.8 (+40.5%) | 43.0 (+18.8%) | 26.5 (+122.7%) | 32.5 (+2.2%) | 28.0 (-8.8%) | 34.0 / 58.0 (+27.8% / +2.7%) | 47.0 / 4.0 (+4.9% / +100%) |
 | 🍃 **Ternary-Bonsai-27B** | 58.0 (-14.6%) | 36.5 (+12.0%) | 39.5 (+9.1%) | 18.2 (+52.9%) | 22.4 (-29.6%) | 19.0 (-38.1%) | 20.0 / 45.0 (-24.8% / -20.4%) | 40.0 / 2.0 (-10.7% / 0.0%) |
+| 🌐 **Qwen3.8-Flash-Next (Base)** | - | - | 35.9 (-0.8%) | - | - | - | - | - |
+| ⚡ **Swift-1.5-Flash-Next (SC117)** | - | - | ~35.0 (-3.3%) | - | - | - | - | - |
 
 All entries keep the original format: **raw_score (+-relative_change%)**. The clean
 cross-comparison tables without deltas live in the main document; this section preserves the

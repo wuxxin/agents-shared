@@ -12,7 +12,8 @@ download_tts=false
 download_image=false
 download_completion=false
 download_benchmark=false
-
+download_projections=false
+download_strata=false
 # Wrapper for hf to catch click.exceptions.Exit on python 3.14
 hf() {
     python3 -c '
@@ -41,8 +42,8 @@ Downloads local AI models and benchmark context for models into standard subdire
   - <target_model_dir>/speech-to-text
   - <target_model_dir>/text-to-speech
   - <target_model_dir>/image
+  - <target_model_dir>/strata/projections
   - <target_model_dir>/benchmark-context.md
-
 Options:
   --all             Download all models and build the benchmark context
   --llm             Download the LLM model, vision projector, and chat template
@@ -53,6 +54,8 @@ Options:
   --image           Download the image generation (Z-Image-Turbo) models
   --completion      Download the completions model (qwen-coder-fim) and testdata
   --benchmark-context, --benchmark Build the benchmark-context.md file using downloaded skills
+  --projections, --strata-projections Download all Strata experimental speed projection and control vector files
+  --strata, --strata-model Download the Strata Qwen3.8-Flash-Next (Swift 1.5 IQ3_S) model shards, MTP, vision, and projections
   -h, --help        Show this help message and exit
 
 Examples:
@@ -79,29 +82,52 @@ acquire_file() {
     # Download from URL
     echo "Acquiring from remote: $download_url"
 
-    # Try hf download if applicable
-    if command -v hf &>/dev/null && [[ "$download_url" =~ huggingface\.co ]]; then
-        # Check if URL matches HF resolve format
-        if [[ "$download_url" =~ huggingface\.co/([^/]+/[^/]+)/resolve/[^/]+/(.+) ]]; then
-            local repo_id="${BASH_REMATCH[1]}"
-            local filename="${BASH_REMATCH[2]}"
-            local temp_dir
-            temp_dir="$(mktemp -d)"
+    # Clean URL (strip query parameters and hash fragments)
+    local clean_url="${download_url%%\?*}"
+    clean_url="${clean_url%%\#*}"
 
-            echo "Using 'hf download' for $repo_id / $filename..."
-            if hf download "$repo_id" "$filename" --local-dir "$temp_dir"; then
+    # Match Hugging Face URLs (huggingface.co or hf.co; models, datasets, spaces; resolve, blob, or raw)
+    local hf_regex="^(https?://)?(www\.)?(huggingface\.co|hf\.co)/((datasets|spaces)/)?([^/]+/[^/]+)/(resolve|blob|raw)/([^/]+)/(.+)$"
+
+    if [[ "$clean_url" =~ $hf_regex ]]; then
+        local repo_type="${BASH_REMATCH[5]:-model}"
+        [[ "$repo_type" == "datasets" ]] && repo_type="dataset"
+        [[ "$repo_type" == "spaces" ]] && repo_type="space"
+        local repo_id="${BASH_REMATCH[6]}"
+        local revision="${BASH_REMATCH[8]}"
+        local filename="${BASH_REMATCH[9]}"
+
+        if command -v hf &>/dev/null; then
+            echo "Using 'hf download' for $repo_id / $filename (revision: $revision, type: $repo_type)..."
+            local temp_dir
+            temp_dir="$(mktemp -d -p "$target_subdir" ".hf_tmp_XXXXXX" 2>/dev/null || mktemp -d)"
+
+            local hf_args=("$repo_id" "$filename" "--type" "$repo_type" "--revision" "$revision" "--local-dir" "$temp_dir")
+
+            if hf download "${hf_args[@]}"; then
                 mv "${temp_dir}/${filename}" "$target_path"
                 rm -rf "$temp_dir"
                 echo "Successfully downloaded $filename."
                 return 0
+            else
+                rm -rf "$temp_dir"
+                echo "Error: 'hf download' failed for $repo_id / $filename (gated model, missing token, or remote error)." >&2
+                return 1
             fi
-            rm -rf "$temp_dir"
+        else
+            echo "Warning: 'hf' CLI not available for Hugging Face URL. Attempting curl..."
         fi
     fi
 
-    # Fallback to curl
+    # Fallback to curl (for non-HF URLs or when hf tool is absent)
     echo "Downloading via curl..."
-    if curl -L --fail -o "$target_path" "$download_url"; then
+    local curl_args=("-L" "--fail" "-o" "$target_path")
+    if [[ -n "${HF_TOKEN:-}" && "$download_url" =~ (huggingface\.co|hf\.co) ]]; then
+        curl_args+=("-H" "Authorization: Bearer $HF_TOKEN")
+    elif [[ -n "${HUGGING_FACE_HUB_TOKEN:-}" && "$download_url" =~ (huggingface\.co|hf\.co) ]]; then
+        curl_args+=("-H" "Authorization: Bearer $HUGGING_FACE_HUB_TOKEN")
+    fi
+    if curl "${curl_args[@]}" "$download_url"; then
         echo "Successfully downloaded via curl."
         return 0
     else
@@ -110,7 +136,6 @@ acquire_file() {
         return 1
     fi
 }
-
 convert_and_quantize_reranker() {
     local target_path="$1"
     local temp_hf_dir
@@ -319,6 +344,15 @@ main() {
             download_benchmark=true
             shift
             ;;
+        --projections | --strata-projections)
+            download_projections=true
+            shift
+            ;;
+        --strata | --strata-model)
+            download_strata=true
+            download_projections=true
+            shift
+            ;;
         *)
             echo "Error: Unknown option '$1'" >&2
             show_help >&2
@@ -327,8 +361,8 @@ main() {
         esac
     done
 
-    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false ]]; then
-        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context)." >&2
+    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false ]]; then
+        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata)." >&2
         exit 1
     fi
 
@@ -341,6 +375,8 @@ main() {
         download_image=true
         download_completion=true
         download_benchmark=true
+        download_projections=true
+        download_strata=true
     fi
 
     # Resolve absolute target path
@@ -395,6 +431,16 @@ main() {
                 "$mtp_target_path"
         fi
 
+        # 1j. Download BigBang-v1 GGUF (IQ4_XS ~17.95 GB) and vision projector
+        acquire_file \
+            "vision-text/BigBang-v1-IQ4_XS.gguf" \
+            "https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/endless-frontier_BigBang-v1-IQ4_XS.gguf" \
+            "${target_dir}/vision-text/BigBang-v1-IQ4_XS.gguf"
+        acquire_file \
+            "vision-text/BigBang-v1-mmproj-f16.gguf" \
+            "https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/mmproj-endless-frontier_BigBang-v1-f16.gguf" \
+            "${target_dir}/vision-text/BigBang-v1-mmproj-f16.gguf"
+
         # 1g. Download small Hugging Face weights for testing MLC compilation (Qwen2.5-0.5B-Instruct)
         echo "Downloading small Hugging Face weights for testing (Qwen2.5-0.5B-Instruct)..."
         mkdir -p "${target_dir}/text/Qwen2.5-0.5B-Instruct"
@@ -408,8 +454,7 @@ main() {
         local mlc_quant=q4bf16_1
         local mlc_out_dir="${target_dir}/text"
         hf_to_mlc "${target_dir}/text/Qwen2.5-0.5B-Instruct" "${mlc_out_dir}" ${mlc_quant} "qwen2" "qwen2"
-
-        # 1h. Download Agents-A1 APEX finetune (Qwen3.6-35B-A3B agent-optimized)
+        # 1i. Download Agents-A1 APEX finetune (Qwen3.6-35B-A3B agent-optimized)
         acquire_file \
             "vision-text/Agents-A1-APEX-I-Compact.gguf" \
             "https://huggingface.co/mudler/Agents-A1-APEX-GGUF/resolve/main/Agents-A1-APEX-I-Compact.gguf" \
@@ -419,15 +464,6 @@ main() {
             "https://huggingface.co/mudler/Agents-A1-APEX-GGUF/resolve/main/mmproj.gguf" \
             "${target_dir}/vision-text/Agents-A1-APEX-I-Compact.mmproj.gguf"
 
-        # 1j. Download BigBang-v1 GGUF (IQ4_XS ~17.95 GB) and vision projector
-        acquire_file \
-            "vision-text/BigBang-v1-IQ4_XS.gguf" \
-            "https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/endless-frontier_BigBang-v1-IQ4_XS.gguf" \
-            "${target_dir}/vision-text/BigBang-v1-IQ4_XS.gguf"
-        acquire_file \
-            "vision-text/BigBang-v1-mmproj-f16.gguf" \
-            "https://huggingface.co/bartowski/endless-frontier_BigBang-v1-GGUF/resolve/main/mmproj-endless-frontier_BigBang-v1-f16.gguf" \
-            "${target_dir}/vision-text/BigBang-v1-mmproj-f16.gguf"
     fi
 
     # 2. Embedding
@@ -781,6 +817,95 @@ snapshot_download(
         python3 "$(dirname "$0")/download-helper.py" hindsight-context --output "${target_dir}/hindsight-context.txt"
     fi
 
+    # 8. Strata Projections & Control Vectors
+    if [[ "$download_projections" == true ]]; then
+        echo "=== Acquiring Strata Control Vectors & Projections ==="
+        local proj_dir="${target_dir}/strata/projections"
+        mkdir -p "$proj_dir"
+
+        # 8b. Cudecnik Qwen3.8-Flash-Next refusal projection (480 KB unit vector)
+        acquire_file \
+            "strata/projections/Qwen3.8-Flash-Next-refusal-projection.gguf" \
+            "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-projection.gguf" \
+            "${proj_dir}/Qwen3.8-Flash-Next-refusal-projection.gguf"
+
+        acquire_file \
+            "strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf" \
+            "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-projection.gguf" \
+            "${proj_dir}/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+
+        acquire_file \
+            "strata/projections/Qwen3.8-Flash-Next-refusal-projection.json" \
+            "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-projection.json" \
+            "${proj_dir}/Qwen3.8-Flash-Next-refusal-projection.json"
+
+        acquire_file \
+            "strata/projections/Qwen3.8-Flash-Next-refusal-additive.gguf" \
+            "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-additive.gguf" \
+            "${proj_dir}/Qwen3.8-Flash-Next-refusal-additive.gguf"
+
+        # 8c. msuiche Cyber-Contrast vectors (GLP-47 for Qwen3.8-Flash-Next, GLP-39 for DeepSeek-V4.1, GLP-29 for DSV4)
+        acquire_file \
+            "strata/projections/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" \
+            "https://huggingface.co/msuiche/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47/resolve/main/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" \
+            "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" || true
+        if [[ -f "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" ]]; then
+            ln -sf "Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47.gguf"
+        fi
+
+        acquire_file \
+            "strata/projections/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" \
+            "https://huggingface.co/msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75/resolve/main/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" \
+            "${proj_dir}/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" || true
+        if [[ -f "${proj_dir}/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" ]]; then
+            ln -sf "glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" "${proj_dir}/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75.gguf"
+        fi
+
+        acquire_file \
+            "strata/projections/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" \
+            "https://huggingface.co/msuiche/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29/resolve/main/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" \
+            "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" || true
+        if [[ -f "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" ]]; then
+            ln -sf "DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29.gguf"
+        fi
+    fi
+
+    # 9. Strata Model Shards, MTP & Vision
+    if [[ "$download_strata" == true ]]; then
+        echo "=== Acquiring Strata Swift 1.5 Qwen3.8-Flash-Next Models ==="
+        local strata_dir="${target_dir}/strata/swift15_iq3s"
+        mkdir -p "${strata_dir}/strata/rt"
+
+        # 9a. Shard 1 (Dense + Experts ~55 GB)
+        acquire_file \
+            "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
+            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
+            "${strata_dir}/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+
+        # 9b. Shard 2 (PLE n-gram table ~28.8 GB)
+        acquire_file \
+            "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
+            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
+            "${strata_dir}/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+
+        # 9c. Vision Projector (BF16)
+        acquire_file \
+            "strata/swift15_iq3s/mmproj-Qwen3.8-Flash-Next-BF16.gguf" \
+            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf" \
+            "${strata_dir}/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+
+        # 9d. MTP Speculative Drafter weights
+        acquire_file \
+            "strata/swift15_iq3s/mtp-q2_0.gguf" \
+            "https://huggingface.co/SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF/resolve/main/mtp-q2_0.gguf" \
+            "${strata_dir}/mtp-q2_0.gguf"
+
+        # 9e. Extract MTP runtime files if tool exists
+        if [[ -f "/usr/share/strata/tools/mtp_rt.py" ]] && [[ -f "${strata_dir}/mtp-q2_0.gguf" ]]; then
+            echo "Extracting MTP runtime files to ${strata_dir}/strata/rt..."
+            python3 /usr/share/strata/tools/mtp_rt.py --gguf "${strata_dir}/mtp-q2_0.gguf" --out "${strata_dir}/strata/rt" || true
+        fi
+    fi
     echo "=== All requested model downloads/conversions completed. ==="
 
 }

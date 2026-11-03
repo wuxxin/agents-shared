@@ -4,35 +4,35 @@
 # Listens on port 21080 and routes incoming requests dynamically to
 # local chat, embedding, rerank, speech-to-text, text-to-speech, and image services.
 
+import asyncio
+import atexit
+import datetime
+import json
 import os
 import re
-import socket
-import asyncio
-import json
-import datetime
-import threading
-import atexit
 import signal
+import socket
 import sys
+import threading
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Mapping
+
 import httpx
+import tiktoken
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import (
-    StreamingResponse,
+    HTMLResponse,
     JSONResponse,
     PlainTextResponse,
-    HTMLResponse,
+    StreamingResponse,
 )
-import tiktoken
 from prometheus_client import (
+    CONTENT_TYPE_LATEST,
     CollectorRegistry,
     Gauge,
     generate_latest,
-    CONTENT_TYPE_LATEST,
 )
-
 
 # Global client for connection pooling
 client: httpx.AsyncClient = None  # type: ignore[assignment]
@@ -223,6 +223,11 @@ def resolve_service_alias(name: str) -> str:
     """Resolve the alias for a service by checking its own env file, falling back to defaults."""
     user_dir = get_systemd_user_dir()
     if name == "chat":
+        coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
+        val = coord_env.get("LCHAT_STRATA_ENABLED", "0")
+        if val not in ("0", "false", "no", "FALSE", "NO"):
+            strata_env = parse_env_file(os.path.join(user_dir, "local-chat-strata.env"))
+            return strata_env.get("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next")
         chat_env = parse_env_file(os.path.join(user_dir, "local-chat.env"))
         return chat_env.get("LCHAT_ALIAS", "qwen3")
     elif name == "embedding":
@@ -271,7 +276,7 @@ def get_enabled_services() -> dict[str, bool]:
         return val not in ("0", "false", "no", "FALSE", "NO")
 
     return {
-        "chat": is_enabled("LCHAT_ENABLED", True),
+        "chat": is_enabled("LCHAT_ENABLED", True) or is_enabled("LCHAT_STRATA_ENABLED", False),
         "embedding": is_enabled("LMBD_ENABLED", False),  # 0 (combined mode) by default
         "rerank": is_enabled("LRR_ENABLED", True),
         "stt": is_enabled("LSTT_ENABLED", True),
@@ -496,9 +501,7 @@ async def discover_services_background():
 
     # Seed inventory from configured aliases so the router works immediately
     _init_fallback_inventory()
-    print(
-        f"[DISCOVERY] Fallback inventory seeded: {[m['id'] for m in model_inventory_list]}"
-    )
+    print(f"[DISCOVERY] Fallback inventory seeded: {[m['id'] for m in model_inventory_list]}")
 
     enabled_services = get_enabled_services()
     expected_services = [
@@ -506,9 +509,7 @@ async def discover_services_background():
         for name, enabled in enabled_services.items()
         if enabled and not (name == "embedding" and not enabled_services["embedding"])
     ]
-    print(
-        f"[DISCOVERY] Async startup service detection (timeout 120s): {expected_services}"
-    )
+    print(f"[DISCOVERY] Async startup service detection (timeout 120s): {expected_services}")
 
     # Phase 1: Async startup synchronization (up to 120s timeout)
     start_time = asyncio.get_event_loop().time()
@@ -709,9 +710,7 @@ async def build_inventory_and_wait():
             for name in ["chat", "embedding", "rerank", "stt", "tts", "image"]:
                 # Embedding is active if either standalone is enabled or if chat is enabled
                 is_active = (
-                    enabled_services["embedding"]
-                    if name == "embedding"
-                    else enabled_services[name]
+                    enabled_services["embedding"] if name == "embedding" else enabled_services[name]
                 )
                 if not is_active and name == "embedding" and enabled_services["chat"]:
                     is_active = True
@@ -880,9 +879,7 @@ def add_usage_record(
 
         if status_code >= 400:
             code_str = str(status_code)
-            error_dict = (
-                entry["errors_streaming"] if is_streaming else entry["errors_post"]
-            )
+            error_dict = entry["errors_streaming"] if is_streaming else entry["errors_post"]
             if code_str in error_dict:
                 error_dict[code_str] += 1
             else:
@@ -911,9 +908,7 @@ def load_usage_data():
                             for top_key, subdict in raw_usage.items():
                                 if not isinstance(subdict, dict):
                                     continue
-                                sample_val = (
-                                    next(iter(subdict.values()), {}) if subdict else {}
-                                )
+                                sample_val = next(iter(subdict.values()), {}) if subdict else {}
                                 if isinstance(sample_val, dict) and (
                                     "calls" in sample_val or "input" in sample_val
                                 ):
@@ -1097,9 +1092,7 @@ def get_cumulative_metrics(
 
                         calls = counts.get("calls", 0)
                         str_calls = counts.get("streaming_calls", 0)
-                        norm_calls = counts.get(
-                            "calls_post", counts.get("normal_calls", 0)
-                        )
+                        norm_calls = counts.get("calls_post", counts.get("normal_calls", 0))
                         if str_calls == 0 and norm_calls == 0 and calls > 0:
                             norm_calls = calls
 
@@ -1148,12 +1141,8 @@ def get_cumulative_metrics(
                             target["duration_streaming"] += dur_str
                             target["total_duration"] += tot_dur
                             for code in STATIC_ERRORS_TEMPLATE:
-                                err_str_val = counts.get("errors_streaming", {}).get(
-                                    code, 0
-                                )
-                                err_post_val = counts.get("errors_post", {}).get(
-                                    code, 0
-                                )
+                                err_str_val = counts.get("errors_streaming", {}).get(code, 0)
+                                err_post_val = counts.get("errors_post", {}).get(code, 0)
                                 target["errors_streaming"][code] += err_str_val
                                 target["errors_post"][code] += err_post_val
 
@@ -1191,9 +1180,7 @@ def get_cumulative_metrics(
                         for code in STATIC_ERRORS_TEMPLATE:
                             daily_target["errors_streaming"][code] = daily_target.get(
                                 "errors_streaming", {}
-                            ).get(code, 0) + counts.get("errors_streaming", {}).get(
-                                code, 0
-                            )
+                            ).get(code, 0) + counts.get("errors_streaming", {}).get(code, 0)
                             daily_target["errors_post"][code] = daily_target.get(
                                 "errors_post", {}
                             ).get(code, 0) + counts.get("errors_post", {}).get(code, 0)
@@ -1213,21 +1200,15 @@ def get_cumulative_metrics(
 
     for entry in models_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
-        entry["cache_pct"] = (
-            (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
-        )
+        entry["cache_pct"] = (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
 
     for entry in agents_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
-        entry["cache_pct"] = (
-            (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
-        )
+        entry["cache_pct"] = (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
 
     for entry in services_acc.values():
         total_inp = entry["cached_input"] + entry["input"]
-        entry["cache_pct"] = (
-            (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
-        )
+        entry["cache_pct"] = (entry["cached_input"] / total_inp * 100.0) if total_inp > 0 else 0.0
 
     total_inp = totals_acc["cached_input"] + totals_acc["input"]
     totals_acc["cache_pct"] = (
@@ -1314,9 +1295,7 @@ def get_cumulative_metrics(
 
         totals_acc["calls_active_post"] = global_active_calls_post
         totals_acc["calls_active_stream"] = global_active_calls_stream
-        totals_acc["calls_active"] = (
-            global_active_calls_post + global_active_calls_stream
-        )
+        totals_acc["calls_active"] = global_active_calls_post + global_active_calls_stream
 
     return {
         "models": models_acc,
@@ -1332,38 +1311,38 @@ def update_prometheus_metrics():
     for key, val in metrics["models"].items():
         agent, model, service = key.split(":", 2)
         calls_gauge.labels(agent=agent, service=service, model=model).set(val["calls"])
-        client_cancel_count = val["errors_streaming"].get("499", 0) + val[
-            "errors_post"
-        ].get("499", 0)
+        client_cancel_count = val["errors_streaming"].get("499", 0) + val["errors_post"].get(
+            "499", 0
+        )
         client_cancel_gauge.labels(agent=agent, service=service, model=model).set(
             client_cancel_count
         )
 
-        tokens_gauge.labels(
-            agent=agent, service=service, model=model, type="input"
-        ).set(val["input"])
-        tokens_gauge.labels(
-            agent=agent, service=service, model=model, type="cached_input"
-        ).set(val["cached_input"])
-        tokens_gauge.labels(
-            agent=agent, service=service, model=model, type="cached_write"
-        ).set(val["cached_write"])
-        tokens_gauge.labels(
-            agent=agent, service=service, model=model, type="output"
-        ).set(val["output"])
-        tokens_gauge.labels(
-            agent=agent, service=service, model=model, type="total"
-        ).set(val["total_tokens"])
+        tokens_gauge.labels(agent=agent, service=service, model=model, type="input").set(
+            val["input"]
+        )
+        tokens_gauge.labels(agent=agent, service=service, model=model, type="cached_input").set(
+            val["cached_input"]
+        )
+        tokens_gauge.labels(agent=agent, service=service, model=model, type="cached_write").set(
+            val["cached_write"]
+        )
+        tokens_gauge.labels(agent=agent, service=service, model=model, type="output").set(
+            val["output"]
+        )
+        tokens_gauge.labels(agent=agent, service=service, model=model, type="total").set(
+            val["total_tokens"]
+        )
 
         cost_gauge.labels(agent=agent, service=service, model=model, type="input").set(
             val["costs"]["input_cost"]
         )
-        cost_gauge.labels(
-            agent=agent, service=service, model=model, type="cached_input"
-        ).set(val["costs"]["cached_input_cost"])
-        cost_gauge.labels(
-            agent=agent, service=service, model=model, type="cached_write"
-        ).set(val["costs"]["cached_write_cost"])
+        cost_gauge.labels(agent=agent, service=service, model=model, type="cached_input").set(
+            val["costs"]["cached_input_cost"]
+        )
+        cost_gauge.labels(agent=agent, service=service, model=model, type="cached_write").set(
+            val["costs"]["cached_write_cost"]
+        )
         cost_gauge.labels(agent=agent, service=service, model=model, type="output").set(
             val["costs"]["output_cost"]
         )
@@ -1457,12 +1436,8 @@ def format_usage_table(data: dict[str, Any]) -> str:
         + list(sorted((f"Agent {k.upper()}", v) for k, v in agents.items()))
         + list(sorted(models.items()))
     ):
-        str_err_codes = {
-            k: v for k, v in stats.get("errors_streaming", {}).items() if v > 0
-        }
-        post_err_codes = {
-            k: v for k, v in stats.get("errors_post", {}).items() if v > 0
-        }
+        str_err_codes = {k: v for k, v in stats.get("errors_streaming", {}).items() if v > 0}
+        post_err_codes = {k: v for k, v in stats.get("errors_post", {}).items() if v > 0}
         if str_err_codes or post_err_codes:
             if not has_errors:
                 lines.append("\nHTTP Errors Breakdown:")
@@ -1583,9 +1558,11 @@ def get_log_config() -> tuple[bool, bool]:
         os.environ.get("LROUT_VERBOSE") or router_env.get("LROUT_VERBOSE") or ""
     ).lower() in ("1", "true", "yes")
 
-    env_debug = (
-        os.environ.get("LROUT_DEBUG") or router_env.get("LROUT_DEBUG") or ""
-    ).lower() in ("1", "true", "yes")
+    env_debug = (os.environ.get("LROUT_DEBUG") or router_env.get("LROUT_DEBUG") or "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     cli_verbose = "--verbose" in sys.argv
     cli_debug = "--debug" in sys.argv
@@ -1619,9 +1596,7 @@ def resolve_config() -> dict:
     lmbd_enabled = lmbd_enabled_str not in ("0", "false", "no", "FALSE", "NO")
 
     # Helper to resolve service hosts & ports
-    def load_addr(
-        svc: str, prefix: str, default_host: str, default_port: int
-    ) -> tuple[str, int]:
+    def load_addr(svc: str, prefix: str, default_host: str, default_port: int) -> tuple[str, int]:
         env_path = os.path.join(user_dir, f"{svc}.env")
         env_data = parse_env_file(env_path)
         host = env_data.get(f"{prefix}_HOST", default_host)
@@ -1632,13 +1607,16 @@ def resolve_config() -> dict:
             port = default_port
         return host, port
 
-    chat_host, chat_port = load_addr("local-chat", "LCHAT", "127.0.0.1", 20080)
+    strata_enabled_str = coord_env.get("LCHAT_STRATA_ENABLED", "0")
+    strata_enabled = strata_enabled_str not in ("0", "false", "no", "FALSE", "NO")
+    if strata_enabled:
+        chat_host, chat_port = load_addr("local-chat-strata", "LCHAT_STRATA", "127.0.0.1", 20080)
+    else:
+        chat_host, chat_port = load_addr("local-chat", "LCHAT", "127.0.0.1", 20080)
 
     # Embedding destination depends on whether the dedicated embedding service is active
     if lmbd_enabled:
-        embed_host, embed_port = load_addr(
-            "local-embedding", "LMBD", "127.0.0.1", 20082
-        )
+        embed_host, embed_port = load_addr("local-embedding", "LMBD", "127.0.0.1", 20082)
     else:
         # Combined mode: routes embedding directly to local-chat port
         embed_host, embed_port = chat_host, chat_port
@@ -1716,9 +1694,7 @@ async def handle_mock_backend(
         else:
             return JSONResponse(
                 {
-                    "choices": [
-                        {"message": {"role": "assistant", "content": "Mock response"}}
-                    ],
+                    "choices": [{"message": {"role": "assistant", "content": "Mock response"}}],
                     "usage": {
                         "prompt_tokens": 100,
                         "completion_tokens": 50,
@@ -1748,9 +1724,7 @@ async def handle_mock_backend(
     elif service == "stt":
         return JSONResponse({"text": "Mock transcribed text."})
     elif service == "image":
-        return JSONResponse(
-            {"data": [{"url": "http://127.0.0.1:21080/mock_image.png"}]}
-        )
+        return JSONResponse({"data": [{"url": "http://127.0.0.1:21080/mock_image.png"}]})
 
     return JSONResponse({"error": "Unsupported mock service"}, status_code=400)
 
@@ -1773,11 +1747,7 @@ async def process_response_usage(
             req_data = json.loads(request_body)
             if "messages" in req_data:
                 request_prompt = "\n".join(
-                    [
-                        m.get("content", "")
-                        for m in req_data["messages"]
-                        if isinstance(m, dict)
-                    ]
+                    [m.get("content", "") for m in req_data["messages"] if isinstance(m, dict)]
                 )
             elif "prompt" in req_data:
                 if isinstance(req_data["prompt"], list):
@@ -1822,9 +1792,9 @@ async def process_response_usage(
                         cached_input = details.get("cached_tokens", 0) or usage.get(
                             "cache_read_input_tokens", 0
                         )
-                        cached_write = details.get(
+                        cached_write = details.get("cache_creation_input_tokens", 0) or usage.get(
                             "cache_creation_input_tokens", 0
-                        ) or usage.get("cache_creation_input_tokens", 0)
+                        )
                         found_usage = True
 
                     choices = data_json.get("choices", [])
@@ -1848,9 +1818,9 @@ async def process_response_usage(
                 cached_input = details.get("cached_tokens", 0) or usage.get(
                     "cache_read_input_tokens", 0
                 )
-                cached_write = details.get(
+                cached_write = details.get("cache_creation_input_tokens", 0) or usage.get(
                     "cache_creation_input_tokens", 0
-                ) or usage.get("cache_creation_input_tokens", 0)
+                )
             else:
                 if service == "embedding":
                     prompt_tokens = estimated_input_tokens
@@ -1900,23 +1870,17 @@ async def process_response_usage(
 
     if is_verbose():
         status_info = (
-            f"status={status_code}"
-            if status_code != 499
-            else "status=499 (CLIENT CANCELED)"
+            f"status={status_code}" if status_code != 499 else "status=499 (CLIENT CANCELED)"
         )
         print(
             f"[ROUTER VERBOSE] client='{agent or 'unknown'}' service='{service or 'unknown'}' model='{model or 'unknown'}' input={uncached_input + cached_input} output={completion_tokens} {status_info} duration={duration:.3f}s",
             file=sys.stderr,
         )
     if is_debug() and response_body:
-        print_debug_raw(
-            f"RESPONSE [{agent}:{service}:{model}] status={status_code}", response_body
-        )
+        print_debug_raw(f"RESPONSE [{agent}:{service}:{model}] status={status_code}", response_body)
 
 
-def _increment_active_call(
-    agent_id: str, service_id: str, model_id: str, is_streaming: bool
-):
+def _increment_active_call(agent_id: str, service_id: str, model_id: str, is_streaming: bool):
     global global_active_calls_stream, global_active_calls_post
     model_key = f"{agent_id}:{model_id}:{service_id}"
     calls_active_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
@@ -1945,9 +1909,7 @@ def _increment_active_call(
             active_calls_per_model[model_key]["post"] += 1
 
 
-def _decrement_active_call(
-    agent_id: str, service_id: str, model_id: str, is_streaming: bool
-):
+def _decrement_active_call(agent_id: str, service_id: str, model_id: str, is_streaming: bool):
     global global_active_calls_stream, global_active_calls_post
     model_key = f"{agent_id}:{model_id}:{service_id}"
     calls_active_gauge.labels(agent=agent_id, service=service_id, model=model_id).dec()
@@ -2034,9 +1996,7 @@ async def proxy_request(
 
     try:
         if LROUT_MOCK_BACKENDS:
-            mock_resp = await handle_mock_backend(
-                service or "", model or "", request, body
-            )
+            mock_resp = await handle_mock_backend(service or "", model or "", request, body)
             is_sse = (
                 isinstance(mock_resp, StreamingResponse)
                 and mock_resp.media_type == "text/event-stream"
@@ -2044,9 +2004,7 @@ async def proxy_request(
 
             if isinstance(mock_resp, JSONResponse):
                 resp_body = (
-                    mock_resp.body
-                    if isinstance(mock_resp.body, bytes)
-                    else bytes(mock_resp.body)
+                    mock_resp.body if isinstance(mock_resp.body, bytes) else bytes(mock_resp.body)
                 )
                 elapsed = time.perf_counter() - start_time
                 await process_response_usage(
@@ -2060,13 +2018,9 @@ async def proxy_request(
                     status_code=mock_resp.status_code,
                     duration=elapsed,
                 )
-            elif isinstance(mock_resp, Response) and not isinstance(
-                mock_resp, StreamingResponse
-            ):
+            elif isinstance(mock_resp, Response) and not isinstance(mock_resp, StreamingResponse):
                 resp_body = (
-                    mock_resp.body
-                    if isinstance(mock_resp.body, bytes)
-                    else bytes(mock_resp.body)
+                    mock_resp.body if isinstance(mock_resp.body, bytes) else bytes(mock_resp.body)
                 )
                 elapsed = time.perf_counter() - start_time
                 await process_response_usage(
@@ -2106,9 +2060,7 @@ async def proxy_request(
                         print(f"Error processing mock usage: {e}", file=sys.stderr)
                     finally:
                         if not active_decremented:
-                            _decrement_active_call(
-                                agent_id, service_id, model_id, is_streaming
-                            )
+                            _decrement_active_call(agent_id, service_id, model_id, is_streaming)
                             active_decremented = True
 
                 stream_response_returned = True
@@ -2121,14 +2073,16 @@ async def proxy_request(
             return mock_resp
 
         headers = {
-            k: v
-            for k, v in request.headers.items()
-            if k.lower() not in ("host", "content-length")
+            k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")
         }
 
         try:
             # Build and send the streaming request
-            req_timeout = float(os.environ.get("LROUT_IMAGE_TIMEOUT", "600.0")) if service == "image" else 120.0
+            req_timeout = (
+                float(os.environ.get("LROUT_IMAGE_TIMEOUT", "600.0"))
+                if service == "image"
+                else 120.0
+            )
             req = client.build_request(
                 method=request.method,
                 url=target_url,
@@ -2140,9 +2094,7 @@ async def proxy_request(
 
             response = await client.send(req, stream=True)
 
-            is_sse = response.headers.get("content-type", "").startswith(
-                "text/event-stream"
-            )
+            is_sse = response.headers.get("content-type", "").startswith("text/event-stream")
 
             async def response_generator():
                 nonlocal active_decremented
@@ -2154,9 +2106,7 @@ async def proxy_request(
                 finally:
                     await response.aclose()
                     if not active_decremented:
-                        _decrement_active_call(
-                            agent_id, service_id, model_id, is_streaming
-                        )
+                        _decrement_active_call(agent_id, service_id, model_id, is_streaming)
                         active_decremented = True
                     try:
                         full_body = b"".join(body_accumulator)
@@ -2275,9 +2225,7 @@ async def proxy_request(
             )
     except asyncio.CancelledError:
         elapsed = time.perf_counter() - start_time
-        client_cancel_gauge.labels(
-            agent=agent_id, service=service_id, model=model_id
-        ).inc()
+        client_cancel_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
         if is_verbose():
             print(
                 f"[ROUTER VERBOSE] client='{agent_id}' path='{request.url.path}' service='{service_id}' model='{model_id}' status=499 (CLIENT CANCELED) duration={elapsed:.3f}s",
@@ -2309,9 +2257,7 @@ async def proxy_request(
 
 @app.get("/usage")
 @app.get("/v1/usage")
-async def route_usage(
-    day: str | None = None, range: str | None = None, format: str = "json"
-):
+async def route_usage(day: str | None = None, range: str | None = None, format: str = "json"):
     try:
         metrics = get_cumulative_metrics(day_filter=day, range_filter=range)
         if format == "text":
@@ -2329,9 +2275,7 @@ async def route_usage(
 async def route_metrics():
     try:
         update_prometheus_metrics()
-        return Response(
-            content=generate_latest(metrics_registry), media_type=CONTENT_TYPE_LATEST
-        )
+        return Response(content=generate_latest(metrics_registry), media_type=CONTENT_TYPE_LATEST)
     except Exception as e:
         print(f"Error in route_metrics: {e}", file=sys.stderr)
         return Response(
@@ -2344,13 +2288,9 @@ async def route_metrics():
 @app.get("/routing/ui", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 async def route_ui():
-    ui_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "local-router-ui.html"
-    )
+    ui_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local-router-ui.html")
     if not os.path.exists(ui_path):
-        return HTMLResponse(
-            "<h1>Error: local-router-ui.html not found</h1>", status_code=404
-        )
+        return HTMLResponse("<h1>Error: local-router-ui.html not found</h1>", status_code=404)
     with open(ui_path, "r", encoding="utf-8") as f:
         content = f.read()
     return HTMLResponse(content)
@@ -2359,9 +2299,7 @@ async def route_ui():
 # --- Routes Mapping ---
 
 
-def extract_request_agent(
-    request: Request, body_data: Mapping[str, Any] | None = None
-) -> str:
+def extract_request_agent(request: Request, body_data: Mapping[str, Any] | None = None) -> str:
     """Extract and normalize client identifier strictly from request HTTP headers or JSON body payload."""
     custom: str | None = None
     for header_name in CLIENT_IDENTIFICATION_HEADERS:
@@ -2382,10 +2320,7 @@ def extract_request_agent(
         elif isinstance(body_data.get("extra_body"), Mapping):
             eb = body_data["extra_body"]
             eb_val = (
-                eb.get("client_id")
-                or eb.get("agent_id")
-                or eb.get("client")
-                or eb.get("agent")
+                eb.get("client_id") or eb.get("agent_id") or eb.get("client") or eb.get("agent")
             )
             if isinstance(eb_val, str):
                 custom = eb_val
@@ -2440,7 +2375,11 @@ async def route_chat(request: Request):
         explicit_enable = (
             model == "qwen3-thinking"
             or (isinstance(model, str) and model.endswith("-thinking"))
-            or (isinstance(reasoning_effort, str) and reasoning_effort.lower() in ["minimal", "low", "medium", "high", "xhigh", "true", "enabled"])
+            or (
+                isinstance(reasoning_effort, str)
+                and reasoning_effort.lower()
+                in ["minimal", "low", "medium", "high", "xhigh", "true", "enabled"]
+            )
             or (isinstance(thinking_dict, dict) and thinking_dict.get("enabled") is True)
             or chat_template_kwargs.get("enable_thinking") is True
         )
@@ -2666,9 +2605,7 @@ async def route_tokenize(request: Request):
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(
-        f"{target_url}{path}", request, content=body_bytes, agent=agent
-    )
+    return await proxy_request(f"{target_url}{path}", request, content=body_bytes, agent=agent)
 
 
 @app.post("/detokenize")
@@ -2690,9 +2627,7 @@ async def route_detokenize(request: Request):
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(
-        f"{target_url}{path}", request, content=body_bytes, agent=agent
-    )
+    return await proxy_request(f"{target_url}{path}", request, content=body_bytes, agent=agent)
 
 
 @app.get("/health")
@@ -2722,9 +2657,7 @@ async def route_models():
     return {"object": "list", "data": model_inventory_list}
 
 
-@app.api_route(
-    "/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"]
-)
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def route_catchall(path: str, request: Request):
     """Graceful handler for unmapped routes."""
     print(f"Error: Route not found: {request.method} /{path}", file=sys.stderr)
