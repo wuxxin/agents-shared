@@ -640,7 +640,7 @@ LCHAT_STRATA_VISION_TOKENS=1024
 LCHAT_STRATA_ALIAS="qwen3.8-flash-next"
 
 # Comma-separated list of recognized aliases
-LCHAT_STRATA_ALIASES="qwen3,qwen3.8,qwen3.8-flash,qwen3.8-next"
+LCHAT_STRATA_ALIASES="qwen3.8-moe,qwen3.8-flash,qwen3.8-next"
 
 # Extra arguments passed directly to server.py
 LCHAT_STRATA_EXTRA_ARGS=""
