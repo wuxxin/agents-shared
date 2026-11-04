@@ -18,6 +18,7 @@ DEFAULT_DISABLE_HARDWARE="false"
 DEFAULT_DISABLE_IPC_SHARE="true"
 DEFAULT_DISABLE_PID_SHARE="true"
 DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET="true"
+DEFAULT_DISABLE_USER_PODMAN="true"
 DEFAULT_LAUNCHER_PRIVATE_BASEPATH="$HOME/agent-private"
 DEFAULT_LAUNCHER_PRIVATE_MOUNTS=""
 DEFAULT_LAUNCHER_SANDBOX_MOUNTS=""
@@ -153,8 +154,8 @@ Sandbox-Ctl
 - shell <app_name>
     - Spawn an interactive shell inside the sandbox
 - hotshell [--all-access] <app_name> [args...]
-    - Spawn an interactive shell with elevated hot access (SSH agent,
-      DBus, systemd, KeePassXC browser socket, KVM if permitted, and SANDBOX 🟣 indicator).
+- Spawn an interactive shell with elevated hot access (SSH agent,
+  DBus, systemd, user Podman, KeePassXC browser socket, KVM if permitted, and SANDBOX 🟣 indicator).
       Pass --all-access to mount real host $HOME read/write at ~/real_home
       (with ~/real_<username> symlink), grant unrestricted read/write access
       to host /run/user/<id> (ignoring DISABLE_XDG_RUNTIME and tmpfs isolation),
@@ -208,6 +209,24 @@ initialize_sandbox() {
         local rel_work
         rel_work=$(realpath --relative-to="$HOME" "$work_dir" 2>/dev/null || echo "agent-private/$app_name")
         mkdir -p "$persistent_home/$rel_work"
+    fi
+
+    # Create default containers.conf if user podman is enabled and file is missing
+    local disable_user_podman="${DISABLE_USER_PODMAN:-$DEFAULT_DISABLE_USER_PODMAN}"
+    if [[ "$disable_user_podman" != "true" && "$disable_user_podman" != "1" ]]; then
+        local conf_dir="$persistent_home/.config/containers"
+        local conf_file="$conf_dir/containers.conf"
+        if [[ ! -f "$conf_file" ]]; then
+            mkdir -p "$conf_dir"
+            cat >"$conf_file" <<EOF
+[engine]
+remote = true
+active_service = "default"
+
+[engine.service_destinations.default]
+uri = "unix:///run/user/$(id -u)/podman/podman.sock"
+EOF
+        fi
     fi
 }
 
@@ -271,6 +290,7 @@ build_sandbox_config() {
         disable_systemd="true"
     fi
     local disable_keepassxc_browser_socket="${DISABLE_KEEPASSXC_BROWSER_SOCKET:-$DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET}"
+    local disable_user_podman="${DISABLE_USER_PODMAN:-$DEFAULT_DISABLE_USER_PODMAN}"
     local can_access_kvm="false"
     if [[ "$allow_kvm" == "true" || "$allow_kvm" == "1" ]]; then
         if [[ -c /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
@@ -370,11 +390,14 @@ build_sandbox_config() {
         echo "ProtectClock=yes"
         echo "ProtectHostname=yes"
         echo "LockPersonality=yes"
-        echo "RestrictSUIDSGID=yes"
+        # RestrictSUIDSGID is set to no so systemd does not install a seccomp filter on openat2(2),
+        # allowing nested bubblewrap (bwrap) execution inside the sandbox by default.
+        echo "RestrictSUIDSGID=no"
         echo "KeyringMode=private"
         echo "RestrictRealtime=yes"
         echo "UMask=0077"
-
+        echo "LimitSTACK=infinity"
+        echo "TasksMax=infinity"
         # GUI display environment variables
         if [[ -n "$display" ]]; then
             echo "Environment=DISPLAY=$display"
@@ -438,6 +461,14 @@ build_sandbox_config() {
                 if [[ "$disable_systemd" != "true" && "$disable_systemd" != "1" && -d "$xdg_runtime_dir/systemd" ]]; then
                     echo "BindPaths=$xdg_runtime_dir/systemd:$xdg_runtime_dir/systemd"
                 fi
+            fi
+        fi
+        # Podman socket forwarding
+        if [[ "$disable_user_podman" != "true" && "$disable_user_podman" != "1" ]]; then
+            local host_podman_sock="$host_run_user/podman/podman.sock"
+            if [[ -S "$host_podman_sock" || -e "$host_podman_sock" ]]; then
+                echo "BindPaths=$host_podman_sock:$host_podman_sock"
+                echo "Environment=CONTAINER_HOST=unix://$host_podman_sock"
             fi
         fi
 
@@ -594,6 +625,17 @@ build_sandbox_config() {
             echo "--dev-bind"
             echo "/dev"
             echo "/dev"
+        fi
+        # Podman socket forwarding
+        if [[ "$disable_user_podman" != "true" && "$disable_user_podman" != "1" ]]; then
+            if [[ -S "$host_run_user/podman/podman.sock" ]]; then
+                echo "--bind-try"
+                echo "$host_run_user/podman/podman.sock"
+                echo "$host_run_user/podman/podman.sock"
+                echo "--setenv"
+                echo "CONTAINER_HOST"
+                echo "unix://$host_run_user/podman/podman.sock"
+            fi
         fi
 
         # IPC/PID sharing / isolation
@@ -1234,6 +1276,7 @@ cmd_install() {
 # DISABLE_DBUS="${DEFAULT_DISABLE_DBUS}"          # Disable DBus session bus communication
 # DISABLE_SYSTEMD="${DEFAULT_DISABLE_SYSTEMD}"       # Disable systemd user manager socket communication (auto-disabled if DBus disabled)
 # DISABLE_KEEPASSXC_BROWSER_SOCKET="${DEFAULT_DISABLE_KEEPASSXC_BROWSER_SOCKET}" # Disable KeePassXC browser integration socket forwarding
+# DISABLE_USER_PODMAN="${DEFAULT_DISABLE_USER_PODMAN}"   # Disable user podman in sandbox (set to false to enable)
 
 # --- Namespace & Hardware Containment (set to true to isolate, false to share) ---
 # DISABLE_HARDWARE="${DEFAULT_DISABLE_HARDWARE}"     # Isolate host GPU/DRI devices (set to true to run headless)
@@ -1675,6 +1718,7 @@ echo "    SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-unset}"
 echo "    DISPLAY=${DISPLAY:-unset}"
 echo "    WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
 echo "    KEEPASSXC_BROWSER_SOCKET_PATH=${KEEPASSXC_BROWSER_SOCKET_PATH:-unset}"
+echo "    DISABLE_USER_PODMAN=${DISABLE_USER_PODMAN:-unset}"
 echo "  Specifier Check:"
 env | grep -E "%[hHtSEuUbB]" || echo "    OK: no unresolved specifiers in environment"
 '
@@ -1908,6 +1952,7 @@ main() {
             export DISABLE_SYSTEMD="false"
             export DISABLE_KEEPASSXC_BROWSER_SOCKET="false"
             _LAUNCHER_ALLOW_KVM="true"
+            export DISABLE_USER_PODMAN="false"
             export _LAUNCHER_ALLOW_KVM
             if [[ "$all_access_enabled" == "true" ]]; then
                 _LAUNCHER_ALL_ACCESS="true"

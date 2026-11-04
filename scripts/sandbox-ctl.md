@@ -17,6 +17,8 @@ By default, it runs the application inside a native **systemd user transient ser
 - **SSH Agent Forwarding**: Forwards the host's `SSH_AUTH_SOCK` socket for Git operations.
 - **Generic GUI / Desktop Lifecycle**: Automatically creates standard desktop entries (`.desktop` files) and menus for graphical applications during installation.
 - **Sandbox Environment Indicators**: Automatically injects `SANDBOX_NAME="<app_name>"`, `SANDBOX_ENGINE="<engine>"`, and `SANDBOX="<app_name>"` into all container sessions, making it easy for scripts, tools, and shell prompts (`zsh`, `bash`) to detect and display the active sandbox name.
+- **Nested Bubblewrap Support (Default)**: Runs nested `bwrap` containers inside the sandbox out of the box without any special flags or relaxed capabilities (`openat2(2)` unblocked via `RestrictSUIDSGID=no`).
+- **User Podman Integration**: Secure rootless Podman execution via host socket forwarding (`$XDG_RUNTIME_DIR/podman/podman.sock`) and automatic `containers.conf` configuration, retaining full defense-in-depth isolation without exposing host kernel devices or relaxing capability bounding.
 
 ---
 
@@ -146,6 +148,7 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
 - **SSH Agent Auto-Discovery & Forwarding**: Automatically discovers host SSH agent sockets across candidate paths (`gcr/ssh`, `keyring/ssh`, `gnupg/S.gpg-agent.ssh`, `ssh-agent.socket`, `/tmp/agent.*`) and sets `DISABLE_SSH_AUTH="false"`. In Bubblewrap, automatically creates the parent socket directory before binding.
 - **Systemd & DBus Access**: Overrides `DISABLE_DBUS="false"` and `DISABLE_SYSTEMD="false"`, bind-mounting `$XDG_RUNTIME_DIR/bus` and `$XDG_RUNTIME_DIR/systemd` so `systemctl --user` commands can reach the user daemon.
 - **KVM Access**: Automatically bind-mounts `/dev/kvm` into the sandbox if `/dev/kvm` exists and is readable/writable by the current user.
+- **User Podman Access**: Automatically overrides `DISABLE_USER_PODMAN="false"`, bind-mounting host rootless Podman socket (`$XDG_RUNTIME_DIR/podman/podman.sock`) and ensuring default `containers.conf` is configured.
 - **KeePassXC Browser Socket Integration**: Overrides `DISABLE_KEEPASSXC_BROWSER_SOCKET="false"`, bind-mounting host KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` and `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`) into the container and exporting `KEEPASSXC_BROWSER_SOCKET_PATH` if present on host.
 - **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🟣"` by default.
 - **`--all-access` Option & Containment Circumvention**:
@@ -177,6 +180,12 @@ Spawns an interactive shell configured for graphical and hardware-accelerated ap
 | **Background Services** | Registered as native systemd user units | Executed under systemd service or wrapper |
 | **Resource Limits** | Native cgroups v2 containment | Managed by parent process tree / namespaces |
 | **Logging** | Systemd journal (`journalctl --user`) | Stdout/Stderr streaming |
+
+### Nested Bubblewrap (`bwrap`)
+
+Nested `bwrap` execution works out of the box in default sandboxes across both `systemd` and `bwrap` engines:
+- **Systemd Engine**: In systemd transient units, `RestrictSUIDSGID=no` is set so systemd does not install a seccomp BPF filter on `openat2(2)`. Bubblewrap relies on `openat2(..., RESOLVE_IN_ROOT)` for path verification and executes cleanly without requiring elevated capabilities or unconfined privileges.
+- **Bubblewrap Engine**: Outer `bwrap` containers preserve unprivileged user namespace nesting (`CLONE_NEWUSER`), allowing inner `bwrap` containers to create unprivileged sandboxes transparently.
 
 ### Engine Selection (`LAUNCHER_ENGINE`)
 - `"auto"` (Default): Uses systemd if the systemd user manager socket is reachable; otherwise automatically falls back to `bwrap`.
@@ -240,6 +249,9 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 
 - **`DISABLE_KEEPASSXC_BROWSER_SOCKET`** (Default: `"true"`)
   Disables forwarding the host's KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` / `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`). When set to `"false"`, mounts the socket and exports `KEEPASSXC_BROWSER_SOCKET_PATH` inside the container if present on the host. Overridden to `"false"` in `hotshell`. Sandboxes do not receive host single-instance lock files or unencrypted CLI sockets. See [KeePassXC Secret Retrieval & Socket Integration](#keepassxc-secret-retrieval--socket-integration) for configuration and usage.
+
+- **`DISABLE_USER_PODMAN`** (Default: `"true"`)
+  Disables forwarding the host's rootless Podman socket (`$XDG_RUNTIME_DIR/podman/podman.sock`). When set to `"false"`, `sandbox-ctl` bind-mounts the socket into the container, exports `CONTAINER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"`, and auto-creates a working `$HOME/.config/containers/containers.conf` with `remote = true` if no configuration exists. This enables standard `podman run`, `podman build`, and `podman ps` inside the sandbox without weakening the container's strict security boundaries (`NoNewPrivileges=yes`, empty `CapabilityBoundingSet`, `ProtectControlGroups=yes`). Automatically overridden to `"false"` in `hotshell`.
 
 - **`DISABLE_IPC_SHARE`** (Default: `"true"`)
   Disables host IPC namespace sharing (set to `"false"` for GPU/ROCm hardware IPC access).
@@ -344,3 +356,15 @@ KeePassXC's browser integration enforces security restrictions to prevent malici
 3. **Desktop Notifications**:
    - KeePassXC emits a desktop notification (or authorization dialog if configured) whenever an external client queries credentials via the socket.
 
+
+---
+
+## Podman Integration
+
+To run OCI container workflows (`podman run`, `podman build`, `podman ps`) inside the sandbox without weakening sandbox containment:
+- **Architecture**: Uses the client-server remote mode communicating over the host's rootless Podman UNIX socket (`$XDG_RUNTIME_DIR/podman/podman.sock`).
+- **Hardening Preservation**: Because container management executes on the host via the host's rootless systemd service, the sandbox process requires no host device nodes (`/dev/fuse`, `/dev/net/tun`), no capability bounding overrides, and no `NoNewPrivileges=no` relaxations.
+- **Enabling**:
+  - In `~/.config/systemd/user/<app_name>.env`, set `DISABLE_USER_PODMAN="false"`.
+  - Or launch via `sandbox-ctl hotshell <app_name>`, which automatically activates user Podman access.
+- **Automatic Configuration**: `sandbox-ctl` automatically creates `$HOME/.config/containers/containers.conf` inside the sandbox persistent home if no configuration exists, enabling bare `podman` commands to operate immediately without manual `--remote` flags.
