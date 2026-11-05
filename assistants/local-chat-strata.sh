@@ -22,17 +22,26 @@ STRATA_ENGINE_BIN="${STRATA_ENGINE_BIN:-/usr/lib/strata/engine/strata}"
 STRATA_VISION_BIN="${STRATA_VISION_BIN:-/usr/lib/strata/engine/strata-vision-hip}"
 STRATA_VISION_CPU_BIN="${STRATA_VISION_CPU_BIN:-/usr/lib/strata/engine/strata-vision}"
 STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/serve/server.py}"
-STRATA_DEFAULT_MODEL_DIR="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata/swift15_iq3s}"
+export STRATA_DEFAULT_MODEL_DIR="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata/swift15_iq3s}"
 
 # Hardware, ROCm, and Strata Execution Tuning Constants (AMD Navi 31 / RX 7900 XTX)
 export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
 export HIP_PATH="${HIP_PATH:-/opt/rocm}"
-export STRATA_HIPBLASLT_TUNING="${STRATA_HIPBLASLT_TUNING:-/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt}"
+export STRATA_HIPBLASLT_TUNING="${STRATA_HIPBLASLT_TUNING:-/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt}"
 export STRATA_SCORES_THREAD=1
 export STRATA_WMMA_GEMM=1
 export STRATA_PF_GEMM=1
+export STRATA_PF_PAD=1
 export STRATA_PF_FUSED=1
 export STRATA_DENSE_MMQ=1
+export STRATA_HC_UPMIX=1
+export STRATA_PF_HCDOWN=1
+export STRATA_CVEC_FUSE=1
+export STRATA_PF_HC_REGION=1
+export STRATA_PLE_COMPACT=1
+export STRATA_PLE_COPY_STREAM=1
+export STRATA_PREFILL_WARM=1
+export STRATA_PREFILL_AUTO_MAX=16384
 export HSA_USERPTR_FOR_PAGED_MEM=0
 export STRATA_ROUTE_TAIL_SKIP=7
 export PYTHONUNBUFFERED=1
@@ -40,6 +49,7 @@ export STRATA_REQUEST_LINES=1
 export STRATA_MEMORY_LIMIT_MIB=0
 export STRATA_RESIDENT_HEADROOM_GIB=0
 export STRATA_SH_STREAM=0
+export STRATA_ARENA_RELEASE=0
 # Default configuration values
 
 load_env() {
@@ -132,12 +142,12 @@ load_env() {
     LCHAT_STRATA_TOP_K=20
     LCHAT_STRATA_PCIE_FRAC="0.20"
     LCHAT_STRATA_EXPERT_RAM_BUDGET=42000
-    LCHAT_STRATA_PROMPT_CACHE=4
-    LCHAT_STRATA_CONV_CACHE_SLOTS=4
-    LCHAT_STRATA_CONV_CACHE_MIB=18432
+    LCHAT_STRATA_PROMPT_CACHE=6
+    LCHAT_STRATA_CONV_CACHE_SLOTS=6
+    LCHAT_STRATA_CONV_CACHE_MIB=24576
     LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=2048
     LCHAT_STRATA_SPEC=4
-    LCHAT_STRATA_SPEC_MIN_P=0.70
+    LCHAT_STRATA_SPEC_MIN_P=0.60
     LCHAT_STRATA_SUFFIX_DRAFT=3
     LCHAT_STRATA_ADAPT_ASYNC=1
     LCHAT_STRATA_ADAPT_EVERY=1
@@ -146,7 +156,7 @@ load_env() {
     LCHAT_STRATA_KV="k8v4"
     LCHAT_STRATA_KV_RESIDENT=32768
     LCHAT_STRATA_EXPERT_CACHE="auto"
-    LCHAT_STRATA_VRAM_RESERVE_MIB=0
+    LCHAT_STRATA_VRAM_RESERVE_MIB=512
     LCHAT_STRATA_PLE_IO="ram"
     LCHAT_STRATA_SPEED="faster"
 
@@ -399,13 +409,13 @@ if ple_model and ple_model != model:
 engine_args.extend([
     "--prefill", get_env("LCHAT_STRATA_PREFILL", "auto"),
     "--pcie-frac", get_env("LCHAT_STRATA_PCIE_FRAC", "0.20"),
-    "--prompt-cache", get_env("LCHAT_STRATA_PROMPT_CACHE", "4"),
-    "--conversation-cache-slots", get_env("LCHAT_STRATA_CONV_CACHE_SLOTS", "4"),
-    "--conversation-cache-mib", get_env("LCHAT_STRATA_CONV_CACHE_MIB", "18432"),
+    "--prompt-cache", get_env("LCHAT_STRATA_PROMPT_CACHE", "6"),
+    "--conversation-cache-slots", get_env("LCHAT_STRATA_CONV_CACHE_SLOTS", "6"),
+    "--conversation-cache-mib", get_env("LCHAT_STRATA_CONV_CACHE_MIB", "24576"),
     "--conversation-cache-min-free-mib", get_env("LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB", "2048"),
     "--max-context", get_env("LCHAT_STRATA_MAX_CONTEXT", "240384"),
     "--spec", get_env("LCHAT_STRATA_SPEC", "4"),
-    "--spec-min-p", get_env("LCHAT_STRATA_SPEC_MIN_P", "0.70"),
+    "--spec-min-p", get_env("LCHAT_STRATA_SPEC_MIN_P", "0.60"),
     "--suffix-draft", get_env("LCHAT_STRATA_SUFFIX_DRAFT", "3"),
     "--adapt-async", get_env("LCHAT_STRATA_ADAPT_ASYNC", "1"),
     "--adapt-every", get_env("LCHAT_STRATA_ADAPT_EVERY", "1"),
@@ -513,23 +523,32 @@ import resource
 import subprocess
 
 # Hardware, ROCm, and execution tuning flags
-os.environ["STRATA_SCORES_THREAD"] = "1"
-os.environ["STRATA_WMMA_GEMM"] = "1"
-os.environ["STRATA_PF_GEMM"] = "1"
-os.environ["STRATA_PF_FUSED"] = "1"
-os.environ["STRATA_DENSE_MMQ"] = "1"
-os.environ["STRATA_HIPBLASLT_TUNING"] = "/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt"
-os.environ["HSA_USERPTR_FOR_PAGED_MEM"] = "0"
-os.environ["STRATA_ROUTE_TAIL_SKIP"] = "7"
-os.environ["ROCM_PATH"] = os.environ.get("ROCM_PATH", "/opt/rocm")
-os.environ["HIP_PATH"] = os.environ.get("HIP_PATH", "/opt/rocm")
-os.environ["PYTHONUNBUFFERED"] = "1"
-os.environ["STRATA_REQUEST_LINES"] = "1"
-os.environ["STRATA_MEMORY_LIMIT_MIB"] = "0"
-os.environ["STRATA_RESIDENT_HEADROOM_GIB"] = "0"
-os.environ["STRATA_SH_STREAM"] = "0"
+os.environ.setdefault("STRATA_SCORES_THREAD", "1")
+os.environ.setdefault("STRATA_WMMA_GEMM", "1")
+os.environ.setdefault("STRATA_PF_GEMM", "1")
+os.environ.setdefault("STRATA_PF_PAD", "1")
+os.environ.setdefault("STRATA_PF_FUSED", "1")
+os.environ.setdefault("STRATA_DENSE_MMQ", "1")
+os.environ.setdefault("STRATA_HC_UPMIX", "1")
+os.environ.setdefault("STRATA_PF_HCDOWN", "1")
+os.environ.setdefault("STRATA_CVEC_FUSE", "1")
+os.environ.setdefault("STRATA_PF_HC_REGION", "1")
+os.environ.setdefault("STRATA_PLE_COMPACT", "1")
+os.environ.setdefault("STRATA_PLE_COPY_STREAM", "1")
+os.environ.setdefault("STRATA_PREFILL_WARM", "1")
+os.environ.setdefault("STRATA_PREFILL_AUTO_MAX", "16384")
+os.environ.setdefault("STRATA_HIPBLASLT_TUNING", "/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt")
+os.environ.setdefault("HSA_USERPTR_FOR_PAGED_MEM", "0")
+os.environ.setdefault("STRATA_ROUTE_TAIL_SKIP", "7")
+os.environ.setdefault("ROCM_PATH", os.environ.get("ROCM_PATH", "/opt/rocm"))
+os.environ.setdefault("HIP_PATH", os.environ.get("HIP_PATH", "/opt/rocm"))
+os.environ.setdefault("PYTHONUNBUFFERED", "1")
+os.environ.setdefault("STRATA_REQUEST_LINES", "1")
+os.environ.setdefault("STRATA_MEMORY_LIMIT_MIB", "0")
+os.environ.setdefault("STRATA_RESIDENT_HEADROOM_GIB", "0")
+os.environ.setdefault("STRATA_SH_STREAM", "0")
 if "LCHAT_STRATA_DEVICE" in os.environ:
-    os.environ["HIP_VISIBLE_DEVICES"] = os.environ["LCHAT_STRATA_DEVICE"]
+    os.environ.setdefault("HIP_VISIBLE_DEVICES", os.environ["LCHAT_STRATA_DEVICE"])
 
 # Set host memory limits to unlimited
 for limit in (resource.RLIMIT_MEMLOCK, resource.RLIMIT_AS, resource.RLIMIT_DATA):
@@ -667,16 +686,16 @@ LCHAT_STRATA_PCIE_FRAC="0.20"
 LCHAT_STRATA_EXPERT_RAM_BUDGET=42000
 
 # Prompt cache slots
-LCHAT_STRATA_PROMPT_CACHE=4
+LCHAT_STRATA_PROMPT_CACHE=6
 
 # Conversation cache slots and memory limits
-LCHAT_STRATA_CONV_CACHE_SLOTS=4
-LCHAT_STRATA_CONV_CACHE_MIB=18432
+LCHAT_STRATA_CONV_CACHE_SLOTS=6
+LCHAT_STRATA_CONV_CACHE_MIB=24576
 LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=2048
 
 # Speculative decoding tokens and threshold
 LCHAT_STRATA_SPEC=4
-LCHAT_STRATA_SPEC_MIN_P=0.70
+LCHAT_STRATA_SPEC_MIN_P=0.60
 LCHAT_STRATA_SUFFIX_DRAFT=3
 LCHAT_STRATA_ADAPT_ASYNC=1
 LCHAT_STRATA_ADAPT_EVERY=1
@@ -687,7 +706,7 @@ LCHAT_STRATA_ADAPT_DECAY="0.97"
 LCHAT_STRATA_KV="k8v4"
 LCHAT_STRATA_KV_RESIDENT=32768
 LCHAT_STRATA_EXPERT_CACHE="auto"
-LCHAT_STRATA_VRAM_RESERVE_MIB=0
+LCHAT_STRATA_VRAM_RESERVE_MIB=512
 # Routing profile and adaptive persistence
 LCHAT_STRATA_EXPERT_PROFILE="/usr/share/strata/data/expert-profile.bin"
 LCHAT_STRATA_EXPERT_PROFILE_SAVE="%h/.config/systemd/user/local-chat-strata-profile.bin"
@@ -719,14 +738,24 @@ LCHAT_STRATA_EXTRA_ARGS=""
 STRATA_SCORES_THREAD=1
 STRATA_WMMA_GEMM=1
 STRATA_PF_GEMM=1
+STRATA_PF_PAD=1
 STRATA_PF_FUSED=1
 STRATA_DENSE_MMQ=1
-STRATA_HIPBLASLT_TUNING="/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt"
+STRATA_HC_UPMIX=1
+STRATA_PF_HCDOWN=1
+STRATA_CVEC_FUSE=1
+STRATA_PF_HC_REGION=1
+STRATA_PLE_COMPACT=1
+STRATA_PLE_COPY_STREAM=1
+STRATA_PREFILL_WARM=1
+STRATA_PREFILL_AUTO_MAX=16384
+STRATA_HIPBLASLT_TUNING="/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt"
 HSA_USERPTR_FOR_PAGED_MEM=0
 STRATA_ROUTE_TAIL_SKIP=7
 STRATA_MEMORY_LIMIT_MIB=0
 STRATA_RESIDENT_HEADROOM_GIB=0
 STRATA_SH_STREAM=0
+STRATA_ARENA_RELEASE=0
 PYTHONUNBUFFERED=1
 STRATA_REQUEST_LINES=1
 

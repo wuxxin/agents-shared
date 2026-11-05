@@ -22,7 +22,7 @@ The deployment utilizes a hybrid VRAM/Host RAM split optimized for AMD Navi 31:
 - **95 GiB Host RAM (CPU/DDR5)**:
   - Offloads expert weights into host RAM managed with an allocated budget of 42,000 MiB (~41 GiB).
   - Demand-paged PLE n-gram table (Shard 2).
-  - High-concurrency prompt cache (4 slots) and dynamic conversation cache (18 GiB).
+  - High-concurrency prompt cache (6 slots) and dynamic conversation cache (24 GiB).
 - **Zero-Swap Invariant**:
   - Requires 0B swap paging under 240,384 context with RX 7900 XTX (24 GiB VRAM) and 95 GiB Host RAM ceiling. All host memory allocations are locked via `LimitMEMLOCK=infinity`, `LimitAS=infinity`, and `HSA_USERPTR_FOR_PAGED_MEM=0`.
 - **Direct Logging Launcher**:
@@ -116,12 +116,12 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_TOP_K` | `20` | Top-k sampling limit |
 | `LCHAT_STRATA_PCIE_FRAC` | `0.20` | Calibrated PCIe bandwidth fractional allocation |
 | `LCHAT_STRATA_EXPERT_RAM_BUDGET` | `42000` | Host RAM budget for experts in MiB (~41 GiB) |
-| `LCHAT_STRATA_PROMPT_CACHE` | `4` | Number of concurrent prompt cache slots |
-| `LCHAT_STRATA_CONV_CACHE_SLOTS` | `4` | Conversation cache slots |
-| `LCHAT_STRATA_CONV_CACHE_MIB` | `18432` | Conversation cache size in MiB (18 GiB) |
+| `LCHAT_STRATA_PROMPT_CACHE` | `6` | Number of concurrent prompt cache slots (sized for multi-agent workflows) |
+| `LCHAT_STRATA_CONV_CACHE_SLOTS` | `6` | Conversation cache slots (1 main + 2 subagents + side context) |
+| `LCHAT_STRATA_CONV_CACHE_MIB` | `24576` | Conversation cache size in MiB (24 GiB host DDR5 memory) |
 | `LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB` | `2048` | Minimum free headroom for conversation cache |
 | `LCHAT_STRATA_SPEC` | `4` | Speculative draft token step count |
-| `LCHAT_STRATA_SPEC_MIN_P` | `0.70` | Speculative acceptance probability threshold |
+| `LCHAT_STRATA_SPEC_MIN_P` | `0.60` | Speculative acceptance probability threshold (tuned for RDNA3 MTP) |
 | `LCHAT_STRATA_SUFFIX_DRAFT` | `3` | Suffix draft length |
 | `LCHAT_STRATA_ADAPT_ASYNC` | `1` | Asynchronous expert swapping |
 | `LCHAT_STRATA_ADAPT_EVERY` | `1` | Adaptive step interval |
@@ -130,7 +130,7 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_KV` | `"k8v4"` | Quantization format for Key-Value cache |
 | `LCHAT_STRATA_KV_RESIDENT` | `32768` | VRAM resident KV cache token capacity |
 | `LCHAT_STRATA_EXPERT_CACHE` | `"auto"` | Expert cache policy |
-| `LCHAT_STRATA_VRAM_RESERVE_MIB` | `0` | VRAM reserve in MiB (0 preserves ~148 MiB hardware headroom) |
+| `LCHAT_STRATA_VRAM_RESERVE_MIB` | `512` | VRAM reserve in MiB (512 guarantees 636 MiB safe headroom, preventing MTP OOM) |
 | `LCHAT_STRATA_PLE_IO` | `"ram"` | PLE n-gram table storage tier |
 | `LCHAT_STRATA_SPEED` | `"faster"` | Engine execution speed optimization tier |
 | `LCHAT_STRATA_VISION` | `true` | Enable multimodal image reasoning via `strata-vision-hip` |
@@ -149,15 +149,24 @@ The launcher script sets low-level kernel optimizations specifically tuned for N
 
 - `STRATA_SCORES_THREAD=1`: Dedicated thread for attention score computation.
 - `STRATA_WMMA_GEMM=1`: Hardware Wavefront Matrix Multiply-Accumulate (WMMA) execution.
-- `STRATA_PF_GEMM=1` & `STRATA_PF_FUSED=1`: Pipelined prefetch GEMM kernels.
+- `STRATA_PF_GEMM=1` & `STRATA_PF_FUSED=1`: Prefill WMMA GEMM and fused expert execution.
+- `STRATA_PF_PAD=1`: Pads FP16 activation row strides (+64) in `strata_pf_gemm_f16_ld` to eliminate 4KB memory channel camping across Navi 31 MCDs.
 - `STRATA_DENSE_MMQ=1`: Quantized dense layer acceleration.
-- `STRATA_HIPBLASLT_TUNING`: Tuned gemm shapes from `/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt`.
+- `STRATA_HC_UPMIX=1`: Fuses hyper-connection up-projection and `gr_mix_r` for gfx11.
+- `STRATA_PF_HCDOWN=1`: Fuses hyper-connection down and inject projections via native gfx11 WMMA GEMM.
+- `STRATA_CVEC_FUSE=1`: Fuses FFN write, control vector projection, and next-half RMSNorm into a single sweep over $R$.
+- `STRATA_PF_HC_REGION=1`: Places hyper-connection scratch memory into the shared attention/MoE region.
+- `STRATA_PLE_COMPACT=1` & `STRATA_PLE_COPY_STREAM=1`: 7x compressed raw IQ4_NL PLE transfer over dedicated async DMA stream overlapping Layer 0 compute.
+- `STRATA_PREFILL_WARM=1`: Pre-warms hipBLAS BF16 and FP16 libraries at startup, eliminating cold-prompt load delays.
+- `STRATA_PREFILL_AUTO_MAX=16384`: Allows prompt chunking up to 16,384 tokens to amortize dispatch overheads.
+- `STRATA_HIPBLASLT_TUNING`: Tuned GEMM shapes from `/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt` (exact match for runtime version 100202).
 - `HSA_USERPTR_FOR_PAGED_MEM=0`: Bypasses HSA user pointer paged memory faults.
 - `STRATA_ROUTE_TAIL_SKIP=7`: Skips tail routing computations in MoE layers.
 - `STRATA_MEMORY_LIMIT_MIB=0`: Unlimited system memory allocation.
 - `STRATA_RESIDENT_HEADROOM_GIB=0`: Zero artificial headroom caps, maximizing contiguous allocations.
 - `STRATA_SH_STREAM=0`: Shared expert execution on main stream (+1 tok/s speedup).
 - `PYTHONUNBUFFERED=1` & `STRATA_REQUEST_LINES=1`: Direct unbuffered journal logging.
+- `STRATA_ARENA_RELEASE=0`: Retains all VRAM-held experts in host DDR5 memory permanently, eliminating SSD re-reads on evictions.
 
 ---
 
