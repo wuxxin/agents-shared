@@ -24,8 +24,9 @@ The deployment utilizes a hybrid VRAM/Host RAM split optimized for AMD Navi 31:
   - Demand-paged PLE n-gram table (Shard 2).
   - High-concurrency prompt cache (4 slots) and dynamic conversation cache (18 GiB).
 - **Zero-Swap Invariant**:
-  - Requires 0B swap paging. All host memory allocations are contiguous and locked via `LimitMEMLOCK=infinity` and `HSA_USERPTR_FOR_PAGED_MEM=0`.
----
+  - Requires 0B swap paging under 240,384 context with RX 7900 XTX (24 GiB VRAM) and 95 GiB Host RAM ceiling. All host memory allocations are locked via `LimitMEMLOCK=infinity`, `LimitAS=infinity`, and `HSA_USERPTR_FOR_PAGED_MEM=0`.
+- **Direct Logging Launcher**:
+  - Uses a lightweight Python launcher (`local-chat-strata-launcher.py`) that sets hardware and memory limits, imports Strata's `serve.server`, and routes engine/vision subprocess `stderr` directly to `sys.stderr` while `server.py` logs to `sys.stdout`. Systemd journal captures all output natively with zero disk log files or background tail hacks.
 
 ## Usage
 
@@ -107,27 +108,37 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_ESP` | `/usr/share/strata/data/experimental-speed-projection/...` | Built-in runtime projective control vector for refusal elimination |
 | `LCHAT_STRATA_ESP_SCALE` | `1.0` | Projection scaling factor ($\alpha$) |
 | `LCHAT_STRATA_ESP_LAYERS` | `"4 44"` | Layer range for projective steering |
-| `LCHAT_STRATA_MAX_CONTEXT` | `184320` | Maximum context window in tokens (~180k) |
-| `LCHAT_STRATA_PREFILL` | `8192` | Prefill chunk size |
+| `LCHAT_STRATA_MAX_CONTEXT` | `240384` | Maximum context window in tokens (240k) |
+| `LCHAT_STRATA_PREFILL` | `"auto"` | Dynamic prefill chunk sizing |
+| `LCHAT_STRATA_TEMPERATURE` | `0.6` | Deterministic agentic sampling temperature |
+| `LCHAT_STRATA_REPEAT_PENALTY` | `1.1` | Repetition penalty preventing CoT reasoning loops |
+| `LCHAT_STRATA_TOP_P` | `0.95` | Top-p nucleus sampling |
+| `LCHAT_STRATA_TOP_K` | `20` | Top-k sampling limit |
+| `LCHAT_STRATA_PCIE_FRAC` | `0.20` | Calibrated PCIe bandwidth fractional allocation |
 | `LCHAT_STRATA_EXPERT_RAM_BUDGET` | `42000` | Host RAM budget for experts in MiB (~41 GiB) |
 | `LCHAT_STRATA_PROMPT_CACHE` | `4` | Number of concurrent prompt cache slots |
 | `LCHAT_STRATA_CONV_CACHE_SLOTS` | `4` | Conversation cache slots |
 | `LCHAT_STRATA_CONV_CACHE_MIB` | `18432` | Conversation cache size in MiB (18 GiB) |
 | `LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB` | `2048` | Minimum free headroom for conversation cache |
-| `LCHAT_STRATA_SPEC` | `5` | Speculative draft token step count |
-| `LCHAT_STRATA_SPEC_MIN_P` | `0.75` | Speculative acceptance probability threshold |
+| `LCHAT_STRATA_SPEC` | `4` | Speculative draft token step count |
+| `LCHAT_STRATA_SPEC_MIN_P` | `0.70` | Speculative acceptance probability threshold |
 | `LCHAT_STRATA_SUFFIX_DRAFT` | `3` | Suffix draft length |
 | `LCHAT_STRATA_ADAPT_ASYNC` | `1` | Asynchronous expert swapping |
-| `LCHAT_STRATA_ADAPT_SWAPS` | `8` | Parallel swap channels for host-to-device transfers |
+| `LCHAT_STRATA_ADAPT_EVERY` | `1` | Adaptive step interval |
+| `LCHAT_STRATA_ADAPT_SWAPS` | `160` | Calibrated parallel swap channels for host-to-device transfers (+22% tok/s) |
+| `LCHAT_STRATA_ADAPT_DECAY` | `0.97` | Adaptive decay rate |
 | `LCHAT_STRATA_KV` | `"k8v4"` | Quantization format for Key-Value cache |
 | `LCHAT_STRATA_KV_RESIDENT` | `32768` | VRAM resident KV cache token capacity |
 | `LCHAT_STRATA_EXPERT_CACHE` | `"auto"` | Expert cache policy |
-| `LCHAT_STRATA_VRAM_RESERVE_MIB` | `600` | Headroom reserved for display/OS allocations |
+| `LCHAT_STRATA_VRAM_RESERVE_MIB` | `0` | VRAM reserve in MiB (0 preserves ~148 MiB hardware headroom) |
+| `LCHAT_STRATA_PLE_IO` | `"ram"` | PLE n-gram table storage tier |
 | `LCHAT_STRATA_SPEED` | `"faster"` | Engine execution speed optimization tier |
 | `LCHAT_STRATA_VISION` | `true` | Enable multimodal image reasoning via `strata-vision-hip` |
 | `LCHAT_STRATA_VISION_TOKENS` | `1024` | Maximum tokens allocated for vision patches |
-| `LCHAT_STRATA_ALIAS` | `qwen3.8-flash-next-swift15` | Primary model identifier reported to clients |
-| `LCHAT_STRATA_ALIASES` | `qwen3,qwen3.8-flash-next,swift-1.5,qwen3.8` | Comma-separated alternative model aliases |
+| `LCHAT_STRATA_ALIAS` | `qwen3.8-flash-next` | Primary model identifier reported to clients |
+| `LCHAT_STRATA_ALIASES` | `qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3` | Comma-separated alternative model aliases |
+| `LCHAT_STRATA_CHAT_TEMPLATE_FILE` | `.../Qwen3.8-chat_template.jinja` | Custom fixed community chat template (froggeric v22.5) |
+| `LCHAT_STRATA_CHAT_TEMPLATE_KWARGS` | `'{"enable_thinking": true}'` | Template parsing arguments enabling reasoning |
 | `LCHAT_STRATA_EXTRA_ARGS` | `""` | Extra arguments passed directly to `server.py` |
 
 ---
@@ -143,7 +154,10 @@ The launcher script sets low-level kernel optimizations specifically tuned for N
 - `STRATA_HIPBLASLT_TUNING`: Tuned gemm shapes from `/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt`.
 - `HSA_USERPTR_FOR_PAGED_MEM=0`: Bypasses HSA user pointer paged memory faults.
 - `STRATA_ROUTE_TAIL_SKIP=7`: Skips tail routing computations in MoE layers.
-- `STRATA_RESIDENT_HEADROOM_GIB=6`: Preserves 6 GiB buffer headroom in system memory.
+- `STRATA_MEMORY_LIMIT_MIB=0`: Unlimited system memory allocation.
+- `STRATA_RESIDENT_HEADROOM_GIB=0`: Zero artificial headroom caps, maximizing contiguous allocations.
+- `STRATA_SH_STREAM=0`: Shared expert execution on main stream (+1 tok/s speedup).
+- `PYTHONUNBUFFERED=1` & `STRATA_REQUEST_LINES=1`: Direct unbuffered journal logging.
 
 ---
 

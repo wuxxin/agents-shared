@@ -13,11 +13,33 @@ set -euo pipefail
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-chat-strata"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
-ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
+ENV_FILE="${ENV_FILE:-${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env}"
 CONFIG_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-config.json"
-LAUNCHER_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
-export LOG_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.log"
+LAUNCHER_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.py"
 
+# Engine, Vision, and Script Binaries
+STRATA_ENGINE_BIN="${STRATA_ENGINE_BIN:-/usr/lib/strata/engine/strata}"
+STRATA_VISION_BIN="${STRATA_VISION_BIN:-/usr/lib/strata/engine/strata-vision-hip}"
+STRATA_VISION_CPU_BIN="${STRATA_VISION_CPU_BIN:-/usr/lib/strata/engine/strata-vision}"
+STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/serve/server.py}"
+STRATA_DEFAULT_MODEL_DIR="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata/swift15_iq3s}"
+
+# Hardware, ROCm, and Strata Execution Tuning Constants (AMD Navi 31 / RX 7900 XTX)
+export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
+export HIP_PATH="${HIP_PATH:-/opt/rocm}"
+export STRATA_HIPBLASLT_TUNING="${STRATA_HIPBLASLT_TUNING:-/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt}"
+export STRATA_SCORES_THREAD=1
+export STRATA_WMMA_GEMM=1
+export STRATA_PF_GEMM=1
+export STRATA_PF_FUSED=1
+export STRATA_DENSE_MMQ=1
+export HSA_USERPTR_FOR_PAGED_MEM=0
+export STRATA_ROUTE_TAIL_SKIP=7
+export PYTHONUNBUFFERED=1
+export STRATA_REQUEST_LINES=1
+export STRATA_MEMORY_LIMIT_MIB=0
+export STRATA_RESIDENT_HEADROOM_GIB=0
+export STRATA_SH_STREAM=0
 # Default configuration values
 
 load_env() {
@@ -34,6 +56,16 @@ load_env() {
     local env_lchat_esp="${LCHAT_STRATA_ESP:-}"
     local env_lchat_esp_scale="${LCHAT_STRATA_ESP_SCALE:-}"
     local env_lchat_esp_layers="${LCHAT_STRATA_ESP_LAYERS:-}"
+    local env_lchat_temp="${LCHAT_STRATA_TEMPERATURE:-}"
+    local env_lchat_repeat="${LCHAT_STRATA_REPEAT_PENALTY:-}"
+    local env_lchat_top_p="${LCHAT_STRATA_TOP_P:-}"
+    local env_lchat_top_k="${LCHAT_STRATA_TOP_K:-}"
+    local env_lchat_pcie_frac="${LCHAT_STRATA_PCIE_FRAC:-}"
+    local env_lchat_adapt_every="${LCHAT_STRATA_ADAPT_EVERY:-}"
+    local env_lchat_adapt_decay="${LCHAT_STRATA_ADAPT_DECAY:-}"
+    local env_lchat_chat_template="${LCHAT_STRATA_CHAT_TEMPLATE_FILE:-}"
+    local env_lchat_chat_template_kwargs="${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS:-}"
+    local env_lchat_ple_io="${LCHAT_STRATA_PLE_IO:-}"
     local env_lchat_max_context="${LCHAT_STRATA_MAX_CONTEXT:-}"
     local env_lchat_prefill="${LCHAT_STRATA_PREFILL:-}"
     local env_lchat_ram_budget="${LCHAT_STRATA_EXPERT_RAM_BUDGET:-}"
@@ -91,22 +123,31 @@ load_env() {
     LCHAT_STRATA_ESP_SCALE="1.0"
     LCHAT_STRATA_ESP_LAYERS="4 44"
     # Default engine tuning parameters
-    LCHAT_STRATA_MAX_CONTEXT=184320
-    LCHAT_STRATA_PREFILL=8192
+    # Default engine tuning and sampling parameters
+    LCHAT_STRATA_MAX_CONTEXT=240384
+    LCHAT_STRATA_PREFILL="auto"
+    LCHAT_STRATA_TEMPERATURE=0.6
+    LCHAT_STRATA_REPEAT_PENALTY=1.1
+    LCHAT_STRATA_TOP_P=0.95
+    LCHAT_STRATA_TOP_K=20
+    LCHAT_STRATA_PCIE_FRAC="0.20"
     LCHAT_STRATA_EXPERT_RAM_BUDGET=42000
     LCHAT_STRATA_PROMPT_CACHE=4
     LCHAT_STRATA_CONV_CACHE_SLOTS=4
     LCHAT_STRATA_CONV_CACHE_MIB=18432
     LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=2048
-    LCHAT_STRATA_SPEC=5
-    LCHAT_STRATA_SPEC_MIN_P=0.75
+    LCHAT_STRATA_SPEC=4
+    LCHAT_STRATA_SPEC_MIN_P=0.70
     LCHAT_STRATA_SUFFIX_DRAFT=3
     LCHAT_STRATA_ADAPT_ASYNC=1
-    LCHAT_STRATA_ADAPT_SWAPS=8
+    LCHAT_STRATA_ADAPT_EVERY=1
+    LCHAT_STRATA_ADAPT_SWAPS=160
+    LCHAT_STRATA_ADAPT_DECAY="0.97"
     LCHAT_STRATA_KV="k8v4"
     LCHAT_STRATA_KV_RESIDENT=32768
     LCHAT_STRATA_EXPERT_CACHE="auto"
-    LCHAT_STRATA_VRAM_RESERVE_MIB=600
+    LCHAT_STRATA_VRAM_RESERVE_MIB=0
+    LCHAT_STRATA_PLE_IO="ram"
     LCHAT_STRATA_SPEED="faster"
 
     # Default vision settings
@@ -114,8 +155,11 @@ load_env() {
     LCHAT_STRATA_VISION_TOKENS=1024
 
     # Default aliases
-    LCHAT_STRATA_ALIAS="qwen3.8-flash-next-swift15"
-    LCHAT_STRATA_ALIASES="qwen3,qwen3.8-flash-next,swift-1.5,qwen3.8"
+    LCHAT_STRATA_ALIAS="qwen3.8-flash-next"
+    LCHAT_STRATA_ALIASES="qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3"
+    LCHAT_STRATA_CHAT_TEMPLATE_FILE="${base_m_dir}/Qwen3.8-chat_template.jinja"
+    [[ ! -f "$LCHAT_STRATA_CHAT_TEMPLATE_FILE" ]] && LCHAT_STRATA_CHAT_TEMPLATE_FILE="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata}/Qwen3.8-chat_template.jinja"
+    LCHAT_STRATA_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
     LCHAT_STRATA_EXTRA_ARGS=""
 
     # Binaries and script paths
@@ -144,6 +188,11 @@ load_env() {
     LCHAT_STRATA_ESP="${env_lchat_esp:-${LCHAT_STRATA_ESP}}"
     LCHAT_STRATA_ESP_SCALE="${env_lchat_esp_scale:-${LCHAT_STRATA_ESP_SCALE}}"
     LCHAT_STRATA_ESP_LAYERS="${env_lchat_esp_layers:-${LCHAT_STRATA_ESP_LAYERS}}"
+    LCHAT_STRATA_TEMPERATURE="${env_lchat_temp:-${LCHAT_STRATA_TEMPERATURE}}"
+    LCHAT_STRATA_REPEAT_PENALTY="${env_lchat_repeat:-${LCHAT_STRATA_REPEAT_PENALTY}}"
+    LCHAT_STRATA_TOP_P="${env_lchat_top_p:-${LCHAT_STRATA_TOP_P}}"
+    LCHAT_STRATA_TOP_K="${env_lchat_top_k:-${LCHAT_STRATA_TOP_K}}"
+    LCHAT_STRATA_PCIE_FRAC="${env_lchat_pcie_frac:-${LCHAT_STRATA_PCIE_FRAC}}"
     LCHAT_STRATA_MAX_CONTEXT="${env_lchat_max_context:-${LCHAT_STRATA_MAX_CONTEXT}}"
     LCHAT_STRATA_PREFILL="${env_lchat_prefill:-${LCHAT_STRATA_PREFILL}}"
     LCHAT_STRATA_EXPERT_RAM_BUDGET="${env_lchat_ram_budget:-${LCHAT_STRATA_EXPERT_RAM_BUDGET}}"
@@ -155,16 +204,21 @@ load_env() {
     LCHAT_STRATA_SPEC_MIN_P="${env_lchat_spec_min_p:-${LCHAT_STRATA_SPEC_MIN_P}}"
     LCHAT_STRATA_SUFFIX_DRAFT="${env_lchat_suffix_draft:-${LCHAT_STRATA_SUFFIX_DRAFT}}"
     LCHAT_STRATA_ADAPT_ASYNC="${env_lchat_adapt_async:-${LCHAT_STRATA_ADAPT_ASYNC}}"
+    LCHAT_STRATA_ADAPT_EVERY="${env_lchat_adapt_every:-${LCHAT_STRATA_ADAPT_EVERY}}"
     LCHAT_STRATA_ADAPT_SWAPS="${env_lchat_adapt_swaps:-${LCHAT_STRATA_ADAPT_SWAPS}}"
+    LCHAT_STRATA_ADAPT_DECAY="${env_lchat_adapt_decay:-${LCHAT_STRATA_ADAPT_DECAY}}"
     LCHAT_STRATA_KV="${env_lchat_kv:-${LCHAT_STRATA_KV}}"
     LCHAT_STRATA_KV_RESIDENT="${env_lchat_kv_resident:-${LCHAT_STRATA_KV_RESIDENT}}"
     LCHAT_STRATA_EXPERT_CACHE="${env_lchat_expert_cache:-${LCHAT_STRATA_EXPERT_CACHE}}"
     LCHAT_STRATA_VRAM_RESERVE_MIB="${env_lchat_vram_reserve:-${LCHAT_STRATA_VRAM_RESERVE_MIB}}"
+    LCHAT_STRATA_PLE_IO="${env_lchat_ple_io:-${LCHAT_STRATA_PLE_IO}}"
     LCHAT_STRATA_SPEED="${env_lchat_speed:-${LCHAT_STRATA_SPEED}}"
     LCHAT_STRATA_VISION="${env_lchat_vision:-${LCHAT_STRATA_VISION}}"
     LCHAT_STRATA_VISION_TOKENS="${env_lchat_vision_tokens:-${LCHAT_STRATA_VISION_TOKENS}}"
     LCHAT_STRATA_ALIAS="${env_lchat_alias:-${LCHAT_STRATA_ALIAS}}"
     LCHAT_STRATA_ALIASES="${env_lchat_aliases:-${LCHAT_STRATA_ALIASES}}"
+    LCHAT_STRATA_CHAT_TEMPLATE_FILE="${env_lchat_chat_template:-${LCHAT_STRATA_CHAT_TEMPLATE_FILE}}"
+    LCHAT_STRATA_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS}}"
     LCHAT_STRATA_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_STRATA_EXTRA_ARGS}}"
 }
 
@@ -294,9 +348,8 @@ esp_layers_str = get_env("LCHAT_STRATA_ESP_LAYERS", "4 44")
 esp_layers = [l.strip() for l in esp_layers_str.split() if l.strip()]
 engine_bin = get_env("STRATA_ENGINE_BIN", "/usr/lib/strata/engine/strata")
 vision_bin = get_env("STRATA_VISION_BIN", "/usr/lib/strata/engine/strata-vision-hip")
-log_path = get_env("LOG_FILE")
-alias = get_env("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next-swift15")
-aliases_str = get_env("LCHAT_STRATA_ALIASES", "qwen3,qwen3.8-flash-next,swift-1.5,qwen3.8")
+alias = get_env("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next")
+aliases_str = get_env("LCHAT_STRATA_ALIASES", "qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3")
 aliases = [a.strip() for a in aliases_str.split(",") if a.strip()]
 
 def resolve_file(path, fallbacks):
@@ -344,21 +397,24 @@ if ple_model and ple_model != model:
     engine_args.extend(["--native-dense-gguf", ple_model])
 
 engine_args.extend([
-    "--prefill", get_env("LCHAT_STRATA_PREFILL", "8192"),
+    "--prefill", get_env("LCHAT_STRATA_PREFILL", "auto"),
+    "--pcie-frac", get_env("LCHAT_STRATA_PCIE_FRAC", "0.20"),
     "--prompt-cache", get_env("LCHAT_STRATA_PROMPT_CACHE", "4"),
     "--conversation-cache-slots", get_env("LCHAT_STRATA_CONV_CACHE_SLOTS", "4"),
     "--conversation-cache-mib", get_env("LCHAT_STRATA_CONV_CACHE_MIB", "18432"),
     "--conversation-cache-min-free-mib", get_env("LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB", "2048"),
-    "--max-context", get_env("LCHAT_STRATA_MAX_CONTEXT", "184320"),
-    "--spec", get_env("LCHAT_STRATA_SPEC", "5"),
-    "--spec-min-p", get_env("LCHAT_STRATA_SPEC_MIN_P", "0.75"),
+    "--max-context", get_env("LCHAT_STRATA_MAX_CONTEXT", "240384"),
+    "--spec", get_env("LCHAT_STRATA_SPEC", "4"),
+    "--spec-min-p", get_env("LCHAT_STRATA_SPEC_MIN_P", "0.70"),
     "--suffix-draft", get_env("LCHAT_STRATA_SUFFIX_DRAFT", "3"),
     "--adapt-async", get_env("LCHAT_STRATA_ADAPT_ASYNC", "1"),
-    "--adapt-swaps", get_env("LCHAT_STRATA_ADAPT_SWAPS", "8"),
+    "--adapt-every", get_env("LCHAT_STRATA_ADAPT_EVERY", "1"),
+    "--adapt-swaps", get_env("LCHAT_STRATA_ADAPT_SWAPS", "160"),
+    "--adapt-decay", get_env("LCHAT_STRATA_ADAPT_DECAY", "0.97"),
     "--kv", get_env("LCHAT_STRATA_KV", "k8v4"),
     "--kv-resident", get_env("LCHAT_STRATA_KV_RESIDENT", "32768"),
     "--expert-cache", get_env("LCHAT_STRATA_EXPERT_CACHE", "auto"),
-    "--vram-reserve-mib", get_env("LCHAT_STRATA_VRAM_RESERVE_MIB", "600"),
+    "--vram-reserve-mib", get_env("LCHAT_STRATA_VRAM_RESERVE_MIB", "0"),
     "--ple-io", get_env("LCHAT_STRATA_PLE_IO", "ram"),
     "--ple-gguf", model,
 ])
@@ -408,6 +464,9 @@ for cand in tok_candidates:
     if os.path.isfile(os.path.join(cand, "vocab.json")):
         tok_path = cand
         break
+tok_runtime = get_env("LCHAT_STRATA_TOKENIZER_DIR", "")
+if tok_runtime and os.path.isdir(tok_runtime) and os.path.isfile(os.path.join(tok_runtime, "vocab.json")):
+    tok_path = tok_runtime
 if not tok_path:
     tok_path = os.path.join(pack, "tokenizer") if pack else pack
 
@@ -419,8 +478,13 @@ cfg = {
     "model_name": alias,
     "aliases": aliases,
     "arch": "qwen",
-    "log": log_path,
     "backend": "hip",
+    "sampling": {
+        "temperature": float(get_env("LCHAT_STRATA_TEMPERATURE", "0.6")),
+        "repetition_penalty": float(get_env("LCHAT_STRATA_REPEAT_PENALTY", "1.1")),
+        "top_p": float(get_env("LCHAT_STRATA_TOP_P", "0.95")),
+        "top_k": int(get_env("LCHAT_STRATA_TOP_K", "20")),
+    },
 }
 
 vision_enabled = get_env("LCHAT_STRATA_VISION", "true").lower() in ("true", "1", "yes")
@@ -440,86 +504,78 @@ print(json.dumps(cfg, indent=2))
 # Launcher script generator
 
 generate_launcher_script() {
-    cat <<'HEADER'
-#!/usr/bin/env bash
-set -euo pipefail
+    cat <<'EOF'
+#!/usr/bin/env python3
+"""Strata Service Launcher: sets tuning flags, memory limits, and runs server with direct stdout/stderr."""
+import os
+import sys
+import resource
+import subprocess
 
-# Hardware and tuning flags for AMD Navi 31 / RX 7900 XTX
-export STRATA_SCORES_THREAD=1
-export STRATA_WMMA_GEMM=1
-export STRATA_PF_GEMM=1
-export STRATA_PF_FUSED=1
-export STRATA_DENSE_MMQ=1
-export STRATA_HIPBLASLT_TUNING="/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt"
-export HSA_USERPTR_FOR_PAGED_MEM=0
-export STRATA_ROUTE_TAIL_SKIP=7
-export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
-export HIP_PATH="${HIP_PATH:-/opt/rocm}"
-export PYTHONUNBUFFERED=1
-export STRATA_REQUEST_LINES=1
+# Hardware, ROCm, and execution tuning flags
+os.environ["STRATA_SCORES_THREAD"] = "1"
+os.environ["STRATA_WMMA_GEMM"] = "1"
+os.environ["STRATA_PF_GEMM"] = "1"
+os.environ["STRATA_PF_FUSED"] = "1"
+os.environ["STRATA_DENSE_MMQ"] = "1"
+os.environ["STRATA_HIPBLASLT_TUNING"] = "/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt"
+os.environ["HSA_USERPTR_FOR_PAGED_MEM"] = "0"
+os.environ["STRATA_ROUTE_TAIL_SKIP"] = "7"
+os.environ["ROCM_PATH"] = os.environ.get("ROCM_PATH", "/opt/rocm")
+os.environ["HIP_PATH"] = os.environ.get("HIP_PATH", "/opt/rocm")
+os.environ["PYTHONUNBUFFERED"] = "1"
+os.environ["STRATA_REQUEST_LINES"] = "1"
+os.environ["STRATA_MEMORY_LIMIT_MIB"] = "0"
+os.environ["STRATA_RESIDENT_HEADROOM_GIB"] = "0"
+os.environ["STRATA_SH_STREAM"] = "0"
+if "LCHAT_STRATA_DEVICE" in os.environ:
+    os.environ["HIP_VISIBLE_DEVICES"] = os.environ["LCHAT_STRATA_DEVICE"]
 
-# Memory limits: consume all available system RAM without artificial headroom caps
-export STRATA_MEMORY_LIMIT_MIB=0
-export STRATA_RESIDENT_HEADROOM_GIB=0
-ulimit -l unlimited 2>/dev/null || true
-ulimit -m unlimited 2>/dev/null || true
-ulimit -v unlimited 2>/dev/null || true
-ulimit -s unlimited 2>/dev/null || true
-ulimit -d unlimited 2>/dev/null || true
+# Set host memory limits to unlimited
+for limit in (resource.RLIMIT_MEMLOCK, resource.RLIMIT_AS, resource.RLIMIT_DATA):
+    try:
+        resource.setrlimit(limit, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+    except (ValueError, OSError):
+        pass
 
-# CPU ISA fallback: prevent SIGILL on CPUs without AVX-512 (e.g. Zen 1/2/3, Intel AVX2)
-if ! grep -qw "avx512f" /proc/cpuinfo; then
-    SHIM_PATH="${HOME}/.config/systemd/user/libggml_shim_fix.so"
-    if [[ ! -f "$SHIM_PATH" ]] && command -v gcc >/dev/null 2>&1; then
-        mkdir -p "$(dirname "$SHIM_PATH")"
-        gcc -O2 -shared -fPIC -o "$SHIM_PATH" -x c - << 'SHIM_EOF' 2>/dev/null || true
-#define _GNU_SOURCE
-#include <dlfcn.h>
-#include <string.h>
+# Import Strata server and ensure subprocesses stream directly to sys.stderr
+sys.path.insert(0, "/usr/share/strata")
+from serve import lifeline
+import serve.server as strata_server
 
-void *dlopen(const char *filename, int flags) {
-    static void *(*real_dlopen)(const char *, int) = NULL;
-    if (!real_dlopen) real_dlopen = dlsym(RTLD_NEXT, "dlopen");
-    if (filename && strstr(filename, "libggml-cpu-zen4.so")) {
-        return real_dlopen("/usr/lib/ggml/libggml-cpu-haswell.so", flags);
-    }
-    return real_dlopen(filename, flags);
-}
-SHIM_EOF
-    fi
-    if [[ -f "$SHIM_PATH" ]]; then
-        export LD_PRELOAD="${SHIM_PATH}:${LD_PRELOAD:-}"
-    fi
-fi
-HEADER
+# Patch lifeline.popen so engine and vision processes stream stderr directly to sys.stderr
+_orig_popen = lifeline.popen
+def _direct_popen(args, role="engine", **kw):
+    if kw.get("stderr") in (None, subprocess.DEVNULL):
+        kw["stderr"] = sys.stderr
+    return _orig_popen(args, role=role, **kw)
+lifeline.popen = _direct_popen
 
-    echo "export HIP_VISIBLE_DEVICES=\"${LCHAT_STRATA_DEVICE:-0}\""
-    echo ""
-    echo "# Purge cache to maximize contiguous system RAM allocations (if permitted)"
-    echo "if [[ -w /proc/sys/vm/drop_caches ]]; then"
-    echo "    sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true"
-    echo "fi"
-    echo ""
-    echo "# Ensure engine log exists and stream to stdout so systemd journal captures engine output"
-    echo "mkdir -p \"\$(dirname \"${LOG_FILE}\")\""
-    echo "> \"${LOG_FILE}\""
-    echo "tail -n +1 -F \"${LOG_FILE}\" &"
-    echo "TAIL_PID=\$!"
-    echo "cleanup() {"
-    echo "    kill \"\$TAIL_PID\" 2>/dev/null || true"
-    echo "}"
-    echo "trap cleanup EXIT INT TERM"
-    echo ""
-    echo "# Launch Strata OpenAI API server"
-    echo "/usr/bin/python3 \"${STRATA_SERVER_SCRIPT}\" --engine strata --config \"${CONFIG_FILE}\" --port \"${LCHAT_STRATA_PORT}\" --host \"${LCHAT_STRATA_HOST}\" ${LCHAT_STRATA_EXTRA_ARGS} &"
-    echo "SERVER_PID=\$!"
-    echo "wait \"\$SERVER_PID\""
+# If custom arguments were passed to launcher, forward them; else construct standard invocation
+if len(sys.argv) > 1:
+    forward_argv = [sys.argv[0], *sys.argv[1:]]
+else:
+    forward_argv = [
+        sys.argv[0],
+        "--engine", "strata",
+        "--config", os.environ.get("CONFIG_FILE", f"{os.environ.get('HOME', '')}/.config/systemd/user/local-chat-strata-config.json"),
+        "--port", os.environ.get("LCHAT_STRATA_PORT", "20080"),
+        "--host", os.environ.get("LCHAT_STRATA_HOST", "127.0.0.1"),
+    ]
+    extra_args = os.environ.get("LCHAT_STRATA_EXTRA_ARGS", "").strip()
+    if extra_args:
+        import shlex
+        forward_argv.extend(shlex.split(extra_args))
+
+sys.argv = forward_argv
+sys.exit(strata_server.main())
+EOF
 }
 
 # Systemd service generator
 
 generate_service_file() {
-    local launcher_path="%h/.config/systemd/user/${SERVICE_NAME}-launcher.sh"
+    local launcher_path="%h/.config/systemd/user/${SERVICE_NAME}-launcher.py"
 
     cat <<EOF
 [Unit]
@@ -532,7 +588,7 @@ Type=simple
 TimeoutStartSec=600
 TimeoutStopSec=60
 $(get_shared_options service)
-ExecStart=/bin/bash ${launcher_path}
+ExecStart=/usr/bin/python3 ${launcher_path}
 Restart=on-failure
 RestartSec=10s
 
@@ -590,14 +646,22 @@ LCHAT_STRATA_MTP_VOCAB=""
 LCHAT_STRATA_ESP="/usr/share/strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 LCHAT_STRATA_ESP_SCALE="1.0"
 LCHAT_STRATA_ESP_LAYERS="4 44"
-
 # ### ENGINE TUNING PARAMETERS
 
-# Context window size in tokens (up to 180k)
-LCHAT_STRATA_MAX_CONTEXT=184320
+# Context window size in tokens (up to 240,384 tokens)
+LCHAT_STRATA_MAX_CONTEXT=240384
 
-# Prefill chunk size
-LCHAT_STRATA_PREFILL=8192
+# Prefill chunk size ("auto" dynamically scales chunk processing)
+LCHAT_STRATA_PREFILL="auto"
+
+# Deterministic Agentic Sampling parameters
+LCHAT_STRATA_TEMPERATURE=0.6
+LCHAT_STRATA_REPEAT_PENALTY=1.1
+LCHAT_STRATA_TOP_P=0.95
+LCHAT_STRATA_TOP_K=20
+
+# Hardware calibrated PCIe fractional saturation
+LCHAT_STRATA_PCIE_FRAC="0.20"
 
 # Host RAM budget for experts in MiB (42000 MiB = ~41 GiB out of 95 GiB host RAM)
 LCHAT_STRATA_EXPERT_RAM_BUDGET=42000
@@ -611,17 +675,19 @@ LCHAT_STRATA_CONV_CACHE_MIB=18432
 LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=2048
 
 # Speculative decoding tokens and threshold
-LCHAT_STRATA_SPEC=5
-LCHAT_STRATA_SPEC_MIN_P=0.75
+LCHAT_STRATA_SPEC=4
+LCHAT_STRATA_SPEC_MIN_P=0.70
 LCHAT_STRATA_SUFFIX_DRAFT=3
 LCHAT_STRATA_ADAPT_ASYNC=1
-LCHAT_STRATA_ADAPT_SWAPS=8
+LCHAT_STRATA_ADAPT_EVERY=1
+LCHAT_STRATA_ADAPT_SWAPS=160
+LCHAT_STRATA_ADAPT_DECAY="0.97"
 
 # KV cache quantization and residency
 LCHAT_STRATA_KV="k8v4"
 LCHAT_STRATA_KV_RESIDENT=32768
 LCHAT_STRATA_EXPERT_CACHE="auto"
-LCHAT_STRATA_VRAM_RESERVE_MIB=600
+LCHAT_STRATA_VRAM_RESERVE_MIB=0
 # Routing profile and adaptive persistence
 LCHAT_STRATA_EXPERT_PROFILE="/usr/share/strata/data/expert-profile.bin"
 LCHAT_STRATA_EXPERT_PROFILE_SAVE="%h/.config/systemd/user/local-chat-strata-profile.bin"
@@ -640,10 +706,29 @@ LCHAT_STRATA_VISION_TOKENS=1024
 LCHAT_STRATA_ALIAS="qwen3.8-flash-next"
 
 # Comma-separated list of recognized aliases
-LCHAT_STRATA_ALIASES="qwen3.8-moe,qwen3.8-flash,qwen3.8-next"
+LCHAT_STRATA_ALIASES="qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3"
+
+# Custom Jinja chat template file (fixed froggeric community template v22.5)
+LCHAT_STRATA_CHAT_TEMPLATE_FILE="/data/public/machine-learning/models/strata/Qwen3.8-chat_template.jinja"
+LCHAT_STRATA_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
 
 # Extra arguments passed directly to server.py
 LCHAT_STRATA_EXTRA_ARGS=""
+
+# Native Strata execution & ROCm flags
+STRATA_SCORES_THREAD=1
+STRATA_WMMA_GEMM=1
+STRATA_PF_GEMM=1
+STRATA_PF_FUSED=1
+STRATA_DENSE_MMQ=1
+STRATA_HIPBLASLT_TUNING="/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt"
+HSA_USERPTR_FOR_PAGED_MEM=0
+STRATA_ROUTE_TAIL_SKIP=7
+STRATA_MEMORY_LIMIT_MIB=0
+STRATA_RESIDENT_HEADROOM_GIB=0
+STRATA_SH_STREAM=0
+PYTHONUNBUFFERED=1
+STRATA_REQUEST_LINES=1
 
 EOF
 }
@@ -654,6 +739,21 @@ write_service_file() {
     load_env
     mkdir -p "${SYSTEMD_USER_DIR}"
 
+    # Setup managed tokenizer directory if custom chat template is configured
+    if [[ -n "${LCHAT_STRATA_CHAT_TEMPLATE_FILE:-}" && -f "${LCHAT_STRATA_CHAT_TEMPLATE_FILE}" ]]; then
+        local tok_runtime="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-tokenizer"
+        mkdir -p "${tok_runtime}"
+        local tok_src="${LCHAT_STRATA_PACK:-/data/public/machine-learning/models/strata/swift15_iq3s/strata}/tokenizer"
+        [[ ! -d "$tok_src" ]] && tok_src="${LCHAT_STRATA_PACK:-/data/public/machine-learning/models/strata/swift15_iq3s/strata}"
+        for f in vocab.json tokenizer.json merges.txt tokenizer_config.json; do
+            if [[ -f "${tok_src}/${f}" ]]; then
+                ln -sf "${tok_src}/${f}" "${tok_runtime}/${f}"
+            fi
+        done
+        ln -sf "${LCHAT_STRATA_CHAT_TEMPLATE_FILE}" "${tok_runtime}/chat_template.jinja"
+        export LCHAT_STRATA_TOKENIZER_DIR="${tok_runtime}"
+    fi
+
     # Export variables so generate_config_json python environment sees them
     export LCHAT_STRATA_MODEL LCHAT_STRATA_PLE_MODEL LCHAT_STRATA_PACK
     export LCHAT_STRATA_MMPROJ LCHAT_STRATA_MTP LCHAT_STRATA_MTP_VOCAB LCHAT_STRATA_ESP
@@ -662,9 +762,13 @@ write_service_file() {
     export LCHAT_STRATA_PROMPT_CACHE LCHAT_STRATA_CONV_CACHE_SLOTS
     export LCHAT_STRATA_CONV_CACHE_MIB LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB
     export LCHAT_STRATA_MAX_CONTEXT LCHAT_STRATA_SPEC LCHAT_STRATA_SPEC_MIN_P
-    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_ADAPT_ASYNC LCHAT_STRATA_ADAPT_SWAPS
+    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_ADAPT_ASYNC LCHAT_STRATA_ADAPT_EVERY
+    export LCHAT_STRATA_ADAPT_SWAPS LCHAT_STRATA_ADAPT_DECAY
     export LCHAT_STRATA_KV LCHAT_STRATA_KV_RESIDENT LCHAT_STRATA_EXPERT_CACHE
     export LCHAT_STRATA_VRAM_RESERVE_MIB LCHAT_STRATA_VISION LCHAT_STRATA_VISION_TOKENS
+    export LCHAT_STRATA_TEMPERATURE LCHAT_STRATA_REPEAT_PENALTY LCHAT_STRATA_TOP_P LCHAT_STRATA_TOP_K
+    export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
+    export LCHAT_STRATA_CHAT_TEMPLATE_FILE LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
 
     # Generate JSON config
     generate_config_json >"${CONFIG_FILE}"
@@ -793,25 +897,7 @@ cmd_exec() {
 
     if ! is_systemd_running; then
         echo "Warning: Systemd is not running. Running Strata directly in foreground..."
-        export STRATA_SCORES_THREAD=1
-        export STRATA_WMMA_GEMM=1
-        export STRATA_PF_GEMM=1
-        export STRATA_PF_FUSED=1
-        export STRATA_DENSE_MMQ=1
-        export STRATA_HIPBLASLT_TUNING="/usr/share/strata/tools/hip/gfx1100-hipblaslt-100500.txt"
-        export HSA_USERPTR_FOR_PAGED_MEM=0
-        export STRATA_ROUTE_TAIL_SKIP=7
-        export STRATA_RESIDENT_HEADROOM_GIB=6
-        export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
-        export HIP_PATH="${HIP_PATH:-/opt/rocm}"
-        export HIP_VISIBLE_DEVICES="${LCHAT_STRATA_DEVICE:-0}"
-
-        if [ $# -gt 0 ]; then
-            python3 "${STRATA_SERVER_SCRIPT}" "$@"
-        else
-            python3 "${STRATA_SERVER_SCRIPT}" --engine strata --config "${CONFIG_FILE}" --port "${LCHAT_STRATA_PORT}" --host "${LCHAT_STRATA_HOST}"
-        fi
-        return
+        exec /usr/bin/python3 "${LAUNCHER_FILE}" "$@"
     fi
 
     echo "Starting Strata as a transient systemd service..."
@@ -830,11 +916,7 @@ cmd_exec() {
         fi
     done < <(get_shared_options transient)
 
-    if [ $# -gt 0 ]; then
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- python3 "${STRATA_SERVER_SCRIPT}" "$@"
-    else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- /bin/bash "${LAUNCHER_FILE}"
-    fi
+    systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- /usr/bin/python3 "${LAUNCHER_FILE}" "$@"
 }
 
 cmd_shell() {
@@ -916,7 +998,7 @@ cmd_test() {
 
     local host="${LCHAT_STRATA_HOST:-127.0.0.1}"
     local port="${LCHAT_STRATA_PORT:-20080}"
-    local alias="${LCHAT_STRATA_ALIAS:-qwen3.8-flash-next-sc117}"
+    local alias="${LCHAT_STRATA_ALIAS:-qwen3.8-flash-next}"
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
 
@@ -969,33 +1051,36 @@ cmd_test() {
 
 cmd_cat() {
     load_env
+    export LCHAT_STRATA_MODEL LCHAT_STRATA_PLE_MODEL LCHAT_STRATA_PACK
+    export LCHAT_STRATA_MMPROJ LCHAT_STRATA_MTP LCHAT_STRATA_MTP_VOCAB LCHAT_STRATA_ESP
+    export LCHAT_STRATA_ESP_SCALE LCHAT_STRATA_ESP_LAYERS STRATA_ENGINE_BIN STRATA_VISION_BIN
+    export LCHAT_STRATA_SPEED LCHAT_STRATA_PREFILL LCHAT_STRATA_EXPERT_RAM_BUDGET
+    export LCHAT_STRATA_PROMPT_CACHE LCHAT_STRATA_CONV_CACHE_SLOTS
+    export LCHAT_STRATA_CONV_CACHE_MIB LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB
+    export LCHAT_STRATA_MAX_CONTEXT LCHAT_STRATA_SPEC LCHAT_STRATA_SPEC_MIN_P
+    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_ADAPT_ASYNC LCHAT_STRATA_ADAPT_EVERY
+    export LCHAT_STRATA_ADAPT_SWAPS LCHAT_STRATA_ADAPT_DECAY
+    export LCHAT_STRATA_KV LCHAT_STRATA_KV_RESIDENT LCHAT_STRATA_EXPERT_CACHE
+    export LCHAT_STRATA_VRAM_RESERVE_MIB LCHAT_STRATA_VISION LCHAT_STRATA_VISION_TOKENS
+    export LCHAT_STRATA_TEMPERATURE LCHAT_STRATA_REPEAT_PENALTY LCHAT_STRATA_TOP_P LCHAT_STRATA_TOP_K
+    export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
+    export LCHAT_STRATA_CHAT_TEMPLATE_FILE LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
+
     echo "=== Service File: ${SERVICE_FILE} ==="
-    if [[ -f "${SERVICE_FILE}" ]]; then
-        cat "${SERVICE_FILE}"
-    else
-        echo "(Service file does not exist. Run 'install' to create it.)"
-    fi
+    generate_service_file
     echo ""
     echo "=== Environment File: ${ENV_FILE} ==="
     if [[ -f "${ENV_FILE}" ]]; then
         cat "${ENV_FILE}"
     else
-        echo "(Environment file does not exist. Run 'install' to create it.)"
+        generate_env_file
     fi
     echo ""
     echo "=== Config JSON: ${CONFIG_FILE} ==="
-    if [[ -f "${CONFIG_FILE}" ]]; then
-        cat "${CONFIG_FILE}"
-    else
-        echo "(Config JSON does not exist. Run 'install' to create it.)"
-    fi
+    generate_config_json
     echo ""
     echo "=== Launcher Script: ${LAUNCHER_FILE} ==="
-    if [[ -f "${LAUNCHER_FILE}" ]]; then
-        cat "${LAUNCHER_FILE}"
-    else
-        echo "(Launcher script does not exist. Run 'install' to create it.)"
-    fi
+    generate_launcher_script
 }
 
 usage() {
