@@ -192,7 +192,7 @@ The router automatically detects and normalizes the caller's agent identity stri
 
 The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `calls_post`), HTTP error codes, and estimated USD costs by `agent:model:service`.
 
-Usage records are stored incrementally in a SQLite database with Write-Ahead Logging (WAL) enabled at `${XDG_STATE_HOME:-$HOME/.local/state}/local-router/local-router-usage.db`. Every completed request performs an atomic $O(1)$ single-row insert into `request_events` and an upsert into `daily_aggregates`, eliminating monolithic JSON rewrites, write amplification, and unbounded in-memory list growth. Legacy `local-router-usage.json` files are migrated automatically on startup.
+Usage records are stored incrementally in a SQLite database with Write-Ahead Logging (WAL) enabled at `${XDG_STATE_HOME:-$HOME/.local/state}/local-router/local-router-usage.db`. Every completed request performs an atomic $O(1)$ single-row insert into `request_events` and an upsert into `daily_aggregates`, eliminating monolithic JSON rewrites, write amplification, and unbounded in-memory list growth.
 
 #### 1. JSON Usage API (`GET /usage` or `/v1/usage`)
 Returns cumulative counts grouped by `agent:model:service`, agent totals, service totals, and grand total.

@@ -420,7 +420,13 @@ def _init_fallback_inventory():
                 user_dir = get_systemd_user_dir()
                 coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
                 sec_str = ""
-                if coord_env.get("LCHAT_STRATA_ENABLED", "0") not in ("0", "false", "no", "FALSE", "NO"):
+                if coord_env.get("LCHAT_STRATA_ENABLED", "0") not in (
+                    "0",
+                    "false",
+                    "no",
+                    "FALSE",
+                    "NO",
+                ):
                     strata_env = parse_env_file(os.path.join(user_dir, "local-chat-strata.env"))
                     sec_str = strata_env.get("LCHAT_STRATA_ALIASES", "")
                 else:
@@ -439,6 +445,7 @@ def _init_fallback_inventory():
                         if pricing:
                             sa_entry["pricing"] = pricing
                         model_inventory_list.append(sa_entry)
+
 
 def _merge_discovered_models(svc_name: str, models: list[dict]):
     """Merge dynamically discovered models into the global inventory."""
@@ -901,7 +908,9 @@ def get_db_connection() -> sqlite3.Connection:
                 );
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_date ON request_events(date);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_agent_model ON request_events(agent, model);")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_requests_agent_model ON request_events(agent, model);"
+            )
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS daily_aggregates (
                     date TEXT,
@@ -923,81 +932,8 @@ def get_db_connection() -> sqlite3.Connection:
                 );
             """)
             conn.commit()
-            _migrate_legacy_json(conn)
             _db_conn = conn
         return _db_conn
-
-
-def _migrate_legacy_json(conn: sqlite3.Connection):
-    legacy_candidates = [
-        os.path.join(os.path.dirname(get_usage_db_path()), "local-router-usage.json"),
-        os.path.join(get_systemd_user_dir(), "local-router-usage.json"),
-    ]
-    for legacy_path in legacy_candidates:
-        if os.path.exists(legacy_path):
-            try:
-                with open(legacy_path, "r", encoding="utf-8") as f:
-                    data_list = json.load(f)
-                    if isinstance(data_list, list):
-                        for entry in data_list:
-                            day = entry.get("date")
-                            if not day:
-                                continue
-                            raw_usage = entry.get("usage", {})
-                            for agent, services_map in raw_usage.items():
-                                if not isinstance(services_map, dict):
-                                    continue
-                                for service, models_map in services_map.items():
-                                    if not isinstance(models_map, dict):
-                                        continue
-                                    for model, counts in models_map.items():
-                                        if not isinstance(counts, dict):
-                                            continue
-                                        calls = counts.get("calls", 0)
-                                        str_calls = counts.get("streaming_calls", 0)
-                                        norm_calls = counts.get("calls_post", counts.get("normal_calls", 0))
-                                        inp = counts.get("input", 0)
-                                        c_inp = counts.get("cached_input", 0)
-                                        c_wr = counts.get("cached_write", 0)
-                                        out = counts.get("output", 0)
-                                        dur_post = counts.get("duration_post", 0.0)
-                                        dur_str = counts.get("duration_streaming", 0.0)
-                                        err_str = json.dumps(counts.get("errors_streaming", {}))
-                                        err_post = json.dumps(counts.get("errors_post", {}))
-                                        conn.execute(
-                                            """
-                                            INSERT INTO daily_aggregates (
-                                                date, agent, service, model,
-                                                calls, streaming_calls, calls_post,
-                                                uncached_input, cached_input, cached_write, output,
-                                                duration_post, duration_streaming,
-                                                errors_streaming_json, errors_post_json
-                                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                            ON CONFLICT(date, agent, service, model) DO NOTHING;
-                                            """,
-                                            (
-                                                day,
-                                                agent,
-                                                service,
-                                                model,
-                                                calls,
-                                                str_calls,
-                                                norm_calls,
-                                                inp,
-                                                c_inp,
-                                                c_wr,
-                                                out,
-                                                dur_post,
-                                                dur_str,
-                                                err_str,
-                                                err_post,
-                                            ),
-                                        )
-                        conn.commit()
-                os.rename(legacy_path, legacy_path + ".migrated")
-                print(f"[ROUTER] Successfully migrated legacy usage file {legacy_path} -> .migrated")
-            except Exception as exc:
-                print(f"Warning: Failed to migrate legacy usage file {legacy_path}: {exc}")
 
 
 def add_usage_record(
@@ -1098,18 +1034,31 @@ def add_usage_record(
     conn = get_db_connection()
     with _db_lock:
         try:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO request_events (
                     timestamp, date, agent, service, model,
                     uncached_input, cached_input, cached_write, output,
                     is_streaming, status_code, duration
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, (
-                timestamp, today, agent, service, model,
-                uncached_input, cached_input, cached_write, output,
-                1 if is_streaming else 0, status_code, duration
-            ))
-            conn.execute("""
+            """,
+                (
+                    timestamp,
+                    today,
+                    agent,
+                    service,
+                    model,
+                    uncached_input,
+                    cached_input,
+                    cached_write,
+                    output,
+                    1 if is_streaming else 0,
+                    status_code,
+                    duration,
+                ),
+            )
+            conn.execute(
+                """
                 INSERT INTO daily_aggregates (
                     date, agent, service, model,
                     calls, streaming_calls, calls_post,
@@ -1135,15 +1084,24 @@ def add_usage_record(
                     duration_streaming = duration_streaming + excluded.duration_streaming,
                     errors_streaming_json = excluded.errors_streaming_json,
                     errors_post_json = excluded.errors_post_json;
-            """, (
-                today, agent, service, model,
-                1 if is_streaming else 0,
-                0 if is_streaming else 1,
-                uncached_input, cached_input, cached_write, output,
-                0.0 if is_streaming else duration,
-                duration if is_streaming else 0.0,
-                err_str_json, err_post_json
-            ))
+            """,
+                (
+                    today,
+                    agent,
+                    service,
+                    model,
+                    1 if is_streaming else 0,
+                    0 if is_streaming else 1,
+                    uncached_input,
+                    cached_input,
+                    cached_write,
+                    output,
+                    0.0 if is_streaming else duration,
+                    duration if is_streaming else 0.0,
+                    err_str_json,
+                    err_post_json,
+                ),
+            )
             conn.commit()
         except Exception as exc:
             print(f"Error persisting usage to SQLite: {exc}", file=sys.stderr)
@@ -1233,6 +1191,7 @@ def check_and_save_usage(force=False):
             conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
         except Exception as e:
             print(f"Error checking usage db: {e}")
+
 
 async def periodic_save_task():
     while True:
