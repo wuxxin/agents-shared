@@ -147,7 +147,7 @@ Key specifications and limits:
    Pass `chat_template_kwargs: {"enable_thinking": false}` in the root of your JSON request body to disable thinking for high-frequency extraction or FIM:
      ```json
      {
-       "model": "qwen3",
+       "model": "qwen3.6-35B-A3B",
        "messages": [{"role": "user", "content": "Solve this multi-step scientific problem."}],
        "chat_template_kwargs": {
          "enable_thinking": true
@@ -156,9 +156,11 @@ Key specifications and limits:
      ```
   2. **Prompt Control Tags**:
      Prepend `<|think_on|>` in the prompt or system instructions to force-enable thinking. (Prepend `<|think_off|>` to force-disable). The chat template automatically detects and strips these control tags from the input payload.
-  3. **Virtual Alias (`qwen3-thinking`)**:
-     For clients that cannot customize request parameters (e.g., Zed Editor), route requests through `local-router` (port `21080`) using model name **`qwen3-thinking`**. The router automatically injects `enable_thinking: true`.
+  3. **Virtual Aliases (`qwen3.6-35B-A3B-thinking`, `qwen3-thinking`)**:
+     For clients that cannot customize request parameters (e.g., Zed Editor), route requests through `local-router` (port `21080`) using model name **`qwen3.6-35B-A3B-thinking`** (or legacy **`qwen3-thinking`**). The router automatically injects `enable_thinking: true`.
 
+  4. **Model Aliases**:
+     The service responds to the primary alias **`qwen3.6-35B-A3B`** as well as secondary compatibility aliases: `qwen3.6-moe`, `qwen3.6`, and legacy `qwen3`.
 - **Agent Framework Compatibility**:
   - **ZeroClaw**: Set `reasoning_enabled = true` / `reasoning_effort = "medium"` (or `"high"`).
   - **LibreFang**: Set `thinking = true` or `reasoning_effort = "medium"`.
@@ -430,6 +432,34 @@ To configure the Zed editor to use the local services for both chat and inline e
       "local-inference": {
         "api_url": "http://localhost:21080",
         "available_models": [
+          {
+            "name": "qwen3.6-35B-A3B",
+            "max_tokens": 120192,
+            "max_output_tokens": 16384,
+            "max_completion_tokens": 120192,
+            "capabilities": {
+              "tools": true,
+              "images": true,
+              "parallel_tool_calls": true,
+              "prompt_cache_key": true,
+              "chat_completions": true,
+              "interleaved_reasoning": true
+            }
+          },
+          {
+            "name": "qwen3.8-flash-next",
+            "max_tokens": 240384,
+            "max_output_tokens": 16384,
+            "max_completion_tokens": 240384,
+            "capabilities": {
+              "tools": true,
+              "images": true,
+              "parallel_tool_calls": true,
+              "prompt_cache_key": true,
+              "chat_completions": true,
+              "interleaved_reasoning": true
+            }
+          },
           {
             "name": "qwen3",
             "max_tokens": 120192,

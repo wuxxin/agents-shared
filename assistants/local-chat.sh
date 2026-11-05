@@ -12,7 +12,7 @@ set -euo pipefail
 SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_NAME="local-chat"
 SERVICE_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
-ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
+ENV_FILE="${ENV_FILE:-${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env}"
 PRESET_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
 
 # Load environment
@@ -33,6 +33,8 @@ load_env() {
     local env_lchat_extra_args="${LCHAT_EXTRA_ARGS:-}"
     local env_lmbd_extra_args="${LMBD_EXTRA_ARGS:-}"
     local env_lcomp_extra_args="${LCOMP_EXTRA_ARGS:-}"
+    local env_lchat_alias="${LCHAT_ALIAS:-}"
+    local env_lchat_aliases="${LCHAT_ALIASES:-}"
 
     # Default parameters for server/chat section
     LCHAT_PORT=20080
@@ -41,7 +43,8 @@ load_env() {
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
     LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.IQ4_XS.gguf
-    LCHAT_ALIAS=qwen3
+    LCHAT_ALIAS=qwen3.6-35B-A3B
+    LCHAT_ALIASES="qwen3.6-moe,qwen3.6,qwen3"
     LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=2
     LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.mmproj-Q8_0.gguf
@@ -139,7 +142,8 @@ load_env() {
     LCHAT_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_EXTRA_ARGS}}"
     LMBD_EXTRA_ARGS="${env_lmbd_extra_args:-${LMBD_EXTRA_ARGS}}"
     LCOMP_EXTRA_ARGS="${env_lcomp_extra_args:-${LCOMP_EXTRA_ARGS}}"
-
+    LCHAT_ALIAS="${env_lchat_alias:-${LCHAT_ALIAS}}"
+    LCHAT_ALIASES="${env_lchat_aliases:-${LCHAT_ALIASES:-qwen3.6-moe,qwen3.6,qwen3}}"
     # Compute default portmirror sidecar CMD if not explicitly set by user
     if [[ -z "${LCHAT_SIDECAR_PORTMIRROR_CMD:-}" ]]; then
         LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"
@@ -365,7 +369,8 @@ append_extra_args_to_preset() {
 }
 
 generate_preset_file() {
-    local alias="${LCHAT_ALIAS:-qwen3}"
+    local alias="${LCHAT_ALIAS:-qwen3.6-35B-A3B}"
+    local aliases="${LCHAT_ALIASES:-qwen3.6-moe,qwen3.6,qwen3}"
     local m_ngl="${LCHAT_N_GPU_LAYERS:-999}"
     local m_threads="${LCHAT_THREADS:-4}"
 
@@ -381,6 +386,7 @@ flash-attn = on
 model = ${LCHAT_MODEL}
 ctx-size = ${LCHAT_CTX_SIZE}
 parallel = ${LCHAT_PARALLEL}
+alias = ${aliases}
 EOF
 
     if [[ -n "${LCHAT_CACHE_TYPE_K:-}" ]]; then
@@ -623,9 +629,11 @@ LCHAT_MTP=""
 # N-Gram fallback: LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
 LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 4 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"
 
-# Model alias used by client integrations (default: qwen3)
-LCHAT_ALIAS=qwen3
+# Model alias used by client integrations (default: qwen3.6-35B-A3B)
+LCHAT_ALIAS=qwen3.6-35B-A3B
 
+# Secondary model aliases (comma-separated, default: qwen3.6-moe,qwen3.6,qwen3)
+LCHAT_ALIASES="qwen3.6-moe,qwen3.6,qwen3"
 # Context size (default: 240384)
 LCHAT_CTX_SIZE=240384
 
@@ -1005,7 +1013,7 @@ cmd_test() {
 
     local host="${LCHAT_HOST:-127.0.0.1}"
     local port="${LCHAT_PORT:-20080}"
-    local alias="${LCHAT_ALIAS:-qwen3}"
+    local alias="${LCHAT_ALIAS:-qwen3.6-35B-A3B}"
 
     local base_url="http://${host}:${port}"
     echo "Using endpoint base: ${base_url}"
@@ -1202,34 +1210,22 @@ cmd_test() {
 cmd_cat() {
     load_env
     echo "=== Service File: ${SERVICE_FILE} ==="
-    if [[ -f "${SERVICE_FILE}" ]]; then
-        cat "${SERVICE_FILE}"
-    else
-        echo "(Service file does not exist. Run 'install' to create it.)"
-    fi
+    generate_service_file
     echo ""
     echo "=== Environment File: ${ENV_FILE} ==="
     if [[ -f "${ENV_FILE}" ]]; then
         cat "${ENV_FILE}"
     else
-        echo "(Environment file does not exist. Run 'install' to create it.)"
+        generate_env_file
     fi
     echo ""
     local preset_path="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-preset.ini"
     echo "=== Preset File: ${preset_path} ==="
-    if [[ -f "${preset_path}" ]]; then
-        cat "${preset_path}"
-    else
-        echo "(Preset file does not exist. Run 'install' to create it.)"
-    fi
+    generate_preset_file
     echo ""
     local launcher_path="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-launcher.sh"
     echo "=== Launcher Script: ${launcher_path} ==="
-    if [[ -f "${launcher_path}" ]]; then
-        cat "${launcher_path}"
-    else
-        echo "(Launcher script does not exist. Run 'install' to create it.)"
-    fi
+    generate_launcher_script
     echo ""
     echo "=== Transient Execution Command (exec) ==="
     local args
