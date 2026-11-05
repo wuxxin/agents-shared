@@ -12,6 +12,7 @@ import os
 import re
 import signal
 import socket
+import sqlite3
 import sys
 import threading
 import time
@@ -181,10 +182,10 @@ def print_debug_raw(label: str, raw_bytes: bytes | None):
 
 PRICING_REGISTRY: dict[str, dict[str, str]] = {
     "chat": {
-        "prompt": "0.0000015",  # $1.50 per 1M tokens (similar to Gemini 3.5 Flash)
-        "completion": "0.0000090",  # $9.00 per 1M tokens (similar to Gemini 3.5 Flash)
-        "input_cache_read": "0.00000015",  # $0.15 per 1M tokens
-        "input_cache_write": "0.0000015",  # $1.50 per 1M tokens
+        "prompt": "0.00000030",  # $0.30 per 1M tokens (DeepSeek Flash uncached input)
+        "completion": "0.00000120",  # $1.20 per 1M tokens (DeepSeek Flash output)
+        "input_cache_read": "0.000000006",  # $0.006 per 1M tokens (DeepSeek Flash cache hit)
+        "input_cache_write": "0.00000000",  # $0.00 per 1M tokens (no cache write fee)
     },
     "embedding": {
         "prompt": "0.00000015",  # $0.15 per 1M tokens (Gemini Embedding 001)
@@ -229,7 +230,7 @@ def resolve_service_alias(name: str) -> str:
             strata_env = parse_env_file(os.path.join(user_dir, "local-chat-strata.env"))
             return strata_env.get("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next")
         chat_env = parse_env_file(os.path.join(user_dir, "local-chat.env"))
-        return chat_env.get("LCHAT_ALIAS", "qwen3")
+        return chat_env.get("LCHAT_ALIAS", "qwen3.6-35B-A3B")
     elif name == "embedding":
         embed_env = parse_env_file(os.path.join(user_dir, "local-embedding.env"))
         return embed_env.get("LMBD_ALIAS", "qwen3-embedding")
@@ -389,11 +390,12 @@ def _init_fallback_inventory():
             if pricing:
                 entry["pricing"] = pricing
             model_inventory_list.append(entry)
-            # qwen3-thinking alias (for chat service)
-            if alias == "qwen3":
-                model_to_service["qwen3-thinking"] = name
+            # Chat service thinking variants and secondary aliases
+            if name == "chat":
+                thinking_id = f"{alias}-thinking"
+                model_to_service[thinking_id] = name
                 thinking_entry: dict[str, Any] = {
-                    "id": "qwen3-thinking",
+                    "id": thinking_id,
                     "object": "model",
                     "owned_by": "local-inference",
                 }
@@ -401,6 +403,42 @@ def _init_fallback_inventory():
                     thinking_entry["pricing"] = pricing
                 model_inventory_list.append(thinking_entry)
 
+                # Legacy compatibility aliases
+                if alias != "qwen3":
+                    model_to_service["qwen3"] = name
+                    model_to_service["qwen3-thinking"] = name
+                    legacy_entry: dict[str, Any] = {
+                        "id": "qwen3",
+                        "object": "model",
+                        "owned_by": "local-inference",
+                    }
+                    if pricing:
+                        legacy_entry["pricing"] = pricing
+                    model_inventory_list.append(legacy_entry)
+
+                # Register secondary aliases from env
+                user_dir = get_systemd_user_dir()
+                coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
+                sec_str = ""
+                if coord_env.get("LCHAT_STRATA_ENABLED", "0") not in ("0", "false", "no", "FALSE", "NO"):
+                    strata_env = parse_env_file(os.path.join(user_dir, "local-chat-strata.env"))
+                    sec_str = strata_env.get("LCHAT_STRATA_ALIASES", "")
+                else:
+                    chat_env = parse_env_file(os.path.join(user_dir, "local-chat.env"))
+                    sec_str = chat_env.get("LCHAT_ALIASES", "")
+
+                for sa in [s.strip() for s in sec_str.split(",") if s.strip()]:
+                    model_to_service[sa] = name
+                    model_to_service[f"{sa}-thinking"] = name
+                    if not any(m.get("id") == sa for m in model_inventory_list):
+                        sa_entry: dict[str, Any] = {
+                            "id": sa,
+                            "object": "model",
+                            "owned_by": "local-inference",
+                        }
+                        if pricing:
+                            sa_entry["pricing"] = pricing
+                        model_inventory_list.append(sa_entry)
 
 def _merge_discovered_models(svc_name: str, models: list[dict]):
     """Merge dynamically discovered models into the global inventory."""
@@ -442,7 +480,20 @@ async def discover_services_background():
     global model_inventory_list, model_to_service, available_services
 
     if LROUT_MOCK_BACKENDS:
+        chat_alias = resolve_service_alias("chat") or "qwen3"
         model_inventory_list = [
+            {
+                "id": chat_alias,
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
+            {
+                "id": f"{chat_alias}-thinking",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
             {
                 "id": "qwen3",
                 "object": "model",
@@ -487,6 +538,8 @@ async def discover_services_background():
             },
         ]
         model_to_service = {
+            chat_alias: "chat",
+            f"{chat_alias}-thinking": "chat",
             "qwen3": "chat",
             "qwen3-thinking": "chat",
             "qwen3-embedding": "embedding",
@@ -572,7 +625,20 @@ async def build_inventory_and_wait():
 
     if LROUT_MOCK_BACKENDS:
         print("Starting in MOCK BACKENDS mode...")
+        chat_alias = resolve_service_alias("chat") or "qwen3"
         model_inventory_list = [
+            {
+                "id": chat_alias,
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
+            {
+                "id": f"{chat_alias}-thinking",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["chat"],
+            },
             {
                 "id": "qwen3",
                 "object": "model",
@@ -617,6 +683,8 @@ async def build_inventory_and_wait():
             },
         ]
         model_to_service = {
+            chat_alias: "chat",
+            f"{chat_alias}-thinking": "chat",
             "qwen3": "chat",
             "qwen3-thinking": "chat",
             "qwen3-embedding": "embedding",
@@ -754,11 +822,20 @@ def resolve_target_service(model_name: str) -> str:
         default_model = router_env.get("LROUT_DEFAULT_MODEL", "")
         if default_model and default_model in model_to_service:
             return model_to_service[default_model]
+        chat_alias = resolve_service_alias("chat")
+        if chat_alias and chat_alias in model_to_service:
+            return model_to_service[chat_alias]
         return "chat"
 
     # Exact match in inventory
     if model_name in model_to_service:
         return model_to_service[model_name]
+
+    # Clean thinking suffix check
+    if model_name.endswith("-thinking"):
+        base_name = model_name[:-9]
+        if base_name in model_to_service:
+            return model_to_service[base_name]
 
     # Fallback substring matching rules
     if "embedding" in model_name.lower():
@@ -782,6 +859,147 @@ def get_token_count(text: str) -> int:
         return len(text.split())
 
 
+_db_conn: sqlite3.Connection | None = None
+_db_lock = threading.Lock()
+
+
+def get_usage_db_path() -> str:
+    state_dir = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    target_dir = os.path.join(state_dir, "local-router")
+    os.makedirs(target_dir, exist_ok=True)
+    return os.path.join(target_dir, "local-router-usage.db")
+
+
+def get_usage_file_path() -> str:
+    """Backward compatibility alias pointing to SQLite usage DB."""
+    return get_usage_db_path()
+
+
+def get_db_connection() -> sqlite3.Connection:
+    global _db_conn
+    with _db_lock:
+        if _db_conn is None:
+            db_path = get_usage_db_path()
+            conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS request_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL,
+                    date TEXT,
+                    agent TEXT,
+                    service TEXT,
+                    model TEXT,
+                    uncached_input INTEGER,
+                    cached_input INTEGER,
+                    cached_write INTEGER,
+                    output INTEGER,
+                    is_streaming INTEGER,
+                    status_code INTEGER,
+                    duration REAL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_date ON request_events(date);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_agent_model ON request_events(agent, model);")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS daily_aggregates (
+                    date TEXT,
+                    agent TEXT,
+                    service TEXT,
+                    model TEXT,
+                    calls INTEGER DEFAULT 0,
+                    streaming_calls INTEGER DEFAULT 0,
+                    calls_post INTEGER DEFAULT 0,
+                    uncached_input INTEGER DEFAULT 0,
+                    cached_input INTEGER DEFAULT 0,
+                    cached_write INTEGER DEFAULT 0,
+                    output INTEGER DEFAULT 0,
+                    duration_post REAL DEFAULT 0.0,
+                    duration_streaming REAL DEFAULT 0.0,
+                    errors_streaming_json TEXT DEFAULT '{}',
+                    errors_post_json TEXT DEFAULT '{}',
+                    PRIMARY KEY (date, agent, service, model)
+                );
+            """)
+            conn.commit()
+            _migrate_legacy_json(conn)
+            _db_conn = conn
+        return _db_conn
+
+
+def _migrate_legacy_json(conn: sqlite3.Connection):
+    legacy_candidates = [
+        os.path.join(os.path.dirname(get_usage_db_path()), "local-router-usage.json"),
+        os.path.join(get_systemd_user_dir(), "local-router-usage.json"),
+    ]
+    for legacy_path in legacy_candidates:
+        if os.path.exists(legacy_path):
+            try:
+                with open(legacy_path, "r", encoding="utf-8") as f:
+                    data_list = json.load(f)
+                    if isinstance(data_list, list):
+                        for entry in data_list:
+                            day = entry.get("date")
+                            if not day:
+                                continue
+                            raw_usage = entry.get("usage", {})
+                            for agent, services_map in raw_usage.items():
+                                if not isinstance(services_map, dict):
+                                    continue
+                                for service, models_map in services_map.items():
+                                    if not isinstance(models_map, dict):
+                                        continue
+                                    for model, counts in models_map.items():
+                                        if not isinstance(counts, dict):
+                                            continue
+                                        calls = counts.get("calls", 0)
+                                        str_calls = counts.get("streaming_calls", 0)
+                                        norm_calls = counts.get("calls_post", counts.get("normal_calls", 0))
+                                        inp = counts.get("input", 0)
+                                        c_inp = counts.get("cached_input", 0)
+                                        c_wr = counts.get("cached_write", 0)
+                                        out = counts.get("output", 0)
+                                        dur_post = counts.get("duration_post", 0.0)
+                                        dur_str = counts.get("duration_streaming", 0.0)
+                                        err_str = json.dumps(counts.get("errors_streaming", {}))
+                                        err_post = json.dumps(counts.get("errors_post", {}))
+                                        conn.execute(
+                                            """
+                                            INSERT INTO daily_aggregates (
+                                                date, agent, service, model,
+                                                calls, streaming_calls, calls_post,
+                                                uncached_input, cached_input, cached_write, output,
+                                                duration_post, duration_streaming,
+                                                errors_streaming_json, errors_post_json
+                                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                            ON CONFLICT(date, agent, service, model) DO NOTHING;
+                                            """,
+                                            (
+                                                day,
+                                                agent,
+                                                service,
+                                                model,
+                                                calls,
+                                                str_calls,
+                                                norm_calls,
+                                                inp,
+                                                c_inp,
+                                                c_wr,
+                                                out,
+                                                dur_post,
+                                                dur_str,
+                                                err_str,
+                                                err_post,
+                                            ),
+                                        )
+                        conn.commit()
+                os.rename(legacy_path, legacy_path + ".migrated")
+                print(f"[ROUTER] Successfully migrated legacy usage file {legacy_path} -> .migrated")
+            except Exception as exc:
+                print(f"Warning: Failed to migrate legacy usage file {legacy_path}: {exc}")
+
+
 def add_usage_record(
     agent: str,
     service: str,
@@ -798,6 +1016,8 @@ def add_usage_record(
     service = service or "unknown"
     model = model or "unknown"
     today = datetime.date.today().isoformat()
+    timestamp = time.time()
+
     with usage_lock:
         if today not in usage_data_memory:
             usage_data_memory[today] = {}
@@ -823,35 +1043,11 @@ def add_usage_record(
                 "_req_cached_write_vals": [],
                 "_req_output_vals": [],
                 "_req_total_vals": [],
+                "_req_total_input_vals": [],
+                "_req_uniq_input_vals": [],
             }
 
         entry = usage_data_memory[today][agent][service][model]
-
-        # Backward compatibility check for loaded data:
-        if "calls_post" not in entry:
-            entry["calls_post"] = entry.pop("normal_calls", 0)
-        if "errors_streaming" not in entry:
-            entry["errors_streaming"] = dict(STATIC_ERRORS_TEMPLATE)
-        if "errors_post" not in entry:
-            entry["errors_post"] = dict(STATIC_ERRORS_TEMPLATE)
-        if "duration_post" not in entry:
-            entry["duration_post"] = 0.0
-        if "duration_streaming" not in entry:
-            entry["duration_streaming"] = 0.0
-        if "_req_total_input_vals" not in entry:
-            entry["_req_total_input_vals"] = []
-        if "_req_cached_input_vals" not in entry:
-            entry["_req_cached_input_vals"] = []
-        if "_req_cached_write_vals" not in entry:
-            entry["_req_cached_write_vals"] = []
-        if "_req_uniq_input_vals" not in entry:
-            entry["_req_uniq_input_vals"] = []
-        if "_req_output_vals" not in entry:
-            entry["_req_output_vals"] = []
-        if "_req_total_vals" not in entry:
-            entry["_req_total_vals"] = []
-        if "_req_input_vals" not in entry:
-            entry["_req_input_vals"] = []
 
         entry["calls"] += 1
         if is_streaming:
@@ -877,6 +1073,16 @@ def add_usage_record(
         entry["_req_total_vals"].append(per_request_total)
         entry["_req_input_vals"].append(total_input_req)
 
+        max_in_mem = 500
+        if len(entry["_req_total_vals"]) > max_in_mem:
+            entry["_req_total_input_vals"] = entry["_req_total_input_vals"][-max_in_mem:]
+            entry["_req_cached_input_vals"] = entry["_req_cached_input_vals"][-max_in_mem:]
+            entry["_req_cached_write_vals"] = entry["_req_cached_write_vals"][-max_in_mem:]
+            entry["_req_uniq_input_vals"] = entry["_req_uniq_input_vals"][-max_in_mem:]
+            entry["_req_output_vals"] = entry["_req_output_vals"][-max_in_mem:]
+            entry["_req_total_vals"] = entry["_req_total_vals"][-max_in_mem:]
+            entry["_req_input_vals"] = entry["_req_input_vals"][-max_in_mem:]
+
         if status_code >= 400:
             code_str = str(status_code)
             error_dict = entry["errors_streaming"] if is_streaming else entry["errors_post"]
@@ -885,42 +1091,115 @@ def add_usage_record(
             else:
                 error_dict["OTHER"] += 1
 
+        err_str_json = json.dumps(entry["errors_streaming"])
+        err_post_json = json.dumps(entry["errors_post"])
 
-def get_usage_file_path() -> str:
-    user_dir = get_systemd_user_dir()
-    return os.path.join(user_dir, "local-router-usage.json")
+    # Persist incrementally to SQLite WAL
+    conn = get_db_connection()
+    with _db_lock:
+        try:
+            conn.execute("""
+                INSERT INTO request_events (
+                    timestamp, date, agent, service, model,
+                    uncached_input, cached_input, cached_write, output,
+                    is_streaming, status_code, duration
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                timestamp, today, agent, service, model,
+                uncached_input, cached_input, cached_write, output,
+                1 if is_streaming else 0, status_code, duration
+            ))
+            conn.execute("""
+                INSERT INTO daily_aggregates (
+                    date, agent, service, model,
+                    calls, streaming_calls, calls_post,
+                    uncached_input, cached_input, cached_write, output,
+                    duration_post, duration_streaming,
+                    errors_streaming_json, errors_post_json
+                ) VALUES (
+                    ?, ?, ?, ?,
+                    1, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?,
+                    ?, ?
+                )
+                ON CONFLICT(date, agent, service, model) DO UPDATE SET
+                    calls = calls + 1,
+                    streaming_calls = streaming_calls + excluded.streaming_calls,
+                    calls_post = calls_post + excluded.calls_post,
+                    uncached_input = uncached_input + excluded.uncached_input,
+                    cached_input = cached_input + excluded.cached_input,
+                    cached_write = cached_write + excluded.cached_write,
+                    output = output + excluded.output,
+                    duration_post = duration_post + excluded.duration_post,
+                    duration_streaming = duration_streaming + excluded.duration_streaming,
+                    errors_streaming_json = excluded.errors_streaming_json,
+                    errors_post_json = excluded.errors_post_json;
+            """, (
+                today, agent, service, model,
+                1 if is_streaming else 0,
+                0 if is_streaming else 1,
+                uncached_input, cached_input, cached_write, output,
+                0.0 if is_streaming else duration,
+                duration if is_streaming else 0.0,
+                err_str_json, err_post_json
+            ))
+            conn.commit()
+        except Exception as exc:
+            print(f"Error persisting usage to SQLite: {exc}", file=sys.stderr)
 
 
 def load_usage_data():
     global usage_data_memory, last_written_total_tokens
-    path = get_usage_file_path()
     usage_data_memory = {}
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data_list = json.load(f)
-                if isinstance(data_list, list):
-                    for entry in data_list:
-                        date = entry.get("date")
-                        if date:
-                            raw_usage = entry.get("usage", {})
-                            migrated_day_data: dict[str, dict[str, dict[str, Any]]] = {}
-                            for top_key, subdict in raw_usage.items():
-                                if not isinstance(subdict, dict):
-                                    continue
-                                sample_val = next(iter(subdict.values()), {}) if subdict else {}
-                                if isinstance(sample_val, dict) and (
-                                    "calls" in sample_val or "input" in sample_val
-                                ):
-                                    if "unknown" not in migrated_day_data:
-                                        migrated_day_data["unknown"] = {}
-                                    migrated_day_data["unknown"][top_key] = subdict
-                                else:
-                                    migrated_day_data[top_key] = subdict
-                            usage_data_memory[date] = migrated_day_data
-        except Exception as e:
-            print(f"Warning: Failed to load usage file {path}: {e}")
+    conn = get_db_connection()
+    with _db_lock:
+        cursor = conn.execute("""
+            SELECT date, agent, service, model,
+                   calls, streaming_calls, calls_post,
+                   uncached_input, cached_input, cached_write, output,
+                   duration_post, duration_streaming,
+                   errors_streaming_json, errors_post_json
+            FROM daily_aggregates
+        """)
+        for row in cursor.fetchall():
+            day, agent, service, model = row[0], row[1], row[2], row[3]
+            if day not in usage_data_memory:
+                usage_data_memory[day] = {}
+            if agent not in usage_data_memory[day]:
+                usage_data_memory[day][agent] = {}
+            if service not in usage_data_memory[day][agent]:
+                usage_data_memory[day][agent][service] = {}
 
+            try:
+                err_str = json.loads(row[13])
+            except Exception:
+                err_str = dict(STATIC_ERRORS_TEMPLATE)
+            try:
+                err_post = json.loads(row[14])
+            except Exception:
+                err_post = dict(STATIC_ERRORS_TEMPLATE)
+
+            usage_data_memory[day][agent][service][model] = {
+                "calls": row[4],
+                "streaming_calls": row[5],
+                "calls_post": row[6],
+                "input": row[7],
+                "cached_input": row[8],
+                "cached_write": row[9],
+                "output": row[10],
+                "duration_post": row[11],
+                "duration_streaming": row[12],
+                "errors_streaming": err_str,
+                "errors_post": err_post,
+                "_req_total_input_vals": [],
+                "_req_cached_input_vals": [],
+                "_req_cached_write_vals": [],
+                "_req_uniq_input_vals": [],
+                "_req_output_vals": [],
+                "_req_total_vals": [],
+                "_req_input_vals": [],
+            }
     today = datetime.date.today().isoformat()
     last_written_total_tokens = get_total_tokens_for_day(today)
 
@@ -946,25 +1225,14 @@ def get_total_tokens_for_day(day: str) -> int:
 def check_and_save_usage(force=False):
     global last_written_total_tokens
     today = datetime.date.today().isoformat()
-    current_tokens = get_total_tokens_for_day(today)
-
-    if force or current_tokens != last_written_total_tokens:
-        path = get_usage_file_path()
-        data_list = []
-        with usage_lock:
-            for date, usage in usage_data_memory.items():
-                data_list.append({"date": date, "usage": usage})
-
+    last_written_total_tokens = get_total_tokens_for_day(today)
+    conn = get_db_connection()
+    with _db_lock:
         try:
-            temp_path = path + ".tmp"
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data_list, f, indent=2)
-            os.replace(temp_path, path)
-            last_written_total_tokens = current_tokens
+            conn.commit()
+            conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
         except Exception as e:
-            print(f"Error saving usage to {path}: {e}")
-
+            print(f"Error checking usage db: {e}")
 
 async def periodic_save_task():
     while True:
@@ -2355,10 +2623,11 @@ async def route_chat(request: Request):
     config = resolve_config()
     body = await request.body()
     data: dict[str, Any] | None = None
-    model = "qwen3"
+    chat_alias = resolve_service_alias("chat") or "qwen3"
+    model = chat_alias
     try:
         data = json.loads(body)
-        model = data.get("model", "qwen3")
+        model = data.get("model", chat_alias)
 
         reasoning_effort = data.get("reasoning_effort")
         thinking_dict = data.get("thinking")
@@ -2393,7 +2662,10 @@ async def route_chat(request: Request):
             chat_template_kwargs["enable_thinking"] = True
 
         if model == "qwen3-thinking" or (isinstance(model, str) and model.endswith("-thinking")):
-            data["model"] = "qwen3"
+            if model == "qwen3-thinking":
+                data["model"] = "qwen3"
+            else:
+                data["model"] = model[:-9]
 
         data["chat_template_kwargs"] = chat_template_kwargs
         body = json.dumps(data).encode("utf-8")
@@ -2536,13 +2808,14 @@ async def route_completions(request: Request):
     """Routes completions / completion requests to the chat service."""
     config = resolve_config()
     path = request.url.path
-    model = "qwen3"
+    chat_alias = resolve_service_alias("chat") or "qwen3"
+    model = chat_alias
     body = None
     data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
-        model = data.get("model", "qwen3")
+        model = data.get("model", chat_alias)
     except Exception:
         pass
     agent = extract_request_agent(request, data)

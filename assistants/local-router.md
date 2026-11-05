@@ -47,7 +47,7 @@ Default configuration values:
 LROUT_PORT=21080
 LROUT_HOST=127.0.0.1
 LROUT_EXTRA_ARGS=""
-LROUT_DEFAULT_MODEL="qwen3"
+LROUT_DEFAULT_MODEL=""  # Empty defaults dynamically to active chat alias (qwen3.8-flash-next or qwen3.6-35B-A3B)
 LROUT_LOG_LEVEL="info"
 ```
 
@@ -63,8 +63,8 @@ LROUT_LOG_LEVEL="info"
 | `GET /v1/props` or `/props` | Local-Chat | - | 20080 | Engine model properties query (proxied to chat service) |
 | `POST /v1/tokenize` or `/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (routes to model's service backend) |
 | `POST /v1/detokenize` or `/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (routes to model's service backend) |
-| `POST /v1/chat/completions` | Local-Chat | `qwen3` | 20080 | LLM completions (uses default template settings) |
-| `POST /v1/chat/completions` | Local-Chat | `qwen3-thinking` | 20080 | LLM completions (forces thinking/CoT reasoning ON) |
+| `POST /v1/chat/completions` | Local-Chat | `qwen3.8-flash-next` / `qwen3.6-35B-A3B` / `qwen3` | 20080 | LLM completions (uses default template settings) |
+| `POST /v1/chat/completions` | Local-Chat | `*-thinking` (`qwen3.8-flash-next-thinking`, etc.) | 20080 | LLM completions (forces thinking/CoT reasoning ON) |
 | `POST /v1/completions` or `/completion` | Local-Chat | `qwen-coder-fim` | 20080 | Text & FIM code completions |
 | `POST /v1/embeddings` or `/embedding` | Local-Chat or Embedding | `qwen3-embedding` | 20082 or 20080 | Vector text embeddings |
 | `POST /v1/rerank` or `/rerank` | Local-Rerank | `qwen3-reranker` | 20086 | Text document ranking & scoring |
@@ -130,14 +130,14 @@ The `/v1/models` endpoint returns models with a `"pricing"` object containing to
 Example model object return:
 ```json
 {
-  "id": "qwen3",
+  "id": "qwen3.8-flash-next",
   "object": "model",
   "owned_by": "local-inference",
   "pricing": {
-    "prompt": "0.0000015",
-    "completion": "0.0000090",
-    "input_cache_read": "0.00000015",
-    "input_cache_write": "0.0000015"
+    "prompt": "0.00000030",
+    "completion": "0.00000120",
+    "input_cache_read": "0.000000006",
+    "input_cache_write": "0.00000000"
   }
 }
 ```
@@ -146,14 +146,13 @@ The pricing values are modeled based on corresponding commercial standards:
 
 | Service | Configured Model / Alias | Pricing Reference | Prompt (per token) | Completion (per token) | Cache Read (per token) | Cache Write (per token) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `chat` | `qwen3` | Gemini 3.5 Flash | `$0.00000150` | `$0.00000900` | `$0.00000015` | `$0.00000150` |
-| `chat` | `qwen-coder-fim` | Gemini 3.5 Flash | `$0.00000150` | `$0.00000900` | `$0.00000015` | `$0.00000150` |
+| `chat` | `qwen3.8-flash-next` / `qwen3.6-35B-A3B` | DeepSeek Flash | `$0.00000030` | `$0.00000120` | `$0.000000006` | `$0.00000000` |
+| `chat` | `qwen-coder-fim` | DeepSeek Flash | `$0.00000030` | `$0.00000120` | `$0.000000006` | `$0.00000000` |
 | `embedding` | `qwen3-embedding` | Gemini Embedding 001 | `$0.00000015` | `$0.00000000` | `$0.00000000` | `$0.00000000` |
 | `rerank` | `qwen3-reranker` | Jina/Gemini Embedding | `$0.00000015` | `$0.00000000` | `$0.00000000` | `$0.00000000` |
 | `image` | `z-image-turbo` | Gemini 3.1 Flash Image | `$0.00000050` | `$0.00006000` | `$0.00000000` | `$0.00000000` |
 | `tts` | `qwen3-tts` | Gemini 3.1 Flash TTS | `$0.00000100` | `$0.00002000` | `$0.00000000` | `$0.00000000` |
 | `stt` | `whisper-1` | OpenAI Whisper | `$0.00000000` | `$0.00003000` | `$0.00000000` | `$0.00000000` |
-
 *Note: For Speech-to-Text (`whisper-1`), the completion cost corresponds to `$0.006` per minute of speech assuming an average speaking speed of 150 words (200 tokens) per minute.*
 
 ### Default Model Routing
@@ -192,6 +191,8 @@ The router automatically detects and normalizes the caller's agent identity stri
 ### Usage & Metrics API
 
 The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `calls_post`), HTTP error codes, and estimated USD costs by `agent:model:service`.
+
+Usage records are stored incrementally in a SQLite database with Write-Ahead Logging (WAL) enabled at `${XDG_STATE_HOME:-$HOME/.local/state}/local-router/local-router-usage.db`. Every completed request performs an atomic $O(1)$ single-row insert into `request_events` and an upsert into `daily_aggregates`, eliminating monolithic JSON rewrites, write amplification, and unbounded in-memory list growth. Legacy `local-router-usage.json` files are migrated automatically on startup.
 
 #### 1. JSON Usage API (`GET /usage` or `/v1/usage`)
 Returns cumulative counts grouped by `agent:model:service`, agent totals, service totals, and grand total.

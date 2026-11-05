@@ -271,8 +271,12 @@ cmd_install() {
         echo "Env file written."
     fi
 
+    local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/local-router"
+    if [[ -d "${state_dir}" ]]; then
+        echo "[local-router] Preserving usage database in ${state_dir} (not overwritten)"
+    fi
     if [[ -f "${SYSTEMD_USER_DIR}/local-router-usage.json" ]]; then
-        echo "[local-router] Preserving local-router-usage.json (not overwritten)"
+        echo "[local-router] Preserving legacy local-router-usage.json (not overwritten)"
     fi
 
     # Write service file
@@ -325,8 +329,12 @@ cmd_uninstall() {
         echo "Removed local-router-ui.html from ${SYSTEMD_USER_DIR}."
     fi
 
+    local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/local-router"
+    if [[ -d "${state_dir}" ]]; then
+        echo "[local-router] Preserving usage database in ${state_dir} (not deleted)"
+    fi
     if [[ -f "${SYSTEMD_USER_DIR}/local-router-usage.json" ]]; then
-        echo "[local-router] Preserving local-router-usage.json (not deleted)"
+        echo "[local-router] Preserving legacy local-router-usage.json (not deleted)"
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
