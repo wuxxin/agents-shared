@@ -14,6 +14,7 @@ download_completion=false
 download_benchmark=false
 download_projections=false
 download_strata=false
+download_dspark=false
 # Wrapper for hf to catch click.exceptions.Exit on python 3.14
 hf() {
     python3 -c '
@@ -56,6 +57,7 @@ Options:
   --benchmark-context, --benchmark Build the benchmark-context.md file using downloaded skills
   --projections, --strata-projections Download all Strata experimental speed projection and control vector files
   --strata, --strata-model Download the Strata Qwen3.8-Flash-Next (Swift 1.5 IQ3_S) model shards, MTP, vision, and projections
+  --dspark          Download the Qwen3.8-Flash-Next DSpark speculative drafter
   -h, --help        Show this help message and exit
 
 Examples:
@@ -353,6 +355,10 @@ main() {
             download_projections=true
             shift
             ;;
+        --dspark)
+            download_dspark=true
+            shift
+            ;;
         *)
             echo "Error: Unknown option '$1'" >&2
             show_help >&2
@@ -361,8 +367,8 @@ main() {
         esac
     done
 
-    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false ]]; then
-        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata)." >&2
+    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false && "$download_dspark" == false ]]; then
+        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata, --dspark)." >&2
         exit 1
     fi
 
@@ -377,6 +383,7 @@ main() {
         download_benchmark=true
         download_projections=true
         download_strata=true
+        download_dspark=true
     fi
 
     # Resolve absolute target path
@@ -874,37 +881,54 @@ snapshot_download(
     if [[ "$download_strata" == true ]]; then
         echo "=== Acquiring Strata Swift 1.5 Qwen3.8-Flash-Next Models ==="
         local strata_dir="${target_dir}/strata/swift15_iq3s"
-        mkdir -p "${strata_dir}/strata/rt"
+        for i in models mtp packs; do mkdir -p "${strata_dir}/$i"; done
 
         # 9a. Shard 1 (Dense + Experts ~55 GB)
         acquire_file \
             "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
             "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
-            "${strata_dir}/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+            "${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
 
         # 9b. Shard 2 (PLE n-gram table ~28.8 GB)
         acquire_file \
             "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
             "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
-            "${strata_dir}/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+            "${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
 
         # 9c. Vision Projector (BF16)
         acquire_file \
             "strata/swift15_iq3s/mmproj-Qwen3.8-Flash-Next-BF16.gguf" \
             "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf" \
-            "${strata_dir}/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+            "${strata_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
 
         # 9d. MTP Speculative Drafter weights
         acquire_file \
             "strata/swift15_iq3s/mtp-q2_0.gguf" \
             "https://huggingface.co/SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF/resolve/main/mtp-q2_0.gguf" \
-            "${strata_dir}/mtp-q2_0.gguf"
+            "${strata_dir}/mtp/mtp-q2_0.gguf"
 
-        # 9e. Extract MTP runtime files if tool exists
-        if [[ -f "/usr/share/strata/tools/mtp_rt.py" ]] && [[ -f "${strata_dir}/mtp-q2_0.gguf" ]]; then
-            echo "Extracting MTP runtime files to ${strata_dir}/strata/rt..."
-            python3 /usr/share/strata/tools/mtp_rt.py --gguf "${strata_dir}/mtp-q2_0.gguf" --out "${strata_dir}/strata/rt" || true
-        fi
+        # 9f. Qwen3.8 Fixed Community Chat Template (froggeric v22.5)
+        acquire_file \
+            "strata/Qwen3.8-chat_template.jinja" \
+            "https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja" \
+            "${target_dir}/strata/Qwen3.8-chat_template.jinja"
+    fi
+
+    # 10. Qwen3.8-Flash-Next DSpark Speculative Drafter
+    if [[ "$download_strata" == true || "$download_dspark" == true ]]; then
+        echo "=== Acquiring Qwen3.8-Flash-Next DSpark Speculative Drafter ==="
+        local dspark_dir="${target_dir}/strata/swift15_iq3s/dspark"
+        mkdir -p "$dspark_dir"
+
+        acquire_file \
+            "strata/swift15_iq3s/dspark/model.safetensors" \
+            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/model.safetensors" \
+            "${dspark_dir}/model.safetensors"
+
+        acquire_file \
+            "strata/swift15_iq3s/dspark/config.json" \
+            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/config.json" \
+            "${dspark_dir}/config.json"
     fi
     echo "=== All requested model downloads/conversions completed. ==="
 
