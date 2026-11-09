@@ -40,9 +40,9 @@ sandbox-ctl exec opencode
 # Run an interactive login shell ($SHELL -l) in the opencode sandbox
 sandbox-ctl shell opencode
 # Run an elevated hot shell with SSH agent forwarding, DBus/systemd, KeePassXC browser socket enabled,
-# KVM access (if permitted), and SANDBOX_NAME="SANDBOX 🟣" (or --all-access with SANDBOX 🚨)
-sandbox-ctl hotshell [--all-access] opencode
-
+# KVM access (if permitted), and SANDBOX_NAME="SANDBOX 🟣"
+# Pass --gui for Wayland/GPU (🎨), --sudo for Polkit desktop root escalation (⚡), or --all-access (🚨)
+sandbox-ctl hotshell [--all-access] [--gui] [--sudo] opencode
 # Run an interactive GUI shell with Wayland, audio, USB hardware access,
 # DRI/GPU sharing, and SANDBOX_NAME="SANDBOX 🎨"
 sandbox-ctl guishell opencode
@@ -67,12 +67,17 @@ sandbox-ctl status opencode
 sandbox-ctl enable opencode
 sandbox-ctl disable opencode
 sandbox-ctl logs opencode
-
 # Remove launcher files and run sandboxed uninstall hooks (preserves persistent data)
 sandbox-ctl uninstall opencode
 
 # Delete the persistent data/directories for opencode
 sandbox-ctl destroy opencode
+
+# Manage host system configurations (e.g. Polkit sliding-window rule for sudo):
+sandbox-ctl system sandbox-sudo.rules install
+sandbox-ctl system sandbox-sudo.rules status
+sandbox-ctl system sandbox-sudo.rules cat
+sandbox-ctl system sandbox-sudo.rules uninstall
 ```
 
 ### Style B: Symlink Mode (Transparent Wrapper)
@@ -94,6 +99,16 @@ When you call the launcher via a symlink (e.g. `~/.local/bin/opencode -> sandbox
 
 Copies the `sandbox-ctl` executable script itself to `~/.local/bin/sandbox-ctl` and sets executable permissions without setting up a sandbox, initializing environment configuration files, or creating systemd service files. Use this command when you want to make `sandbox-ctl` globally available in your user `PATH`.
 
+
+### `system <target> <install|uninstall|status|cat>`
+
+Manages host system configurations required for advanced features such as Polkit rules:
+- **Target `sandbox-sudo.rules`**: Installs or removes `/etc/polkit-1/rules.d/40-sandbox-sudo.rules` to configure the 5-minute sliding window in-memory authorization cache for sandbox privilege escalation (`sudo` and `pkexec`).
+- **Actions**:
+  - `install`: Writes the Polkit rule file to `/etc/polkit-1/rules.d/40-sandbox-sudo.rules` (elevating via sudo/pkexec if needed).
+  - `uninstall`: Removes the Polkit rule file from `/etc/polkit-1/rules.d/40-sandbox-sudo.rules`.
+  - `status`: Checks if the Polkit rule file is installed on disk.
+  - `cat`: Prints the JavaScript source code of the Polkit rule.
 ### `install [--no-git-config] [--new-config] [--new-config-from <path>] [--no-start]`
 
 Sets up:
@@ -150,21 +165,76 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
 - **KVM Access**: Automatically bind-mounts `/dev/kvm` into the sandbox if `/dev/kvm` exists and is readable/writable by the current user.
 - **User Podman Access**: Automatically overrides `DISABLE_USER_PODMAN="false"`, bind-mounting host rootless Podman socket (`$XDG_RUNTIME_DIR/podman/podman.sock`) and ensuring default `containers.conf` is configured.
 - **KeePassXC Browser Socket Integration**: Overrides `DISABLE_KEEPASSXC_BROWSER_SOCKET="false"`, bind-mounting host KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` and `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`) into the container and exporting `KEEPASSXC_BROWSER_SOCKET_PATH` if present on host.
-- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🟣"` by default.
+- **Composite Indicators**: Dynamic prompt indicator reflecting active capability flags:
+  | Mode | CLI Switch | Indicator (`SANDBOX_NAME`) |
+  | :--- | :--- | :--- |
+  | Default Hot Shell | `hotshell <app>` | `SANDBOX 🟣` |
+  | Hot Shell + Sudo | `hotshell --sudo <app>` | `SANDBOX 🟣⚡` |
+  | Hot Shell + GUI | `hotshell --gui <app>` | `SANDBOX 🟣🎨` |
+  | Hot Shell + GUI + Sudo | `hotshell --gui --sudo <app>` | `SANDBOX 🟣🎨⚡` |
+  | All-Access Hot Shell | `hotshell --all-access <app>` | `SANDBOX 🚨` |
+  | All-Access + Sudo | `hotshell --all-access --sudo <app>` | `SANDBOX 🚨⚡` |
+  | All-Access + GUI + Sudo | `hotshell --all-access --gui --sudo <app>` | `SANDBOX 🚨🎨⚡` |
+- **`--gui` Option (Opt-in Wayland & Desktop Integration)**:
+  - **Syntax**: `sandbox-ctl hotshell --gui <app_name> [args...]`
+  - **Behavior**: Activates Wayland display socket forwarding (`$WAYLAND_DISPLAY`), audio (Pipewire/PulseAudio), DRI/GPU acceleration device nodes, and shared IPC inside the shell. If an X11 `DISPLAY` is detected, runs `xhost +si:localuser:root` so root-escalated GUI applications can render to the host Xwayland display.
+  - **Security Model**: By default, `hotshell` keeps Wayland and GPU access disabled to preserve isolation of clipboard, input buffers, and graphical IPC unless `--gui` is explicitly requested. Note that Polkit authentication prompts are rendered directly on the host by GNOME Shell and **do not require `--gui`**.
+- **`--sudo` / `--admin` Option (Interactive Desktop Privilege Escalation)**:
+  - **Syntax**: `sandbox-ctl hotshell --sudo <app_name> [args...]`
+  - **Behavior**: Enables host privilege escalation within the container session (`SANDBOX_SUDO_ENABLED="true"`). Commands executed via `sudo` or `pkexec` inside the sandbox communicate with host PID 1 via the System D-Bus socket (`/run/dbus/system_bus_socket`), triggering the native GNOME Shell modal password dialog on your desktop.
+  - **Safety**: Privilege escalation fails closed with an explanatory error unless `--sudo` or `--admin` is specified at session startup.
 - **`--all-access` Option & Containment Circumvention**:
   - **Syntax**: `sandbox-ctl hotshell --all-access <app_name> [args...]`
-  - **Unified Elevated Debugging**: Provides unified unconfined debugging inside the sandbox by exposing both the host filesystem (`~/real_home`) and the real host user runtime daemon sockets (`/run/user/<id>`).
-  - **Runtime Access Behavior**: Ignores any `DISABLE_XDG_RUNTIME=true` setting in the application configuration, eliminates the `tmpfs` isolation layer over `$XDG_RUNTIME_DIR`, and directly bind-mounts the host user's `/run/user/<id>` read/write into the sandbox.
-  - **Host Filesystem Access**: Mounts the real host user `$HOME` read/write at `~/real_home` and creates a convenience symlink at `~/real_<username>`, exporting `$REAL_HOME="$HOME/real_home"`. Automatically maps host working directories outside the sandbox container home into `~/real_home/<subpath>`.
-  - **Security Warning**: `--all-access` is an **intentional circumvention** of sandbox containment. Any file modifications or deletions performed under `~/real_home` directly mutate your actual host files, and unconfined access to `/run/user/<id>` exposes user daemon IPC endpoints without sandbox isolation.
-  - **Visual Alert**: In `--all-access` mode, the prompt indicator switches to high-contrast `SANDBOX_NAME="SANDBOX 🚨"` (optimally visible against themes and orange terminal backgrounds) and emits an alert banner on terminal startup.
+  - **Unified Elevated Debugging**: Exposes both the real host filesystem (`~/real_home`) and the host user runtime daemon sockets (`/run/user/<id>`).
+  - **Runtime Access Behavior**: Ignores `DISABLE_XDG_RUNTIME=true`, eliminates the `tmpfs` isolation layer over `$XDG_RUNTIME_DIR`, and directly bind-mounts the host user's `/run/user/<id>` read/write into the sandbox.
+  - **Host Filesystem Access**: Mounts host `$HOME` read/write at `~/real_home` and creates a convenience symlink at `~/real_<username>`, exporting `$REAL_HOME="$HOME/real_home"`. Automatically maps host working directories outside the sandbox container home into `~/real_home/<subpath>`.
+  - **Security Warning**: `--all-access` is an **intentional circumvention** of sandbox containment. Any modifications performed under `~/real_home` directly mutate host files, and unconfined access to `/run/user/<id>` exposes user daemon IPC endpoints without sandbox isolation.
+  - **Visual Alert**: Sets `SANDBOX_NAME="SANDBOX 🚨"` and emits an alert banner on terminal startup.
 ### `guishell`
 
 Spawns an interactive shell configured for graphical and hardware-accelerated applications:
 - **Display & Audio Overrides**: Automatically forces `DISABLE_WAYLAND="false"`, `DISABLE_AUDIO="false"`, `DISABLE_HARDWARE="false"`, `DISABLE_IPC_SHARE="false"`, `DISABLE_XDG_RUNTIME="false"`, and `DISABLE_DBUS="false"`.
 - **GPU & USB Hardware Access**: Unshares device isolation (`PrivateDevices=no` in systemd, `--dev-bind /dev /dev` in Bubblewrap) and IPC namespace sharing for DRI/GPU rendering and USB device communication.
 - **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🎨"`.
----
+
+### `sudo` & `pkexec` (Desktop GUI Privilege Escalation)
+
+Inside unprivileged container sandboxes, traditional in-container `sudo` and `pkexec` binaries fail because user namespaces map the host root (UID 0) to `nobody` (UID 65534) and systemd drops capabilities with `NoNewPrivileges=yes`. Direct in-container setuid escalation is blocked by the Linux kernel.
+
+`sandbox-ctl` solves this by routing container `sudo` and `pkexec` directly to host PID 1 via the System D-Bus socket (`/run/dbus/system_bus_socket`), invoking transient execution through Polkit (`org.freedesktop.systemd1.manage-units`):
+
+- **Integrated Dispatch**: `sandbox-ctl` implements `cmd_sudo()` internally. The container's `$HOME/.local/bin/sudo` and `$HOME/.local/bin/pkexec` are direct relative symlinks to `sandbox-ctl`.
+- **Fail-Closed Security**: `sudo` commands fail immediately with exit code 1 unless `SANDBOX_SUDO_ENABLED="true"` has been set by launching with `hotshell --sudo <app_name>`.
+- **Native Desktop GUI Prompt**: Polkit queries the active desktop session, prompting the host GNOME Shell authentication agent to display its native modal password dialog. The container does not need Wayland access or GPU devices for this dialog to appear.
+- **Infinite Dialog Timeout**: Sets `SYSTEMD_BUS_TIMEOUT="infinity"`, preventing the default 25-second `libsystemd` client timeout. Like `pamac`, the desktop dialog stays on screen and the calling script waits indefinitely until you approve or cancel.
+- **Cgroup & Unit Steering**: Automatically runs transient units under dedicated slice `--slice="sandbox-sudo.slice"` and names units with prefix `--unit="sandbox-sudo-<timestamp>.service"` for precise Polkit rule matching and resource grouping.
+- **Full Shell & Pipeline Fidelity**:
+  - Automatically selects `--pty` when attached to an interactive terminal, and `--pipe` when stdout/stdin are redirected or piped.
+  - Preserves working directory (`--same-dir`) and forwards terminal environment (`TERM`, `DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY`).
+  - Strict option boundary: Parses `-u <user>`, `-n` (non-interactive), `-i`/`-s` (root login shell), `-v` (validate), `-k` (reset timestamp), and `--`. Once the command name is reached, all subsequent flags (such as `-u` in `sudo id -u`) pass directly to the target executable.
+
+#### In-Memory Sliding-Window Authorization Cache
+
+By default, Polkit associates temporary authorizations (`auth_admin_keep`) strictly with the caller's process subject (`unix-process:PID`). Because each CLI command runs under an ephemeral newly-spawned PID that terminates upon command exit, Polkit's default cache expires immediately when the process dies.
+
+To achieve seamless, continuous developer workflows without prompting on every command, `sandbox-ctl` provides an in-memory sliding-window Polkit rule managed via:
+```bash
+sandbox-ctl system sandbox-sudo.rules install
+sandbox-ctl system sandbox-sudo.rules status
+sandbox-ctl system sandbox-sudo.rules cat
+sandbox-ctl system sandbox-sudo.rules uninstall
+```
+
+##### How the Sliding Window Rule Works:
+1. **Zero Disk Footprint**: Maintains an in-memory dictionary resident in `polkitd` RAM (`sandbox_sudo_cache[sessionKey]`). Nothing is written to `/run/sudo/ts` or disk.
+2. **Sliding Window (5 Minutes from Last Access)**:
+   - When a command succeeds, the expiration time is reset to `now + 5 minutes` from **that exact moment**.
+   - As long as no single idle gap exceeds 5 minutes, you can run commands continuously without any password prompts.
+   - If 5 minutes pass with no root commands, the window closes and the next command prompts for your password again.
+3. **Multi-Session Compatibility**: Keys sessions by `user@seat` (for physical console `seat0` sessions) and falls back to `user@session` (for systemd user manager sessions, tmux, IDE terminals, and OMP runners where `seat` is unassigned).
+4. **Screen-Lock Resilience**:
+   - If you lock your screen while within the active 5-minute sliding window, background scripts or builds continue executing root commands seamlessly without being blocked.
+   - If the window is expired while the screen is locked, `systemd-run` waits patiently until you unlock your screen, at which point the GNOME Shell dialog appears immediately.
 
 ## Execution Engines & Engine Differences
 

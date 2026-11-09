@@ -1,12 +1,12 @@
 # Local Inference and Memory Service Agents Ecosystem, Agents Included
 
-This repository contains orchestration for deploying, sandboxed local AI assistants, using local inference services.
+This repository contains orchestration for deploying sandboxed local AI assistants and developer runtimes using local inference services.
 
-It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation wrappers, and standardized daemon control utilities (`*-ctl` scripts) to ensure isolated agent execution.
-
+It provides **`sandbox-ctl`** (a generalized systemd and bubblewrap container launcher), systemd-confinement configurations, and standardized daemon control utilities (`*-ctl` scripts) to ensure secure, isolated agent execution.
 ## Repository Structure
 
 - `README.md` — Agent/script instructions, default ports, and isolation requirements
+- `scripts/sandbox-ctl` — Generalized systemd/bubblewrap container launcher and environment manager (documentation: [scripts/sandbox-ctl.md](scripts/sandbox-ctl.md))
 - `assistants/` — Daemon control scripts (`*-ctl`) and configuration documentation
 - `scripts/` — Benchmarking, model downloader (`local-download.sh`), and utility tools
 - `skills/` — Portable skill definitions
@@ -49,6 +49,28 @@ It provides systemd-confinement configurations, bubblewrap (`bwrap`) isolation w
 | **[NanoClaw](#nanoclaw)** | TypeScript | [3000](http://localhost:3000) | Webhook Server |
 
 See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
+
+## Sandboxing & Container Isolation (`sandbox-ctl`)
+
+The repository includes **`sandbox-ctl`** (`scripts/sandbox-ctl`), a generalized execution wrapper that runs any CLI tool, coding agent (like OpenCode), or GUI application inside an isolated Linux container sandbox.
+
+### Key Sandboxing Features
+- **Dual Execution Engines**: Automatically selects native **systemd transient units (`systemd-run`)** for cgroups v2 resource accounting and security hardening, or falls back to **Bubblewrap (`bwrap`)** containers.
+- **Persistent Relocated Home**: Maps an isolated sandbox home (`~/.local/sandbox/<app>`) as `$HOME` inside the container—the container cannot see or mutate your real home directory.
+- **Specialized Shell Modes**:
+  - `hotshell <app>`: Interactive hot shell with SSH agent auto-discovery, D-Bus, user systemd, user Podman socket, and KeePassXC browser socket forwarding (`SANDBOX 🟣`).
+  - `hotshell --sudo <app>`: Enables desktop GUI root privilege escalation (`SANDBOX 🟣⚡`).
+  - `hotshell --gui <app>`: Enables Wayland, GPU acceleration, audio, and IPC sharing (`SANDBOX 🟣🎨`).
+  - `hotshell --all-access <app>`: Mounts real host `$HOME` read/write at `~/real_home` and maps host user runtime read/write for unconfined debugging (`SANDBOX 🚨`).
+  - `guishell <app>`: Interactive shell configured for graphical and GPU-accelerated applications (`SANDBOX 🎨`).
+- **Desktop GUI Root Privilege Escalation (`sudo` & `pkexec`)**:
+  - Container `sudo` and `pkexec` communicate with host PID 1 via the System D-Bus socket (`/run/dbus/system_bus_socket`), triggering the native GNOME Shell modal password dialog on the desktop. Zero setuid binaries needed inside the container.
+  - **Infinite Wait Timeout**: Sets `SYSTEMD_BUS_TIMEOUT="infinity"`, keeping the desktop dialog open until approved or cancelled (matching `pamac`).
+  - **In-Memory Sliding-Window Cache**: Managed via `sandbox-ctl system sandbox-sudo.rules install`. Authenticates once via the desktop dialog and caches authorization in `polkitd` RAM for 5 minutes, automatically resetting the timer on every subsequent command with zero disk I/O.
+- **System Configuration Manager**:
+  - `sandbox-ctl system sandbox-sudo.rules <install|status|cat|uninstall>`: Automated management of host Polkit rules.
+
+For complete usage styles, environment options, and architecture details, see **[scripts/sandbox-ctl.md](scripts/sandbox-ctl.md)**.
 
 ## Helper Utilities
 
