@@ -99,13 +99,13 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_PORT` | `20080` | Port for the OpenAI API server (defaults to 20080 matching local-chat) |
 | `LCHAT_STRATA_HOST` | `127.0.0.1` | Host address to bind to |
 | `LCHAT_STRATA_DEVICE` | `"0"` | HIP device ID (0 for RX 7900 XTX `gfx1100`) |
-| `LCHAT_STRATA_MODEL` | `.../swift15_iq3s/...-00001-of-00002.gguf` | Path to Shard 1 (Auto-detects native Strata `models/swift-IQ3_S/` or flat directory) |
-| `LCHAT_STRATA_PLE_MODEL` | `.../swift15_iq3s/...-00002-of-00002.gguf` | Path to Shard 2 (Auto-detects native Strata `models/swift-IQ3_S/` or flat directory) |
-| `LCHAT_STRATA_PACK` | `.../swift15_iq3s/packs/swift-iq3_s` | Strata pack directory (auto-detects `packs/swift-iq3_s` or `strata`) |
-| `LCHAT_STRATA_MMPROJ` | `.../swift15_iq3s/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf` | Vision projector encoder model (auto-detects `models/` or root) |
-| `LCHAT_STRATA_MTP` | `.../swift15_iq3s/mtp/rt` | MTP speculative draft head directory (auto-detects `mtp/rt` or `strata/rt`) |
+| `LCHAT_STRATA_MODEL` | `.../swift15_iq3s/models/swift-IQ3_S/...-00001-of-00002.gguf` | Path to Shard 1 (Native Strata layout) |
+| `LCHAT_STRATA_PLE_MODEL` | `.../swift15_iq3s/models/swift-IQ3_S/...-00002-of-00002.gguf` | Path to Shard 2 (PLE n-gram table) |
+| `LCHAT_STRATA_PACK` | `.../swift15_iq3s/packs/swift-iq3_s` | Strata native pack directory |
+| `LCHAT_STRATA_MMPROJ` | `.../swift15_iq3s/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf` | Vision projector encoder model (BF16) |
+| `LCHAT_STRATA_MTP` | `.../swift15_iq3s/mtp/rt` | MTP speculative draft runtime directory (unpacked via `mtp_rt.py`) |
 | `LCHAT_STRATA_MTP_VOCAB` | `""` | Draft vocabulary override (empty = default full bilingual German/English draft_vocab.bin) |
-| `LCHAT_STRATA_ESP` | `/usr/share/strata/data/experimental-speed-projection/...` | Built-in runtime projective control vector for refusal elimination |
+| `LCHAT_STRATA_ESP` | `/data/public/machine-learning/models/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf` | Uncensored runtime experimental speed projection and refusal elimination vector |
 | `LCHAT_STRATA_ESP_SCALE` | `1.0` | Projection scaling factor ($\alpha$) |
 | `LCHAT_STRATA_ESP_LAYERS` | `"4 44"` | Layer range for projective steering |
 | `LCHAT_STRATA_MAX_CONTEXT` | `240384` | Maximum context window in tokens (240k) |
@@ -137,11 +137,33 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_VISION_TOKENS` | `1024` | Maximum tokens allocated for vision patches |
 | `LCHAT_STRATA_ALIAS` | `qwen3.8-flash-next` | Primary model identifier reported to clients |
 | `LCHAT_STRATA_ALIASES` | `qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3` | Comma-separated alternative model aliases |
-| `LCHAT_STRATA_CHAT_TEMPLATE_FILE` | `.../Qwen3.8-chat_template.jinja` | Custom fixed community chat template (froggeric v22.5) |
+| `LCHAT_STRATA_TOKENIZER_DIR` | `.../swift15_iq3s/tok_runtime` | Pre-assembled tokenizer runtime directory pointing to `packs/swift-iq3_s/tokenizer-custom` with modified thinking-enabled `chat_template.jinja` |
 | `LCHAT_STRATA_CHAT_TEMPLATE_KWARGS` | `'{"enable_thinking": true}'` | Template parsing arguments enabling reasoning |
 | `LCHAT_STRATA_EXTRA_ARGS` | `""` | Extra arguments passed directly to `server.py` |
 
 ---
+
+## Model Downloads & Auxiliary Preparation (`local-download.sh`)
+
+Model files and execution runtimes are provisioned via `scripts/local-download.sh`:
+
+```bash
+# Complete deployment: downloads model shards (~84 GB) and all auxiliary runtime files
+./scripts/local-download.sh /data/public/machine-learning/models --strata
+
+# Download only the large model shards (~84 GB)
+./scripts/local-download.sh /data/public/machine-learning/models --strata-shards
+
+# Download and assemble all auxiliary runtime files without pulling the ~84 GB weights:
+# - Vision mmproj (BF16)
+# - MTP drafter weights & unpacked runtime (`mtp_rt.py`, `draft_vocab.bin`)
+# - DSpark speculative drafter (`model.safetensors`, `config.json`)
+# - Speed and refusal control vectors (`strata/projections/`)
+# - Modified thinking-enabled Jinja template (froggeric v22.5)
+# - Native pack preparation (`iq_pack.py` if Shard 1 is present)
+# - Custom tokenizer runtime assembly (`packs/swift-iq3_s/tokenizer-custom/` & `tok_runtime` symlink)
+./scripts/local-download.sh /data/public/machine-learning/models --strata-additional
+```
 
 ## Hardware Environment & Kernel Flags
 

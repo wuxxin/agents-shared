@@ -73,7 +73,7 @@ load_env() {
     local env_lchat_pcie_frac="${LCHAT_STRATA_PCIE_FRAC:-}"
     local env_lchat_adapt_every="${LCHAT_STRATA_ADAPT_EVERY:-}"
     local env_lchat_adapt_decay="${LCHAT_STRATA_ADAPT_DECAY:-}"
-    local env_lchat_chat_template="${LCHAT_STRATA_CHAT_TEMPLATE_FILE:-}"
+    local env_lchat_tokenizer_dir="${LCHAT_STRATA_TOKENIZER_DIR:-}"
     local env_lchat_chat_template_kwargs="${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS:-}"
     local env_lchat_ple_io="${LCHAT_STRATA_PLE_IO:-}"
     local env_lchat_max_context="${LCHAT_STRATA_MAX_CONTEXT:-}"
@@ -104,23 +104,16 @@ load_env() {
     LCHAT_STRATA_HOST=127.0.0.1
     LCHAT_STRATA_DEVICE="0"
 
-    # Auto-detect native Strata layout vs flat layout
+    # Native Strata layout paths
     local base_m_dir="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata/swift15_iq3s}"
 
     local def_model="${base_m_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
-    [[ ! -f "$def_model" ]] && def_model="${base_m_dir}/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
-
     local def_ple="${base_m_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
-    [[ ! -f "$def_ple" ]] && def_ple="${base_m_dir}/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
-
     local def_pack="${base_m_dir}/packs/swift-iq3_s"
-    [[ ! -d "$def_pack" ]] && def_pack="${base_m_dir}/strata"
-
     local def_mmproj="${base_m_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
-    [[ ! -f "$def_mmproj" ]] && def_mmproj="${base_m_dir}/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
-
     local def_mtp="${base_m_dir}/mtp/rt"
-    [[ ! -d "$def_mtp" ]] && def_mtp="${base_m_dir}/strata/rt"
+    local def_esp="/data/public/machine-learning/models/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+    [[ ! -f "$def_esp" ]] && def_esp="/usr/share/strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 
     # Default model files (clean un-ablated Swift 1.5 GSQ-RCO)
     LCHAT_STRATA_MODEL="$def_model"
@@ -129,7 +122,7 @@ load_env() {
     LCHAT_STRATA_MMPROJ="$def_mmproj"
     LCHAT_STRATA_MTP="$def_mtp"
     LCHAT_STRATA_MTP_VOCAB="" # empty = default full bilingual/multilingual draft_vocab.bin (skips english-only drafter)
-    LCHAT_STRATA_ESP="/usr/share/strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+    LCHAT_STRATA_ESP="$def_esp"
     LCHAT_STRATA_ESP_SCALE="1.0"
     LCHAT_STRATA_ESP_LAYERS="4 44"
     # Default engine tuning parameters
@@ -167,8 +160,7 @@ load_env() {
     # Default aliases
     LCHAT_STRATA_ALIAS="qwen3.8-flash-next"
     LCHAT_STRATA_ALIASES="qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3"
-    LCHAT_STRATA_CHAT_TEMPLATE_FILE="${base_m_dir}/Qwen3.8-chat_template.jinja"
-    [[ ! -f "$LCHAT_STRATA_CHAT_TEMPLATE_FILE" ]] && LCHAT_STRATA_CHAT_TEMPLATE_FILE="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata}/Qwen3.8-chat_template.jinja"
+    LCHAT_STRATA_TOKENIZER_DIR="${base_m_dir}/tok_runtime"
     LCHAT_STRATA_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
     LCHAT_STRATA_EXTRA_ARGS=""
 
@@ -227,7 +219,7 @@ load_env() {
     LCHAT_STRATA_VISION_TOKENS="${env_lchat_vision_tokens:-${LCHAT_STRATA_VISION_TOKENS}}"
     LCHAT_STRATA_ALIAS="${env_lchat_alias:-${LCHAT_STRATA_ALIAS}}"
     LCHAT_STRATA_ALIASES="${env_lchat_aliases:-${LCHAT_STRATA_ALIASES}}"
-    LCHAT_STRATA_CHAT_TEMPLATE_FILE="${env_lchat_chat_template:-${LCHAT_STRATA_CHAT_TEMPLATE_FILE}}"
+    LCHAT_STRATA_TOKENIZER_DIR="${env_lchat_tokenizer_dir:-${LCHAT_STRATA_TOKENIZER_DIR}}"
     LCHAT_STRATA_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS}}"
     LCHAT_STRATA_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_STRATA_EXTRA_ARGS}}"
 }
@@ -362,43 +354,17 @@ alias = get_env("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next")
 aliases_str = get_env("LCHAT_STRATA_ALIASES", "qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3")
 aliases = [a.strip() for a in aliases_str.split(",") if a.strip()]
 
-def resolve_file(path, fallbacks):
-    if path and os.path.isfile(path):
-        return path
-    for fb in fallbacks:
-        if fb and os.path.isfile(fb):
-            return fb
-    return path
-
-def resolve_dir(path, fallbacks):
-    if path and os.path.isdir(path):
-        return path
-    for fb in fallbacks:
-        if fb and os.path.isdir(fb):
-            return fb
-    return path
-
-base_dir = "/data/public/machine-learning/models/strata/swift15_iq3s"
-model = resolve_file(model, [
-    os.path.join(base_dir, "models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"),
-    os.path.join(base_dir, "Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf")
-])
-ple_model = resolve_file(ple_model, [
-    os.path.join(base_dir, "models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"),
-    os.path.join(base_dir, "Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf")
-])
-pack = resolve_dir(pack, [
-    os.path.join(base_dir, "packs/swift-iq3_s"),
-    os.path.join(base_dir, "strata")
-])
-mmproj = resolve_file(mmproj, [
-    os.path.join(base_dir, "models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"),
-    os.path.join(base_dir, "mmproj-Qwen3.8-Flash-Next-BF16.gguf")
-])
-mtp = resolve_dir(mtp, [
-    os.path.join(base_dir, "mtp/rt"),
-    os.path.join(base_dir, "strata/rt")
-])
+base_dir = get_env("LCHAT_STRATA_MODEL_DIR", "/data/public/machine-learning/models/strata/swift15_iq3s")
+if not model:
+    model = os.path.join(base_dir, "models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf")
+if not ple_model:
+    ple_model = os.path.join(base_dir, "models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf")
+if not pack:
+    pack = os.path.join(base_dir, "packs/swift-iq3_s")
+if not mmproj:
+    mmproj = os.path.join(base_dir, "models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf")
+if not mtp:
+    mtp = os.path.join(base_dir, "mtp/rt")
 engine_args = [
     "--native", model,
     "--native-dense-gguf", model,
@@ -460,26 +426,25 @@ if profile:
 profile_save = get_env("LCHAT_STRATA_EXPERT_PROFILE_SAVE", "")
 if profile_save:
     engine_args.extend(["--expert-profile-save", profile_save])
+tok_runtime = get_env("LCHAT_STRATA_TOKENIZER_DIR", "")
 tok_path = None
 tok_candidates = []
-if pack:
-    tok_candidates.extend([os.path.join(pack, "tokenizer"), pack])
+if tok_runtime:
+    tok_candidates.append(tok_runtime)
 tok_candidates.extend([
+    os.path.join(base_dir, "tok_runtime"),
+    os.path.join(base_dir, "packs/swift-iq3_s/tokenizer-custom"),
     os.path.join(base_dir, "packs/swift-iq3_s/tokenizer"),
-    os.path.join(base_dir, "packs/swift-iq3_s"),
-    os.path.join(base_dir, "strata/tokenizer"),
-    os.path.join(base_dir, "strata"),
+    os.path.join(pack, "tokenizer-custom") if pack else "",
+    os.path.join(pack, "tokenizer") if pack else "",
+    pack,
 ])
 for cand in tok_candidates:
-    if os.path.isfile(os.path.join(cand, "vocab.json")):
+    if cand and os.path.isdir(cand) and os.path.isfile(os.path.join(cand, "vocab.json")):
         tok_path = cand
         break
-tok_runtime = get_env("LCHAT_STRATA_TOKENIZER_DIR", "")
-if tok_runtime and os.path.isdir(tok_runtime) and os.path.isfile(os.path.join(tok_runtime, "vocab.json")):
-    tok_path = tok_runtime
 if not tok_path:
-    tok_path = os.path.join(pack, "tokenizer") if pack else pack
-
+    tok_path = tok_runtime if tok_runtime else (os.path.join(pack, "tokenizer") if pack else "")
 cfg = {
     "exe": engine_bin,
     "args": engine_args,
@@ -644,25 +609,25 @@ LCHAT_STRATA_DEVICE="0"
 
 # ### MODEL AND ENGINE PATHS
 # Shard 1 (Native IQ3_S model - clean un-ablated Swift 1.5)
-LCHAT_STRATA_MODEL="/data/public/machine-learning/models/strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+LCHAT_STRATA_MODEL="/data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
 
 # Shard 2 (PLE GGUF)
-LCHAT_STRATA_PLE_MODEL="/data/public/machine-learning/models/strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+LCHAT_STRATA_PLE_MODEL="/data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
 
 # Strata native pack directory
-LCHAT_STRATA_PACK="/data/public/machine-learning/models/strata/swift15_iq3s/strata"
+LCHAT_STRATA_PACK="/data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s"
 
 # Vision mmproj model (BF16 vision encoder)
-LCHAT_STRATA_MMPROJ="/data/public/machine-learning/models/strata/swift15_iq3s/mmproj-Qwen3.8-Flash-Next-BF16.gguf"
+LCHAT_STRATA_MMPROJ="/data/public/machine-learning/models/strata/swift15_iq3s/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
 
 # MTP Draft head runtime folder (speculative decoding)
-LCHAT_STRATA_MTP="/data/public/machine-learning/models/strata/swift15_iq3s/strata/rt"
+LCHAT_STRATA_MTP="/data/public/machine-learning/models/strata/swift15_iq3s/mtp/rt"
 
 # MTP Draft vocabulary override (empty = default full bilingual/multilingual draft_vocab.bin)
 LCHAT_STRATA_MTP_VOCAB=""
 
-# Runtime experimental speed projection / refusal control vector
-LCHAT_STRATA_ESP="/usr/share/strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+# Runtime experimental speed projection / refusal control vector (uncensored)
+LCHAT_STRATA_ESP="/data/public/machine-learning/models/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 LCHAT_STRATA_ESP_SCALE="1.0"
 LCHAT_STRATA_ESP_LAYERS="4 44"
 # ### ENGINE TUNING PARAMETERS
@@ -727,10 +692,11 @@ LCHAT_STRATA_ALIAS="qwen3.8-flash-next"
 # Comma-separated list of recognized aliases
 LCHAT_STRATA_ALIASES="qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3"
 
-# Custom Jinja chat template file (fixed froggeric community template v22.5)
-LCHAT_STRATA_CHAT_TEMPLATE_FILE="/data/public/machine-learning/models/strata/Qwen3.8-chat_template.jinja"
+# ### TOKENIZER & CHAT TEMPLATE RUNTIME
+# Points to pre-prepared tokenizer directory in target model dir containing vocab.json and chat_template.jinja
+# Default points to tok_runtime (modified thinking-enabled template); change to packs/swift-iq3_s/tokenizer for raw GGUF template
+LCHAT_STRATA_TOKENIZER_DIR="/data/public/machine-learning/models/strata/swift15_iq3s/tok_runtime"
 LCHAT_STRATA_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
-
 # Extra arguments passed directly to server.py
 LCHAT_STRATA_EXTRA_ARGS=""
 
@@ -768,21 +734,6 @@ write_service_file() {
     load_env
     mkdir -p "${SYSTEMD_USER_DIR}"
 
-    # Setup managed tokenizer directory if custom chat template is configured
-    if [[ -n "${LCHAT_STRATA_CHAT_TEMPLATE_FILE:-}" && -f "${LCHAT_STRATA_CHAT_TEMPLATE_FILE}" ]]; then
-        local tok_runtime="${SYSTEMD_USER_DIR}/${SERVICE_NAME}-tokenizer"
-        mkdir -p "${tok_runtime}"
-        local tok_src="${LCHAT_STRATA_PACK:-/data/public/machine-learning/models/strata/swift15_iq3s/strata}/tokenizer"
-        [[ ! -d "$tok_src" ]] && tok_src="${LCHAT_STRATA_PACK:-/data/public/machine-learning/models/strata/swift15_iq3s/strata}"
-        for f in vocab.json tokenizer.json merges.txt tokenizer_config.json; do
-            if [[ -f "${tok_src}/${f}" ]]; then
-                ln -sf "${tok_src}/${f}" "${tok_runtime}/${f}"
-            fi
-        done
-        ln -sf "${LCHAT_STRATA_CHAT_TEMPLATE_FILE}" "${tok_runtime}/chat_template.jinja"
-        export LCHAT_STRATA_TOKENIZER_DIR="${tok_runtime}"
-    fi
-
     # Export variables so generate_config_json python environment sees them
     export LCHAT_STRATA_MODEL LCHAT_STRATA_PLE_MODEL LCHAT_STRATA_PACK
     export LCHAT_STRATA_MMPROJ LCHAT_STRATA_MTP LCHAT_STRATA_MTP_VOCAB LCHAT_STRATA_ESP
@@ -797,7 +748,7 @@ write_service_file() {
     export LCHAT_STRATA_VRAM_RESERVE_MIB LCHAT_STRATA_VISION LCHAT_STRATA_VISION_TOKENS
     export LCHAT_STRATA_TEMPERATURE LCHAT_STRATA_REPEAT_PENALTY LCHAT_STRATA_TOP_P LCHAT_STRATA_TOP_K
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
-    export LCHAT_STRATA_CHAT_TEMPLATE_FILE LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
+    export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
 
     # Generate JSON config
     generate_config_json >"${CONFIG_FILE}"
@@ -878,6 +829,7 @@ cmd_uninstall() {
         run_systemctl daemon-reload
         echo "Removed service file, config JSON, and launcher."
     fi
+    rm -rf "${SYSTEMD_USER_DIR}/${SERVICE_NAME}-tokenizer"
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
 }
@@ -1093,7 +1045,7 @@ cmd_cat() {
     export LCHAT_STRATA_VRAM_RESERVE_MIB LCHAT_STRATA_VISION LCHAT_STRATA_VISION_TOKENS
     export LCHAT_STRATA_TEMPERATURE LCHAT_STRATA_REPEAT_PENALTY LCHAT_STRATA_TOP_P LCHAT_STRATA_TOP_K
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
-    export LCHAT_STRATA_CHAT_TEMPLATE_FILE LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
+    export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
 
     echo "=== Service File: ${SERVICE_FILE} ==="
     generate_service_file

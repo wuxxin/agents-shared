@@ -14,6 +14,8 @@ download_completion=false
 download_benchmark=false
 download_projections=false
 download_strata=false
+download_strata_shards=false
+download_strata_aux=false
 download_dspark=false
 # Wrapper for hf to catch click.exceptions.Exit on python 3.14
 hf() {
@@ -55,8 +57,10 @@ Options:
   --image           Download the image generation (Z-Image-Turbo) models
   --completion      Download the completions model (qwen-coder-fim) and testdata
   --benchmark-context, --benchmark Build the benchmark-context.md file using downloaded skills
+  --strata          Download both Strata Qwen3.8-Flash-Next model shards and all auxiliary runtime files
+  --strata-shards, --strata-model Download only the massive Strata model shards (~84 GB)
+  --strata-additional, --strata-aux Download all Strata auxiliary files (vision, MTP, DSpark, projections, chat template, tokenizer runtime) without huge shards
   --projections, --strata-projections Download all Strata experimental speed projection and control vector files
-  --strata, --strata-model Download the Strata Qwen3.8-Flash-Next (Swift 1.5 IQ3_S) model shards, MTP, vision, and projections
   --dspark          Download the Qwen3.8-Flash-Next DSpark speculative drafter
   -h, --help        Show this help message and exit
 
@@ -350,9 +354,22 @@ main() {
             download_projections=true
             shift
             ;;
-        --strata | --strata-model)
+        --strata)
             download_strata=true
+            download_strata_shards=true
+            download_strata_aux=true
             download_projections=true
+            download_dspark=true
+            shift
+            ;;
+        --strata-shards | --strata-model)
+            download_strata_shards=true
+            shift
+            ;;
+        --strata-additional | --strata-aux)
+            download_strata_aux=true
+            download_projections=true
+            download_dspark=true
             shift
             ;;
         --dspark)
@@ -367,8 +384,8 @@ main() {
         esac
     done
 
-    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false && "$download_dspark" == false ]]; then
-        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata, --dspark)." >&2
+    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false && "$download_strata_shards" == false && "$download_strata_aux" == false && "$download_dspark" == false ]]; then
+        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata, --strata-shards, --strata-additional, --dspark)." >&2
         exit 1
     fi
 
@@ -383,6 +400,8 @@ main() {
         download_benchmark=true
         download_projections=true
         download_strata=true
+        download_strata_shards=true
+        download_strata_aux=true
         download_dspark=true
     fi
 
@@ -825,12 +844,12 @@ snapshot_download(
     fi
 
     # 8. Strata Projections & Control Vectors
-    if [[ "$download_projections" == true ]]; then
+    if [[ "$download_projections" == true || "$download_strata_aux" == true ]]; then
         echo "=== Acquiring Strata Control Vectors & Projections ==="
         local proj_dir="${target_dir}/strata/projections"
         mkdir -p "$proj_dir"
 
-        # 8b. Cudecnik Qwen3.8-Flash-Next refusal projection (480 KB unit vector)
+        # 8a. Cudecnik Qwen3.8-Flash-Next refusal projection (480 KB unit vector)
         acquire_file \
             "strata/projections/Qwen3.8-Flash-Next-refusal-projection.gguf" \
             "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-projection.gguf" \
@@ -851,7 +870,7 @@ snapshot_download(
             "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-additive.gguf" \
             "${proj_dir}/Qwen3.8-Flash-Next-refusal-additive.gguf"
 
-        # 8c. msuiche Cyber-Contrast vectors (GLP-47 for Qwen3.8-Flash-Next, GLP-39 for DeepSeek-V4.1, GLP-29 for DSV4)
+        # 8b. msuiche Cyber-Contrast vectors (GLP-47 for Qwen3.8-Flash-Next, GLP-39 for DeepSeek-V4.1, GLP-29 for DSV4)
         acquire_file \
             "strata/projections/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" \
             "https://huggingface.co/msuiche/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47/resolve/main/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" \
@@ -877,47 +896,124 @@ snapshot_download(
         fi
     fi
 
-    # 9. Strata Model Shards, MTP & Vision
-    if [[ "$download_strata" == true ]]; then
-        echo "=== Acquiring Strata Swift 1.5 Qwen3.8-Flash-Next Models ==="
-        local strata_dir="${target_dir}/strata/swift15_iq3s"
-        for i in models mtp packs; do mkdir -p "${strata_dir}/$i"; done
+    # 9. Strata Model Shards, Auxiliary Files & Runtimes
+    local strata_dir="${target_dir}/strata/swift15_iq3s"
+    local pack_dir="${strata_dir}/packs/swift-iq3_s"
 
-        # 9a. Shard 1 (Dense + Experts ~55 GB)
+    # 9a. Strata Big Model Shards (~84 GB)
+    if [[ "$download_strata_shards" == true ]]; then
+        echo "=== Acquiring Strata Swift 1.5 Qwen3.8-Flash-Next Model Shards ==="
+        mkdir -p "${strata_dir}/models/swift-IQ3_S"
+
+        # Shard 1 (Dense + Experts ~55 GB)
         acquire_file \
             "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
             "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
             "${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
 
-        # 9b. Shard 2 (PLE n-gram table ~28.8 GB)
+        # Shard 2 (PLE n-gram table ~28.8 GB)
         acquire_file \
             "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
             "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
             "${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+    fi
 
-        # 9c. Vision Projector (BF16)
+    # 9b. Strata Auxiliary Files & Runtimes
+    if [[ "$download_strata_aux" == true ]]; then
+        echo "=== Acquiring Strata Auxiliary Files & Runtimes ==="
+        mkdir -p "${strata_dir}/models" "${strata_dir}/mtp" "${strata_dir}/packs" "${strata_dir}/dspark"
+
+        # Vision Projector (BF16)
         acquire_file \
             "strata/swift15_iq3s/mmproj-Qwen3.8-Flash-Next-BF16.gguf" \
             "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf" \
             "${strata_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
 
-        # 9d. MTP Speculative Drafter weights
+        # MTP Speculative Drafter weights
         acquire_file \
             "strata/swift15_iq3s/mtp-q2_0.gguf" \
             "https://huggingface.co/SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF/resolve/main/mtp-q2_0.gguf" \
             "${strata_dir}/mtp/mtp-q2_0.gguf"
 
-        # 9f. Qwen3.8 Fixed Community Chat Template (froggeric v22.5)
+        # Qwen3.8 Fixed Community Chat Template (froggeric v22.5)
         acquire_file \
             "strata/Qwen3.8-chat_template.jinja" \
             "https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja" \
             "${target_dir}/strata/Qwen3.8-chat_template.jinja"
+        ln -sfn "../Qwen3.8-chat_template.jinja" "${strata_dir}/Qwen3.8-chat_template.jinja"
+
+        # DSpark Speculative Drafter
+        local dspark_dir="${strata_dir}/dspark"
+        acquire_file \
+            "strata/swift15_iq3s/dspark/model.safetensors" \
+            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/model.safetensors" \
+            "${dspark_dir}/model.safetensors"
+        acquire_file \
+            "strata/swift15_iq3s/dspark/config.json" \
+            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/config.json" \
+            "${dspark_dir}/config.json"
+
+        # MTP Runtime Preparation
+        local mtp_gguf="${strata_dir}/mtp/mtp-q2_0.gguf"
+        local mtp_rt_dir="${strata_dir}/mtp/rt"
+        if [[ -s "$mtp_gguf" && ! -s "${mtp_rt_dir}/experts.bin" ]]; then
+            echo "=== Preparing Strata MTP Runtime via mtp_rt.py ==="
+            mkdir -p "$mtp_rt_dir"
+            local mtp_rt_tool="${STRATA_TOOLS_DIR:-/usr/share/strata/tools}/mtp_rt.py"
+            if [[ -f "$mtp_rt_tool" ]]; then
+                python3 "$mtp_rt_tool" --gguf "$mtp_gguf" --out "$mtp_rt_dir"
+            else
+                echo "Warning: mtp_rt.py not found at $mtp_rt_tool; skipping MTP runtime preparation." >&2
+            fi
+        fi
+
+        # Draft Vocab Setup
+        local draft_vocab_src="${STRATA_DATA_DIR:-/usr/share/strata/data}/draft_vocab.bin"
+        if [[ -f "$draft_vocab_src" && ! -s "${mtp_rt_dir}/draft_vocab.bin" ]]; then
+            echo "=== Copying MTP draft vocabulary subset ==="
+            mkdir -p "$mtp_rt_dir"
+            cp "$draft_vocab_src" "${mtp_rt_dir}/draft_vocab.bin"
+        fi
+
+        # Strata Native Pack Preparation (if Shard 1 is present)
+        local shard1_path="${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+        if [[ -s "$shard1_path" && ! -s "${pack_dir}/native_experts.txt" ]]; then
+            echo "=== Preparing Strata Native Pack via iq_pack.py ==="
+            mkdir -p "$pack_dir"
+            local iq_pack_tool="${STRATA_TOOLS_DIR:-/usr/share/strata/tools}/iq_pack.py"
+            if [[ -f "$iq_pack_tool" ]]; then
+                python3 "$iq_pack_tool" --gguf "$shard1_path" --out "$pack_dir"
+            else
+                echo "Warning: iq_pack.py not found at $iq_pack_tool; skipping native pack preparation." >&2
+            fi
+        fi
+
+        # Custom Tokenizer Runtime Assembly
+        local raw_tok_dir="${pack_dir}/tokenizer"
+        local custom_tok_dir="${pack_dir}/tokenizer-custom"
+        local template_src="${target_dir}/strata/Qwen3.8-chat_template.jinja"
+
+        if [[ -d "$raw_tok_dir" && -f "${raw_tok_dir}/vocab.json" && -f "$template_src" ]]; then
+            echo "=== Assembling Strata Custom Tokenizer Runtime ==="
+            mkdir -p "$custom_tok_dir"
+            for f in vocab.json merges.txt tokenizer.json token_type.json tokenizer_config.json; do
+                if [[ -f "${raw_tok_dir}/$f" ]]; then
+                    ln -sfn "../tokenizer/$f" "${custom_tok_dir}/$f"
+                fi
+            done
+            # Link modified Jinja chat template
+            ln -sfn "../../../Qwen3.8-chat_template.jinja" "${custom_tok_dir}/chat_template.jinja"
+
+            # Create convenience symlink at strata_dir root
+            ln -sfn "packs/swift-iq3_s/tokenizer-custom" "${strata_dir}/tok_runtime"
+            echo "Custom tokenizer runtime assembled at ${custom_tok_dir} (symlinked as ${strata_dir}/tok_runtime)."
+        fi
     fi
 
-    # 10. Qwen3.8-Flash-Next DSpark Speculative Drafter
-    if [[ "$download_strata" == true || "$download_dspark" == true ]]; then
+    # 10. Standalone DSpark Speculative Drafter (if requested without --strata-aux)
+    if [[ "$download_dspark" == true && "$download_strata_aux" == false ]]; then
         echo "=== Acquiring Qwen3.8-Flash-Next DSpark Speculative Drafter ==="
-        local dspark_dir="${target_dir}/strata/swift15_iq3s/dspark"
+        local dspark_dir="${strata_dir}/dspark"
         mkdir -p "$dspark_dir"
 
         acquire_file \
@@ -930,6 +1026,7 @@ snapshot_download(
             "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/config.json" \
             "${dspark_dir}/config.json"
     fi
+
     echo "=== All requested model downloads/conversions completed. ==="
 
 }
