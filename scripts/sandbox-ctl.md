@@ -40,11 +40,11 @@ sandbox-ctl exec opencode
 # Run an interactive login shell ($SHELL -l) in the opencode sandbox
 sandbox-ctl shell opencode
 # Run an elevated hot shell with SSH agent forwarding, DBus/systemd, KeePassXC browser socket enabled,
-# KVM access (if permitted), and SANDBOX_NAME="SANDBOX 🟣"
+# KVM access (if permitted), and SANDBOX_NAME="<app_name> 🟣"
 # Pass --gui for Wayland/GPU (🎨), --sudo for Polkit desktop root escalation (⚡), or --all-access (🚨)
 sandbox-ctl hotshell [--all-access] [--gui] [--sudo] opencode
 # Run an interactive GUI shell with Wayland, audio, USB hardware access,
-# DRI/GPU sharing, and SANDBOX_NAME="SANDBOX 🎨"
+# DRI/GPU sharing, and SANDBOX_NAME="<app_name> 🎨"
 sandbox-ctl guishell opencode
 
 # Execute a custom command in the opencode sandbox
@@ -168,13 +168,13 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
 - **Composite Indicators**: Dynamic prompt indicator reflecting active capability flags:
   | Mode | CLI Switch | Indicator (`SANDBOX_NAME`) |
   | :--- | :--- | :--- |
-  | Default Hot Shell | `hotshell <app>` | `SANDBOX 🟣` |
-  | Hot Shell + Sudo | `hotshell --sudo <app>` | `SANDBOX 🟣⚡` |
-  | Hot Shell + GUI | `hotshell --gui <app>` | `SANDBOX 🟣🎨` |
-  | Hot Shell + GUI + Sudo | `hotshell --gui --sudo <app>` | `SANDBOX 🟣🎨⚡` |
-  | All-Access Hot Shell | `hotshell --all-access <app>` | `SANDBOX 🚨` |
-  | All-Access + Sudo | `hotshell --all-access --sudo <app>` | `SANDBOX 🚨⚡` |
-  | All-Access + GUI + Sudo | `hotshell --all-access --gui --sudo <app>` | `SANDBOX 🚨🎨⚡` |
+  | Default Hot Shell | `hotshell <app>` | `<app_name> 🟣` |
+  | Hot Shell + Sudo | `hotshell --sudo <app>` | `<app_name> 🟣⚡` |
+  | Hot Shell + GUI | `hotshell --gui <app>` | `<app_name> 🟣🎨` |
+  | Hot Shell + GUI + Sudo | `hotshell --gui --sudo <app>` | `<app_name> 🟣🎨⚡` |
+  | All-Access Hot Shell | `hotshell --all-access <app>` | `<app_name> 🚨` |
+  | All-Access + Sudo | `hotshell --all-access --sudo <app>` | `<app_name> 🚨⚡` |
+  | All-Access + GUI + Sudo | `hotshell --all-access --gui --sudo <app>` | `<app_name> 🚨🎨⚡` |
 - **`--gui` Option (Opt-in Wayland & Desktop Integration)**:
   - **Syntax**: `sandbox-ctl hotshell --gui <app_name> [args...]`
   - **Behavior**: Activates Wayland display socket forwarding (`$WAYLAND_DISPLAY`), audio (Pipewire/PulseAudio), DRI/GPU acceleration device nodes, and shared IPC inside the shell. If an X11 `DISPLAY` is detected, runs `xhost +si:localuser:root` so root-escalated GUI applications can render to the host Xwayland display.
@@ -189,13 +189,13 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
   - **Runtime Access Behavior**: Ignores `DISABLE_XDG_RUNTIME=true`, eliminates the `tmpfs` isolation layer over `$XDG_RUNTIME_DIR`, and directly bind-mounts the host user's `/run/user/<id>` read/write into the sandbox.
   - **Host Filesystem Access**: Mounts host `$HOME` read/write at `~/real_home` and creates a convenience symlink at `~/real_<username>`, exporting `$REAL_HOME="$HOME/real_home"`. Automatically maps host working directories outside the sandbox container home into `~/real_home/<subpath>`.
   - **Security Warning**: `--all-access` is an **intentional circumvention** of sandbox containment. Any modifications performed under `~/real_home` directly mutate host files, and unconfined access to `/run/user/<id>` exposes user daemon IPC endpoints without sandbox isolation.
-  - **Visual Alert**: Sets `SANDBOX_NAME="SANDBOX 🚨"` and emits an alert banner on terminal startup.
+- **Visual Alert**: Sets `SANDBOX_NAME="<app_name> 🚨"` and emits an alert banner on terminal startup.
 ### `guishell`
 
 Spawns an interactive shell configured for graphical and hardware-accelerated applications:
 - **Display & Audio Overrides**: Automatically forces `DISABLE_WAYLAND="false"`, `DISABLE_AUDIO="false"`, `DISABLE_HARDWARE="false"`, `DISABLE_IPC_SHARE="false"`, `DISABLE_XDG_RUNTIME="false"`, and `DISABLE_DBUS="false"`.
 - **GPU & USB Hardware Access**: Unshares device isolation (`PrivateDevices=no` in systemd, `--dev-bind /dev /dev` in Bubblewrap) and IPC namespace sharing for DRI/GPU rendering and USB device communication.
-- **Indicator**: Sets `SANDBOX_NAME="SANDBOX 🎨"`.
+- **Indicator**: Sets `SANDBOX_NAME="<app_name> 🎨"`.
 
 ### `sudo` & `pkexec` (Desktop GUI Privilege Escalation)
 
@@ -265,7 +265,7 @@ Nested `bwrap` execution works out of the box in default sandboxes across both `
 ### Environment Identifiers & Shell Prompt Integration
 
 `sandbox-ctl` automatically injects identity environment variables into every sandboxed session:
-- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `SANDBOX 🟣` in `hotshell`, `SANDBOX 🚨` in `hotshell --all-access`, and `SANDBOX 🎨` in `guishell`.
+- **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `<app_name> 🟣` in `hotshell`, `<app_name> 🚨` in `hotshell --all-access`, and `<app_name> 🎨` in `guishell`.
 - **`SANDBOX_ENGINE`**: Set to the active engine (`systemd` or `bwrap`).
 - **`SANDBOX`**: Set to the target application name (`opencode`).
 

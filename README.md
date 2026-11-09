@@ -58,11 +58,11 @@ The repository includes **`sandbox-ctl`** (`scripts/sandbox-ctl`), a generalized
 - **Dual Execution Engines**: Automatically selects native **systemd transient units (`systemd-run`)** for cgroups v2 resource accounting and security hardening, or falls back to **Bubblewrap (`bwrap`)** containers.
 - **Persistent Relocated Home**: Maps an isolated sandbox home (`~/.local/sandbox/<app>`) as `$HOME` inside the container—the container cannot see or mutate your real home directory.
 - **Specialized Shell Modes**:
-  - `hotshell <app>`: Interactive hot shell with SSH agent auto-discovery, D-Bus, user systemd, user Podman socket, and KeePassXC browser socket forwarding (`SANDBOX 🟣`).
-  - `hotshell --sudo <app>`: Enables desktop GUI root privilege escalation (`SANDBOX 🟣⚡`).
-  - `hotshell --gui <app>`: Enables Wayland, GPU acceleration, audio, and IPC sharing (`SANDBOX 🟣🎨`).
-  - `hotshell --all-access <app>`: Mounts real host `$HOME` read/write at `~/real_home` and maps host user runtime read/write for unconfined debugging (`SANDBOX 🚨`).
-  - `guishell <app>`: Interactive shell configured for graphical and GPU-accelerated applications (`SANDBOX 🎨`).
+  - `hotshell <app>`: Interactive hot shell with SSH agent auto-discovery, D-Bus, user systemd, user Podman socket, and KeePassXC browser socket forwarding (`<app> 🟣`).
+  - `hotshell --sudo <app>`: Enables desktop GUI root privilege escalation (`<app> 🟣⚡`).
+  - `hotshell --gui <app>`: Enables Wayland, GPU acceleration, audio, and IPC sharing (`<app> 🟣🎨`).
+  - `hotshell --all-access <app>`: Mounts real host `$HOME` read/write at `~/real_home` and maps host user runtime read/write for unconfined debugging (`<app> 🚨`).
+  - `guishell <app>`: Interactive shell configured for graphical and GPU-accelerated applications (`<app> 🎨`).
 - **Desktop GUI Root Privilege Escalation (`sudo` & `pkexec`)**:
   - Container `sudo` and `pkexec` communicate with host PID 1 via the System D-Bus socket (`/run/dbus/system_bus_socket`), triggering the native GNOME Shell modal password dialog on the desktop. Zero setuid binaries needed inside the container.
   - **Infinite Wait Timeout**: Sets `SYSTEMD_BUS_TIMEOUT="infinity"`, keeping the desktop dialog open until approved or cancelled (matching `pamac`).
