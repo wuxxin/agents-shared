@@ -34,6 +34,8 @@ The following packages must be installed in the Python environment:
   - `./local-router.sh test`
 - Inspect the aggregated usage:
   - `./local-router.sh usage [today|all|7d|30d|90d]`
+- Purge unknown records from usage database (router must be stopped first):
+  - `./local-router.sh clean-unknown`
 - Run uvicorn as a transient systemd user service:
   - `./local-router.sh exec [--env KEY=VALUE]* [-- uvicorn-args...]`
 
@@ -55,14 +57,15 @@ LROUT_LOG_LEVEL="info"
 
 | Route | Service | Default Model | Target Port | Description |
 | :--- | :---: | :---: | :---: | :---: |
+| `GET /` or `HEAD /` | Web Dashboard Redirect | - | - | 302 Found redirect to `/ui` |
 | `GET /health` or `/healthz` | Health Aggregator | - | - | Aggregated health check and connection test for all backends |
 | `GET /v1/models` | Cached Model Inventory | - | - | Model list and OpenAI-compatible pricing objects |
 | `GET /v1/usage` or `/usage` | Usage API | - | - | Cumulative token, call, cost, and error metrics (JSON or text) |
 | `GET /v1/metrics` or `/metrics` | Prometheus Metrics | - | - | Prometheus metric scrapable endpoint |
 | `GET /routing/ui` or `/ui` | Web Dashboard | - | - | Standalone single-page Web Dashboard SPA |
-| `GET /v1/props` or `/props` | Local-Chat | - | 20080 | Engine model properties query (proxied to chat service) |
-| `POST /v1/tokenize` or `/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (routes to model's service backend) |
-| `POST /v1/detokenize` or `/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (routes to model's service backend) |
+| `GET /v1/props` or `/props` | Local-Chat | - | 20080 | Engine model properties query proxied to chat service (read-only capability check; excluded from usage/active-call metrics) |
+| `POST /v1/tokenize` or `/tokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE tokenization (usage tracked under resolved backend service and model) |
+| `POST /v1/detokenize` or `/detokenize` | Resolved backend | `LROUT_DEFAULT_MODEL` | - | BPE detokenization (usage tracked under resolved backend service and model) |
 | `POST /v1/chat/completions` | Local-Chat | `qwen3.8-flash-next` / `qwen3.6-35B-A3B` / `qwen3` | 20080 | LLM completions (uses default template settings) |
 | `POST /v1/chat/completions` | Local-Chat | `*-thinking` (`qwen3.8-flash-next-thinking`, etc.) | 20080 | LLM completions (forces thinking/CoT reasoning ON) |
 | `POST /v1/completions` or `/completion` | Local-Chat | `qwen-coder-fim` | 20080 | Text & FIM code completions |
@@ -95,12 +98,15 @@ If a backend service is stopped or unreachable, its status is marked as `"offlin
 
 Queries engine properties (e.g. `llama-server` runtime parameters, context limit, build flags). The router proxies this request directly to the default `chat` service (port `20080`).
 
+`GET /props` and `GET /v1/props` are pure engine discovery endpoints (analogous to `/v1/models` and `/health`) and are excluded from token/call usage tracking, SQLite persistence, and active-call Prometheus gauges.
+
 ### Tokenization & Detokenization Endpoints (`POST /tokenize`, `/detokenize`)
 
 Allows callers to tokenize prompt text into raw token IDs or convert token IDs back into text:
 - The router parses the `"model"` property in the JSON body to resolve the target backend service.
 - If no model is specified, it uses `LROUT_DEFAULT_MODEL` to resolve the service (defaulting to `chat` on port `20080`).
 - The payload is forwarded to the corresponding backend server's `/tokenize` or `/detokenize` endpoint.
+- Requests are tracked in `/usage` and `/metrics` under the resolved backend service and resolved model name (falling back to `LROUT_DEFAULT_MODEL` or the active chat alias when `"model"` is omitted).
 
 ### Special Model Aliases & Parameter Rewriting
 
@@ -119,9 +125,9 @@ On startup, the router parses `~/.config/systemd/user/local-inference.env` to id
 - For backends supporting models (`chat`, `embedding` if standalone, `rerank`), it queries their `/v1/models` HTTP endpoint.
 - For backends not exposing a models endpoint (`stt`, `tts`, `image`), it checks if their TCP port is open.
 
-The router polls every 2 seconds for up to **1 minute**.
+The router polls every 2 seconds for up to **120 seconds (2 minutes)**.
 - If all enabled services become available, it constructs a global model inventory mapping model IDs and configured aliases to their respective services, then begins serving requests.
-- If not all services are online within 1 minute, the router prints an error to standard error and aborts startup with exit code `1`.
+- If not all services are online within 120 seconds (2 minutes), the router prints an error to standard error and aborts startup with exit code `1`.
 
 ### Model Pricing Object
 
@@ -193,6 +199,8 @@ The router automatically detects and normalizes the caller's agent identity stri
 The router transparently tracks token counts, call count (differentiating between `streaming_calls` and `calls_post`), HTTP error codes, and estimated USD costs by `agent:model:service`.
 
 Usage records are stored incrementally in a SQLite database with Write-Ahead Logging (WAL) enabled at `${XDG_STATE_HOME:-$HOME/.local/state}/local-router/local-router-usage.db`. Every completed request performs an atomic $O(1)$ single-row insert into `request_events` and an upsert into `daily_aggregates`, eliminating monolithic JSON rewrites, write amplification, and unbounded in-memory list growth.
+
+Normal router operations preserve all existing records without deletion. To purge unmapped or probe metadata entries (`agent = 'unknown' OR model = 'unknown' OR service = 'unknown'`), stop the router service and run `./local-router.sh clean-unknown` (which cleans both `request_events` and `daily_aggregates` via `sqlite3` and truncates the WAL checkpoint). If run while the router is active, the command aborts to prevent in-memory cache drift and instructs the user to stop the router first.
 
 #### 1. JSON Usage API (`GET /usage` or `/v1/usage`)
 Returns cumulative counts grouped by `agent:model:service`, agent totals, service totals, and grand total.
@@ -288,13 +296,13 @@ Context caching optimizes processing costs for repetitive large prompts (e.g., c
 4. Estimated costs are computed dynamically by multiplying each token classification by its registry price.
 
 
-### Web Dashboard UI (`GET /routing/ui` or `/ui`)
+### Web Dashboard UI (`GET /`, `GET /routing/ui`, or `GET /ui`)
 
-The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:21080/routing/ui` (or `/ui`).
+The router includes a standalone, responsive Web Dashboard SPA served directly at `http://localhost:21080/ui` (and `/routing/ui`). Root requests (`GET /` and `HEAD /`) return a `302 Found` redirect to `/ui`.
 
 ![Local Router Dashboard - KPI Cards & Visualization](../assets/local-router-ui-1.png)
 
-![Local Router Dashboard - Daily Averages & Breakdown Tables](../assets/local-router-ui-2.png)
+![Local Router Dashboard - Clients & Services Breakdown Tables](../assets/local-router-ui-2.png)
 
 ![Local Router Dashboard - Detailed Models Breakdown Table](../assets/local-router-ui-3.png)
 
@@ -302,9 +310,8 @@ The router includes a standalone, responsive Web Dashboard SPA served directly a
 - **Theme Support**: Auto-detects system browser preference (`dark` / `light`) with an explicit header theme selector (`Auto`, `Dark`, `Light`).
 - **Features**:
   - **KPI Cards Grid**: Real-time summary for Total Requests, Total Tokens, Total Input Tokens, Cache Hit Rate %, Total Output Tokens, Estimated USD Cost, and HTTP Errors (responsive 4 → 3 → 2 → 1 grid layout).
-  - **Time-range Selector**: Switch between `1D`, `7D`, `30D`, `90D`, and `All` time windows.
+  - **Time-range Selector & Chart Metric Toggle**: Switch between `1D`, `7D`, `30D`, `90D`, and `All` time windows and between `Tokens & Calls` and `Cost ($ USD)` chart metrics; both selections persist in `localStorage` and sync immediately on initial page load.
   - **Day-per-Day Chart.js Visualization**: Interactive time-series stacked bar/line chart (Uncached Input, Cached Input, Output Tokens, Total Calls, Estimated Cost). Selected legend dataset visibilities survive refreshes.
-  - **Average Usage per Day (p.D.) Table**: Displays daily averages across `1d`, `7d`, `30d`, `90d`, and `All`.
   - **Breakdown Tables**: Separate structured tables for Clients / Agents Breakdown and Services Breakdown (`AGENT/SERVICE`, `CALLS P/S`, `TOKEN IN`, `% CACHED`, `TOKEN OUT`, `COST`).
   - **Searchable Models Breakdown Table**: Detailed breakdown by `AGENT:MODEL:SERVICE` (`Calls P/S`, `Cached In`, `Uncached In`, `~ Size`, `% Cache`, `~ Size`, `Output`, `~ Size`, `Total`, `p.TimeT`, `Est.Cost($)`, `Errors P/S`) with sticky column sorting, live search filtering, and per-request median size columns.
 

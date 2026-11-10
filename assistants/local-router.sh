@@ -234,7 +234,6 @@ cmd_install() {
 
     echo "Installing ${SERVICE_NAME} systemd user service..."
 
-    # Resolve source python file location
     # Resolve source python and html file locations
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -468,6 +467,61 @@ cmd_usage() {
     fi
 }
 
+is_router_running() {
+    if is_systemd_running && systemctl --user is-active --quiet "${SERVICE_NAME}.service"; then
+        return 0
+    fi
+    if curl -s -o /dev/null -m 1 "http://${LROUT_HOST}:${LROUT_PORT}/"; then
+        return 0
+    fi
+    if pgrep -u "$(id -u)" -f "uvicorn.*local-router.*--port[ =]${LROUT_PORT}" &>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+cmd_clean_unknown() {
+    load_env
+
+    if is_router_running; then
+        echo "Error: local-router is currently active. Please stop local-router first ('$0 stop') before cleaning unknown records." >&2
+        return 1
+    fi
+
+    if ! command -v sqlite3 &>/dev/null; then
+        echo "Error: sqlite3 command not found. Please install sqlite3." >&2
+        return 1
+    fi
+
+    local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/local-router"
+    local db_path="${state_dir}/local-router-usage.db"
+
+    if [[ ! -f "$db_path" ]]; then
+        echo "Usage database not found at ${db_path}. Nothing to clean."
+        return 0
+    fi
+
+    local count_events_before count_agg_before
+    count_events_before=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM request_events WHERE agent = 'unknown' OR model = 'unknown' OR service = 'unknown';" 2>/dev/null || echo "0")
+    count_agg_before=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM daily_aggregates WHERE agent = 'unknown' OR model = 'unknown' OR service = 'unknown';" 2>/dev/null || echo "0")
+
+    sqlite3 "$db_path" >/dev/null <<EOF
+DELETE FROM request_events
+WHERE agent = 'unknown'
+   OR model = 'unknown'
+   OR service = 'unknown';
+
+DELETE FROM daily_aggregates
+WHERE agent = 'unknown'
+   OR model = 'unknown'
+   OR service = 'unknown';
+
+PRAGMA wal_checkpoint(TRUNCATE);
+EOF
+
+    echo "Cleaned unknown records from ${db_path}: ${count_events_before} request events, ${count_agg_before} daily aggregates removed."
+}
+
 usage() {
     cat <<EOF
 Usage: $0 <command> [args...]
@@ -486,6 +540,7 @@ Commands:
   cat       - Print service file, environment configuration, and transient exec command
   test      - Run validation tests for the combined router
   usage [today|all|7d|30d|90d] - Print a formatted table of token usage (defaults to today)
+  clean-unknown - Purge records with unknown agent, model, or service from the usage database
 EOF
 }
 
@@ -535,6 +590,7 @@ main() {
     cat) cmd_cat ;;
     test) cmd_test "$@" ;;
     usage) cmd_usage "$@" ;;
+    clean-unknown) cmd_clean_unknown ;;
     *)
         echo "Unknown command: $COMMAND"
         usage

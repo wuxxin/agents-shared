@@ -26,6 +26,7 @@ from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
     PlainTextResponse,
+    RedirectResponse,
     StreamingResponse,
 )
 from prometheus_client import (
@@ -36,7 +37,7 @@ from prometheus_client import (
 )
 
 # Global client for connection pooling
-client: httpx.AsyncClient = None  # type: ignore[assignment]
+client: httpx.AsyncClient = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
 # Global model inventory
 model_inventory_list: list[dict] = []
@@ -99,7 +100,7 @@ STATIC_ERRORS_TEMPLATE = {
 usage_data_memory: dict[str, dict[str, dict[str, dict[str, dict[str, Any]]]]] = {}
 last_written_total_tokens: int = 0
 usage_lock = threading.Lock()
-save_task: asyncio.Task = None  # type: ignore[assignment]
+save_task: asyncio.Task = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
 global_active_calls_post: int = 0
 global_active_calls_stream: int = 0
@@ -624,202 +625,6 @@ async def discover_services_background():
         await asyncio.sleep(60.0)
 
 
-# Legacy blocking startup — replaced by discover_services_background() for non-blocking startup.
-# Kept for reference; not called by lifespan().
-async def build_inventory_and_wait():
-    global model_inventory_list, model_to_service
-    import sys
-
-    if LROUT_MOCK_BACKENDS:
-        print("Starting in MOCK BACKENDS mode...")
-        chat_alias = resolve_service_alias("chat") or "qwen3"
-        model_inventory_list = [
-            {
-                "id": chat_alias,
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["chat"],
-            },
-            {
-                "id": f"{chat_alias}-thinking",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["chat"],
-            },
-            {
-                "id": "qwen3",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["chat"],
-            },
-            {
-                "id": "qwen3-thinking",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["chat"],
-            },
-            {
-                "id": "qwen3-embedding",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["embedding"],
-            },
-            {
-                "id": "qwen3-reranker",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["rerank"],
-            },
-            {
-                "id": "whisper-1",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["stt"],
-            },
-            {
-                "id": "qwen3-tts",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["tts"],
-            },
-            {
-                "id": "z-image-turbo",
-                "object": "model",
-                "owned_by": "local-inference",
-                "pricing": PRICING_REGISTRY["image"],
-            },
-        ]
-        model_to_service = {
-            chat_alias: "chat",
-            f"{chat_alias}-thinking": "chat",
-            "qwen3": "chat",
-            "qwen3-thinking": "chat",
-            "qwen3-embedding": "embedding",
-            "qwen3-reranker": "rerank",
-            "whisper-1": "stt",
-            "qwen3-tts": "tts",
-            "z-image-turbo": "image",
-        }
-        return
-
-    enabled_services = get_enabled_services()
-    print(f"Startup synchronization: checking enabled services: {enabled_services}")
-
-    start_time = asyncio.get_event_loop().time()
-    timeout = 60.0
-    poll_interval = 2.0
-
-    while True:
-        config = resolve_config()
-        pending_services = []
-
-        for name, enabled in enabled_services.items():
-            if not enabled:
-                continue
-            # If standalone embedding is disabled, it runs inside chat, so we don't check it separately
-            if name == "embedding" and not enabled_services["embedding"]:
-                continue
-            pending_services.append((name, config[name]))
-
-        # Poll all in parallel
-        poll_tasks = [check_service(name, url) for name, url in pending_services]
-        poll_res = await asyncio.gather(*poll_tasks)
-
-        all_available = True
-        iteration_results = {}
-        for (name, url), res in zip(pending_services, poll_res):
-            if res is None:
-                all_available = False
-                break
-            iteration_results[name] = res
-
-        if all_available:
-            print("All enabled inference services are online and ready!")
-            new_inventory_list = []
-            new_model_to_service = {}
-
-            def add_model(
-                model_id: str,
-                svc_name: str,
-                existing_pricing: dict[str, Any] | None = None,
-            ):
-                if not model_id:
-                    return
-                # Resolve the true service name for the model based on its ID
-                true_svc = resolve_service_from_model_id(model_id, svc_name)
-
-                # Determine pricing
-                pricing = existing_pricing
-                if not pricing:
-                    pricing = PRICING_REGISTRY.get(true_svc)
-
-                # Check for duplicates
-                existing_entry = None
-                for m in new_inventory_list:
-                    if m["id"] == model_id:
-                        existing_entry = m
-                        break
-
-                if existing_entry is not None:
-                    if pricing:
-                        existing_entry["pricing"] = pricing
-                else:
-                    model_entry: dict[str, Any] = {
-                        "id": model_id,
-                        "object": "model",
-                        "owned_by": "local-inference",
-                    }
-                    if pricing:
-                        model_entry["pricing"] = pricing
-                    new_inventory_list.append(model_entry)
-                new_model_to_service[model_id] = true_svc
-
-            # Add dynamically returned models from llama-server backends
-            for name, models in iteration_results.items():
-                for model_data in models:
-                    m_id = model_data.get("id")
-                    if m_id:
-                        add_model(m_id, name, model_data.get("pricing"))
-
-            # Add configured aliases for all active/fallback services
-            for name in ["chat", "embedding", "rerank", "stt", "tts", "image"]:
-                # Embedding is active if either standalone is enabled or if chat is enabled
-                is_active = (
-                    enabled_services["embedding"] if name == "embedding" else enabled_services[name]
-                )
-                if not is_active and name == "embedding" and enabled_services["chat"]:
-                    is_active = True
-
-                if is_active:
-                    alias = resolve_service_alias(name)
-                    if alias:
-                        add_model(alias, name)
-                        if alias == "qwen3":
-                            add_model("qwen3-thinking", name)
-
-            model_inventory_list = new_inventory_list
-            model_to_service = new_model_to_service
-            print(f"Model inventory successfully built: {model_inventory_list}")
-            return
-
-        elapsed = asyncio.get_event_loop().time() - start_time
-        if elapsed >= timeout:
-            failed = [
-                f"{name} ({url})"
-                for (name, url), res in zip(pending_services, poll_res)
-                if res is None
-            ]
-            print(
-                f"CRITICAL: Timeout waiting for inference services to start. "
-                f"Missing services: {', '.join(failed)}. Aborting.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        print(f"Waiting for services to become available... ({int(elapsed)}s elapsed)")
-        await asyncio.sleep(poll_interval)
-
-
 def resolve_target_service(model_name: str) -> str:
     """Resolve the target service name ('chat', 'embedding', etc.) based on the requested model name."""
     if not model_name:
@@ -850,6 +655,19 @@ def resolve_target_service(model_name: str) -> str:
     elif "rerank" in model_name.lower():
         return "rerank"
     return "chat"
+
+
+def resolve_target_service_and_model(model_name: str) -> tuple[str, str]:
+    """Resolve both the target service name and normalized model name."""
+    clean = model_name.strip() if isinstance(model_name, str) else ""
+    if not clean:
+        user_dir = get_systemd_user_dir()
+        router_env = parse_env_file(os.path.join(user_dir, "local-router.env"))
+        default_model = router_env.get("LROUT_DEFAULT_MODEL", "").strip()
+        resolved_model = default_model or resolve_service_alias("chat") or "qwen3"
+    else:
+        resolved_model = clean
+    return resolve_target_service(resolved_model), resolved_model
 
 
 # --- Usage Tracking helper functions ---
@@ -1898,6 +1716,18 @@ async def handle_mock_backend(
         except Exception:
             pass
 
+    if request.url.path in ("/props", "/v1/props"):
+        return JSONResponse(
+            {
+                "default_generation_settings": {"n_ctx": 120192},
+                "model_alias": resolve_service_alias("chat") or "qwen3",
+            }
+        )
+    if request.url.path in ("/tokenize", "/v1/tokenize"):
+        return JSONResponse({"tokens": [1, 2, 3]})
+    if request.url.path in ("/detokenize", "/v1/detokenize"):
+        return JSONResponse({"content": "mock detokenized text"})
+
     if service == "chat":
         if is_streaming:
 
@@ -1990,6 +1820,16 @@ async def process_response_usage(
                 request_prompt = str(req_data["query"])
                 if "documents" in req_data:
                     request_prompt += "\n" + "\n".join(req_data["documents"])
+            elif "content" in req_data:
+                if isinstance(req_data["content"], list):
+                    request_prompt = "\n".join(str(item) for item in req_data["content"])
+                else:
+                    request_prompt = str(req_data["content"])
+            elif "inputs" in req_data:
+                if isinstance(req_data["inputs"], list):
+                    request_prompt = "\n".join(str(item) for item in req_data["inputs"])
+                else:
+                    request_prompt = str(req_data["inputs"])
             estimated_input_tokens = get_token_count(request_prompt)
         except Exception:
             pass
@@ -2178,6 +2018,7 @@ async def proxy_request(
     service: str | None = None,
     model: str | None = None,
     agent: str | None = None,
+    track_usage: bool = True,
 ) -> Response:
     """Asynchronously streams request to target and forwards the response back."""
     body = content if content is not None else await request.body()
@@ -2194,7 +2035,6 @@ async def proxy_request(
         except Exception:
             pass
 
-    _increment_active_call(agent_id, service_id, model_id, is_streaming)
     stream_response_returned = False
     active_decremented = False
 
@@ -2221,6 +2061,9 @@ async def proxy_request(
             headers={"Retry-After": "5"},
         )
 
+    if track_usage:
+        _increment_active_call(agent_id, service_id, model_id, is_streaming)
+
     try:
         if LROUT_MOCK_BACKENDS:
             mock_resp = await handle_mock_backend(service or "", model or "", request, body)
@@ -2230,37 +2073,43 @@ async def proxy_request(
             )
 
             if isinstance(mock_resp, JSONResponse):
-                resp_body = (
-                    mock_resp.body if isinstance(mock_resp.body, bytes) else bytes(mock_resp.body)
-                )
-                elapsed = time.perf_counter() - start_time
-                await process_response_usage(
-                    agent or "unknown",
-                    service or "",
-                    model or "",
-                    is_sse,
-                    resp_body,
-                    body,
-                    is_streaming,
-                    status_code=mock_resp.status_code,
-                    duration=elapsed,
-                )
+                if track_usage:
+                    resp_body = (
+                        mock_resp.body
+                        if isinstance(mock_resp.body, bytes)
+                        else bytes(mock_resp.body)
+                    )
+                    elapsed = time.perf_counter() - start_time
+                    await process_response_usage(
+                        agent or "unknown",
+                        service or "",
+                        model or "",
+                        is_sse,
+                        resp_body,
+                        body,
+                        is_streaming,
+                        status_code=mock_resp.status_code,
+                        duration=elapsed,
+                    )
             elif isinstance(mock_resp, Response) and not isinstance(mock_resp, StreamingResponse):
-                resp_body = (
-                    mock_resp.body if isinstance(mock_resp.body, bytes) else bytes(mock_resp.body)
-                )
-                elapsed = time.perf_counter() - start_time
-                await process_response_usage(
-                    agent or "unknown",
-                    service or "",
-                    model or "",
-                    is_sse,
-                    resp_body,
-                    body,
-                    is_streaming,
-                    status_code=mock_resp.status_code,
-                    duration=elapsed,
-                )
+                if track_usage:
+                    resp_body = (
+                        mock_resp.body
+                        if isinstance(mock_resp.body, bytes)
+                        else bytes(mock_resp.body)
+                    )
+                    elapsed = time.perf_counter() - start_time
+                    await process_response_usage(
+                        agent or "unknown",
+                        service or "",
+                        model or "",
+                        is_sse,
+                        resp_body,
+                        body,
+                        is_streaming,
+                        status_code=mock_resp.status_code,
+                        duration=elapsed,
+                    )
             elif isinstance(mock_resp, StreamingResponse):
                 original_chunks = []
 
@@ -2270,23 +2119,24 @@ async def proxy_request(
                         async for chunk in mock_resp.body_iterator:
                             yield chunk
                             original_chunks.append(chunk)
-                        full_body = b"".join(original_chunks)
-                        elapsed = time.perf_counter() - start_time
-                        await process_response_usage(
-                            agent or "unknown",
-                            service or "",
-                            model or "",
-                            is_sse,
-                            full_body,
-                            body,
-                            is_streaming,
-                            status_code=mock_resp.status_code,
-                            duration=elapsed,
-                        )
+                        if track_usage:
+                            full_body = b"".join(original_chunks)
+                            elapsed = time.perf_counter() - start_time
+                            await process_response_usage(
+                                agent or "unknown",
+                                service or "",
+                                model or "",
+                                is_sse,
+                                full_body,
+                                body,
+                                is_streaming,
+                                status_code=mock_resp.status_code,
+                                duration=elapsed,
+                            )
                     except Exception as e:
                         print(f"Error processing mock usage: {e}", file=sys.stderr)
                     finally:
-                        if not active_decremented:
+                        if track_usage and not active_decremented:
                             _decrement_active_call(agent_id, service_id, model_id, is_streaming)
                             active_decremented = True
 
@@ -2332,25 +2182,26 @@ async def proxy_request(
                         body_accumulator.append(chunk)
                 finally:
                     await response.aclose()
-                    if not active_decremented:
-                        _decrement_active_call(agent_id, service_id, model_id, is_streaming)
-                        active_decremented = True
-                    try:
-                        full_body = b"".join(body_accumulator)
-                        elapsed = time.perf_counter() - start_time
-                        await process_response_usage(
-                            agent or "unknown",
-                            service or "",
-                            model or "",
-                            is_sse,
-                            full_body,
-                            body,
-                            is_streaming,
-                            status_code=response.status_code,
-                            duration=elapsed,
-                        )
-                    except Exception as e:
-                        print(f"Error processing usage: {e}", file=sys.stderr)
+                    if track_usage:
+                        if not active_decremented:
+                            _decrement_active_call(agent_id, service_id, model_id, is_streaming)
+                            active_decremented = True
+                        try:
+                            full_body = b"".join(body_accumulator)
+                            elapsed = time.perf_counter() - start_time
+                            await process_response_usage(
+                                agent or "unknown",
+                                service or "",
+                                model or "",
+                                is_sse,
+                                full_body,
+                                body,
+                                is_streaming,
+                                status_code=response.status_code,
+                                duration=elapsed,
+                            )
+                        except Exception as e:
+                            print(f"Error processing usage: {e}", file=sys.stderr)
 
             # Strip content-length and transfer-encoding headers to let FastAPI handle chunking correctly
             resp_headers = {
@@ -2369,21 +2220,22 @@ async def proxy_request(
 
         except httpx.HTTPStatusError as exc:
             print(f"HTTPStatusError proxying to {target_url}: {exc}", file=sys.stderr)
-            elapsed = time.perf_counter() - start_time
-            try:
-                await process_response_usage(
-                    agent=agent or "unknown",
-                    service=service or "",
-                    model=model or "",
-                    is_sse=False,
-                    response_body=b"",
-                    request_body=body,
-                    is_streaming=is_streaming,
-                    status_code=exc.response.status_code,
-                    duration=elapsed,
-                )
-            except Exception:
-                pass
+            if track_usage:
+                elapsed = time.perf_counter() - start_time
+                try:
+                    await process_response_usage(
+                        agent=agent or "unknown",
+                        service=service or "",
+                        model=model or "",
+                        is_sse=False,
+                        response_body=b"",
+                        request_body=body,
+                        is_streaming=is_streaming,
+                        status_code=exc.response.status_code,
+                        duration=elapsed,
+                    )
+                except Exception:
+                    pass
             return JSONResponse(
                 status_code=exc.response.status_code,
                 content={
@@ -2395,22 +2247,23 @@ async def proxy_request(
             )
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             print(f"ConnectionError proxying to {target_url}: {exc}", file=sys.stderr)
-            elapsed = time.perf_counter() - start_time
-            # Gracefully handle backend downtime
-            try:
-                await process_response_usage(
-                    agent=agent or "unknown",
-                    service=service or "",
-                    model=model or "",
-                    is_sse=False,
-                    response_body=b"",
-                    request_body=body,
-                    is_streaming=is_streaming,
-                    status_code=502,
-                    duration=elapsed,
-                )
-            except Exception:
-                pass
+            if track_usage:
+                elapsed = time.perf_counter() - start_time
+                # Gracefully handle backend downtime
+                try:
+                    await process_response_usage(
+                        agent=agent or "unknown",
+                        service=service or "",
+                        model=model or "",
+                        is_sse=False,
+                        response_body=b"",
+                        request_body=body,
+                        is_streaming=is_streaming,
+                        status_code=502,
+                        duration=elapsed,
+                    )
+                except Exception:
+                    pass
             return JSONResponse(
                 status_code=502,
                 content={
@@ -2426,21 +2279,22 @@ async def proxy_request(
             import traceback
 
             traceback.print_exc(file=sys.stderr)
-            elapsed = time.perf_counter() - start_time
-            try:
-                await process_response_usage(
-                    agent=agent or "unknown",
-                    service=service or "",
-                    model=model or "",
-                    is_sse=False,
-                    response_body=b"",
-                    request_body=body,
-                    is_streaming=is_streaming,
-                    status_code=500,
-                    duration=elapsed,
-                )
-            except Exception:
-                pass
+            if track_usage:
+                elapsed = time.perf_counter() - start_time
+                try:
+                    await process_response_usage(
+                        agent=agent or "unknown",
+                        service=service or "",
+                        model=model or "",
+                        is_sse=False,
+                        response_body=b"",
+                        request_body=body,
+                        is_streaming=is_streaming,
+                        status_code=500,
+                        duration=elapsed,
+                    )
+                except Exception:
+                    pass
             return JSONResponse(
                 status_code=500,
                 content={
@@ -2451,30 +2305,31 @@ async def proxy_request(
                 },
             )
     except asyncio.CancelledError:
-        elapsed = time.perf_counter() - start_time
-        client_cancel_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
-        if is_verbose():
-            print(
-                f"[ROUTER VERBOSE] client='{agent_id}' path='{request.url.path}' service='{service_id}' model='{model_id}' status=499 (CLIENT CANCELED) duration={elapsed:.3f}s",
-                file=sys.stderr,
-            )
-        try:
-            await process_response_usage(
-                agent=agent_id,
-                service=service_id,
-                model=model_id,
-                is_sse=False,
-                response_body=b"",
-                request_body=body,
-                is_streaming=is_streaming,
-                status_code=499,
-                duration=elapsed,
-            )
-        except Exception:
-            pass
+        if track_usage:
+            elapsed = time.perf_counter() - start_time
+            client_cancel_gauge.labels(agent=agent_id, service=service_id, model=model_id).inc()
+            if is_verbose():
+                print(
+                    f"[ROUTER VERBOSE] client='{agent_id}' path='{request.url.path}' service='{service_id}' model='{model_id}' status=499 (CLIENT CANCELED) duration={elapsed:.3f}s",
+                    file=sys.stderr,
+                )
+            try:
+                await process_response_usage(
+                    agent=agent_id,
+                    service=service_id,
+                    model=model_id,
+                    is_sse=False,
+                    response_body=b"",
+                    request_body=body,
+                    is_streaming=is_streaming,
+                    status_code=499,
+                    duration=elapsed,
+                )
+            except Exception:
+                pass
         raise
     finally:
-        if not stream_response_returned and not active_decremented:
+        if track_usage and not stream_response_returned and not active_decremented:
             _decrement_active_call(agent_id, service_id, model_id, is_streaming)
             active_decremented = True
 
@@ -2510,6 +2365,12 @@ async def route_metrics():
             status_code=500,
             media_type="text/plain",
         )
+
+
+@app.api_route("/", methods=["GET", "HEAD"])
+async def route_root():
+    """Redirect root path to the Web Dashboard UI."""
+    return RedirectResponse(url="/ui", status_code=302)
 
 
 @app.get("/routing/ui", response_class=HTMLResponse)
@@ -2815,51 +2676,78 @@ async def route_props(request: Request):
     config = resolve_config()
     agent = extract_request_agent(request)
     path = request.url.path
-    return await proxy_request(f"{config['chat']}{path}", request, agent=agent)
+    return await proxy_request(
+        f"{config['chat']}{path}",
+        request,
+        service="chat",
+        model="props",
+        agent=agent,
+        track_usage=False,
+    )
 
 
 @app.post("/tokenize")
 @app.post("/v1/tokenize")
 async def route_tokenize(request: Request):
     """Routes tokenization requests to the matching model service backend."""
-    body_bytes = None
-    model_name = ""
-    agent = extract_request_agent(request)
+    body_bytes = await request.body()
+    data: dict[str, Any] | None = None
     try:
-        body_bytes = await request.body()
-        body = json.loads(body_bytes)
-        model_name = body.get("model", "")
+        parsed = json.loads(body_bytes)
+        if isinstance(parsed, dict):
+            data = parsed
     except Exception:
         pass
 
+    agent = extract_request_agent(request, data)
+    raw_model = data.get("model") if isinstance(data, dict) else None
+    model_name = raw_model.strip() if isinstance(raw_model, str) else ""
+
     config = resolve_config()
-    target_svc = resolve_target_service(model_name)
+    target_svc, resolved_model = resolve_target_service_and_model(model_name)
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(f"{target_url}{path}", request, content=body_bytes, agent=agent)
+    return await proxy_request(
+        f"{target_url}{path}",
+        request,
+        content=body_bytes,
+        service=target_svc,
+        model=resolved_model,
+        agent=agent,
+    )
 
 
 @app.post("/detokenize")
 @app.post("/v1/detokenize")
 async def route_detokenize(request: Request):
     """Routes detokenization requests to the matching model service backend."""
-    body_bytes = None
-    model_name = ""
-    agent = extract_request_agent(request)
+    body_bytes = await request.body()
+    data: dict[str, Any] | None = None
     try:
-        body_bytes = await request.body()
-        body = json.loads(body_bytes)
-        model_name = body.get("model", "")
+        parsed = json.loads(body_bytes)
+        if isinstance(parsed, dict):
+            data = parsed
     except Exception:
         pass
 
+    agent = extract_request_agent(request, data)
+    raw_model = data.get("model") if isinstance(data, dict) else None
+    model_name = raw_model.strip() if isinstance(raw_model, str) else ""
+
     config = resolve_config()
-    target_svc = resolve_target_service(model_name)
+    target_svc, resolved_model = resolve_target_service_and_model(model_name)
     target_url = config.get(target_svc, config["chat"])
 
     path = request.url.path
-    return await proxy_request(f"{target_url}{path}", request, content=body_bytes, agent=agent)
+    return await proxy_request(
+        f"{target_url}{path}",
+        request,
+        content=body_bytes,
+        service=target_svc,
+        model=resolved_model,
+        agent=agent,
+    )
 
 
 @app.get("/health")

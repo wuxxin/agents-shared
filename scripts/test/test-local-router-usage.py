@@ -3,23 +3,28 @@
 
 import datetime
 import importlib.util
-import json
 import os
 import shutil
+import sqlite3
+import subprocess
 import sys
 import tempfile
 
+from fastapi.testclient import TestClient
+
 # Override environment BEFORE importing local-router to isolate systemd directories
 temp_config_dir = tempfile.mkdtemp()
+temp_state_dir = tempfile.mkdtemp()
 os.environ["XDG_CONFIG_HOME"] = temp_config_dir
+os.environ["XDG_STATE_HOME"] = temp_state_dir
 os.environ["LROUT_MOCK_BACKENDS"] = "1"
-
+os.makedirs(os.path.join(temp_config_dir, "systemd", "user"), exist_ok=True)
+with open(os.path.join(temp_config_dir, "systemd", "user", "local-router.env"), "w") as f:
+    f.write("LROUT_PORT=21099\nLROUT_HOST=127.0.0.1\n")
 # Add current directory to python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(script_dir)
 
-# Import test client and router app
-from fastapi.testclient import TestClient
 
 # Load hyphenated module using importlib
 spec = importlib.util.spec_from_file_location(
@@ -31,12 +36,15 @@ sys.modules["local_router"] = local_router
 assert spec.loader is not None
 spec.loader.exec_module(local_router)
 
-from local_router import (  # type: ignore[import-not-found]
+from local_router import (  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]  # noqa: E402
     _decrement_active_call,
     _increment_active_call,
     app,
     check_and_save_usage,
+    get_db_connection,
     get_usage_file_path,
+    load_usage_data,
+    resolve_service_alias,
 )
 
 
@@ -66,6 +74,24 @@ def run_tests():
         assert resp_ui2.status_code == 200
         assert "Local Inference Router Dashboard" in resp_ui2.text
         print("UI endpoints (/routing/ui, /ui): OK")
+
+        # 1c. Verify root / redirects to /ui for both GET and HEAD
+        print("Testing root / redirect to /ui...")
+        resp_root_get = client.get("/", follow_redirects=False)
+        assert resp_root_get.status_code == 302, (
+            f"Expected 302 for GET /, got {resp_root_get.status_code}"
+        )
+        assert resp_root_get.headers.get("location") == "/ui", (
+            f"Expected location '/ui', got {resp_root_get.headers.get('location')}"
+        )
+        resp_root_head = client.head("/", follow_redirects=False)
+        assert resp_root_head.status_code == 302, (
+            f"Expected 302 for HEAD /, got {resp_root_head.status_code}"
+        )
+        assert resp_root_head.headers.get("location") == "/ui", (
+            f"Expected location '/ui', got {resp_root_head.headers.get('location')}"
+        )
+        print("Root redirect (GET/HEAD / -> /ui): OK")
 
         # 2. Simulate Chat completion from Hermes Agent
         print("Testing Chat completions (Hermes Agent)...")
@@ -211,6 +237,16 @@ def run_tests():
         assert resp.status_code == 200
         print("Chat Zed auto-mapping: OK")
 
+        # 8e. Simulate /props and /v1/props capability checks (excluded from usage)
+        print("Testing /props and /v1/props exclusion from usage...")
+        headers_omp = {"x-client-id": "oh-my-pi"}
+        resp_props = client.get("/props", headers=headers_omp)
+        assert resp_props.status_code == 200
+        assert "default_generation_settings" in resp_props.json()
+        resp_v1_props = client.get("/v1/props", headers=headers_omp)
+        assert resp_v1_props.status_code == 200
+        print("Props endpoints (/props, /v1/props): OK")
+
         # Give database background writes a small yield
         check_and_save_usage(force=True)
 
@@ -222,9 +258,7 @@ def run_tests():
 
         # Validate totals block
         totals = usage_res.get("totals", {})
-        assert totals.get("calls", 0) == 10, (
-            f"Expected 10 calls, got {totals.get('calls')}"
-        )
+        assert totals.get("calls", 0) == 10, f"Expected 10 calls, got {totals.get('calls')}"
         assert totals.get("streaming_calls", 0) == 2, (
             f"Expected 2 streaming calls, got {totals.get('streaming_calls')}"
         )
@@ -240,6 +274,11 @@ def run_tests():
         chat_model_key = "hermes:qwen3:chat"
         models_dict = usage_res.get("models", {})
         assert chat_model_key in models_dict, f"Missing key {chat_model_key} in models"
+        for model_key in models_dict:
+            _ag, m_name, svc_name = model_key.split(":", 2)
+            assert svc_name != "unknown", f"Unexpected service='unknown' key in /usage: {model_key}"
+            assert m_name != "unknown", f"Unexpected model='unknown' key in /usage: {model_key}"
+            assert m_name != "props", f"Unexpected model='props' key in /usage: {model_key}"
         chat_stats = models_dict[chat_model_key]
         assert chat_stats.get("calls", 0) == 2
         # Mock responses return prompt=100, completion=50, cached=20
@@ -257,6 +296,7 @@ def run_tests():
         assert "curl" in agents_dict
         assert "zed" in agents_dict
         assert "unknown" in agents_dict
+        assert "oh-my-pi" not in agents_dict, "oh-my-pi /props probe should not appear in /usage"
 
         assert agents_dict["hermes"]["calls"] == 5  # 2 chat + 1 img + 2 errors
         assert agents_dict["hindsight"]["calls"] == 2  # 1 embed + 1 rerank
@@ -283,6 +323,7 @@ def run_tests():
         assert "calls_active_post" in totals
         assert "calls_active_stream" in totals
         assert "calls_active" in totals
+        assert totals["calls_active"] == 0, f"Expected 0 active calls, got {totals['calls_active']}"
 
         # Verify cost calculations are populated
         costs = chat_stats.get("costs", {})
@@ -321,37 +362,171 @@ def run_tests():
         assert 'agent="unknown"' in metrics_text
         assert 'service="chat"' in metrics_text
         assert 'model="qwen3"' in metrics_text
+        assert 'service="unknown"' not in metrics_text
+        assert 'model="props"' not in metrics_text
         print("Prometheus metrics endpoint: OK")
 
-    # 11. Verify usage.json serialization to disk on shutdown
-    print("Testing usage serialization to disk...")
-    usage_file = get_usage_file_path()
-    assert os.path.exists(usage_file), f"Usage file {usage_file} was not written"
+        # 10b. Verify /tokenize and /detokenize resolve service and model cleanly
+        print("Testing /tokenize and /detokenize service/model attribution...")
+        default_chat_model = resolve_service_alias("chat") or "qwen3"
+        resp_tok_default = client.post(
+            "/tokenize",
+            json={"content": "Hello tokenization world"},
+            headers=headers_hermes,
+        )
+        assert resp_tok_default.status_code == 200
+        assert resp_tok_default.json() == {"tokens": [1, 2, 3]}
 
-    with open(usage_file, "r") as f:
-        saved_data = json.load(f)
-        assert isinstance(saved_data, list)
-        assert len(saved_data) == 1
-        today = datetime.date.today().isoformat()
-        assert saved_data[0].get("date") == today
-        day_usage = saved_data[0].get("usage", {})
-        assert "hermes" in day_usage
-        assert "hindsight" in day_usage
-        assert "chat" in day_usage["hermes"]
-        assert "qwen3" in day_usage["hermes"]["chat"]
-        assert day_usage["hermes"]["chat"]["qwen3"]["calls"] == 2
-        assert day_usage["hermes"]["chat"]["qwen3"]["streaming_calls"] == 1
-        assert day_usage["hermes"]["chat"]["qwen3"]["calls_post"] == 1
-        assert "duration_post" in day_usage["hermes"]["chat"]["qwen3"]
-        assert "duration_streaming" in day_usage["hermes"]["chat"]["qwen3"]
-        assert day_usage["hermes"]["chat"]["qwen3"]["duration_post"] >= 0.0
-        assert day_usage["hermes"]["chat"]["qwen3"]["duration_streaming"] >= 0.0
-    print("Serialization verify: OK")
+        resp_tok_embed = client.post(
+            "/v1/tokenize",
+            json={"model": "qwen3-embedding", "inputs": ["hello", "embedding"]},
+            headers=headers_hindsight,
+        )
+        assert resp_tok_embed.status_code == 200
+        assert resp_tok_embed.json() == {"tokens": [1, 2, 3]}
+
+        resp_detok = client.post(
+            "/detokenize",
+            json={"tokens": [1, 2, 3]},
+            headers=headers_hermes,
+        )
+        assert resp_detok.status_code == 200
+        assert resp_detok.json() == {"content": "mock detokenized text"}
+
+        check_and_save_usage(force=True)
+        tok_usage = client.get("/usage?range=all").json()
+        assert tok_usage["totals"]["calls"] == 13, (
+            f"Expected 13 calls after tokenize/detokenize, got {tok_usage['totals']['calls']}"
+        )
+        tok_models = tok_usage["models"]
+        default_chat_key = f"hermes:{default_chat_model}:chat"
+        assert default_chat_key in tok_models, f"Missing {default_chat_key} in {tok_models.keys()}"
+        expected_default_calls = 4 if default_chat_model == "qwen3" else 2
+        assert tok_models[default_chat_key]["calls"] == expected_default_calls
+        assert tok_models[default_chat_key]["input"] > 0
+        assert "hindsight:qwen3-embedding:embedding" in tok_models
+        assert tok_models["hindsight:qwen3-embedding:embedding"]["calls"] == 2
+        assert not any(
+            key.split(":", 2)[1] == "unknown" or key.split(":", 2)[2] == "unknown"
+            for key in tok_models
+        ), f"Found unexpected unknown model/service in {list(tok_models.keys())}"
+        print("Tokenize/detokenize attribution: OK")
+
+    # 11. Verify SQLite usage persistence on disk
+    print("Testing SQLite usage persistence on disk...")
+    usage_file = get_usage_file_path()
+    assert os.path.exists(usage_file), f"Usage DB {usage_file} was not written"
+
+    today = datetime.date.today().isoformat()
+    with sqlite3.connect(usage_file) as db:
+        row = db.execute(
+            """
+            SELECT calls, streaming_calls, calls_post, duration_post, duration_streaming
+            FROM daily_aggregates
+            WHERE date = ? AND agent = 'hermes' AND service = 'chat' AND model = 'qwen3'
+            """,
+            (today,),
+        ).fetchone()
+        assert row is not None, "Missing hermes/chat/qwen3 row in daily_aggregates"
+        assert row[0] == 2, f"Expected calls == 2, got {row[0]}"
+        assert row[1] == 1, f"Expected streaming_calls == 1, got {row[1]}"
+        assert row[2] == 1, f"Expected calls_post == 1, got {row[2]}"
+        assert row[3] >= 0.0, f"Expected duration_post >= 0.0, got {row[3]}"
+        assert row[4] >= 0.0, f"Expected duration_streaming >= 0.0, got {row[4]}"
+    print("SQLite persistence verify: OK")
+
+    # 12. Verify normal operation does NOT delete records, while clean-unknown purges them
+    print(
+        "Testing that normal operation preserves records and local-router.sh clean-unknown purges unknown rows..."
+    )
+    conn = get_db_connection()
+    bad_rows = [
+        ("oh-my-pi", "unknown", "unknown"),
+        ("unknown", "chat", "qwen3"),
+        ("hermes", "chat", "unknown"),
+    ]
+    for bad_agent, bad_service, bad_model in bad_rows:
+        conn.execute(
+            """
+            INSERT INTO request_events (
+                timestamp, date, agent, service, model,
+                uncached_input, cached_input, cached_write, output,
+                is_streaming, status_code, duration
+            ) VALUES (1.0, ?, ?, ?, ?, 0, 0, 0, 0, 0, 200, 0.01)
+            """,
+            (today, bad_agent, bad_service, bad_model),
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO daily_aggregates (
+                date, agent, service, model,
+                calls, streaming_calls, calls_post,
+                uncached_input, cached_input, cached_write, output,
+                duration_post, duration_streaming,
+                errors_streaming_json, errors_post_json
+            ) VALUES (?, ?, ?, ?, 3, 0, 3, 0, 0, 0, 0, 0.03, 0.0, '{}', '{}')
+            """,
+            (today, bad_agent, bad_service, bad_model),
+        )
+    conn.commit()
+
+    # Normal operation (load_usage_data) MUST NOT delete records
+    load_usage_data()
+    bad_events_count_before = conn.execute(
+        "SELECT COUNT(*) FROM request_events WHERE agent = 'unknown' OR model = 'unknown' OR service = 'unknown'"
+    ).fetchone()[0]
+    bad_agg_count_before = conn.execute(
+        "SELECT COUNT(*) FROM daily_aggregates WHERE agent = 'unknown' OR model = 'unknown' OR service = 'unknown'"
+    ).fetchone()[0]
+    assert bad_events_count_before >= 3, (
+        f"Expected at least 3 unknown request_events preserved by load_usage_data, got {bad_events_count_before}"
+    )
+    assert bad_agg_count_before >= 3, (
+        f"Expected at least 3 unknown daily_aggregates preserved by load_usage_data, got {bad_agg_count_before}"
+    )
+
+    # local-router.sh clean-unknown purges all unknown rows via sqlite3
+    router_sh = os.path.join(script_dir, "..", "..", "assistants", "local-router.sh")
+    res = subprocess.run([router_sh, "clean-unknown"], capture_output=True, text=True)
+    assert res.returncode == 0, f"local-router.sh clean-unknown failed: {res.stderr}\n{res.stdout}"
+    assert "Cleaned unknown records" in res.stdout, f"Unexpected output: {res.stdout}"
+
+    bad_events_count_after = conn.execute(
+        "SELECT COUNT(*) FROM request_events WHERE agent = 'unknown' OR model = 'unknown' OR service = 'unknown'"
+    ).fetchone()[0]
+    bad_agg_count_after = conn.execute(
+        "SELECT COUNT(*) FROM daily_aggregates WHERE agent = 'unknown' OR model = 'unknown' OR service = 'unknown'"
+    ).fetchone()[0]
+    assert bad_events_count_after == 0, (
+        f"Expected 0 unknown request_events, got {bad_events_count_after}"
+    )
+    assert bad_agg_count_after == 0, (
+        f"Expected 0 unknown daily_aggregates, got {bad_agg_count_after}"
+    )
+
+    kept_row = conn.execute(
+        "SELECT calls FROM daily_aggregates WHERE date = ? AND agent = 'hermes' AND service = 'chat' AND model = 'qwen3'",
+        (today,),
+    ).fetchone()
+    assert kept_row is not None and kept_row[0] == 2, (
+        f"Expected hermes:qwen3:chat calls=2, got {kept_row}"
+    )
+
+    load_usage_data()
+    with TestClient(app) as client_after_purge:
+        purged_usage = client_after_purge.get("/usage?range=all").json()
+        purged_models = purged_usage.get("models", {})
+        assert "hermes:qwen3:chat" in purged_models
+        assert purged_models["hermes:qwen3:chat"]["calls"] == 2
+        assert not any("unknown" in key.split(":", 2) for key in purged_models), (
+            f"Found unknown entries in /usage after clean-unknown: {list(purged_models.keys())}"
+        )
+    print("Record preservation & local-router.sh clean-unknown verify: OK")
     print("\nALL TESTS PASSED SUCCESSFULLY! ✅")
-    os._exit(0)
 
 
 if __name__ == "__main__":
+    exit_code = 0
     try:
         run_tests()
     except AssertionError as ae:
@@ -359,8 +534,11 @@ if __name__ == "__main__":
         import traceback
 
         traceback.print_exc()
-        os._exit(1)
+        exit_code = 1
     finally:
         # Clean up temporary folders
         if os.path.exists(temp_config_dir):
-            shutil.rmtree(temp_config_dir)
+            shutil.rmtree(temp_config_dir, ignore_errors=True)
+        if os.path.exists(temp_state_dir):
+            shutil.rmtree(temp_state_dir, ignore_errors=True)
+    os._exit(exit_code)

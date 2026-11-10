@@ -520,12 +520,12 @@
         </div>
       </div>
       <div class="controls-bar">
-        <div class="range-selector">
-          <button class="btn-range" onclick="setRange('1d')">1D</button>
-          <button class="btn-range active" onclick="setRange('7d')">7D</button>
-          <button class="btn-range" onclick="setRange('30d')">30D</button>
-          <button class="btn-range" onclick="setRange('90d')">90D</button>
-          <button class="btn-range" onclick="setRange('all')">All</button>
+        <div class="range-selector" id="timeRangeSelector">
+          <button class="btn-range" data-range="1d" onclick="setRange('1d')">1D</button>
+          <button class="btn-range" data-range="7d" onclick="setRange('7d')">7D</button>
+          <button class="btn-range" data-range="30d" onclick="setRange('30d')">30D</button>
+          <button class="btn-range" data-range="90d" onclick="setRange('90d')">90D</button>
+          <button class="btn-range" data-range="all" onclick="setRange('all')">All</button>
         </div>
         <div class="control-group">
           <span>Theme:</span>
@@ -603,8 +603,8 @@
     <div class="chart-container">
       <div class="chart-header">
         <div class="section-title" style="margin: 0;">Day-per-Day Usage Visualization</div>
-        <div class="range-selector">
-          <button class="btn-range active" id="btnChartTokens" onclick="setChartMetric('tokens')">Tokens & Calls</button>
+        <div class="range-selector" id="chartMetricSelector">
+          <button class="btn-range" id="btnChartTokens" onclick="setChartMetric('tokens')">Tokens & Calls</button>
           <button class="btn-range" id="btnChartCost" onclick="setChartMetric('cost')">Cost ($ USD)</button>
         </div>
       </div>
@@ -709,8 +709,17 @@
   </div>
 
   <script>
-    let currentRange = localStorage.getItem('router_ui_range') || '7d';
-    let chartMetric = localStorage.getItem('router_ui_chart_metric') || 'tokens';
+    const VALID_RANGES = ['1d', '7d', '30d', '90d', 'all'];
+    function normalizeRange(range) {
+      if (typeof range !== 'string') return '7d';
+      const normalized = range.trim().toLowerCase() === 'today' ? '1d' : range.trim().toLowerCase();
+      return VALID_RANGES.includes(normalized) ? normalized : '7d';
+    }
+    function normalizeChartMetric(metric) {
+      return typeof metric === 'string' && metric.trim().toLowerCase() === 'cost' ? 'cost' : 'tokens';
+    }
+    let currentRange = normalizeRange(localStorage.getItem('router_ui_range'));
+    let chartMetric = normalizeChartMetric(localStorage.getItem('router_ui_chart_metric'));
     let chartInstance = null;
     let timerId = null;
     let cachedUsageData = null;
@@ -786,23 +795,28 @@
       if (currentTheme === 'system') applyTheme();
     });
 
-    function setRange(range) {
-      currentRange = range;
-      localStorage.setItem('router_ui_range', range);
-      document.querySelectorAll('.range-selector button').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.innerText.toLowerCase() === range.toLowerCase()) {
-          btn.classList.add('active');
-        }
+    function syncRangeUI() {
+      document.querySelectorAll('#timeRangeSelector .btn-range').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.range === currentRange);
       });
+    }
+
+    function syncChartMetricUI() {
+      document.getElementById('btnChartTokens').classList.toggle('active', chartMetric === 'tokens');
+      document.getElementById('btnChartCost').classList.toggle('active', chartMetric === 'cost');
+    }
+
+    function setRange(range) {
+      currentRange = normalizeRange(range);
+      localStorage.setItem('router_ui_range', currentRange);
+      syncRangeUI();
       fetchData();
     }
 
     function setChartMetric(metric) {
-      chartMetric = metric;
-      localStorage.setItem('router_ui_chart_metric', metric);
-      document.getElementById('btnChartTokens').classList.toggle('active', metric === 'tokens');
-      document.getElementById('btnChartCost').classList.toggle('active', metric === 'cost');
+      chartMetric = normalizeChartMetric(metric);
+      localStorage.setItem('router_ui_chart_metric', chartMetric);
+      syncChartMetricUI();
       if (cachedUsageData) {
         renderChart(cachedUsageData.daily || {});
       }
@@ -822,13 +836,6 @@
         const data = await fetch(`${origin}/usage?range=${currentRange}`).then(r => r.json());
         cachedUsageData = data;
 
-        const [r1d, r7d, r30d, r90d, rAll] = await Promise.all([
-          fetch(`${origin}/usage?range=1d`).then(r => r.json()),
-          fetch(`${origin}/usage?range=7d`).then(r => r.json()),
-          fetch(`${origin}/usage?range=30d`).then(r => r.json()),
-          fetch(`${origin}/usage?range=90d`).then(r => r.json()),
-          fetch(`${origin}/usage?range=all`).then(r => r.json())
-        ]);
 
         renderKPIs(data.totals || {});
         renderChart(data.daily || {});
@@ -912,66 +919,6 @@
       document.getElementById('kpiErrorsSub').innerText = `Post: ${shortNum(postErr)} | Stream: ${shortNum(strErr)} | Client Cancel p: ${shortNum(cancelPost)} / s: ${shortNum(cancelStream)}`;
     }
 
-    function calcPD(data, daysCount) {
-      const totals = data.totals || {};
-      const actualDays = Math.max(1, daysCount);
-      const totalIn = (totals.input || 0) + (totals.cached_input || 0);
-      const rs = totals.req_stats || {};
-      const totalInStats = rs.total_input || rs.input || {};
-      const cachedInStats = rs.cached_input || rs.input_read || {};
-      const outputStats = rs.output || {};
-      return {
-        callsPost: Math.round((totals.calls_post || 0) / actualDays),
-        callsStream: Math.round((totals.streaming_calls || 0) / actualDays),
-        input: Math.round(totalIn / actualDays),
-        inSize: shortNum(totalInStats.median || 0),
-        inMax: shortNum(totalInStats.max || 0),
-        cachePct: (totals.cache_pct || 0).toFixed(2),
-        cInSize: shortNum(cachedInStats.median || 0),
-        cInMax: shortNum(cachedInStats.max || 0),
-        output: Math.round((totals.output || 0) / actualDays),
-        outSize: shortNum(outputStats.median || 0),
-        outMax: shortNum(outputStats.max || 0),
-        time: ((totals.total_duration || 0) / 60.0 / actualDays).toFixed(2),
-        cost: ((totals.costs?.total_cost || 0) / actualDays).toFixed(4)
-      };
-    }
-
-    function renderDailyAverages(r1d, r7d, r30d, r90d, rAll) {
-      const tbody = document.getElementById('pdTableBody');
-      tbody.innerHTML = '';
-
-      const allDays = Math.max(1, Object.keys(rAll.daily || {}).length || 1);
-      const rowsConfig = [
-        { label: '1d', data: r1d, days: 1 },
-        { label: '7d', data: r7d, days: 7 },
-        { label: '30d', data: r30d, days: 30 },
-        { label: '90d', data: r90d, days: 90 },
-        { label: 'All', data: rAll, days: allDays }
-      ];
-
-      rowsConfig.forEach(cfg => {
-        const pd = calcPD(cfg.data, cfg.days);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="text-cell" style="color: var(--accent-cyan);">${cfg.label}</td>
-          <td class="num-col">${fmtNum(pd.callsPost)}</td>
-          <td class="num-col">${fmtNum(pd.callsStream)}</td>
-          <td class="num-col">${fmtNum(pd.input)}</td>
-          <td class="num-col">${pd.inSize}</td>
-          <td class="num-col">${pd.inMax}</td>
-          <td class="num-col" style="color: var(--accent-green);">${pd.cachePct}%</td>
-          <td class="num-col">${pd.cInSize}</td>
-          <td class="num-col">${pd.cInMax}</td>
-          <td class="num-col">${fmtNum(pd.output)}</td>
-          <td class="num-col">${pd.outSize}</td>
-          <td class="num-col">${pd.outMax}</td>
-          <td class="num-col">${pd.time}</td>
-          <td class="num-col" style="color: var(--accent-cyan);">$${pd.cost}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
 
     function handleLegendClick(e, legendItem, legend) {
       const index = legendItem.datasetIndex;
@@ -1363,6 +1310,8 @@
 
     // Initial setup
     applyTheme();
+    syncRangeUI();
+    syncChartMetricUI();
     fetchData();
     updateRefreshTimer();
   </script>
