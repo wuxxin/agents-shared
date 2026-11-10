@@ -30,7 +30,7 @@
   ```bash
   ruff check scripts/*.py scripts/test/*.py
   ruff format scripts/*.py scripts/test/*.py
-  mypy scripts/*.py scripts/test/*.py
+  ty check scripts/*.py scripts/test/*.py
   pytest tests/test_file.py::test_function -v
 
   # Benchmarks & Activity Updates
