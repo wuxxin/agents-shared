@@ -11,6 +11,7 @@ DEFAULT_LAUNCHER_ENGINE="auto"
 DEFAULT_DISABLE_XDG_RUNTIME="false"
 DEFAULT_DISABLE_SSH_AUTH="false"
 DEFAULT_DISABLE_WAYLAND="false"
+DEFAULT_DISABLE_X11="false"
 DEFAULT_DISABLE_AUDIO="false"
 DEFAULT_DISABLE_DBUS="false"
 DEFAULT_DISABLE_SYSTEMD="true"
@@ -39,6 +40,7 @@ DEFAULT_LAUNCHER_UNINSTALL_CMDS=""
 
 # Service & Sidecar Default Constants
 DEFAULT_LAUNCHER_SERVICE_ENABLED="false"
+DEFAULT_LAUNCHER_SERVICE_GUI="false"
 DEFAULT_LAUNCHER_SERVICE_CMD="sleep"
 DEFAULT_LAUNCHER_SERVICE_ARGS="10"
 DEFAULT_LAUNCHER_SIDECARS="sleep"
@@ -293,6 +295,8 @@ find_ssh_agent_socket() {
 build_sandbox_config() {
     local target_mode="$1" # "systemd" or "bwrap"
     local target_cwd="${2:-$HOME}"
+    local static_service="${_LAUNCHER_STATIC_SERVICE:-false}"
+    local service_gui="${LAUNCHER_SERVICE_GUI:-$DEFAULT_LAUNCHER_SERVICE_GUI}"
     local allow_kvm="${_LAUNCHER_ALLOW_KVM:-false}"
     local allow_all_access="${_LAUNCHER_ALL_ACCESS:-false}"
     local sandbox_name="${_LAUNCHER_SANDBOX_NAME:-$app_name}"
@@ -308,6 +312,11 @@ build_sandbox_config() {
     local disable_xdg_runtime="${DISABLE_XDG_RUNTIME:-$DEFAULT_DISABLE_XDG_RUNTIME}"
     local disable_ssh_auth="${DISABLE_SSH_AUTH:-$DEFAULT_DISABLE_SSH_AUTH}"
     local disable_wayland="${DISABLE_WAYLAND:-$DEFAULT_DISABLE_WAYLAND}"
+    local disable_x11="${DISABLE_X11:-$DEFAULT_DISABLE_X11}"
+    if [[ "$static_service" == "true" && "$service_gui" != "true" && "$service_gui" != "1" ]]; then
+        disable_wayland="true"
+        disable_x11="true"
+    fi
     local disable_audio="${DISABLE_AUDIO:-$DEFAULT_DISABLE_AUDIO}"
     local disable_dbus="${DISABLE_DBUS:-$DEFAULT_DISABLE_DBUS}"
     local disable_systemd="${DISABLE_SYSTEMD:-$DEFAULT_DISABLE_SYSTEMD}"
@@ -326,9 +335,13 @@ build_sandbox_config() {
     # Determine DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR, SSH_AUTH_SOCK
     local display="${DISPLAY:-}"
     local xauthority="${XAUTHORITY:-}"
-    local xdg_runtime_dir="${XDG_RUNTIME_DIR:-}"
+    local xauth_is_xwayland="false"
+    if [[ -n "$xauthority" && "$xauthority" == */.mutter-Xwaylandauth* ]]; then
+        xauth_is_xwayland="true"
+    fi
     local host_run_user
     host_run_user="/run/user/$(id -u)"
+    local xdg_runtime_dir="${XDG_RUNTIME_DIR:-$host_run_user}"
     local ssh_auth_sock="${SSH_AUTH_SOCK:-}"
     if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" ]]; then
         if [[ -z "$ssh_auth_sock" || ! -S "$ssh_auth_sock" ]]; then
@@ -428,14 +441,28 @@ build_sandbox_config() {
         echo "UMask=0077"
         echo "LimitSTACK=infinity"
         echo "TasksMax=infinity"
-        # GUI display environment variables
-        if [[ -n "$display" ]]; then
-            echo "Environment=DISPLAY=$display"
-        fi
-        if [[ -n "$xauthority" && -f "$xauthority" ]]; then
-            echo "Environment=XAUTHORITY=$xauthority"
-            echo "BindReadOnlyPaths=$xauthority:$xauthority"
-            echo "BindReadOnlyPaths=/tmp/.X11-unix:/tmp/.X11-unix"
+        # GUI display environment variables (X11 / Xwayland)
+        local allow_xauth="false"
+        if [[ "$disable_x11" != "true" && "$disable_x11" != "1" ]]; then
+            if [[ -n "$display" ]]; then
+                echo "Environment=DISPLAY=$display"
+            fi
+            if [[ -n "$xauthority" && -f "$xauthority" ]]; then
+                if [[ "$xauth_is_xwayland" == "true" ]]; then
+                    if [[ "$static_service" != "true" && "$disable_wayland" != "true" && "$disable_wayland" != "1" && "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" ]]; then
+                        allow_xauth="true"
+                    fi
+                else
+                    allow_xauth="true"
+                fi
+            fi
+            if [[ "$allow_xauth" == "true" ]]; then
+                echo "Environment=XAUTHORITY=$xauthority"
+                echo "BindReadOnlyPaths=-$xauthority:$xauthority"
+            fi
+            if [[ -n "$display" || "$allow_xauth" == "true" ]]; then
+                echo "BindReadOnlyPaths=-/tmp/.X11-unix:/tmp/.X11-unix"
+            fi
         fi
 
         # Wayland, Audio, DBus (selective runtime mounting or full runtime under --all-access)
@@ -455,53 +482,57 @@ build_sandbox_config() {
             # Wayland
             if [[ "$disable_wayland" != "true" && "$disable_wayland" != "1" ]]; then
                 local wl_display="${WAYLAND_DISPLAY:-wayland-0}"
-                if [[ -e "$xdg_runtime_dir/$wl_display" ]]; then
-                    echo "BindPaths=$xdg_runtime_dir/$wl_display:$xdg_runtime_dir/$wl_display"
+                if [[ -e "$xdg_runtime_dir/$wl_display" || "$static_service" == "true" ]]; then
+                    echo "BindPaths=-$xdg_runtime_dir/$wl_display:$xdg_runtime_dir/$wl_display"
                 fi
-                if [[ -e "$xdg_runtime_dir/${wl_display}.lock" ]]; then
-                    echo "BindPaths=$xdg_runtime_dir/${wl_display}.lock:$xdg_runtime_dir/${wl_display}.lock"
+                if [[ -e "$xdg_runtime_dir/${wl_display}.lock" || "$static_service" == "true" ]]; then
+                    echo "BindPaths=-$xdg_runtime_dir/${wl_display}.lock:$xdg_runtime_dir/${wl_display}.lock"
                 fi
-                # Include Xwayland/Mutter auth files
-                local old_nullglob
-                old_nullglob=$(shopt -p nullglob || true)
-                shopt -s nullglob
-                for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
-                    echo "BindPaths=$auth_file:$auth_file"
-                done
-                eval "$old_nullglob"
+                # Include Xwayland/Mutter auth files only for transient GUI runs (ephemeral random suffix breaks static units)
+                if [[ "$static_service" != "true" && "$disable_x11" != "true" && "$disable_x11" != "1" ]]; then
+                    local old_nullglob
+                    old_nullglob=$(shopt -p nullglob || true)
+                    shopt -s nullglob
+                    for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
+                        if [[ "$auth_file" != "$xauthority" || "$allow_xauth" != "true" ]]; then
+                            echo "BindPaths=-$auth_file:$auth_file"
+                        fi
+                    done
+                    eval "$old_nullglob"
+                fi
             fi
 
             # Audio (Pipewire / PulseAudio)
             if [[ "$disable_audio" != "true" && "$disable_audio" != "1" ]]; then
                 for item in pipewire-0 pipewire-0.lock pipewire-0-manager pipewire-0-manager.lock pulse; do
-                    if [[ -e "$xdg_runtime_dir/$item" ]]; then
-                        echo "BindPaths=$xdg_runtime_dir/$item:$xdg_runtime_dir/$item"
+                    if [[ -e "$xdg_runtime_dir/$item" || "$static_service" == "true" ]]; then
+                        echo "BindPaths=-$xdg_runtime_dir/$item:$xdg_runtime_dir/$item"
                     fi
                 done
-                if [[ -d "/run/user/$(id -u)/pulse" ]]; then
-                    echo "BindPaths=/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse"
+                if [[ "$host_run_user" != "$xdg_runtime_dir" && -d "$host_run_user/pulse" ]]; then
+                    echo "BindPaths=-$host_run_user/pulse:$host_run_user/pulse"
                 fi
             fi
 
             # DBus
             if [[ "$disable_dbus" != "true" && "$disable_dbus" != "1" ]]; then
-                if [[ -e "$xdg_runtime_dir/bus" ]]; then
-                    echo "BindPaths=$xdg_runtime_dir/bus:$xdg_runtime_dir/bus"
+                if [[ -e "$xdg_runtime_dir/bus" || "$static_service" == "true" ]]; then
+                    echo "BindPaths=-$xdg_runtime_dir/bus:$xdg_runtime_dir/bus"
                 fi
-                if [[ "$disable_systemd" != "true" && "$disable_systemd" != "1" && -d "$xdg_runtime_dir/systemd" ]]; then
-                    echo "BindPaths=$xdg_runtime_dir/systemd:$xdg_runtime_dir/systemd"
+                if [[ "$disable_systemd" != "true" && "$disable_systemd" != "1" && (-d "$xdg_runtime_dir/systemd" || "$static_service" == "true") ]]; then
+                    echo "BindPaths=-$xdg_runtime_dir/systemd:$xdg_runtime_dir/systemd"
                 fi
             fi
         fi
         # System D-Bus socket for privilege escalation / systemd-run
         if [[ "$disable_dbus" != "true" && "$disable_dbus" != "1" && -e "/run/dbus/system_bus_socket" ]]; then
-            echo "BindPaths=/run/dbus/system_bus_socket:/run/dbus/system_bus_socket"
+            echo "BindPaths=-/run/dbus/system_bus_socket:/run/dbus/system_bus_socket"
         fi
         # Podman socket forwarding
         if [[ "$disable_user_podman" != "true" && "$disable_user_podman" != "1" ]]; then
             local host_podman_sock="$host_run_user/podman/podman.sock"
-            if [[ -S "$host_podman_sock" || -e "$host_podman_sock" ]]; then
-                echo "BindPaths=$host_podman_sock:$host_podman_sock"
+            if [[ -S "$host_podman_sock" || -e "$host_podman_sock" || "$static_service" == "true" ]]; then
+                echo "BindPaths=-$host_podman_sock:$host_podman_sock"
                 echo "Environment=CONTAINER_HOST=unix://$host_podman_sock"
             fi
         fi
@@ -509,7 +540,7 @@ build_sandbox_config() {
         # SSH agent forwarding
         if [[ "$disable_ssh_auth" != "true" && "$disable_ssh_auth" != "1" && -n "$ssh_auth_sock" && -S "$ssh_auth_sock" ]]; then
             echo "Environment=SSH_AUTH_SOCK=$ssh_auth_sock"
-            echo "BindPaths=$ssh_auth_sock:$ssh_auth_sock"
+            echo "BindPaths=-$ssh_auth_sock:$ssh_auth_sock"
         fi
 
         # KeePassXC BrowserServer socket forwarding
@@ -517,9 +548,9 @@ build_sandbox_config() {
             if [[ -n "$kpxc_browser_sock" ]]; then
                 echo "Environment=KEEPASSXC_BROWSER_SOCKET_PATH=$kpxc_browser_sock"
                 if [[ "$allow_all_access" != "true" ]]; then
-                    echo "BindPaths=$kpxc_browser_sock:$kpxc_browser_sock"
+                    echo "BindPaths=-$kpxc_browser_sock:$kpxc_browser_sock"
                     if [[ -n "$kpxc_symlink_sock" && "$kpxc_symlink_sock" != "$kpxc_browser_sock" ]]; then
-                        echo "BindPaths=$kpxc_symlink_sock:$kpxc_symlink_sock"
+                        echo "BindPaths=-$kpxc_symlink_sock:$kpxc_symlink_sock"
                     fi
                 fi
             fi
@@ -708,22 +739,36 @@ build_sandbox_config() {
         # Net is shared
         echo "--share-net"
 
-        # GUI displays
-        if [[ -n "$display" ]]; then
-            echo "--setenv"
-            echo "DISPLAY"
-            echo "$display"
-        fi
-        if [[ -n "$xauthority" && -f "$xauthority" ]]; then
-            echo "--setenv"
-            echo "XAUTHORITY"
-            echo "$xauthority"
-            echo "--ro-bind"
-            echo "$xauthority"
-            echo "$xauthority"
-            echo "--ro-bind"
-            echo "/tmp/.X11-unix"
-            echo "/tmp/.X11-unix"
+        # GUI displays (X11 / Xwayland)
+        local allow_xauth="false"
+        if [[ "$disable_x11" != "true" && "$disable_x11" != "1" ]]; then
+            if [[ -n "$display" ]]; then
+                echo "--setenv"
+                echo "DISPLAY"
+                echo "$display"
+            fi
+            if [[ -n "$xauthority" && -f "$xauthority" ]]; then
+                if [[ "$xauth_is_xwayland" == "true" ]]; then
+                    if [[ "$disable_wayland" != "true" && "$disable_wayland" != "1" && "$disable_xdg_runtime" != "true" && "$disable_xdg_runtime" != "1" ]]; then
+                        allow_xauth="true"
+                    fi
+                else
+                    allow_xauth="true"
+                fi
+            fi
+            if [[ "$allow_xauth" == "true" ]]; then
+                echo "--setenv"
+                echo "XAUTHORITY"
+                echo "$xauthority"
+                echo "--ro-bind"
+                echo "$xauthority"
+                echo "$xauthority"
+            fi
+            if [[ (-n "$display" || "$allow_xauth" == "true") && -d "/tmp/.X11-unix" ]]; then
+                echo "--ro-bind-try"
+                echo "/tmp/.X11-unix"
+                echo "/tmp/.X11-unix"
+            fi
         fi
 
         # Wayland, Audio, DBus (selective runtime mounting or full runtime under --all-access)
@@ -762,15 +807,19 @@ build_sandbox_config() {
                     echo "$xdg_runtime_dir/${wl_display}.lock"
                     echo "$xdg_runtime_dir/${wl_display}.lock"
                 fi
-                local old_nullglob
-                old_nullglob=$(shopt -p nullglob || true)
-                shopt -s nullglob
-                for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
-                    echo "--bind"
-                    echo "$auth_file"
-                    echo "$auth_file"
-                done
-                eval "$old_nullglob"
+                if [[ "$disable_x11" != "true" && "$disable_x11" != "1" ]]; then
+                    local old_nullglob
+                    old_nullglob=$(shopt -p nullglob || true)
+                    shopt -s nullglob
+                    for auth_file in "$xdg_runtime_dir"/.mutter-Xwaylandauth*; do
+                        if [[ "$auth_file" != "$xauthority" || "$allow_xauth" != "true" ]]; then
+                            echo "--bind"
+                            echo "$auth_file"
+                            echo "$auth_file"
+                        fi
+                    done
+                    eval "$old_nullglob"
+                fi
             fi
 
             # Audio
@@ -782,10 +831,10 @@ build_sandbox_config() {
                         echo "$xdg_runtime_dir/$item"
                     fi
                 done
-                if [[ -d "/run/user/$(id -u)/pulse" ]]; then
+                if [[ "$host_run_user" != "$xdg_runtime_dir" && -d "$host_run_user/pulse" ]]; then
                     echo "--bind"
-                    echo "/run/user/$(id -u)/pulse"
-                    echo "/run/user/$(id -u)/pulse"
+                    echo "$host_run_user/pulse"
+                    echo "$host_run_user/pulse"
                 fi
             fi
 
@@ -1319,6 +1368,7 @@ cmd_install() {
 # DISABLE_XDG_RUNTIME="${DEFAULT_DISABLE_XDG_RUNTIME}"   # Disable XDG runtime directory (Wayland, DBus, audio)
 # DISABLE_SSH_AUTH="${DEFAULT_DISABLE_SSH_AUTH}"      # Disable SSH agent forwarding
 # DISABLE_WAYLAND="${DEFAULT_DISABLE_WAYLAND}"       # Disable Wayland display access
+# DISABLE_X11="${DEFAULT_DISABLE_X11}"           # Disable X11/Xwayland display access
 # DISABLE_AUDIO="${DEFAULT_DISABLE_AUDIO}"         # Disable audio playback/recording
 # DISABLE_DBUS="${DEFAULT_DISABLE_DBUS}"          # Disable DBus session bus communication
 # DISABLE_SYSTEMD="${DEFAULT_DISABLE_SYSTEMD}"       # Disable systemd user manager socket communication (auto-disabled if DBus disabled)
@@ -1355,6 +1405,7 @@ cmd_install() {
 # LAUNCHER_SERVICE_CMD="bash"
 # LAUNCHER_SERVICE_ARGS='-c "export; exec sleep infinity"'
 LAUNCHER_SERVICE_ENABLED="${DEFAULT_LAUNCHER_SERVICE_ENABLED}"
+# LAUNCHER_SERVICE_GUI="${DEFAULT_LAUNCHER_SERVICE_GUI}" # Set to true to pass fixed Wayland/X11 sockets to the systemd service
 LAUNCHER_SERVICE_CMD="${DEFAULT_LAUNCHER_SERVICE_CMD}"
 LAUNCHER_SERVICE_ARGS="${DEFAULT_LAUNCHER_SERVICE_ARGS}"
 LAUNCHER_SIDECARS="${DEFAULT_LAUNCHER_SIDECARS}"
@@ -1536,7 +1587,7 @@ write_service_file() {
         if [[ -n "$prop" ]]; then
             sandbox_props="$sandbox_props"$'\n'"$prop"
         fi
-    done < <(build_sandbox_config systemd "$target_cwd")
+    done < <(_LAUNCHER_STATIC_SERVICE="true" build_sandbox_config systemd "$target_cwd")
 
     cat >"$SERVICE_FILE" <<EOF
 [Unit]
@@ -2275,6 +2326,7 @@ main() {
             export _LAUNCHER_ALLOW_KVM
             if [[ "$gui_enabled" == "true" ]]; then
                 export DISABLE_WAYLAND="false"
+                export DISABLE_X11="false"
                 export DISABLE_AUDIO="false"
                 export DISABLE_HARDWARE="false"
                 export DISABLE_IPC_SHARE="false"
@@ -2354,6 +2406,7 @@ main() {
             ;;
         guishell)
             export DISABLE_WAYLAND="false"
+            export DISABLE_X11="false"
             export DISABLE_AUDIO="false"
             export DISABLE_HARDWARE="false"
             export DISABLE_IPC_SHARE="false"

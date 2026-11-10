@@ -177,9 +177,8 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
   | All-Access + GUI + Sudo | `hotshell --all-access --gui --sudo <app>` | `<app_name> 🚨🎨⚡` |
 - **`--gui` Option (Opt-in Wayland & Desktop Integration)**:
   - **Syntax**: `sandbox-ctl hotshell --gui <app_name> [args...]`
-  - **Behavior**: Activates Wayland display socket forwarding (`$WAYLAND_DISPLAY`), audio (Pipewire/PulseAudio), DRI/GPU acceleration device nodes, and shared IPC inside the shell. If an X11 `DISPLAY` is detected, runs `xhost +si:localuser:root` so root-escalated GUI applications can render to the host Xwayland display.
-  - **Security Model**: By default, `hotshell` keeps Wayland and GPU access disabled to preserve isolation of clipboard, input buffers, and graphical IPC unless `--gui` is explicitly requested. Note that Polkit authentication prompts are rendered directly on the host by GNOME Shell and **do not require `--gui`**.
-- **`--sudo` / `--admin` Option (Interactive Desktop Privilege Escalation)**:
+  - **Behavior**: Activates Wayland and X11/Xwayland display forwarding (`$WAYLAND_DISPLAY`, `$DISPLAY`, `$XAUTHORITY`), audio (Pipewire/PulseAudio), DRI/GPU acceleration device nodes, and shared IPC inside the shell. If an X11 `DISPLAY` is detected, runs `xhost +si:localuser:root` so root-escalated GUI applications can render to the host Xwayland display.
+  - **Security Model**: By default, `hotshell` keeps Wayland, X11, and GPU access disabled to preserve isolation of clipboard, input buffers, and graphical IPC unless `--gui` is explicitly requested. Note that Polkit authentication prompts are rendered directly on the host by GNOME Shell and **do not require `--gui`**.
   - **Syntax**: `sandbox-ctl hotshell --sudo <app_name> [args...]`
   - **Behavior**: Enables host privilege escalation within the container session (`SANDBOX_SUDO_ENABLED="true"`). Commands executed via `sudo` or `pkexec` inside the sandbox communicate with host PID 1 via the System D-Bus socket (`/run/dbus/system_bus_socket`), triggering the native GNOME Shell modal password dialog on your desktop.
   - **Safety**: Privilege escalation fails closed with an explanatory error unless `--sudo` or `--admin` is specified at session startup.
@@ -193,8 +192,7 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
 ### `guishell`
 
 Spawns an interactive shell configured for graphical and hardware-accelerated applications:
-- **Display & Audio Overrides**: Automatically forces `DISABLE_WAYLAND="false"`, `DISABLE_AUDIO="false"`, `DISABLE_HARDWARE="false"`, `DISABLE_IPC_SHARE="false"`, `DISABLE_XDG_RUNTIME="false"`, and `DISABLE_DBUS="false"`.
-- **GPU & USB Hardware Access**: Unshares device isolation (`PrivateDevices=no` in systemd, `--dev-bind /dev /dev` in Bubblewrap) and IPC namespace sharing for DRI/GPU rendering and USB device communication.
+- **Display & Audio Overrides**: Automatically forces `DISABLE_WAYLAND="false"`, `DISABLE_X11="false"`, `DISABLE_AUDIO="false"`, `DISABLE_HARDWARE="false"`, `DISABLE_IPC_SHARE="false"`, `DISABLE_XDG_RUNTIME="false"`, and `DISABLE_DBUS="false"`.
 - **Indicator**: Sets `SANDBOX_NAME="<app_name> 🎨"`.
 
 ### `sudo` & `pkexec` (Desktop GUI Privilege Escalation)
@@ -308,6 +306,9 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 - **`DISABLE_WAYLAND`** (Default: `"false"`)
   Disables forwarding Wayland compositor sockets.
 
+- **`DISABLE_X11`** (Default: `"false"`)
+  Disables forwarding X11/Xwayland display variables (`DISPLAY`, `XAUTHORITY`), `/tmp/.X11-unix`, and Mutter Xwayland auth files.
+
 - **`DISABLE_AUDIO`** (Default: `"false"`)
   Disables forwarding PulseAudio/Pipewire sockets.
 
@@ -352,6 +353,9 @@ Sourcing this file automatically loads and exports variables into the sandbox en
 
 - **`LAUNCHER_SERVICE_ENABLED`** (Default: `"false"`)
   Enables background systemd user service.
+
+- **`LAUNCHER_SERVICE_GUI`** (Default: `"false"`)
+  Set to `"true"` to allow fixed Wayland/X11 socket forwarding (`wayland-0`, `/tmp/.X11-unix`, `DISPLAY`) in the generated background systemd service unit. Ephemeral per-session `.mutter-Xwaylandauth.*` files are never embedded in static `.service` files.
 
 - **`LAUNCHER_SERVICE_CMD`** (Default: `"sleep"`), **`LAUNCHER_SERVICE_ARGS`** (Default: `"10"`)
   The main background service command and arguments.
