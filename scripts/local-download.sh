@@ -70,6 +70,18 @@ Examples:
 EOF
 }
 
+ensure_real_dir() {
+    local dir="$1"
+    if [[ -L "$dir" ]]; then
+        local resolved
+        resolved="$(readlink -f "$dir" || true)"
+        if [[ -z "$resolved" || ! -d "$resolved" || ! -w "$resolved" ]]; then
+            rm -f "$dir"
+        fi
+    fi
+    mkdir -p "$dir"
+}
+
 acquire_file() {
     local _cache_subpath="$1"
     local download_url="$2"
@@ -77,12 +89,17 @@ acquire_file() {
     local target_subdir
     target_subdir="$(dirname "$target_path")"
 
-    mkdir -p "$target_subdir"
+    ensure_real_dir "$target_subdir"
 
-    # Skip if exists and is non-empty
+    # Skip if exists and is non-empty (follows valid symlinks)
     if [[ -s "$target_path" ]]; then
         echo "File already exists and is non-empty: $target_path (Skipping)"
         return 0
+    fi
+
+    # Never write through a dangling or empty symlink
+    if [[ -L "$target_path" ]]; then
+        rm -f "$target_path"
     fi
 
     # Download from URL
@@ -111,7 +128,8 @@ acquire_file() {
             local hf_args=("$repo_id" "$filename" "--type" "$repo_type" "--revision" "$revision" "--local-dir" "$temp_dir")
 
             if hf download "${hf_args[@]}"; then
-                mv "${temp_dir}/${filename}" "$target_path"
+                rm -f "$target_path"
+                mv -f "${temp_dir}/${filename}" "$target_path"
                 rm -rf "$temp_dir"
                 echo "Successfully downloaded $filename."
                 return 0
@@ -127,18 +145,22 @@ acquire_file() {
 
     # Fallback to curl (for non-HF URLs or when hf tool is absent)
     echo "Downloading via curl..."
-    local curl_args=("-L" "--fail" "-o" "$target_path")
+    local temp_dl
+    temp_dl="$(mktemp -p "$target_subdir" ".curl_tmp_XXXXXX")"
+    local curl_args=("-L" "--fail" "-o" "$temp_dl")
     if [[ -n "${HF_TOKEN:-}" && "$download_url" =~ (huggingface\.co|hf\.co) ]]; then
         curl_args+=("-H" "Authorization: Bearer $HF_TOKEN")
     elif [[ -n "${HUGGING_FACE_HUB_TOKEN:-}" && "$download_url" =~ (huggingface\.co|hf\.co) ]]; then
         curl_args+=("-H" "Authorization: Bearer $HUGGING_FACE_HUB_TOKEN")
     fi
     if curl "${curl_args[@]}" "$download_url"; then
+        rm -f "$target_path"
+        mv -f "$temp_dl" "$target_path"
         echo "Successfully downloaded via curl."
         return 0
     else
         echo "Error: Failed to download $download_url" >&2
-        rm -f "$target_path"
+        rm -f "$temp_dl"
         return 1
     fi
 }
@@ -191,8 +213,8 @@ convert_and_quantize_reranker() {
     fi
 
     echo "Quantizing F16 GGUF to Q4_K_M..."
+    rm -f "$target_path"
     if ! llama-quantize "$temp_f16_gguf" "$target_path" Q4_K_M; then
-        echo "Error: Quantization to Q4_K_M failed." >&2
         rm -f "$target_path"
         return 1
     fi
@@ -451,6 +473,7 @@ main() {
             echo "Merged MTP model already exists: $mtp_target_path (Skipping)"
         else
             echo "Building merged MTP model: $mtp_target_path..."
+            rm -f "$mtp_target_path"
             python3 "$(dirname "$0")/download-helper.py" merge-mtp \
                 "${target_dir}/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact.gguf" \
                 "${target_dir}/vision-text/Qwen3.6-35B-A3B-MTP-ONLY.gguf" \
@@ -847,7 +870,7 @@ snapshot_download(
     if [[ "$download_projections" == true || "$download_strata_aux" == true ]]; then
         echo "=== Acquiring Strata Control Vectors & Projections ==="
         local proj_dir="${target_dir}/strata/projections"
-        mkdir -p "$proj_dir"
+        ensure_real_dir "$proj_dir"
 
         # 8a. Cudecnik Qwen3.8-Flash-Next refusal projection (480 KB unit vector)
         acquire_file \
@@ -876,7 +899,7 @@ snapshot_download(
             "https://huggingface.co/msuiche/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47/resolve/main/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" \
             "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" || true
         if [[ -f "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" ]]; then
-            ln -sf "Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47.gguf"
+            ln -sfn "Qwen3.8-Flash-Next-abliterated-cyber-GLP-47-L1-47-a1.gguf" "${proj_dir}/Qwen3.8-Flash-Next-abliterated-cyber-GLP-47.gguf"
         fi
 
         acquire_file \
@@ -884,7 +907,7 @@ snapshot_download(
             "https://huggingface.co/msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75/resolve/main/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" \
             "${proj_dir}/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" || true
         if [[ -f "${proj_dir}/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" ]]; then
-            ln -sf "glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" "${proj_dir}/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75.gguf"
+            ln -sfn "glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf" "${proj_dir}/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75.gguf"
         fi
 
         acquire_file \
@@ -892,7 +915,7 @@ snapshot_download(
             "https://huggingface.co/msuiche/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29/resolve/main/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" \
             "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" || true
         if [[ -f "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" ]]; then
-            ln -sf "DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29.gguf"
+            ln -sfn "DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29-L10-38-a4.gguf" "${proj_dir}/DeepSeek-V4-Flash-0731-abliterated-cyber-GLP-29.gguf"
         fi
     fi
 
@@ -903,7 +926,7 @@ snapshot_download(
     # 9a. Strata Big Model Shards (~84 GB)
     if [[ "$download_strata_shards" == true ]]; then
         echo "=== Acquiring Strata Swift 1.5 Qwen3.8-Flash-Next Model Shards ==="
-        mkdir -p "${strata_dir}/models/swift-IQ3_S"
+        ensure_real_dir "${strata_dir}/models/swift-IQ3_S"
 
         # Shard 1 (Dense + Experts ~55 GB)
         acquire_file \
@@ -921,7 +944,10 @@ snapshot_download(
     # 9b. Strata Auxiliary Files & Runtimes
     if [[ "$download_strata_aux" == true ]]; then
         echo "=== Acquiring Strata Auxiliary Files & Runtimes ==="
-        mkdir -p "${strata_dir}/models" "${strata_dir}/mtp" "${strata_dir}/packs" "${strata_dir}/dspark"
+        ensure_real_dir "${strata_dir}/models"
+        ensure_real_dir "${strata_dir}/mtp"
+        ensure_real_dir "${strata_dir}/packs"
+        ensure_real_dir "${strata_dir}/dspark"
 
         # Vision Projector (BF16)
         acquire_file \
@@ -958,7 +984,7 @@ snapshot_download(
         local mtp_rt_dir="${strata_dir}/mtp/rt"
         if [[ -s "$mtp_gguf" && ! -s "${mtp_rt_dir}/experts.bin" ]]; then
             echo "=== Preparing Strata MTP Runtime via mtp_rt.py ==="
-            mkdir -p "$mtp_rt_dir"
+            ensure_real_dir "$mtp_rt_dir"
             local mtp_rt_tool="${STRATA_TOOLS_DIR:-/usr/share/strata/tools}/mtp_rt.py"
             if [[ -f "$mtp_rt_tool" ]]; then
                 python3 "$mtp_rt_tool" --gguf "$mtp_gguf" --out "$mtp_rt_dir"
@@ -971,15 +997,15 @@ snapshot_download(
         local draft_vocab_src="${STRATA_DATA_DIR:-/usr/share/strata/data}/draft_vocab.bin"
         if [[ -f "$draft_vocab_src" && ! -s "${mtp_rt_dir}/draft_vocab.bin" ]]; then
             echo "=== Copying MTP draft vocabulary subset ==="
-            mkdir -p "$mtp_rt_dir"
-            cp "$draft_vocab_src" "${mtp_rt_dir}/draft_vocab.bin"
+            ensure_real_dir "$mtp_rt_dir"
+            cp --remove-destination "$draft_vocab_src" "${mtp_rt_dir}/draft_vocab.bin"
         fi
 
         # Strata Native Pack Preparation (if Shard 1 is present)
         local shard1_path="${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
         if [[ -s "$shard1_path" && ! -s "${pack_dir}/native_experts.txt" ]]; then
             echo "=== Preparing Strata Native Pack via iq_pack.py ==="
-            mkdir -p "$pack_dir"
+            ensure_real_dir "$pack_dir"
             local iq_pack_tool="${STRATA_TOOLS_DIR:-/usr/share/strata/tools}/iq_pack.py"
             if [[ -f "$iq_pack_tool" ]]; then
                 python3 "$iq_pack_tool" --gguf "$shard1_path" --out "$pack_dir"
@@ -995,7 +1021,7 @@ snapshot_download(
 
         if [[ -d "$raw_tok_dir" && -f "${raw_tok_dir}/vocab.json" && -f "$template_src" ]]; then
             echo "=== Assembling Strata Custom Tokenizer Runtime ==="
-            mkdir -p "$custom_tok_dir"
+            ensure_real_dir "$custom_tok_dir"
             for f in vocab.json merges.txt tokenizer.json token_type.json tokenizer_config.json; do
                 if [[ -f "${raw_tok_dir}/$f" ]]; then
                     ln -sfn "../tokenizer/$f" "${custom_tok_dir}/$f"
@@ -1014,7 +1040,7 @@ snapshot_download(
     if [[ "$download_dspark" == true && "$download_strata_aux" == false ]]; then
         echo "=== Acquiring Qwen3.8-Flash-Next DSpark Speculative Drafter ==="
         local dspark_dir="${strata_dir}/dspark"
-        mkdir -p "$dspark_dir"
+        ensure_real_dir "$dspark_dir"
 
         acquire_file \
             "strata/swift15_iq3s/dspark/model.safetensors" \

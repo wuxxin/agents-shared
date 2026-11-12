@@ -109,7 +109,7 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_ESP_SCALE` | `1.0` | Projection scaling factor ($\alpha$) |
 | `LCHAT_STRATA_ESP_LAYERS` | `"4 44"` | Layer range for projective steering |
 | `LCHAT_STRATA_MAX_CONTEXT` | `240384` | Maximum context window in tokens (240k) |
-| `LCHAT_STRATA_PREFILL` | `"auto"` | Dynamic prefill chunk sizing |
+| `LCHAT_STRATA_PREFILL` | `"24576"` | Prefill chunk size (24,576 tokens = single-pass ingestion for $\le 24\text{k}$ prompts) |
 | `LCHAT_STRATA_TEMPERATURE` | `0.6` | Deterministic agentic sampling temperature |
 | `LCHAT_STRATA_REPEAT_PENALTY` | `1.1` | Repetition penalty preventing CoT reasoning loops |
 | `LCHAT_STRATA_TOP_P` | `0.95` | Top-p nucleus sampling |
@@ -117,20 +117,26 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_PCIE_FRAC` | `0.20` | Calibrated PCIe bandwidth fractional allocation |
 | `LCHAT_STRATA_EXPERT_RAM_BUDGET` | `42000` | Host RAM budget for experts in MiB (~41 GiB) |
 | `LCHAT_STRATA_PROMPT_CACHE` | `6` | Number of concurrent prompt cache slots (sized for multi-agent workflows) |
-| `LCHAT_STRATA_CONV_CACHE_SLOTS` | `6` | Conversation cache slots (1 main + 2 subagents + side context) |
-| `LCHAT_STRATA_CONV_CACHE_MIB` | `24576` | Conversation cache size in MiB (24 GiB host DDR5 memory) |
-| `LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB` | `2048` | Minimum free headroom for conversation cache |
+| `LCHAT_STRATA_CONV_CACHE_SLOTS` | `8` | Conversation cache slots (1 main + 4 subagents + LifeOS + spares) |
+| `LCHAT_STRATA_CONV_CACHE_MIB` | `16384` | Conversation cache budget in MiB (16 GiB host RAM; safe under 117.76 GiB `MemTotal`) |
+| `LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB` | `6144` | Minimum free RAM floor (6 GiB) preventing ZRAM thrashing / OOM storms |
+| `LCHAT_STRATA_CONV_CACHE_MIN_TOKENS` | `4096` | Minimum prompt tokens before parking (keeps Pulse/hook calls out of slots) |
+| `LCHAT_STRATA_CONV_CACHE_PARK_GAIN` | `2048` | Minimum token advance before re-snapshotting a parked conversation |
+| `LCHAT_STRATA_DRAFTING` | `"mtp"` | Pinned speculative drafter (`mtp` matches Swift-1.5; overrides auto-switch) |
 | `LCHAT_STRATA_SPEC` | `4` | Speculative draft token step count |
-| `LCHAT_STRATA_SPEC_MIN_P` | `0.60` | Speculative acceptance probability threshold (tuned for RDNA3 MTP) |
+| `LCHAT_STRATA_SPEC_MIN_P` | `0.58` | Speculative acceptance probability threshold (paired with `STRATA_SPEC_COST=1`) |
 | `LCHAT_STRATA_SUFFIX_DRAFT` | `3` | Suffix draft length |
+| `LCHAT_STRATA_LOOKUP_CHAIN` | `2` | Chained n-gram lookup drafts appended after MTP proposals |
 | `LCHAT_STRATA_ADAPT_ASYNC` | `1` | Asynchronous expert swapping |
 | `LCHAT_STRATA_ADAPT_EVERY` | `1` | Adaptive step interval |
 | `LCHAT_STRATA_ADAPT_SWAPS` | `160` | Calibrated parallel swap channels for host-to-device transfers (+22% tok/s) |
 | `LCHAT_STRATA_ADAPT_DECAY` | `0.97` | Adaptive decay rate |
 | `LCHAT_STRATA_KV` | `"k8v4"` | Quantization format for Key-Value cache |
-| `LCHAT_STRATA_KV_RESIDENT` | `32768` | VRAM resident KV cache token capacity |
+| `LCHAT_STRATA_KV_GROW` | `true` | Elastic HIP VMM KV growth (starts at 16,384 cells, eliminates 2.19 GiB pinned KV RAM) |
+| `LCHAT_STRATA_KV_RESIDENT` | `0` | Fixed VRAM resident KV cells (only used when `LCHAT_STRATA_KV_GROW=false`) |
+| `LCHAT_STRATA_SLOT_SAVE_PATH` | `$HOME/.cache/user-cache` | Tier-3 NVMe `O_DIRECT` session save/restore directory (`rpool/data/user-cache`) |
 | `LCHAT_STRATA_EXPERT_CACHE` | `"auto"` | Expert cache policy |
-| `LCHAT_STRATA_VRAM_RESERVE_MIB` | `512` | VRAM reserve in MiB (512 guarantees 636 MiB safe headroom, preventing MTP OOM) |
+| `LCHAT_STRATA_VRAM_RESERVE_MIB` | `576` | VRAM reserve in MiB (leaves ~670 MiB at start, $\ge 530$ MiB after graph capture) |
 | `LCHAT_STRATA_PLE_IO` | `"ram"` | PLE n-gram table storage tier |
 | `LCHAT_STRATA_SPEED` | `"faster"` | Engine execution speed optimization tier |
 | `LCHAT_STRATA_VISION` | `true` | Enable multimodal image reasoning via `strata-vision-hip` |
@@ -140,7 +146,6 @@ Configuration is managed strictly through environment variables without requirin
 | `LCHAT_STRATA_TOKENIZER_DIR` | `.../swift15_iq3s/tok_runtime` | Pre-assembled tokenizer runtime directory pointing to `packs/swift-iq3_s/tokenizer-custom` with modified thinking-enabled `chat_template.jinja` |
 | `LCHAT_STRATA_CHAT_TEMPLATE_KWARGS` | `'{"enable_thinking": true}'` | Template parsing arguments enabling reasoning |
 | `LCHAT_STRATA_EXTRA_ARGS` | `""` | Extra arguments passed directly to `server.py` |
-
 ---
 
 ## Model Downloads & Auxiliary Preparation (`local-download.sh`)
@@ -180,16 +185,18 @@ The launcher script sets low-level kernel optimizations specifically tuned for N
 - `STRATA_PF_HC_REGION=1`: Places hyper-connection scratch memory into the shared attention/MoE region.
 - `STRATA_PLE_COMPACT=1` & `STRATA_PLE_COPY_STREAM=1`: 7x compressed raw IQ4_NL PLE transfer over dedicated async DMA stream overlapping Layer 0 compute.
 - `STRATA_PREFILL_WARM=1`: Pre-warms hipBLAS BF16 and FP16 libraries at startup, eliminating cold-prompt load delays.
-- `STRATA_PREFILL_AUTO_MAX=16384`: Allows prompt chunking up to 16,384 tokens to amortize dispatch overheads.
-- `STRATA_HIPBLASLT_TUNING`: Tuned GEMM shapes from `/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt` (exact match for runtime version 100202).
-- `HSA_USERPTR_FOR_PAGED_MEM=0`: Bypasses HSA user pointer paged memory faults.
+- `STRATA_PREFILL_AUTO_MAX=24576`, `STRATA_PREFILL_RING=512`, `STRATA_PREFILL_ROUTED_STREAM=1`, `STRATA_EMB_REUSE_ACCOUNT=1`: Single-pass $\le 24\text{k}$ chunking, 512-slot PCIe staging ring (preventing `HIP_WMMA` from dropping to 96 slots), and pre-copy unrouted expert pruning.
+- `STRATA_GDN_HEAD=1`, `STRATA_GDN_PP=2`, `STRATA_GDN_CONVL2=2`, `STRATA_GDN_NOY=1`: RDNA3 GDN recurrence, 2-column quad pass, single-pass conv+SiLU+L2 norm, and dead store elimination.
+- `STRATA_HIP_WMMA=1`, `STRATA_PA_FAST=1`, `STRATA_SELECT_WMMA=1`, `STRATA_PF_F16=1`, `STRATA_PF_DM16=1`: RDNA3 matrix-core QSA attention/block-scorer and F16 matrix-core MoE kernels with FP16 combine rows.
+- `STRATA_Q8_PACKED=1`, `STRATA_MMVF_ROWS=1`, `STRATA_ATTN_LANECELL=1`, `STRATA_ATTN_MERGE_V2=1`, `STRATA_EXPERT_V2=1`, `STRATA_TSUM=1`, `STRATA_LFUSE=1`, `STRATA_GDN_SPLIT=1`, `STRATA_QFUSE=1`, `STRATA_PLE_BATCH=1`, `STRATA_SMALL_UNR=3`, `STRATA_GR_Q32_G=2`, `STRATA_GR_Q8_PFS=1`, `STRATA_HEAD_MIX_MULTI=1`, `STRATA_FUSE_HITS=1`, `STRATA_FUSE_WAIT=1`, `STRATA_VERIFY_QDEDUP=1`, `STRATA_SPEC_COST=1`, `STRATA_FUSE_HEAD_GR=1`, `STRATA_NORM_ROPE=1`: Opt-in gfx1100 decode kernel fusions, grouped IQ3_S/IQ4_NL experts, and cost-aware speculative verification.
+- `STRATA_HIPBLASLT_TUNING`: Points to the 48-row `gfx1100` `hipBLASLt 100202` table generated at `~/.local/state/strata/local-chat-strata-hipblaslt.txt` (covers `T=4096, 8192, 16384` across all `bf16` and `f16` model shapes).
+- `HSA_USERPTR_FOR_PAGED_MEM=1`: Enables ROCm HSA userptr paged memory mapping (verified stable and +10% faster on kernel `7.2.14` + ROCm `7.2.4`).
 - `STRATA_ROUTE_TAIL_SKIP=7`: Skips tail routing computations in MoE layers.
 - `STRATA_MEMORY_LIMIT_MIB=0`: Unlimited system memory allocation.
 - `STRATA_RESIDENT_HEADROOM_GIB=0`: Zero artificial headroom caps, maximizing contiguous allocations.
 - `STRATA_SH_STREAM=0`: Shared expert execution on main stream (+1 tok/s speedup).
 - `PYTHONUNBUFFERED=1` & `STRATA_REQUEST_LINES=1`: Direct unbuffered journal logging.
-- `STRATA_ARENA_RELEASE=0`: Retains all VRAM-held experts in host DDR5 memory permanently, eliminating SSD re-reads on evictions.
-
+- `STRATA_ARENA_RELEASE=0`: Retains all VRAM-held experts in host DDR4-2666 ECC memory permanently, eliminating SSD re-reads on evictions.
 ---
 
 ## Coordinator Integration (`local-inference.sh`)

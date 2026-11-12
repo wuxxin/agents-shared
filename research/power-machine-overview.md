@@ -1,7 +1,7 @@
 # Host `power` — Strata & Local Inference Architecture Overview
 
 **Host:** `power` (`Gigabyte B550 AORUS ELITE AX V2`, BIOS `F19d`, Manjaro Linux `7.2.14-1-MANJARO`)  
-**Updated:** 2026-11-12  
+**Updated:** 2026-11-12 (Session 4 Tuning: Tiered Memory, NVMe KV Offload & RDNA3 `gfx1100` Round 2)  
 **Related Docs:** [`strata-tuning.md`](./strata-tuning.md) | [`strata-machine-crashes.md`](./strata-machine-crashes.md)
 
 ---
@@ -29,7 +29,7 @@
 | **Strata Engine** | `0.1.59.1` (`PKG_VERSION: 12284.r16.gccd360f-1`) | `/usr/lib/strata/engine/strata` (`local-hip`, `gfx1030`/`gfx1100`) |
 | **Strata Vision** | `/usr/lib/strata/engine/strata-vision-hip` + CPU `strata-vision` | GPU vision (`--vision`, `1024` tokens) |
 | **Strata Server & Tools** | `/usr/share/strata/serve/server.py`, `/usr/share/strata/strata_cli/` | Managed via `submodules/agents-shared/assistants/local-chat-strata.sh` |
-| **ROCm / hipBLASLt** | `rocm-hip-runtime 7.2.4-1`, `hipblaslt 7.2.4-1` (`/opt/rocm`) | Explicit tuning table: `/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt` |
+| **ROCm / hipBLASLt** | `rocm-hip-runtime 7.2.4-1`, `hipblaslt 7.2.4-1` (`/opt/rocm`) | 48-row calibrated table: `~/.local/state/strata/local-chat-strata-hipblaslt.txt` (covers `T=4096, 8192, 16384` across all `bf16`/`f16` shapes) |
 
 ### Model Artifacts (`/data/public/machine-learning/models/strata/swift15_iq3s`)
 
@@ -66,6 +66,10 @@ local-router.service (FastAPI / uvicorn)
   - `~/.config/systemd/user/local-chat-strata.env`
   - `~/.config/systemd/user/local-chat-strata-config.json`
   - `~/.config/systemd/user/local-chat-strata-launcher.py`
+- **Runtime State & Calibration (`~/.local/state/strata/`):**
+  - `~/.local/state/strata/local-chat-strata-hipblaslt.txt` (48-row tuned hipBLASLt table for `gfx1100 100202`)
+  - `~/.local/state/strata/local-chat-strata-profile.bin` (`--expert-profile-save`)
+  - `~/.local/state/strata/procs/`, `~/.local/state/strata/runtime/`
 - **Host Privilege / Memory Limits:**
   - `/etc/security/limits.d/99-strata-memlock.conf` (`wuxxin soft/hard memlock unlimited`)
   - `/etc/systemd/user.conf.d/memlock.conf` (`DefaultLimitMEMLOCK=infinity`)
@@ -77,24 +81,33 @@ local-router.service (FastAPI / uvicorn)
 ## 4. Current Strata Production Settings & Resource Footprint
 
 ### 4.1 Key Engine Parameters (`local-chat-strata.env`)
-- **Context & KV:** `--max-context 240384`, `--kv k8v4`, `--kv-resident 32768` (`2.19 GiB` pinned host RAM)
-- **Conversation & Prompt Cache:** `--prompt-cache 6`, `--conversation-cache-slots 6`, `--conversation-cache-mib 24576`, `--conversation-cache-min-free-mib 2048`
-- **Speculative Decoding:** `--spec 4`, `--spec-min-p 0.60`, `--suffix-draft 3`
-- **Expert Offloading & Adaptation:** `--expert-cache auto` (`9,004` VRAM slots = `17.08 GiB` VRAM), `--vram-reserve-mib 512` (`~632 MiB` free VRAM), `--pcie-frac 0.20`, `--adapt-async 1`, `--adapt-every 1`, `--adapt-swaps 160`, `--adapt-decay 0.97`, `STRATA_ARENA_RELEASE=0`, `STRATA_ROUTE_TAIL_SKIP=7`
-- **PLE & Prefill:** `--ple-io ram`, `STRATA_PLE_COMPACT=1`, `STRATA_PLE_COPY_STREAM=1`, `STRATA_PF_PAD=1`, `STRATA_HC_UPMIX=1`, `STRATA_PF_HCDOWN=1`, `STRATA_CVEC_FUSE=1`, `STRATA_PF_HC_REGION=1`, `STRATA_PREFILL_AUTO_MAX=16384`, `HSA_USERPTR_FOR_PAGED_MEM=0`
+- **Context & KV Architecture:** `--max-context 240384`, `--kv k8v4`, **`--kv-grow`** (HIP Virtual Memory Management elastic growth via `hipMemAddressReserve`/`hipMemCreate`/`hipMemMap` starting at `16,384` cells / `0.21 GiB` VRAM, trading slots dynamically up to `240,384` cells / `2.46 GiB` and completely eliminating the `2.19 GiB` pinned host KV streaming ring).
+- **Multi-Agent Conversation Cache & Memory Defense:** `--prompt-cache 6`, `--conversation-cache-slots 8`, `--conversation-cache-mib 16384`, `--conversation-cache-min-free-mib 6144`, `--conversation-cache-min-tokens 4096`, `--conversation-cache-park-gain 2048`. Guaranteed `6,144 MiB` `MemAvailable` floor prevents OOM storms and ZRAM page-allocation stalls. Short Pulse/hook queries ($< 4,096$ tokens) are rejected from slots to protect deep project histories.
+- **Tier-3 NVMe `O_DIRECT` KV Offload:** `slot_save_path = ~/.cache/user-cache` on dedicated ZFS dataset `rpool/data/user-cache` (`sync=disabled`, `recordsize=1M`, `compression=off`). Inactive $43\text{k}$-token context saves in `855 ms` (`903 MB/s`) and restores in **`463 ms` (`1,667 MB/s` — $36\times$ faster than cold prefill)** with `99.96%` KV reuse on follow-up turns.
+- **Speculative Decoding:** `"drafting": "mtp"`, `--spec 4`, `--spec-min-p 0.58`, `--suffix-draft 3`, `--lookup-chain 2`, `STRATA_SPEC_COST=1` (cost-aware window sizing), `STRATA_FUSE_HEAD_GR=1` (fused LM head + hyper-connection read), `STRATA_NORM_ROPE=1` (combined RMSNorm + RoPE).
+- **Expert Offloading & Adaptation:** `--expert-cache auto` (`9,024` VRAM slots = `17.11 GiB` VRAM), `--vram-reserve-mib 576` (`~670 MiB` free VRAM at start, $\ge 530$ MiB after graph capture, zero VRAM starvation), `--pcie-frac 0.20`, `--adapt-async 1`, `--adapt-every 1`, `--adapt-swaps 160`, `--adapt-decay 0.97`, `STRATA_ARENA_RELEASE=0`, `STRATA_ROUTE_TAIL_SKIP=7`.
+- **Prefill & Decode Kernel Acceleration (`gfx1100`):** `--ple-io ram`, `--prefill 24576` (single-pass $\le 24\text{k}$ prompts), `STRATA_PREFILL_RING=512` (prevents `HIP_WMMA` ring drop to 96), `STRATA_PREFILL_ROUTED_STREAM=1` (prunes unrouted experts before PCIe transfer), `STRATA_EMB_REUSE_ACCOUNT=1`, `STRATA_GDN_HEAD=1`, `STRATA_GDN_PP=2`, `STRATA_GDN_CONVL2=2`, `STRATA_GDN_NOY=1`, `STRATA_HIP_WMMA=1`, `STRATA_PA_FAST=1`, `STRATA_SELECT_WMMA=1`, `STRATA_PF_F16=1`, `STRATA_PF_DM16=1`, `STRATA_Q8_PACKED=1`, `STRATA_MMVF_ROWS=1`, `STRATA_ATTN_LANECELL=1`, `STRATA_ATTN_MERGE_V2=1`, `STRATA_EXPERT_V2=1`, `STRATA_TSUM=1`, `STRATA_LFUSE=1`, `STRATA_GDN_SPLIT=1`, `STRATA_QFUSE=1`, `STRATA_PLE_BATCH=1`, `STRATA_SMALL_UNR=3`, `STRATA_GR_Q32_G=2`, `STRATA_GR_Q8_PFS=1`, `STRATA_HEAD_MIX_MULTI=1`, `STRATA_FUSE_HITS=1`, `STRATA_FUSE_WAIT=1`, `STRATA_VERIFY_QDEDUP=1`, `HSA_USERPTR_FOR_PAGED_MEM=1`, 48-row calibrated `local-chat-strata-hipblaslt.txt`.
 - **CPU Thread Pinning:** `7` expert-pool workers on logical CPUs `1–7`, host thread on CPU `0` (`--host-core first`), `nice +5` (`STRATA_ENGINE_NICE`).
 
 ### 4.2 End-to-End Memory Budget on `power` (`117.76 GiB` `MemTotal`)
 
-| Consumer | Typical Size | Pinning / Reclaimability |
-|---|---|---|
-| **Strata PLE Table (`--ple-io ram`)** | `26.82 GiB` | `mlock()`ed (`unevictable`) |
-| **Strata Expert Arena (`STRATA_ARENA_RELEASE=0`)** | `46.84 GiB` | `cudaHostRegister(PORTABLE)` (unswappable) |
-| **Strata KV Streaming Ring (`--kv-resident 32768`)** | `2.19 GiB` | GPU-pinned (unswappable) |
-| **Strata Vision + Base Runtime** | `~1.0–1.5 GiB` | Anon |
-| **Strata Conversation Cache (`--conversation-cache-mib`)** | `1–24 GiB` (`24 GiB` max) | Anon (swappable to ZRAM, high latency if swapped) |
-| **ZFS ARC (`/etc/modprobe.d/zfs.conf`)** | `2 GiB` min – **`12 GiB` max**; L2ARC write rate: **`512 MiB/s`** *(baked into initramfs `2026-11-12`)* | Capped at `12 GiB` max / `2 GiB` min with `l2arc_write_max=512M` and `l2arc_write_boost=512M`. Active live and in `/boot/initramfs-*.img`. |
-| **AMDGPU GTT (`gpu_reclaim` / `gpu_active`)** | `~0.5–6.4 GiB` | Reclaimable/active GPU driver allocations |
-| **Desktop + Agents (`gnome`, `librewolf`, `zed`, `omp`, `bun`, `java`)** | `~6–10 GiB` | Anon / ZRAM-swappable |
+| Memory Tier / Consumer | Typical / Max Footprint | Backing & Pinning Behavior | Operational Mechanics & Reclaim |
+|---|---|---|---|
+| **Strata PLE Table (Shard 2)** | **`26.82 GiB`** (`28,125 MiB` RSS) | `mlock()`ed unevictable host RAM | Locked at start via `/etc/security/limits.d/99-strata-memlock.conf`. Zero page faults, zero NVMe reads during token ingestion. |
+| **Strata Expert Arena** | **`46.84 GiB`** (`24,576` experts) | `cudaHostRegister(PORTABLE)` pinned | Permanent DDR4-2666 host memory residency (`STRATA_ARENA_RELEASE=0`). Avoids `MADV_DONTNEED` NVMe churn on dynamic VRAM expert evictions. |
+| **Strata Pinned Host KV Ring** | **`0 GiB`** *(was `2.19 GiB`)* | Reclaimed host RAM | **Reclaimed completely via `--kv-grow`**. Replaced by elastic in-VRAM HIP VMM mapping (`0.21–2.46 GiB` VRAM). |
+| **Strata Vision Sidecar + Base Runtime** | `~1.0–1.5 GiB` | Anon host memory | Multimodal vision projector runtime and token buffers (`strata-vision-hip`). |
+| **Total Strata Pinned / Locked Floor** | **`73.66 GiB`** *(was `75.85 GiB`)* | Unswappable OS floor | Baseline resident memory occupied before conversation parking or active token generation. |
+| **Strata Conversation Cache (Active Tier)** | **`0.5 – 16.0 GiB`** (`16 GiB` cap) | Anon host DDR4 RAM | Expanded to 8 slots; capped at `16,384 MiB` with `--conversation-cache-min-free-mib 6144`. Only requests $\ge 4,096$ tokens park (`min-tokens`). Advance $\ge 2,048$ tokens required to re-snapshot (`park-gain`). |
+| **Tier-3 NVMe Offloaded Contexts (`user-cache`)** | `0 GiB` Host RAM (`~0.77 GiB` / 43k ctx on disk) | Direct I/O (`O_DIRECT`) on NVMe | Inactive large contexts swapped to `/home/wuxxin/.cache/user-cache` (`rpool/data/user-cache`). Bypasses Linux page cache; restored at **`1,667 MB/s`** ($463\text{ ms}$). |
+| **OpenZFS ARC (`/etc/modprobe.d/zfs.conf`)** | **`2.0 GiB` min – `12.0 GiB` max** | Linux kernel slab (`ABD`) | Hard-capped at `12 GiB` (baked into initramfs `2026-11-12`). Evicts smoothly under memory pressure down to `2.0 GiB` floor without triggering OOM killer. |
+| **AMDGPU GTT (`gpu_reclaim` / `gpu_active`)** | `~0.5 – 4.0 GiB` | Kernel GPU driver pages | Reclaimable driver-allocated staging buffers and command queues. |
+| **Desktop & Applications (`gnome`, `zed`, `omp`, `bun`, `librewolf`)** | `~6.0 – 9.0 GiB` | Anon / ZRAM swappable | Swappable to 32 GiB `/dev/zram0` (`zstd`). |
+| **Guaranteed `MemAvailable` Safety Headroom** | **`16.0 – 19.0 GiB`** (`0 B` swap used) | Free / reclaimable OS pool | Verified under concurrent 4-stream load (`Oracle C`) and 43k token ingestion. Completely eliminates `GFP_KERNEL` allocation stalls and OOM-kill cascades. |
 
-> **Operational Constraint:** Strata's **75.85 GiB unswappable floor** + `24 GiB` conversation cache + ZFS (`~6–7 GiB` floor) + desktop (`~6–10 GiB`) + `gpu_reclaim` (`~4–6 GiB`) totals **`116–124 GiB`**, which leaves near-zero headroom even at `117.76 GiB` `MemTotal`. Furthermore, **S3 deep suspend (`PM: suspend entry (deep)`) hangs whenever `local-chat-strata.service` is running** — stop `local-chat-strata.service` before sleep and see [`strata-machine-crashes.md`](./strata-machine-crashes.md) for crash forensics and pending tuning fixes.
+### 4.3 Operational Rules & Guardrails
+
+1. **S3 Deep Suspend Guard:** S3 deep suspend (`PM: suspend entry (deep)`) deadlocks/hangs whenever `local-chat-strata.service` is active due to TTM VRAM buffer eviction colliding with the `73.66 GiB` pinned KFD/HMM memory and ZRAM. **Always stop `local-chat-strata.service` before sleep.**
+2. **Single-Stream Benchmark Protocol:** Current `omp bench` defaults `--par` to `4`. For single-user benchmarks (Oracles A & B), always pass `--par 1` explicitly alongside `OMP_BRIDGE_SETTINGS=/dev/null` to prevent synthetic multi-stream concurrency.
+3. **State vs. Config Path Separation:** Keep configuration files in `~/.config/systemd/user/` and runtime tables/profiles in `~/.local/state/strata/`. All environment paths use `${HOME}` rather than `%h` for POSIX and shell consistency.
+4. **Model Path Safety:** Use scratch symlink trees (`scratch/models/strata/`) when downloading or testing experimental drafters/weights to prevent unauthorized write attempts to read-only `/data/public/`.
