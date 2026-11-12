@@ -601,3 +601,299 @@ omp bench qwen3.8-flash-next --detailed --par 4 --prefill-bytes 120000 --runs 3
 | **Mix Profile Wall Time** | 113.10 s | **104.01 s** | **-9.09 s faster overall** |
 | **Generation Profile Wall Time** | 100.90 s | **87.11 s** | **-13.79 s faster overall** |
 | **Parallel Profile Wall Time** | 110.49 s | **99.48 s** | **-11.01 s faster overall** |
+
+---
+
+## 12. Next Tuning Target: High-Concurrency Agentic & LifeOS Mixed Workload with Tiered Memory & KV Offloading
+
+### 12.1 Target Workload Specification & Geometry
+
+The next optimization session moves beyond synthetic 4-stream benchmarks to model the real-world operational topology of the primary workstation:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                 Target Concurrent Agentic Workload Topology (~220k–340k Total Tokens)            │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                                 │
+│  [1. Main OMP Project: Full Context]           [2. LifeOS Base Context: Active Window]          │
+│  - Active repository tree & deep history       - Digital Assistant interactive session          │
+│  - 100,000 – 160,000 tokens (up to 240k)       - System prompt, DA & Principal identity,        │
+│  - High-frequency tool loop (read/edit/test)     TELOS, operational prefs, daily Conduit log    │
+│  - Long dwell times between user prompts       - 25,000 – 40,000 tokens                         │
+│                         │                                        │                              │
+│                         ├────────────────────────────────────────┤                              │
+│                         ▼                                        ▼                              │
+│  [3. Four Concurrent 16k Sub-Contexts]         [4. LifeOS Activations & Pulse Daemon]           │
+│  - 4 parallel task subagents (@task, @scout,   - Pulse daemon running continuously on :31337    │
+│    @reviewer, @patcher)                        - Scheduled background jobs (conduit-capture,   │
+│  - 16,384 tokens per subagent                    cost-aggregation, healthcheck)                 │
+│  - Total subagent context: 65,536 tokens       - Fast utility inference (Inference.ts, amber    │
+│  - Divergent branches off main project prefix    ledger, ISASync hook updates)                  │
+│                         │                                        │                              │
+│                         └───────────────────┬────────────────────┘                              │
+│                                             ▼                                                   │
+│               ┌───────────────────────────────────────────────────────────┐                     │
+│               │   Strata Local Inference Service (:20080 / Qwen3.8 MoE)   │                     │
+│               │    - Active VRAM Window (RX 7900 XTX 24 GiB)              │                     │
+│               │    - Tier 2 Host DDR5 Parked Sessions                     │                     │
+│               │    - Tier 3 NVMe/SSD Offloaded KV Swap                    │                     │
+│               └───────────────────────────────────────────────────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Quantitative Context & KV Memory Breakdown
+
+| Workload Component | Concurrent Streams | Context Depth (Tokens) | Aggregate Tokens | KV Cache Footprint (FP16) | KV Cache Footprint (K8V4 / Q4) |
+|---|---|---|---|---|---|
+| **Main OMP Project Context** | 1 (Active or Parked) | 120,000 – 160,000 | 120,000 – 160,000 | ~15.0 – 20.0 GiB | **~4.5 – 6.0 GiB** |
+| **Four Subagents** | 4 (Parallel execution) | 16,384 each | 65,536 | ~8.2 GiB | **~2.5 GiB** |
+| **LifeOS Base Window** | 1 (Interactive DA) | 30,000 – 40,000 | 30,000 – 40,000 | ~3.8 – 5.0 GiB | **~1.1 – 1.5 GiB** |
+| **Pulse Sidecar & Hooks** | Bursts (1–2 calls) | 4,000 – 8,000 | 4,000 – 8,000 | ~0.5 – 1.0 GiB | **~0.15 – 0.3 GiB** |
+| **Total Workload Footprint** | **6–7 logical sessions** | **Divergent** | **220,000 – 275,000+** | **~27.5 – 34.2 GiB** | **~8.25 – 10.3 GiB** |
+
+*Note on Qwen3.8-Flash-Next Architecture:* In GQA/QSA configurations with 48 layers, 16 key/value heads, and head dimension $D_k = 128$, each token stores $48 \times 2 \times 16 \times 128 \times \text{bytes\_per\_elem}$. In FP16, this is $\sim 196.6$ KB per 1,000 tokens ($\sim 0.125$ MiB/token). Under `K8V4` or `q4_0` quantization, this drops to $\sim 40$–$50$ KB per 1,000 tokens.
+
+---
+
+### 12.2 Host CPU Main Memory Reclamation (BIOS / Hardware Audit)
+
+> **Audit & Crash Forensics Completed (2026-11-12):** All privileged (`sudo`) hardware, BIOS, PCIe, memory, and ZFS audit questions below have been verified and documented in [`strata-machine-crashes.md`](./strata-machine-crashes.md) (see also [`power-machine-overview.md`](./power-machine-overview.md) for the full host inventory). **Read [`strata-machine-crashes.md`](./strata-machine-crashes.md) before modifying memory budgets or running heavy concurrency benchmarks**, as live OOM cascades (`amdgpu_hmm_range_valid` kernel Oops) and S3 suspend hangs occurred under `local-chat-strata.service`.
+
+#### Verified Hardware & Firmware Baseline (`power`)
+- **Platform & CPU:** Gigabyte `B550 AORUS ELITE AX V2` (BIOS `F19d`, `09/02/2024`), `AMD Ryzen 7 PRO 5750G` (Cezanne, Zen 3 APU, 8C/16T, AVX-2 only, **PCIe 3.0 silicon limit**).
+- **Physical RAM (`dmidecode -t memory`):** **4 × 32 GiB = 128 GiB Micron `18ASF4G72AZ-3G2F1` DDR4-3200 ECC Unbuffered** (72-bit Dual-Rank, *not DDR5*), currently running at **`2666 MT/s`** (4-DIMM 2DPC 2R JEDEC downclock). Hardware ECC is active (`edac mc0`: `0` CE / `0` UE errors).
+- **iGPU (`0a:00.0`) UMA Carveout & Memory Reclaim:**
+  - Prior to 2026-11-12, iGPU UMA reserved **16 GiB** (`MemTotal = 115,223,172 kB` / `109.89 GiB`).
+  - Reclaimed **+8 GiB** in BIOS before the 2026-11-12 reboot (`UMA = 8,192 MiB`), raising `MemTotal` to **`123,480,708 kB` (`117.76 GiB`)** (`2,350,240 kB` kernel/ACPI/E820 reserved).
+  - **Display Constraint:** The Cezanne iGPU actively drives the GNOME/Wayland desktop (`~1.84 GiB` VRAM in use). Do **not** set `Integrated Graphics = Disabled` unless the display is moved off the iGPU; instead, UMA can be lowered further from `8G` → `2G`–`4G` to reclaim another **4–6 GiB** without touching RX 7900 XTX VRAM.
+- **Above 4G Decoding & Resizable BAR:** Both verified **Enabled** (`lspci -vvv -s 03:00.0`: `BAR 0 = 32 GB`, `BAR 2 = 256 MB`, `VRAM = 24,560 MiB`, `GTT = 60,293 MiB`).
+- **PCIe Link & Storage Reality (`lspci -vvv`, `zpool status`):**
+  - RX 7900 XTX CPU upstream link (`00:01.1` ↔ `01:00.0`) negotiates **PCIe 3.0 ×16 (`8.0 GT/s`, ~12–15 GB/s)** due to Ryzen 5750G PCIe 3.0 CPU lanes (not PCIe 4.0).
+  - Both Samsung 980 PRO 1TB NVMe SSDs (`06:00.0`, `09:00.0`) negotiate **PCIe 3.0 ×4 (`8.0 GT/s` downgraded, ~3.2–3.5 GB/s raw)**, hosting encrypted ZFS `rpool`.
+  - Model storage (`/data/public/machine-learning`) resides on `dpool` (**2 × Samsung 870 QVO 8TB SATA mirror**, ~500 MB/s); its **116 GiB NVMe L2ARC cache (`nvme*p4`, `58G + 58G`) was repaired `ONLINE` on 2026-11-12 13:32** via persistent `by-id` paths (was `FAULTED` during the Nov 10–12 crashes).
+  - OpenZFS `2.4.4-1` was previously uncapped (`zfs_arc_max = 0`, `c_max = 116.76 GiB`), absorbing ~35 GiB during model loads and retaining a ~5.5–7 GiB floor; **now capped in `/etc/modprobe.d/zfs.conf` (`zfs_arc_max = 12 GiB`, `zfs_arc_min = 2 GiB`, `l2arc_write_max = 512 MiB/s`, `l2arc_write_boost = 512 MiB/s`, live-applied and baked into initramfs via `mkinitcpio -P`)**, with `dpool/data/public` set to `atime=off logbias=throughput`.
+- **Swap & Crash Findings (`strata-machine-crashes.md`):**
+  - `32 GiB` `/dev/zram0` (`zstd`, `swappiness=100`) is active, but Strata's `~75.85 GiB` base footprint (`26.82 GiB` `mlock`ed PLE + `46.84 GiB` `cudaHostRegister` arena + `2.19 GiB` pinned KV) cannot be swapped to ZRAM.
+  - Over 2026-11-10 – 2026-11-12, running `local-chat-strata` caused: (a) live OOM storms culminating in an `amdgpu_hmm_range_valid` kernel Oops (`Boot -5`), (b) `27.4 GiB` ZRAM saturation + `GFP_KERNEL` allocation stalls on overlapping restarts (`Boot -4`), and (c) **3 consecutive S3 deep-suspend hangs** (`Boot -4`, `-3`, `-2`) whenever `strata` was active during sleep (whereas sleeping with `strata` stopped on `Boot -1` resumed cleanly). See [`strata-machine-crashes.md`](./strata-machine-crashes.md) for full telemetry and mitigations.
+
+---
+
+### 12.3 Tiered KV Cache Offloading: NVMe SSD vs. Prefill Compute Tradeoff
+
+#### The Core Economic Principle: NVMe Read Bandwidth Dominates Prefill Compute
+In agentic workflows, the user frequently switches focus: working on the main OMP codebase, pausing to interact with the LifeOS assistant window, running subagents, and returning minutes later to the main project.
+
+When a dormant session is evicted from active memory, the system faces two choices upon reactivation:
+
+```
+Option 1: Re-compute Prefill on Activation
+├── Ingest 120,000 tokens through 48 layers of MoE compute
+├── Sustained compute at ~1,480 tok/s
+└── Latency Delay: ~81.0 SECONDS of 100% GPU saturation
+
+Option 2: Read Serialized KV Snapshot from NVMe SSD (PCIe 3.0 x4 on `power`)
+├── 120,000 tokens under K8V4 / Q4 quantization = ~4.8 GiB on disk
+├── Samsung 980 PRO on Ryzen 5750G runs at PCIe 3.0 x4 (~3.2 – 3.5 GB/s raw; ZFS rpool lz4 overhead)
+└── Latency Delay: ~1.5 – 2.2 SECONDS (Still >35× faster than cold prefill!)
+```
+
+**Key Invariant**: **Reading pre-computed KV tensors from an SSD at 5–7 GB/s is orders of magnitude faster than re-running MoE matrix compute.** For dormant large contexts, swapping KV tensors to NVMe completely transforms user turnaround time.
+
+#### Strata Architectural Levers for Tiered KV Swapping
+
+1. **Quantized KV Precision (`--kv k8v4` or `--kv q4_0`)**:
+   - Strata natively supports `--kv {int8,q4_0,k8v4,fp16}` for context above 8k tokens.
+   - Setting `--kv k8v4` reduces KV memory volume by **~50% vs INT8 and ~75% vs FP16**, doubling the token capacity of both host DDR5 RAM and NVMe swap files with negligible perplexity degradation on code models.
+
+2. **Strata KV Streaming (`--kv-streaming auto` / `on`)**:
+   - Mechanism: For context depths $\ge 64\text{k}$, keeps the full KV cache in host memory and dynamically streams only the active attention window into GPU VRAM.
+   - Benefit: Prevents massive context windows from crowding out the resident expert cache in the 24 GiB VRAM pool.
+
+3. **Three-Tier Memory Hierarchy for Sessions**:
+   - **Tier 1 (GPU VRAM - 24 GiB)**: Active generation token verify window + resident hot experts (~150–250).
+   - **Tier 2 (Host DDR5 RAM - 95–110 GiB)**: Permanent 46.84 GiB expert arena (`STRATA_ARENA_RELEASE=0`) + 6–8 active/recent conversation slots (`--conversation-cache-slots 8`, `--conversation-cache-mib 32768`).
+   - **Tier 3 (NVMe SSD Mapped Swap — `/home/wuxxin/.cache/user-cache`):** Dedicated `rpool/data/user-cache` dataset (`compression=off`, `sync=disabled`, `atime=off`, `recordsize=1M`, `primarycache=metadata`, `secondarycache=none`, `com.sun:auto-snapshot=false`) for inactive large conversation contexts (e.g. 120k main project context) offloaded to disk.
+
+---
+
+### 12.4 Planned Hypotheses & Experimental Roadmap for Session 4
+
+#### Testable Hypotheses
+
+| Hypothesis ID | Technical Levers | Target Mechanism | Acceptance Criteria |
+|---|---|---|---|
+| `H-BIOS-RAM` | Motherboard UEFI iGPU UMA `16G -> 8G` (done) / `2G–4G` target | Reclaim withheld host RAM from iGPU back to OS pool (keep iGPU enabled for desktop). | Linux `MemTotal` increased `109.89 -> 117.76 GiB` (+7.87 GiB); +4–6 GiB more if lowered to `2G–4G`. |
+| `H-KV-QUANT` | `--kv k8v4` (or `q4_0`) | Quantize key/value heads for context >8k tokens. | Halves KV byte footprint; zero MTP acceptance drop. |
+| `H-SLOT-EXPAND`| `--conversation-cache-slots 8`<br>`--conversation-cache-mib 32768` | Expand resident host RAM slots to comfortably park 1 Main + 4 Sub + 1 LifeOS context simultaneously. | Zero cache evictions under 6 concurrent streams. |
+| `H-KV-STREAM` | `--kv-streaming on` | Host-streamed KV attention for contexts $>64\text{k}$. | Full 120k–160k main context runs with $\ge 500$ MiB free VRAM. |
+| `H-DISK-SWAP` | Disk-backed KV offloading / mmap session restore | Swap inactive 120k session to NVMe; restore upon turn. | Reactivation latency $\le 1.5\text{ s}$ vs $80\text{ s}$ cold prefill. |
+
+#### Benchmark Oracle for Session 4
+To test the full combined mesh under load:
+```bash
+# Benchmark testing: 1 Main (120k tokens) + 4 Subagent concurrent streams + warm turnaround
+omp bench qwen3.8-flash-next --detailed --par 4 --prefill-bytes 120000 --runs 3
+```
+
+---
+
+### 12.5 Round 2: Advanced Prefill Speed Optimization (Target: 1,900–2,400 tok/s)
+
+#### Context & Motivation
+In Round 1, cold prefill throughput advanced from 1,303 tok/s to **1,519 tok/s (+16.6%)** by resolving the hipBLASLt 100202 GEMM mismatch, applying memory channel de-camping (`STRATA_PF_PAD=1`), fusing hyper-connection passes (`HC_UPMIX=1`, `PF_HCDOWN=1`, `CVEC_FUSE=1`), and expanding chunk headroom (`PREFILL_AUTO_MAX=16384`).
+
+However, on an AMD Navi 31 GPU capable of 123 TFLOPS FP16 and 960 GB/s memory bandwidth, a 120,000-token full-context ingestion at 1,500 tok/s still requires **~80 seconds** of compute. Upstream Strata engine updates and ROCm/GGML-HIP advances provide several high-leverage architectural levers to push prefill throughput toward **1,900 – 2,400+ tok/s**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                       Round 2 Prefill Acceleration Pipeline Architecture                        │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                                 │
+│  1. Zero-Copy PLE DMA Upload           2. Dual-Stream Chunk Overlap     3. Adaptive Chunking   │
+│  +------------------------------+      +---------------------------+    +--------------------+  │
+│  | HSA_USERPTR + IQ4_NL         |      | Stream A: Compute (WMMA)  |    | Chunk Size:        │  │
+│  | Direct PCIe gathered upload  | ===> | Stream B: PCIe Next-Chunk |==> | 24,576 dynamic     |  │
+│  | Overlaps Layer 0 compute     |      | Asynchronous MoE sort     |    | 22k in single pass |  │
+│  +------------------------------+      +---------------------------+    +--------------------+  │
+│                                                                                                 │
+│  4. RDNA3 Wave32 GEMM Kernels          5. Fused RoPE + QSA Gather                               │
+│  +------------------------------+      +---------------------------+                            │
+│  | Native gfx1100 Dual-Issue    |      | In-register Rotary Emb    |                            │
+│  | 6144-wide non-camping tile   | ===> | Fused GQA head gather     |                            │
+│  | Eliminates wave stalling     |      | Zero VRAM round-trip      |                            │
+│  +------------------------------+      +---------------------------+                            │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Technical Levers for Prefill Round 2
+
+1. **Asynchronous Dual-Stream Chunk Overlap (`STRATA_PF_CHUNK_ASYNC=1`)**:
+   - *Current State*: Strata serializes chunk execution: (a) host MoE expert sorting & PCIe upload $\to$ (b) GPU WMMA GEMM compute $\to$ (c) result write-back.
+   - *Mechanism*: Decouple host-side expert pre-sorting and next-chunk PCIe DMA upload to execute on a dedicated asynchronous copy queue concurrently while the GPU executes the current chunk's 48-layer WMMA kernels.
+   - *Expected Gain*: **+10% to +18% prefill throughput**; completely hides PCIe transfer latency of non-resident experts during sustained prefill.
+
+2. **Dynamic 24k Chunk Sizing (`STRATA_PREFILL_AUTO_MAX=24576`)**:
+   - *Lesson from Round 1*: 16k chunks (`AUTO_MAX=16384`) were stable, whereas 32k chunks (`AUTO_MAX=32768`) left only 100 MiB VRAM free and crashed MTP draft capture.
+   - *Mechanism*: Intermediate 24k chunk sizing (`24576`) allows standard 22k token synthetic prompts (and 20k–24k project turns) to process in a **single chunk iteration** rather than 2, eliminating 100% of inter-chunk barrier overhead while preserving $\ge 400$ MiB of safe VRAM headroom.
+   - *Expected Gain*: **+8% to +14% prefill throughput** on 20k–25k context prompts.
+
+3. **Direct Zero-Copy PLE DMA via HSA Userptr (`HSA_USERPTR_FOR_PAGED_MEM=1` + `STRATA_PLE_DIRECT_DMA=1`)**:
+   - *Current State*: PLE rows are gathered on the host CPU, copied into a staging buffer, and uploaded over PCIe.
+   - *Mechanism*: Use pinned direct GPU user pointers (`HSA_USERPTR`) so the GPU memory engine fetches raw IQ4_NL PLE rows directly from host DDR5 memory via PCIe DMA, dequantizing in-flight during Layer 0 computation.
+   - *Expected Gain*: **+5% to +10% prefill speedup**; eliminates host CPU gather bottlenecks.
+
+4. **RDNA3 Wave32 Native Tile Scheduling for $K=6144$**:
+   - *Mechanism*: Gfx1100 compute units natively execute Wave32 (32 threads per wavefront) with dual-issue instruction support. Upstream hipBLASLt tuning files can be re-profiled for $K=6144$ and $N=16384$ tile sizes with explicit Wave32 thread mapping, preventing register spill stalls.
+   - *Expected Gain*: **+6% to +12% prefill compute throughput**.
+
+5. **Fused RoPE + Attention Pre-computation (`STRATA_FUSED_ROPE=1`)**:
+   - *Mechanism*: Compute rotary position embeddings directly inside the QSA attention input registers rather than writing intermediate rotated $Q/K$ tensors back to VRAM.
+   - *Expected Gain*: **+3% to +6% prefill throughput**.
+
+---
+
+### 12.6 Round 2: Advanced Speculative Draft Optimization (Target: 85–100+ tok/s)
+
+#### Context & Motivation
+In Round 1, tuning the speculative confidence threshold from `0.70` to `0.60` boosted sustained decode from **54.3 tok/s to 68.6–76.4 tok/s (+26.3%)** with `--spec 4`. However, static drafting still rejects candidates when code syntax diverges, and the MTP draft layer occasionally under-proposes during complex reasoning.
+
+Upstream Strata engine updates (rounds 0215–0217, tuned drafter checkpoints, dynamic speculation trees, and fast-fail rollbacks) unlock the next generation of decode acceleration:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                 Round 2 Multi-Token & Speculative Drafting Architecture                         │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                                 │
+│  1. Tuned DSpark / Q8_0 Draft Head       2. Entropy-Adaptive Window    3. Fast-Fail Rollback   │
+│  +------------------------------+        +-----------------------+     +--------------------+  │
+│  | Upstream tuned MTP weights   |        | High conf -> spec 5-6 |     | Candidate 1 reject |  │
+│  | Higher code/JSON accuracy    | ====>  | Low conf  -> spec 2-3 |===> | Abort layers 2-48  |  │
+│  | FP8/Q8_0 draft projection    |        | Dynamic spec-min-p    |     | Zero wasted FLOPs  |  │
+│  +------------------------------+        +-----------------------+     +--------------------+  │
+│                                                                                                 │
+│  4. Chained Suffix + N-Gram Trie Matching                                                       │
+│  +---------------------------------------------------------------+                              │
+│  | Scan 120k context for repeated syntax (JSON, markdown, types) |                              │
+│  | Appends 2-4 verified exact tokens after neural MTP proposals  |                              │
+│  | Decode bursts up to 8-10 tokens per verify pass               |                              │
+│  +---------------------------------------------------------------+                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Technical Levers for Speculative Drafting Round 2
+
+1. **Upstream Tuned MTP Drafter Weights (`dspark-...-Q8_0.gguf`)**:
+   - *Current State*: The active draft layer uses the baseline MTP head extracted from the initial checkpoint.
+   - *Update*: Strata engine rounds 0215–0217 introduce recalibrated MTP draft weights (`dspark`) trained specifically on structured reasoning, code completions, and tool calling.
+   - *Mechanism*: Higher top-1 and top-2 draft accuracy directly increases the verification acceptance rate across positions 3, 4, and 5.
+   - *Expected Gain*: **+10% to +18% sustained decode throughput** (pushes average accepted tokens per pass from ~2.2 to ~3.0+).
+
+2. **Entropy-Adaptive Speculative Depth (`STRATA_SPEC_ADAPTIVE=1`)**:
+   - *Current State*: Static `--spec 4` proposes 4 tokens regardless of model certainty.
+   - *Mechanism*: Dynamically scale the draft proposal window based on token entropy:
+     - When the draft head exhibits high confidence ($\ge 0.85$, e.g. boilerplate, syntax, formatting), expand proposal depth to **5 or 6 tokens**.
+     - When entropy is high (creative branch points, non-deterministic logic), clamp proposal depth to **2 tokens** to avoid verification compute penalties.
+   - *Expected Gain*: **+8% to +15% decode throughput** while eliminating the verification latency penalty of speculative misses.
+
+3. **Fast-Fail Speculative Verification Rollback (`STRATA_VERIFY_FAST_FAIL=1`)**:
+   - *Current State*: Verification runs all candidate tokens across all 48 backbone layers simultaneously.
+   - *Mechanism*: If candidate token 1 is rejected at early attention layers, immediately abort verification computation for candidate tokens 2–5, falling back to single-token commit without evaluating downstream matrix multiplications for rejected drafts.
+   - *Expected Gain*: **+5% to +10% decode throughput** on difficult reasoning tasks.
+
+4. **Hybrid MTP + Context N-Gram Suffix Chaining (`--lookup-chain 2`, `--lookup-min 4`)**:
+   - *Lesson from Round 1*: Lookup chaining on short conversational prompts regressed because repetitive n-grams were absent.
+   - *New Opportunity*: In the **target 120k full-context codebase workload**, repository source files, imports, JSON schemas, and LifeOS formats repeat extensively throughout context.
+   - *Mechanism*: Query the 120k KV context for exact matching 4-gram suffixes and chain 2 exact lookup tokens immediately behind the MTP neural drafts.
+   - *Expected Gain*: **+15% to +25% decode bursts** during code synthesis and structured tool invocations.
+
+5. **Draft Head Logit Temperature & Top-K Calibration (`--spec-temp 0.2`, `--spec-top-k 10`)**:
+   - *Mechanism*: Slightly cooling draft layer sampling temperature focuses draft proposals on highest-probability paths, reducing speculative branch divergence.
+   - *Expected Gain*: **+3% to +6% decode throughput**.
+
+---
+
+### 12.7 Unified Experimental Matrix & Benchmark Oracles for Session 4
+
+#### Prioritized Hypothesis Matrix (Prefill & Speculative Draft Round 2)
+
+| Order | Hypothesis ID | Knobs / Parameters | Mechanism | Target Metric Gain | Risk / Tradeoff |
+|---|---|---|---|---|---|
+| **1** | `PF2-H1-CHUNK24` | `STRATA_PREFILL_AUTO_MAX=24576` | Single-pass prefill for 20k–24k prompts; eliminates chunk loop barrier. | **+10% to +14% prefill tok/s** (TTFT $\le 12.5$ s) | Must verify $\ge 400$ MiB free VRAM buffer during prefill. |
+| **2** | `GEN2-H1-DRAFTER` | Upstream tuned `dspark-Q8_0` MTP drafter | Recalibrated draft layer weights with higher code/reasoning accuracy. | **+12% to +18% decode tok/s** (Sustained $\ge 80$ tok/s) | Zero risk; drop-in weight upgrade. |
+| **3** | `GEN2-H2-ADAPTIVE`| `STRATA_SPEC_ADAPTIVE=1`<br>`LCHAT_STRATA_SPEC_MIN_P=0.58` | Expands verify window to 5–6 on confident tokens; clamps to 2 on high entropy. | **+8% to +15% decode tok/s** (Peak $\ge 90$ tok/s) | Low risk; adaptive clamp prevents rollback cascades. |
+| **4** | `PF2-H2-ASYNC-DMA`| `STRATA_PF_CHUNK_ASYNC=1`<br>`HSA_USERPTR_FOR_PAGED_MEM=1` | Asynchronous MoE sort & zero-copy PCIe DMA overlapping WMMA compute. | **+8% to +12% prefill tok/s** (Target $\ge 1,750$ tok/s) | Requires clean multi-stream synchronization. |
+| **5** | `GEN2-H3-NGRAM-CODE`| `--lookup-chain 2`<br>`--lookup-min 4` (on 120k context) | Exploits repeated code/JSON syntax in large repository context for draft bursts. | **+10% to +20% decode bursts on code** | Evaluated specifically on large codebase context. |
+| **6** | `PF2-H3-WAVE32` | Re-tuned hipBLASLt tile calibration for $K=6144$ | Gfx1100 native Wave32 dual-issue execution mapping. | **+5% to +10% prefill compute rate** | Calibration table regeneration. |
+
+#### Multi-Oracle Verification Protocol for Session 4
+
+```bash
+# Oracle A: Sustained Generation & Speculative Decode (Target: >= 80-90 tok/s)
+omp bench qwen3.8-flash-next --profile generation --runs 3
+
+# Oracle B: Deep Context Cold Prefill & Turnaround (Target: >= 1,800-2,200 tok/s)
+omp bench qwen3.8-flash-next --profile mix --prefill-bytes 120000 --runs 6
+
+# Oracle C: Full Concurrency Agentic Mesh (1 Main 120k + 4 Subagents 16k + LifeOS Base)
+omp bench qwen3.8-flash-next --detailed --par 4 --prefill-bytes 120000 --runs 3
+```
+
+---
+
+### 12.8 Session 4 Pre-Flight Protocol & Benchmark Isolation
+
+Before running any Session 4 benchmark or hypothesis test, the environment must be cleanly isolated from background local inference traffic. **Because container boundaries prevent the agent from managing host systemd units or launcher sidecars directly, the agent MUST ask the user to complete Steps 1–2 before starting tests:**
+
+1. **Stop the Baseline Strata Service (Ask User First):**
+   - At session start, the previous production baseline (`local-chat-strata.service`) is running on `:20080` under the host user systemd manager, which is outside the sandbox container (`systemctl` is unavailable to the agent).
+   - **Required User Action:** Ask the user to stop the service before launching test Strata instances:
+     ```bash
+     systemctl --user stop local-chat-strata.service
+     ```
+2. **Stop / Exclude the OMP Pulse Sidecar (Ask User First):**
+   - The `pulse` sidecar (`bun run --cwd $LIFEOS_DIR/PULSE pulse.ts` on `:31337`, started by `omp.env` `LAUNCHER_SIDECARS="pulse"`) executes periodic jobs and utility `Inference.ts` calls against `:21080`/`:20080`, which will pollute latency, VRAM headroom, and KV slot usage during benchmarking.
+   - **Required User Action:** Ask the user to stop the running `pulse.ts` sidecar (or start the tuning sandbox session with Pulse disabled / `LAUNCHER_SIDECARS=""`) before running baseline or hypothesis benchmarks.
+3. **Isolate `OmpHooksBridge.ts` in the Driving Session (`OMP_BRIDGE_SETTINGS=/dev/null`):**
+   - Stopping Pulse does **not** silence `OmpHooksBridge.ts`: its hooks in `~/.omp/settings.json` still fire on the driving `omp` orchestrator's `UserPromptSubmit`, `PostToolUse`, and `Stop` events (`PromptProcessing.hook.ts`, `SatisfactionCapture.hook.ts`, `MicroIntegrity.hook.ts`), which spawn `Inference.ts` $\to$ `claude-shim.py` $\to$ `:21080`/`:20080` independently of Pulse.
+   - `omp bench` itself only invokes `loadCliExtensionProviders()` (`bench-runtime.ts:75`) and never triggers agent lifecycle hooks, so `omp bench` is hook-free internally.
+   - **To isolate the orchestrator session launching benchmarks:** Run with `OMP_BRIDGE_SETTINGS=/dev/null` (or `--no-extensions` / `disabledExtensions: ["OmpHooksBridge.ts"]`). With `OMP_BRIDGE_SETTINGS=/dev/null`, `OmpHooksBridge.ts` cleanly self-disables before registering any event handlers, ensuring zero stray hook inference hits Strata and leaving `tools.speculativeExecution` active.
