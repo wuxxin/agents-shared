@@ -32,9 +32,9 @@ load_env() {
     # General parameters
     LTTS_PORT=20095
     LTTS_HOST=127.0.0.1
-    LTTS_ENGINE=""
-    LTTS_ALIAS=""
-    LTTS_VOICE=""
+    LTTS_ENGINE="kokoro"
+    LTTS_ALIAS="kokoro"
+    LTTS_VOICE="df_victoria"
 
     LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
 
@@ -93,11 +93,7 @@ load_env() {
 
     # Auto-detect engine if not set (legacy configuration support)
     if [[ -z "${LTTS_ENGINE:-}" ]]; then
-        if [[ -n "${LTTS_VOCODER:-}" || "${LTTS_MODEL:-}" =~ \.gguf$ ]]; then
-            LTTS_ENGINE="qwen3"
-        else
-            LTTS_ENGINE="kokoro"
-        fi
+        LTTS_ENGINE="kokoro"
     fi
     # Map generic variables based on selected engine for backward compatibility
     # Map generic variables based on selected engine
@@ -318,13 +314,14 @@ generate_service_file() {
 
     if [[ "${LTTS_ENGINE}" == "kokoro" ]]; then
         get_kokoro_args args
-        local kokoro_bin="${KOKORO_CTL_BIN:-$(dirname "$0")/../scripts/kokoro-ctl.py}"
-        exec_cmd=$(format_exec_start "${kokoro_bin}" "${args[@]}")
+        local kokoro_bin="${KOKORO_CTL_BIN:-%h/.config/systemd/user/kokoro-ctl.py}"
+        exec_cmd=$(format_exec_start "/usr/bin/python3" "${kokoro_bin}" "${args[@]}")
         description="Local Text-to-Speech Synthesis Server (kokoro-onnx)"
         doc_link="https://huggingface.co/hexgrad/Kokoro-82M"
     else
         get_qwen3_args args
-        exec_cmd=$(format_exec_start "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}")
+        local qwen3_bin="${QWEN3_TTS_SERVER_BIN:-$(command -v qwen3-tts-server 2>/dev/null || echo "/usr/bin/qwen3-tts-server")}"
+        exec_cmd=$(format_exec_start "${qwen3_bin}" "${args[@]}")
         description="Local Text-to-Speech Synthesis Server (qwen3-tts-server)"
         doc_link="https://github.com/khimaros/qwen3-tts.cpp"
     fi
@@ -459,6 +456,14 @@ run_systemctl() {
 # Write service file
 
 write_service_file() {
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local source_py="${script_dir}/../scripts/kokoro-ctl.py"
+    if [[ -f "${source_py}" ]]; then
+        mkdir -p "${SYSTEMD_USER_DIR}"
+        cp "${source_py}" "${SYSTEMD_USER_DIR}/kokoro-ctl.py"
+        chmod 755 "${SYSTEMD_USER_DIR}/kokoro-ctl.py"
+    fi
     generate_service_file >"${SERVICE_FILE}"
     chmod 644 "${SERVICE_FILE}"
     run_systemctl daemon-reload
@@ -491,6 +496,16 @@ cmd_install() {
         generate_env_file >"${ENV_FILE}"
         chmod 600 "${ENV_FILE}"
         echo "Env file written."
+    fi
+
+    # Copy kokoro-ctl.py to systemd config directory next to service and env file
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local source_py="${script_dir}/../scripts/kokoro-ctl.py"
+    if [[ -f "${source_py}" ]]; then
+        echo "Copying kokoro-ctl.py to ${SYSTEMD_USER_DIR}..."
+        cp "${source_py}" "${SYSTEMD_USER_DIR}/kokoro-ctl.py"
+        chmod 755 "${SYSTEMD_USER_DIR}/kokoro-ctl.py"
     fi
 
     # Write service file
@@ -531,6 +546,11 @@ cmd_uninstall() {
         rm -f "${SERVICE_FILE}"
         run_systemctl daemon-reload
         echo "Removed service file."
+    fi
+
+    if [[ -f "${SYSTEMD_USER_DIR}/kokoro-ctl.py" ]]; then
+        rm -f "${SYSTEMD_USER_DIR}/kokoro-ctl.py"
+        echo "Removed kokoro-ctl.py from ${SYSTEMD_USER_DIR}."
     fi
 
     echo "Uninstalled successfully. Configuration in ${ENV_FILE} is preserved."
@@ -615,12 +635,16 @@ cmd_exec() {
 
     local args
     local bin
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
     if [[ "${LTTS_ENGINE}" == "kokoro" ]]; then
         get_kokoro_args args
-        bin="${KOKORO_CTL_BIN:-$(dirname "$0")/../scripts/kokoro-ctl.py}"
+        local kokoro_bin="${KOKORO_CTL_BIN:-${SYSTEMD_USER_DIR}/kokoro-ctl.py}"
+        [[ ! -f "$kokoro_bin" ]] && kokoro_bin="${script_dir}/../scripts/kokoro-ctl.py"
+        bin="${kokoro_bin}"
     else
         get_qwen3_args args
-        bin="${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}"
+        bin="${QWEN3_TTS_SERVER_BIN:-$(command -v qwen3-tts-server 2>/dev/null || echo "/usr/bin/qwen3-tts-server")}"
     fi
 
     if ! is_systemd_running; then
@@ -886,12 +910,17 @@ cmd_cat() {
     echo "=== Transient Execution Command (exec) ==="
     local args
     local bin_cmd
-    if [[ "${LTTS_ENGINE:-qwen3}" == "kokoro" ]]; then
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    if [[ "${LTTS_ENGINE:-kokoro}" == "kokoro" ]]; then
         get_kokoro_args args
-        bin_cmd="${KOKORO_CTL_BIN:-$(dirname "$0")/../scripts/kokoro-ctl.py}"
+        local kokoro_bin="${KOKORO_CTL_BIN:-${SYSTEMD_USER_DIR}/kokoro-ctl.py}"
+        [[ ! -f "$kokoro_bin" ]] && kokoro_bin="${script_dir}/../scripts/kokoro-ctl.py"
+        bin_cmd="/usr/bin/python3 ${kokoro_bin}"
     else
         get_qwen3_args args
-        bin_cmd="${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}"
+        local qwen3_bin="${QWEN3_TTS_SERVER_BIN:-$(command -v qwen3-tts-server 2>/dev/null || echo "/usr/bin/qwen3-tts-server")}"
+        bin_cmd="${qwen3_bin}"
     fi
     echo "${bin_cmd} ${args[*]}"
 }

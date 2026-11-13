@@ -163,6 +163,7 @@ LSTT_OVERRIDE=(
 )
 # run TEXT-TO-SPEECH on cpu
 LTTS_OVERRIDE=(
+    'LTTS_ENGINE="kokoro"'
     'LTTS_MODE="cpu"'
     'LTTS_DEVICE="none"'
 )
