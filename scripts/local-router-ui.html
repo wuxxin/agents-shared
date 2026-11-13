@@ -104,15 +104,11 @@
     .brand-logo {
       width: 40px;
       height: 40px;
-      background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
-      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 1.25rem;
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+      font-size: 1.6rem;
+      line-height: 1;
     }
 
     .brand-title h1 {
@@ -129,12 +125,33 @@
       gap: 6px;
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
+    .status-bulb {
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
       background-color: var(--accent-green);
       border-radius: 50%;
       box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    /* At least one expected backend service is missing: degraded, still serving. */
+    .status-bulb.degraded {
+      background-color: var(--accent-rose);
+      box-shadow: 0 0 8px var(--accent-rose);
+    }
+
+    .service-list {
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.02em;
+    }
+
+    .service-list .svc-missing {
+      color: var(--accent-rose);
+      text-decoration: line-through;
+    }
+
+    .origin-sep {
+      color: var(--text-dim);
     }
 
     /* Controls Styling */
@@ -513,10 +530,15 @@
     <!-- Header -->
     <header>
       <div class="brand">
-        <div class="brand-logo">AG</div>
+        <div class="brand-logo" title="Local Router">🌐</div>
         <div class="brand-title">
           <h1>Local Inference Router</h1>
-          <p><span class="status-dot"></span> <span id="routerOrigin">http://localhost:21080</span></p>
+          <p>
+            <span class="status-bulb" id="servicesBulb" title="Expected backend services"></span>
+            <span class="service-list" id="serviceList">services</span>
+            <span class="origin-sep">|</span>
+            <span id="routerOrigin">http://localhost:21080</span>
+          </p>
         </div>
       </div>
       <div class="controls-bar">
@@ -842,9 +864,44 @@
         renderAgents(data.agents || {});
         renderServices(data.services || {});
         renderTable(data.models || {});
+        renderServiceHealth(data.health);
       } catch (err) {
         console.error("Failed to fetch router usage statistics:", err);
       }
+    }
+
+    const SERVICE_SHORT = {
+      chat: 'chat',
+      embedding: 'emb',
+      rerank: 'rr',
+      stt: 'stt',
+      tts: 'tts',
+      image: 'img'
+    };
+
+    function renderServiceHealth(health) {
+      if (!health || !Array.isArray(health.expected)) return;
+      const bulb = document.getElementById('servicesBulb');
+      const list = document.getElementById('serviceList');
+      const expected = health.expected;
+      const missing = health.missing || [];
+      const degraded = missing.length > 0;
+
+      bulb.classList.toggle('degraded', degraded);
+      bulb.title = degraded
+        ? `Missing: ${missing.join(', ')}`
+        : `All ${expected.length} expected services online`;
+
+      if (expected.length === 0) {
+        list.innerHTML = '<span class="svc-missing">none expected</span>';
+        return;
+      }
+      list.innerHTML = expected.map(name => {
+        const short = SERVICE_SHORT[name] || name;
+        const off = missing.includes(name);
+        const state = off ? 'expected, not online' : 'online';
+        return `<span class="${off ? 'svc-missing' : ''}" title="${name}: ${state}">${short}</span>`;
+      }).join(' ');
     }
 
     function renderKPIs(totals) {

@@ -78,21 +78,29 @@ LROUT_LOG_LEVEL="info"
 
 ### Health Check Endpoint (`GET /health` or `/healthz`)
 
-The router exposes an aggregated status check endpoint. It tests TCP connections to all configured local backend service ports with a 0.5-second timeout and returns an aggregated status payload:
+The router exposes an aggregated status check endpoint. It tests TCP connections to all configured local backend service ports with a 0.5-second timeout, then reports which **expected** services (per the toggle resolution above) discovery has actually confirmed:
 ```json
 {
-  "status": "ok",
+  "status": "degraded",
   "backends": {
     "chat": "online",
     "embedding": "online",
-    "rerank": "online",
+    "rerank": "offline",
     "stt": "online",
     "tts": "online",
-    "image": "online"
+    "image": "offline"
+  },
+  "services": {
+    "expected": ["chat", "embedding", "rerank", "stt", "tts", "image"],
+    "online": ["chat", "embedding", "stt", "tts"],
+    "missing": ["rerank", "image"],
+    "degraded": true
   }
 }
 ```
-If a backend service is stopped or unreachable, its status is marked as `"offline"`.
+- `status` is `"ok"` when every expected service is online, `"degraded"` when at least one is missing. The HTTP status stays `200` either way — the router is serving, it just cannot route to the missing services.
+- `services` is the authority for degraded state: `expected` comes from toggle resolution, `online`/`missing` from background discovery, and a service that is intentionally disabled simply never appears in `expected`.
+- `backends` is the raw per-port TCP probe of every configured destination, independent of whether that service is expected; it can list `"offline"` for a service you have deliberately disabled.
 
 ### Properties Endpoint (`GET /props` or `/v1/props`)
 
@@ -121,13 +129,25 @@ To accommodate client integrations that do not support custom request bodies or 
 
 ### Startup Synchronization & Model Inventory
 
-On startup, the router parses `~/.config/systemd/user/local-inference.env` to identify which sub-services are enabled. It then polls all enabled services:
+The generated `local-router.service` unit loads `~/.config/systemd/user/local-inference.env` as an `EnvironmentFile` (after `local-router.env`), so the coordinator's per-service toggles are present in the router's own process environment. For each service the router resolves its expected state in this order, first key that is set wins:
+
+1. `LROUT_<SVC>_ENABLED` (`LROUT_CHAT_ENABLED`, `LROUT_EMBEDDING_ENABLED`, `LROUT_RERANK_ENABLED`, `LROUT_STT_ENABLED`, `LROUT_TTS_ENABLED`, `LROUT_IMAGE_ENABLED`)
+2. the coordinator key from `local-inference.env` (`LCHAT_ENABLED`, `LMBD_ENABLED`, `LRR_ENABLED`, `LSTT_ENABLED`, `LTTS_ENABLED`, `LIMG_ENABLED`)
+3. enabled
+
+`0`, `false`, `no`, and `off` (any case) disable; anything else enables. The same resolver decides where `/v1/embeddings` routes, so the readiness gate and the embedding route can never disagree. Note that systemd's environment-file parser skips the `L*_OVERRIDE=( … )` bash arrays in `local-inference.env`; those are applied by the wrapper scripts at install/restart time only.
+
+Once resolved, the router polls all expected services:
 - For backends supporting models (`chat`, `embedding` if standalone, `rerank`), it queries their `/v1/models` HTTP endpoint.
 - For backends not exposing a models endpoint (`stt`, `tts`, `image`), it checks if their TCP port is open.
 
 The router polls every 2 seconds for up to **120 seconds (2 minutes)**.
 - If all enabled services become available, it constructs a global model inventory mapping model IDs and configured aliases to their respective services, then begins serving requests.
-- If not all services are online within 120 seconds (2 minutes), the router prints an error to standard error and aborts startup with exit code `1`.
+- If not all services are online within 120 seconds (2 minutes), the router prints a warning to standard error listing the missing services and **continues in degraded mode** — it keeps serving already-available services, and requests routed to a missing one fail until it comes up. A second background poller re-probes every 60 seconds and merges each backend's models as it appears, so no restart is needed.
+
+Degraded startup is deliberate: the router is already serving at that point, so aborting would kill in-flight requests and, under `Restart=on-failure`, turn a missing optional service into a restart loop. If a service must be excluded rather than merely tolerated, disable it with its toggle instead.
+
+Degraded state is observable, not just logged: `/health` and `/healthz` return `"status": "degraded"` with the missing service names, `/usage` carries the same block under `health`, `/metrics` exposes `local_router_degraded` and `local_router_service_online{service}`, and the dashboard header shows a red bulb with the missing services struck through. All four read one resolver, so they cannot disagree.
 
 ### Model Pricing Object
 
@@ -248,9 +268,16 @@ Returns cumulative counts grouped by `agent:model:service`, agent totals, servic
   },
   "agents": { ... },
   "services": { ... },
-  "totals": { ... }
+  "totals": { ... },
+  "health": {
+    "expected": ["chat", "embedding", "stt"],
+    "online": ["chat", "embedding", "stt"],
+    "missing": [],
+    "degraded": false
+  }
 }
 ```
+The `health` key is the same structure `/health` returns under `services`; the dashboard reads it to colour its service bulb. It is present in `format=json` output only.
 
 #### 2. Prometheus Endpoint (`GET /metrics` or `/v1/metrics`)
 Exposes cumulative metrics formatted for Prometheus scrapers:
@@ -260,6 +287,8 @@ Exposes cumulative metrics formatted for Prometheus scrapers:
 - `local_router_tokens_total{agent="...", service="...", model="...", type="..."}`: Total tokens processed (`type` can be `input`, `cached_input`, `cached_write`, `output`, `total`).
 - `local_router_cost_total{agent="...", service="...", model="...", type="..."}`: Cumulative estimated USD cost (`type` matches the token types).
 - `local_router_errors_total{agent="...", service="...", model="...", call_type="streaming|post", code="..."}`: Cumulative count of HTTP errors grouped by agent, service, model, status code, and call type.
+- `local_router_service_online{service="..."}`: `1` when an expected service is confirmed online, `0` when it is expected but missing.
+- `local_router_degraded`: `1` when at least one expected service is missing, else `0` — the scrape-side equivalent of `/health`'s `status == "degraded"`.
 
 ### Diagnostics & Debug Flags (`LROUT_LOG_LEVEL`, `--verbose`, `--debug`)
 
@@ -306,7 +335,8 @@ The router includes a standalone, responsive Web Dashboard SPA served directly a
 
 ![Local Router Dashboard - Detailed Models Breakdown Table](../assets/local-router-ui-3.png)
 
-- **Origin Interaction**: Queries the router's JSON usage API (`/usage?range=...`) dynamically relative to its origin (`window.location.origin`).
+- **Service Health Header**: next to the router origin, a bulb plus the short names of the expected services (`chat emb rr stt tts img`). Green bulb means every expected service is online; red bulb with the missing names struck through means the router is degraded. Names are abbreviated only in this header — hover for the full service name and state.
+- **Origin Interaction**: Queries the router's JSON usage API (`/usage?range=...`) dynamically relative to its origin (`window.location.origin`), including the `health` block that drives the header bulb.
 - **Theme Support**: Auto-detects system browser preference (`dark` / `light`) with an explicit header theme selector (`Auto`, `Dark`, `Light`).
 - **Features**:
   - **KPI Cards Grid**: Real-time summary for Total Requests, Total Tokens, Total Input Tokens, Cache Hit Rate %, Total Output Tokens, Estimated USD Cost, and HTTP Errors (responsive 4 → 3 → 2 → 1 grid layout).

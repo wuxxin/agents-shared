@@ -89,6 +89,10 @@ get_shared_options() {
     fi
 
     # Environment file & Working directory
+    # local-inference.env carries the per-service *_ENABLED toggles. systemd skips its
+    # bash array lines (L*_OVERRIDE=( … )), so only KEY=VALUE toggles land here; the
+    # router resolves LROUT_<SVC>_ENABLED above them, so file order is not load-bearing.
+    echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-inference.env"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-router.env"
     echo "WorkingDirectory=${home_spec}/.config/systemd/user"
 

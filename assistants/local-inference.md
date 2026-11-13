@@ -69,6 +69,21 @@ LROUT_ENABLED=1
 - **`stop`** stops all enabled services, and stops/disables all services set to `0`.
 - **`restart`** stops/disables all services set to `0`, and enables/restarts all services set to `1`.
 
+`local-router` reads the same file directly (the generated `local-router.service` unit loads `local-inference.env` as an `EnvironmentFile`). Per service it resolves, first key set wins: `LROUT_<SVC>_ENABLED`, then the coordinator key below, then enabled. `0`, `false`, `no`, and `off` disable; anything else enables.
+
+| Service | Router-local override | Coordinator key |
+|---|---|---|
+| chat | `LROUT_CHAT_ENABLED` | `LCHAT_ENABLED` |
+| embedding | `LROUT_EMBEDDING_ENABLED` | `LMBD_ENABLED` |
+| rerank | `LROUT_RERANK_ENABLED` | `LRR_ENABLED` |
+| stt | `LROUT_STT_ENABLED` | `LSTT_ENABLED` |
+| tts | `LROUT_TTS_ENABLED` | `LTTS_ENABLED` |
+| image | `LROUT_IMAGE_ENABLED` | `LIMG_ENABLED` |
+
+The `LROUT_*` keys exist for a temporary router-side kill switch without touching coordinator activation. A disabled service is neither expected nor polled at startup; an enabled-but-missing one no longer aborts the router — it warns and keeps serving in degraded mode, retrying every 60 seconds.
+
+`systemd`'s environment-file parser cannot read the `L*_OVERRIDE=( … )` bash arrays; those stay wrapper-side and are applied to each sub-service's own env file on install/start/restart/edit. Only plain `KEY=VALUE` lines reach the router process.
+
 #### Combined Embeddings Mode
 By default, the embedding service runs as a standalone server on port 20082 (`LMBD_ENABLED=1`).
 To run in **Combined Mode** (serving both Chat and Embeddings in a single `llama-server` instance on port 20080):

@@ -161,6 +161,19 @@ client_cancel_gauge = Gauge(
     registry=metrics_registry,
 )
 
+service_online_gauge = Gauge(
+    "local_router_service_online",
+    "1 if an expected backend service is confirmed online, 0 if expected but missing",
+    ["service"],
+    registry=metrics_registry,
+)
+
+router_degraded_gauge = Gauge(
+    "local_router_degraded",
+    "1 when at least one expected backend service is missing, else 0",
+    registry=metrics_registry,
+)
+
 
 def print_debug_raw(label: str, raw_bytes: bytes | None):
     if not raw_bytes:
@@ -295,25 +308,50 @@ def resolve_service_from_model_id(model_id: str, default_svc: str) -> str:
 
 
 def get_enabled_services() -> dict[str, bool]:
-    """Determine which services are expected to be online using environment variable switches."""
+    """Services expected online: LROUT_<SVC>_ENABLED overrides the coordinator toggle
+    from local-inference.env; both default to enabled."""
 
-    def is_enabled(pfx: str, default: bool) -> bool:
-        for var in [f"LROUT_{pfx}_ENABLED", f"L{pfx[:3]}_ENABLED"]:
-            val = os.environ.get(var)
-            if val is not None:
-                return val.lower() not in ("0", "false", "no")
-        return default
+    def truthy(value):
+        if value is None or not str(value).strip():
+            return None
+        return str(value).strip().lower() not in ("0", "false", "no", "off")
 
-    strata_active = os.environ.get("LCHAT_STRATA_ENABLED", "0").lower() not in ("0", "false", "no")
-    chat_active = is_enabled("CHAT", True) or strata_active
+    def resolve(keys):
+        for key in keys:
+            decided = truthy(os.environ.get(key))
+            if decided is not None:
+                return decided
+        return True
 
+    enabled = {
+        "chat": resolve(["LROUT_CHAT_ENABLED", "LCHAT_ENABLED"]),
+        "embedding": resolve(["LROUT_EMBEDDING_ENABLED", "LMBD_ENABLED"]),
+        "rerank": resolve(["LROUT_RERANK_ENABLED", "LRR_ENABLED"]),
+        "stt": resolve(["LROUT_STT_ENABLED", "LSTT_ENABLED"]),
+        "tts": resolve(["LROUT_TTS_ENABLED", "LTTS_ENABLED"]),
+        "image": resolve(["LROUT_IMAGE_ENABLED", "LIMG_ENABLED"]),
+    }
+
+    # Strata replaces local-chat on port 20080, so enabling it means chat is expected.
+    if truthy(os.environ.get("LCHAT_STRATA_ENABLED")) and not truthy(
+        os.environ.get("LROUT_CHAT_ENABLED")
+    ):
+        enabled["chat"] = True
+    return enabled
+
+
+def get_service_status() -> dict[str, Any]:
+    """Expected backend services versus those confirmed online by discovery.
+
+    Single source for the health endpoint, the usage payload, Prometheus, and the UI.
+    """
+    expected = [name for name, enabled in get_enabled_services().items() if enabled]
+    missing = [name for name in expected if name not in available_services]
     return {
-        "chat": chat_active,
-        "embedding": is_enabled("EMBEDDING", False),  # 0 (combined mode) by default
-        "rerank": is_enabled("RERANK", True),
-        "stt": is_enabled("STT", True),
-        "tts": is_enabled("TTS", True),
-        "image": is_enabled("IMAGE", True),
+        "expected": expected,
+        "online": [name for name in expected if name not in missing],
+        "missing": missing,
+        "degraded": bool(missing),
     }
 
 
@@ -506,8 +544,9 @@ async def discover_services_background():
 
     Starts asynchronously on router start. Probes enabled services every 2s during
     initial startup phase (up to 120 seconds). If not all expected services are up
-    within 120 seconds, logs critical error and aborts process.
-    Once all expected services are detected, switches to periodic background polling (10s).
+    within 120 seconds, logs a warning, keeps serving in degraded mode, and falls
+    through to the polling loop. Once all expected services are detected, switches to
+    periodic background polling (60s).
     """
     global model_inventory_list, model_to_service, available_services
 
@@ -634,11 +673,12 @@ async def discover_services_background():
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed >= timeout:
                 print(
-                    f"CRITICAL: Not all expected inference services came online within 120 seconds. "
-                    f"Missing services: {', '.join(missing)}. Aborting.",
+                    f"WARNING: Not all expected inference services came online within {int(timeout)} seconds. "
+                    f"Missing services: {', '.join(missing)}. Continuing in degraded mode; "
+                    f"requests routed to them will fail until they come up.",
                     file=sys.stderr,
                 )
-                os._exit(1)
+                break
 
             await asyncio.sleep(poll_interval)
         except asyncio.CancelledError:
@@ -1451,6 +1491,11 @@ def update_prometheus_metrics():
                 agent=agent, service=service, model=model, call_type="post", code=code
             ).set(val["errors_post"].get(code, 0))
 
+    status = get_service_status()
+    router_degraded_gauge.set(1 if status["degraded"] else 0)
+    for name in status["expected"]:
+        service_online_gauge.labels(service=name).set(0 if name in status["missing"] else 1)
+
 
 def format_usage_table(data: dict[str, Any]) -> str:
     models = data.get("models", {})
@@ -1616,10 +1661,7 @@ def is_debug() -> bool:
 
 def resolve_config() -> dict[str, str]:
     """Resolve routing destinations using standard default localhost ports with env variable overrides."""
-    lmbd_enabled_env = (
-        os.environ.get("LROUT_EMBEDDING_ENABLED") or os.environ.get("LMBD_ENABLED") or "0"
-    )
-    lmbd_enabled = str(lmbd_enabled_env).lower() not in ("0", "false", "no")
+    lmbd_enabled = get_enabled_services()["embedding"]
 
     config = {}
     for svc, (def_host, def_port) in DEFAULT_SERVICE_PORTS.items():
@@ -2320,6 +2362,7 @@ async def route_usage(day: str | None = None, range: str | None = None, format: 
         metrics = get_cumulative_metrics(day_filter=day, range_filter=range)
         if format == "text":
             return PlainTextResponse(format_usage_table(metrics))
+        metrics["health"] = get_service_status()
         return metrics
     except Exception as e:
         print(f"Error in route_usage: {e}", file=sys.stderr)
@@ -2769,6 +2812,11 @@ async def route_health():
                 res["backends"][key] = "offline"
         else:
             res["backends"][key] = "unknown"
+
+    status = get_service_status()
+    if status["degraded"]:
+        res["status"] = "degraded"
+    res["services"] = status
     return res
 
 
