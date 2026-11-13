@@ -243,7 +243,7 @@ def resolve_service_alias(name: str) -> str:
         return stt_env.get("LSTT_ALIAS", "whisper-1")
     elif name == "tts":
         tts_env = parse_env_file(os.path.join(user_dir, "local-text-to-speech.env"))
-        return tts_env.get("LTTS_ALIAS", "qwen3-tts")
+        return tts_env.get("LTTS_ALIAS", "kokoro")
     elif name == "image":
         image_env = parse_env_file(os.path.join(user_dir, "local-image.env"))
         return image_env.get("LIMG_ALIAS", "z-image-turbo")
@@ -257,7 +257,7 @@ def resolve_service_from_model_id(model_id: str, default_svc: str) -> str:
         return "embedding"
     elif "reranker" in model_lower or "rerank" in model_lower:
         return "rerank"
-    elif "tts" in model_lower:
+    elif "tts" in model_lower or "kokoro" in model_lower:
         return "tts"
     elif "whisper" in model_lower or "stt" in model_lower:
         return "stt"
@@ -2579,13 +2579,14 @@ async def route_stt(request: Request):
 @app.post("/v1/audio/speech")
 async def route_tts(request: Request):
     config = resolve_config()
-    model = "qwen3-tts"
+    default_model = resolve_service_alias("tts") or "kokoro"
+    model = default_model
     body = None
     data: dict[str, Any] | None = None
     try:
         body = await request.body()
         data = json.loads(body)
-        model = data.get("model", "qwen3-tts")
+        model = data.get("model") or default_model
     except Exception:
         pass
     agent = extract_request_agent(request, data)
@@ -2596,6 +2597,30 @@ async def route_tts(request: Request):
         service="tts",
         model=model,
         agent=agent,
+    )
+
+
+@app.get("/v1/audio/voices")
+async def route_voices(request: Request):
+    config = resolve_config()
+    return await proxy_request(
+        f"{config['tts']}/v1/audio/voices",
+        request,
+        service="tts",
+        model=resolve_service_alias("tts") or "kokoro",
+    )
+
+
+@app.post("/v1/audio/voices/combine")
+async def route_voices_combine(request: Request):
+    config = resolve_config()
+    body = await request.body()
+    return await proxy_request(
+        f"{config['tts']}/v1/audio/voices/combine",
+        request,
+        content=body,
+        service="tts",
+        model=resolve_service_alias("tts") or "kokoro",
     )
 
 

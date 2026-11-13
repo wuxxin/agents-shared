@@ -4,8 +4,8 @@
 
 On installation, the Python code is copied from `scripts/local-router.py` to the systemd user directory (`~/.config/systemd/user/local-router.py`), and is served directly from there.
 
-- **Source Code Repository Path**: [scripts/local-router.py](file:///home/wuxxin/agent-shared/code/agents-shared/scripts/local-router.py)
-- **Control Wrapper**: [assistants/local-router.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-router.sh)
+- **Source Code Repository Path**: [scripts/local-router.py](../scripts/local-router.py)
+- **Control Wrapper**: [assistants/local-router.sh](local-router.sh)
 
 ## System & Python Dependencies
 

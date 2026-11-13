@@ -87,7 +87,7 @@ By default, the service uses automatic language detection. You can configure the
 
 ## Supported Audio Input Formats
 
-Since the service runs `whisper-server` with the `--convert` flag enabled by default in [local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh), it leverages system-installed `ffmpeg` to dynamically transcode incoming audio files to the format expected by the whisper inference engine (16-bit PCM WAV, 16kHz, mono/stereo).
+Since the service runs `whisper-server` with the `--convert` flag enabled by default in [local-speech-to-text.sh](local-speech-to-text.sh), it leverages system-installed `ffmpeg` to dynamically transcode incoming audio files to the format expected by the whisper inference engine (16-bit PCM WAV, 16kHz, mono/stereo).
 
 Consequently, any audio format or container that can be demuxed and decoded by your host's `ffmpeg` installation is supported as an input format. This includes:
 

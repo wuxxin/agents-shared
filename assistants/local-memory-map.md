@@ -4,23 +4,24 @@ This document aggregates detailed memory requirements and allocations for local 
 
 ## Components
 
-- Local LLM Service ([local-chat.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-chat.sh) / `llama-server`)
+- Local LLM Service ([local-chat.sh](local-chat.sh) / `llama-server`)
 Serves chat and vision.
   - **Model:** `Agents-A1-APEX-I-Compact` (Qwen3.6-35B-A3B finetune, LLM: ~17.0 GiB GGUF, mmproj: ~861 MiB)
-- Local Embedding Service ([local-embedding.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-embedding.sh) / `llama-server`)
+- Local Embedding Service ([local-embedding.sh](local-embedding.sh) / `llama-server`)
 Serves text embeddings.
   - **Model:** `Qwen3-Embedding-0.6B` (596M, Q8_0 GGUF from iyanello, causal decoder, last-token pooling, 32K ctx, 6×8K true parallel, Q8_0 KV cache [6 partitions × 8K])
-- Local Rerank Service ([local-rerank.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-rerank.sh) / `llama-server` or `text-embeddings-router`)
+- Local Rerank Service ([local-rerank.sh](local-rerank.sh) / `llama-server` or `text-embeddings-router`)
 Serves document reranking.
   - **Model (active):** `Qwen3-Reranker-0.6B` (596M, Q4_K_M GGUF, Qwen3 decoder + binary classification head, 12K ctx, unified KV cache, 2×12K sequential slots, Cohere-compatible `/v1/rerank` scores)
   - **Model (alternative):** `ettin-reranker-400m-v1` (~0.8 GB Safetensors, served via TEI, 1×8K batch, ModernBERT backbone, native `/v1/rerank` scores)
-- Local Speech-to-Text ([local-speech-to-text.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-speech-to-text.sh) / `whisper-server`)
+- Local Speech-to-Text ([local-speech-to-text.sh](local-speech-to-text.sh) / `whisper-server`)
 Serves audio transcription.
   - **Model:** `ggml-large-v3-turbo-q5_0.bin` (~573.45 MiB GGUF)
-- Local Text-to-Speech ([local-text-to-speech.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-text-to-speech.sh) / `qwen3-tts-server`)
+- Local Text-to-Speech ([local-text-to-speech.sh](local-text-to-speech.sh) / `kokoro-ctl.py`)
 Serves voice synthesis.
-  - **Model:** `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf` (~1,264 MiB GGUF) + Vocoder `Qwen3-TTS-Tokenizer-12Hz-F16.gguf` (~325 MiB GGUF)
-- Local Image Service ([local-image.sh](file:///home/wuxxin/agent-shared/code/agents-shared/assistants/local-image.sh) / `sd-server`)
+  - **Engine (default):** `Kokoro-82M ONNX Runtime` (`kokoro-onnx`, ~330 MiB float32 ONNX model, **0 MiB VRAM**, **~350 MiB host RAM**, 4.6× real-time on CPU).
+  - **Engine (alternative):** `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf` (~1,264 MiB GGUF) + Vocoder `Qwen3-TTS-Tokenizer-12Hz-F16.gguf` (~325 MiB GGUF).
+- Local Image Service ([local-image.sh](local-image.sh) / `sd-server`)
 Serves image generation using stable diffusion.
   - **Model:** `z_image_turbo-Q8_0.gguf` (~Diffusion) + `ae.safetensors` (~VAE) + `Qwen3-4B-Q4_K_M.gguf` (~Text Encoder LLM)
 
@@ -90,9 +91,9 @@ LIMG_OVERRIDE=(
 | **Embedding** | vulkan1 (dGPU) | **~2,940 MiB** | 0 MiB | ~400 MiB |
 | **Rerank** | vulkan1 (dGPU) | **~1,308 MiB** | 0 MiB | ~200 MiB |
 | **Speech-to-Text** | vulkan0 (iGPU) | 0 MiB | **809 MiB** | ~126 MiB |
-| **Text-to-Speech** | CPU | 0 MiB | 0 MiB | **~2,970 MiB** |
+| **Text-to-Speech** | CPU | 0 MiB | 0 MiB | **~350 MiB** (Kokoro) |
 | **Image** | vulkan0 (iGPU) | 0 MiB | **6,368 MiB** | ~3,812 MiB |
-| **Total** | - | **23,390 MiB** | **7,177 MiB** | **~10,944 MiB** |
+| **Total** | - | **23,390 MiB** | **7,177 MiB** | **~8,324 MiB** |
 
 **Status:**
 - **dGPU (RX 7900 XTX):** **Safe**. Fits within 24,576 MiB usable VRAM. Remaining headroom: **~1,186 MiB** free VRAM.

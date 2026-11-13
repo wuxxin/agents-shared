@@ -109,7 +109,7 @@ Hermes includes native support for the Signal messaging channel, interfacing wit
 ### User and Agent Binding
 1. **Signal Account**: Set `SIGNAL_ACCOUNT="+1234567890"` to specify the registered Signal number used by the bot itself.
 2. **User Binding**: Set `SIGNAL_ALLOWED_USERS="+0000000000"` to specify the owner's phone number or UUID. Any message from this allowed number is authenticated as the owner.
-3. **Agent Binding**: All incoming messages from the bound user are automatically routed to the default agent instance (`default`), storing conversations and context in the default workspace path: `/home/wuxxin/.local/sandbox/hermes/.hermes/agents/default/workspace`.
+3. **Agent Binding**: All incoming messages from the bound user are automatically routed to the default agent instance (`default`), storing conversations and context in the default workspace path: `~/.local/sandbox/hermes/.hermes/agents/default/workspace`.
 
 Add the following to `~/.config/systemd/user/hermes-gateway.env` (via `./assistants/hermes-ctl edit`):
 ```bash
@@ -151,7 +151,7 @@ Hermes implements memory as profile-scoped plugins. Select your preferred plugin
     provider: holographic
   plugins:
     hermes-memory-store:
-      db_path: /home/wuxxin/.local/sandbox/hermes/.hermes/memory_store.db
+      db_path: ~/.local/sandbox/hermes/.hermes/memory_store.db
       auto_extract: true
       default_trust: 0.5
       min_trust_threshold: 0.3

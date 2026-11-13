@@ -20,15 +20,40 @@ ENV_FILE="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.env"
 # Load environment
 
 load_env() {
-    # Default parameters
+    local env_engine="${LTTS_ENGINE:-}"
+    local env_mode="${LTTS_MODE:-}"
+    local env_model="${LTTS_MODEL:-}"
+    local env_voice="${LTTS_VOICE:-}"
+    local env_alias="${LTTS_ALIAS:-}"
+    local env_def_voice_en="${LTTS_DEFAULT_VOICE_EN:-}"
+    local env_def_voice_de="${LTTS_DEFAULT_VOICE_DE:-}"
+    local env_def_lang="${LTTS_DEFAULT_LANGUAGE:-}"
+
+    # General parameters
     LTTS_PORT=20095
     LTTS_HOST=127.0.0.1
-    LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
-    LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
-    LTTS_THREADS=8
-    LTTS_MODE="cpu"
-    LTTS_EXTRA_ARGS=""
-    LTTS_DEVICE=""
+    LTTS_ENGINE=""
+    LTTS_ALIAS=""
+    LTTS_VOICE=""
+
+    # Qwen3-TTS engine parameters (GGUF via qwen3-tts-server)
+    LTTS_QWEN3_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
+    LTTS_QWEN3_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
+    LTTS_QWEN3_THREADS=8
+    LTTS_QWEN3_MODE="cpu"
+    LTTS_QWEN3_EXTRA_ARGS="--language de"
+    LTTS_QWEN3_DEVICE=""
+    LTTS_QWEN3_VOICE="serena"
+
+    # Kokoro engine parameters (ONNX via kokoro-ctl.py)
+    LTTS_KOKORO_MODEL=/data/public/machine-learning/models/text-to-speech/kokoro-onnx
+    LTTS_KOKORO_VOICE="df_victoria"
+    LTTS_KOKORO_THREADS=8
+    LTTS_KOKORO_EXTRA_ARGS=""
+    # OpenAI API compatibility & fallback defaults
+    LTTS_DEFAULT_VOICE_EN="af_heart"
+    LTTS_DEFAULT_VOICE_DE="df_victoria"
+    LTTS_DEFAULT_LANGUAGE="en"
 
     # Source the env file to get model paths and settings if it exists
     if [[ -f "$ENV_FILE" ]]; then
@@ -36,6 +61,63 @@ load_env() {
         # shellcheck disable=SC1090
         source "$ENV_FILE"
         set -u
+    fi
+
+    # Restore environment variable overrides if provided
+    if [[ -n "$env_engine" ]]; then
+        LTTS_ENGINE="$env_engine"
+    fi
+    if [[ -n "$env_mode" ]]; then
+        LTTS_MODE="$env_mode"
+    fi
+    if [[ -n "$env_model" ]]; then
+        LTTS_MODEL="$env_model"
+    fi
+    if [[ -n "$env_voice" ]]; then
+        LTTS_VOICE="$env_voice"
+    fi
+    if [[ -n "$env_alias" ]]; then
+        LTTS_ALIAS="$env_alias"
+    fi
+    if [[ -n "$env_def_voice_en" ]]; then
+        LTTS_DEFAULT_VOICE_EN="$env_def_voice_en"
+    fi
+    if [[ -n "$env_def_voice_de" ]]; then
+        LTTS_DEFAULT_VOICE_DE="$env_def_voice_de"
+    fi
+    if [[ -n "$env_def_lang" ]]; then
+        LTTS_DEFAULT_LANGUAGE="$env_def_lang"
+    fi
+
+    # Auto-detect engine if not set (legacy configuration support)
+    if [[ -z "${LTTS_ENGINE:-}" ]]; then
+        if [[ -n "${LTTS_VOCODER:-}" || "${LTTS_MODEL:-}" =~ \.gguf$ ]]; then
+            LTTS_ENGINE="qwen3"
+        else
+            LTTS_ENGINE="kokoro"
+        fi
+    fi
+    # Map generic variables based on selected engine for backward compatibility
+    if [[ "${LTTS_ENGINE}" == "kokoro" || "${LTTS_ENGINE}" == "crane" ]]; then
+        LTTS_ENGINE="kokoro"
+        if [[ -n "${LTTS_KOKORO_MODEL:-}" && ( -z "${LTTS_MODEL:-}" || "${LTTS_MODEL:-}" =~ \.gguf$ ) ]]; then
+            LTTS_MODEL="${LTTS_KOKORO_MODEL}"
+        else
+            LTTS_MODEL="${LTTS_KOKORO_MODEL:-${LTTS_CRANE_MODEL:-${LTTS_MODEL:-}}}"
+        fi
+        LTTS_VOICE="${LTTS_KOKORO_VOICE:-${LTTS_CRANE_VOICE:-${LTTS_VOICE:-df_kerstin}}}"
+        LTTS_THREADS="${LTTS_KOKORO_THREADS:-${LTTS_THREADS:-8}}"
+        LTTS_ALIAS="${LTTS_ALIAS:-kokoro}"
+        LTTS_EXTRA_ARGS="${LTTS_KOKORO_EXTRA_ARGS:-${LTTS_CRANE_EXTRA_ARGS:-}}"
+    else
+        LTTS_MODEL="${LTTS_QWEN3_MODEL:-${LTTS_MODEL:-}}"
+        LTTS_VOCODER="${LTTS_QWEN3_VOCODER:-${LTTS_VOCODER:-}}"
+        LTTS_THREADS="${LTTS_QWEN3_THREADS:-${LTTS_THREADS:-8}}"
+        LTTS_MODE="${LTTS_QWEN3_MODE:-${LTTS_MODE:-cpu}}"
+        LTTS_DEVICE="${LTTS_QWEN3_DEVICE:-${LTTS_DEVICE:-}}"
+        LTTS_EXTRA_ARGS="${LTTS_QWEN3_EXTRA_ARGS:-${LTTS_EXTRA_ARGS:-}}"
+        LTTS_VOICE="${LTTS_QWEN3_VOICE:-${LTTS_VOICE:-serena}}"
+        LTTS_ALIAS="${LTTS_ALIAS:-qwen3-tts}"
     fi
 
     if [[ -n "${HIP_VISIBLE_DEVICES+x}" ]]; then
@@ -72,17 +154,14 @@ parse_env_args() {
         fi
     done
 
-    load_env
-
     for update in "${env_updates[@]}"; do
         local key="${update%%=*}"
         local val="${update#*=}"
         export "${key}"="${val}"
-        if declare -p "$key" &>/dev/null || [[ "$key" =~ ^LRR_ || "$key" =~ ^LMBD_ || "$key" =~ ^LCHAT_ || "$key" =~ ^LSTT_ || "$key" =~ ^LTTS_ ]]; then
-            printf -v "$key" "%s" "$val"
-        fi
         SETENV_OPTS+=("--setenv=${key}=${val}")
     done
+
+    load_env
 }
 
 # Shared Sandboxing Configuration
@@ -124,6 +203,8 @@ get_shared_options() {
     echo "Environment=QWEN3_TTS_LOW_MEM=${low_mem}"
     echo "Environment=QWEN3_TTS_TRANSFORMER_FORCE_CPU=${transformer_force_cpu}"
     echo "Environment=QWEN3_TTS_VOCODER_FORCE_CPU=${vocoder_force_cpu}"
+    echo "Environment=HF_HOME=${home_spec}/.cache/kokoro/hf"
+    echo "Environment=KOKORO_CACHE_DIR=${home_spec}/.cache/kokoro"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-text-to-speech.env"
     echo "WorkingDirectory=${home_spec}"
 
@@ -140,11 +221,9 @@ get_shared_options() {
     echo "PrivateIPC=no"
 
     echo "ProtectSystem=strict"
-    # Allow read-write access to home-based paths
+    # Allow read-write access to home-based paths (where ~/.cache and ~/.config live)
     echo "BindPaths=${home_spec}"
-    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
-
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf /data/public/machine-learning"
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
     echo "ProtectKernelLogs=yes"
@@ -160,7 +239,7 @@ get_shared_options() {
 }
 
 # Helper to get unified arguments for qwen3-tts-server
-get_tts_args() {
+get_qwen3_args() {
     local -n out_args=$1
     out_args=(
         --model "${LTTS_MODEL}"
@@ -178,6 +257,37 @@ get_tts_args() {
         local extra_arr=()
         eval "extra_arr=(${LTTS_EXTRA_ARGS})"
         out_args+=("${extra_arr[@]}")
+    fi
+}
+
+# Helper to get unified arguments for kokoro-ctl.py
+get_kokoro_args() {
+    local -n out_kokoro_args=$1
+    out_kokoro_args=(
+        --server
+        --model-dir "${LTTS_MODEL:-/data/public/machine-learning/models/text-to-speech/kokoro-onnx}"
+        --host "${LTTS_HOST}"
+        --port "${LTTS_PORT}"
+        --threads "${LTTS_THREADS:-8}"
+        --default-voice "${LTTS_VOICE:-df_victoria}"
+        --default-voice-en "${LTTS_DEFAULT_VOICE_EN:-af_heart}"
+        --default-voice-de "${LTTS_DEFAULT_VOICE_DE:-df_victoria}"
+        --default-lang "${LTTS_DEFAULT_LANGUAGE:-en}"
+    )
+
+    if [[ -n "${LTTS_EXTRA_ARGS:-}" ]]; then
+        local extra_arr=()
+        eval "extra_arr=(${LTTS_EXTRA_ARGS})"
+        out_kokoro_args+=("${extra_arr[@]}")
+    fi
+}
+
+# Backward compatibility alias
+get_tts_args() {
+    if [[ "${LTTS_ENGINE:-qwen3}" == "kokoro" ]]; then
+        get_kokoro_args "$1"
+    else
+        get_qwen3_args "$1"
     fi
 }
 
@@ -200,39 +310,28 @@ format_exec_start() {
 generate_service_file() {
     load_env
 
-    local force_cpu=0
-    local low_mem=0
-    local transformer_force_cpu=0
-    local vocoder_force_cpu=0
-
-    low_mem=0
-
-    case "${LTTS_MODE:-gpu}" in
-    "gpu")
-        force_cpu=0
-        ;;
-    "hybrid")
-        force_cpu=0
-        transformer_force_cpu=1
-        ;;
-    "cpu")
-        force_cpu=1
-        ;;
-    *)
-        echo "Warning: unknown LTTS_MODE '${LTTS_MODE}', defaulting to gpu" >&2
-        force_cpu=0
-        ;;
-    esac
-
     local args
-    get_tts_args args
     local exec_cmd
-    exec_cmd=$(format_exec_start "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}")
+    local description
+    local doc_link
+
+    if [[ "${LTTS_ENGINE}" == "kokoro" ]]; then
+        get_kokoro_args args
+        local kokoro_bin="${KOKORO_CTL_BIN:-$(dirname "$0")/../scripts/kokoro-ctl.py}"
+        exec_cmd=$(format_exec_start "${kokoro_bin}" "${args[@]}")
+        description="Local Text-to-Speech Synthesis Server (kokoro-onnx)"
+        doc_link="https://huggingface.co/hexgrad/Kokoro-82M"
+    else
+        get_qwen3_args args
+        exec_cmd=$(format_exec_start "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}")
+        description="Local Text-to-Speech Synthesis Server (qwen3-tts-server)"
+        doc_link="https://github.com/khimaros/qwen3-tts.cpp"
+    fi
 
     cat <<EOF
 [Unit]
-Description=Local Text-to-Speech Synthesis Server (qwen3-tts-server)
-Documentation=https://github.com/khimaros/qwen3-tts.cpp
+Description=${description}
+Documentation=${doc_link}
 After=network.target
 
 [Service]
@@ -258,11 +357,12 @@ generate_env_file() {
     cat <<'EOF'
 # local-text-to-speech.env
 
-# Configuration for the local-text-to-speech.service qwen3-tts-server instance.
-#
-# Edit this file to switch models or tune runtime parameters.
+# Configuration for the local-text-to-speech.service instance.
+# Edit this file to switch engines, models, or tune runtime parameters.
 # Reload with:  local-text-to-speech.sh restart
 
+# Active TTS engine: 'qwen3' (qwen3-tts-server) or 'kokoro' (kokoro-onnx)
+LTTS_ENGINE="kokoro"
 
 # Port to bind the server to (default: 20095)
 LTTS_PORT=20095
@@ -270,33 +370,70 @@ LTTS_PORT=20095
 # Host to bind the server to (127.0.0.1 for local access only)
 LTTS_HOST=127.0.0.1
 
+# Default speaker voice (used by 'test' subcommand if not overridden)
+# Qwen3: serena, ryan, aiden, vivian, uncle_fu, ono_anna, sohee, eric, dylan
+# Kokoro: df_kerstin (German), af_heart, af_bella, am_adam, bm_george, etc.
+LTTS_VOICE="df_kerstin"
+
+# Model alias reported in /v1/models and client requests (e.g. kokoro, qwen3-tts)
+LTTS_ALIAS="kokoro"
+
+
+# KOKORO ONNX ENGINE SETTINGS (kokoro-ctl.py)
+# ==============================================================================
+# Fast ONNX Runtime CPU inference for Kokoro-82M. Supports native German (df_victoria, dm_martin)
+# and all official 55 multilingual voice styles. Low memory (~350 MB RAM, 0 MB VRAM).
+
+# Path to Kokoro ONNX model directory
+LTTS_KOKORO_MODEL=/data/public/machine-learning/models/text-to-speech/kokoro-onnx
+
+# Default voice style for Kokoro
+LTTS_KOKORO_VOICE="df_victoria"
+
+# Default English voice for OpenAI API fallback (when voice/language omitted)
+LTTS_DEFAULT_VOICE_EN="af_heart"
+
+# Default German voice for OpenAI API fallback (when German language selected without voice)
+LTTS_DEFAULT_VOICE_DE="df_victoria"
+
+# Default fallback language when omitted in request (e.g. 'en' or 'de')
+LTTS_DEFAULT_LANGUAGE="en"
+
+# Number of CPU threads for Kokoro ONNX inference
+LTTS_KOKORO_THREADS=8
+
+# Extra arguments to pass to kokoro-ctl.py
+LTTS_KOKORO_EXTRA_ARGS=""
+
+# ==============================================================================
+# QWEN3-TTS ENGINE SETTINGS (qwen3-tts-server)
+# ==============================================================================
+# Fast C++ GGML-based serving for Qwen3-TTS GGUF models.
+
 # Path to the GGUF Talker model file
-LTTS_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
+LTTS_QWEN3_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
 
 # Path to the GGUF Tokenizer/Vocoder model file
-LTTS_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
+LTTS_QWEN3_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
 
-# Performance mode preset:
+# Performance mode preset for Qwen3:
 #   - gpu                : Runs on GPU, holds models warm (fastest)
 #   - hybrid             : Runs Code Gen on CPU, Vocoder on GPU (performance sweet spot)
 #   - cpu                : Forces cpu execution via GGML backends
-LTTS_MODE="cpu"
+LTTS_QWEN3_MODE="cpu"
 
 # GPU/CPU backend device to use (run 'llama-cli --list-devices' for valid names)
 # By default, qwen3-tts-server selects the default available backend.
-# To force a specific backend device, uncomment one of the options below:
-# LTTS_DEVICE="ROCm0"
-# LTTS_DEVICE="Vulkan0"
-# LTTS_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
-# LTTS_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
+# LTTS_QWEN3_DEVICE="ROCm0"
+# LTTS_QWEN3_DEVICE="Vulkan0"
+# LTTS_QWEN3_DEVICE="BLAS"  # Force CPU OpenBLAS acceleration
+# LTTS_QWEN3_DEVICE="none"  # Force plain CPU execution (without OpenBLAS)
 
 # Number of threads to use for computations
-LTTS_THREADS=8
+LTTS_QWEN3_THREADS=8
 
 # Extra arguments to pass to qwen3-tts-server (e.g. --temperature, --seed, etc.)
-# set default language for generation, if not supplied by request: only available in patched (libggml-git-hip) qwen3-tts
-# eg. "--language de"
-LTTS_EXTRA_ARGS="--language de"
+LTTS_QWEN3_EXTRA_ARGS="--language de"
 
 EOF
 }
@@ -464,6 +601,9 @@ export_tts_env_vars() {
     export QWEN3_TTS_LOW_MEM="${low_mem}"
     export QWEN3_TTS_TRANSFORMER_FORCE_CPU="${transformer_force_cpu}"
     export QWEN3_TTS_VOCODER_FORCE_CPU="${vocoder_force_cpu}"
+    local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/kokoro"
+    export HF_HOME="${cache_dir}/hf"
+    export KOKORO_CACHE_DIR="${cache_dir}"
 }
 
 cmd_exec() {
@@ -473,18 +613,25 @@ cmd_exec() {
     export_tts_env_vars
 
     local args
-    get_tts_args args
+    local bin
+    if [[ "${LTTS_ENGINE}" == "kokoro" ]]; then
+        get_kokoro_args args
+        bin="${KOKORO_CTL_BIN:-$(dirname "$0")/../scripts/kokoro-ctl.py}"
+    else
+        get_qwen3_args args
+        bin="${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}"
+    fi
 
     if ! is_systemd_running; then
-        echo "Warning: Systemd is not running. Running qwen3-tts-server directly in foreground..."
+        echo "Warning: Systemd is not running. Running ${bin} directly in foreground..."
         if [ $# -gt 0 ]; then
-            exec "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "$@"
+            exec "${bin}" "$@"
         else
-            exec "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}"
+            exec "${bin}" "${args[@]}"
         fi
     fi
 
-    echo "Starting qwen3-tts-server as a transient systemd service with args: $*"
+    echo "Starting ${bin} as a transient systemd service with args: $*"
 
     local opts=(
         --user
@@ -503,14 +650,18 @@ cmd_exec() {
 
     if [ $# -gt 0 ]; then
         # shellcheck disable=SC2086
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "$@"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${bin}" "$@"
     else
-        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}" "${args[@]}"
+        systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "${bin}" "${args[@]}"
     fi
 }
 
 cmd_shell() {
-    echo "Starting interactive shell in the qwen3-tts-server systemd environment..."
+    local bin_name="${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}"
+    if [[ "${LTTS_ENGINE:-qwen3}" == "kokoro" ]]; then
+        bin_name="kokoro-ctl"
+    fi
+    echo "Starting interactive shell in the ${bin_name} systemd environment..."
 
     parse_env_args "$@"
     set -- "${COMMAND_ARGS[@]}"
@@ -541,7 +692,11 @@ cmd_run() {
         echo "Error: run requires a command to execute." >&2
         exit 1
     fi
-    echo "Running command inside the qwen3-tts-server environment: $*"
+    local bin_name="${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}"
+    if [[ "${LTTS_ENGINE:-qwen3}" == "kokoro" ]]; then
+        bin_name="kokoro-ctl"
+    fi
+    echo "Running command inside the ${bin_name} environment: $*"
 
     local opts=(
         --user
@@ -561,10 +716,13 @@ cmd_run() {
     systemd-run "${opts[@]}" "${SETENV_OPTS[@]}" -- "$@"
 }
 
+
 cmd_test() {
+    parse_env_args "$@"
+    set -- "${COMMAND_ARGS[@]}"
+
     echo "Running local-text-to-speech validation tests..."
     load_env
-
     local play=false
     local benchmark=false
     local repeat=""
@@ -611,18 +769,23 @@ cmd_test() {
     }
     trap cleanup EXIT
 
-    # Create a test sentence of 9 words
-    local text="The quick brown fox jumps over the lazy dog."
-    echo "Synthesizing test sentence (9 words):"
+    local model_alias="${LTTS_ALIAS:-kokoro}"
+    local voice="${LTTS_VOICE:-df_victoria}"
+    local text
+    if [[ "$voice" =~ ^d[fm]_ || "$voice" =~ [Gg]erman ]]; then
+        text="Die Sonne scheint hell über dem ruhigen See."
+    else
+        text="The quick brown fox jumps over the lazy dog."
+    fi
+    echo "Synthesizing test sentence:"
     echo "  \"${text}\""
     echo "Sending request to http://${host}:${port}/v1/audio/speech..."
-
     if ! curl -s -f -X POST "http://${host}:${port}/v1/audio/speech" \
         -H "Content-Type: application/json" \
         -d "{
-          \"model\": \"qwen3-tts\",
+          \"model\": \"${model_alias}\",
           \"input\": \"${text}\",
-          \"voice\": \"serena\",
+          \"voice\": \"${voice}\",
           \"response_format\": \"wav\"
         }" \
         -o "$temp_dir/tts_output.wav"; then
@@ -696,15 +859,15 @@ usage() {
     echo "  disable   - Disable systemd service on boot"
     echo "  logs      - Tail the systemd service logs"
     echo "  edit      - Edit the .env file and restart the service upon exit"
-    echo "  exec      - Run qwen3-tts-server as a transient systemd user service"
-    echo "  run       - Run a command inside the qwen3-tts-server environment"
-    echo "  shell     - Spawn an interactive shell in the qwen3-tts-server environment"
+    echo "  exec      - Run active TTS server as a transient systemd user service"
+    echo "  run       - Run a command inside the active TTS server environment"
+    echo "  shell     - Spawn an interactive shell in the active TTS server environment"
     echo "  cat       - Print service file, environment configuration, and transient exec command"
     echo "  test [--play] [--benchmark] - Run synthesis and validation tests or benchmark"
 }
 
 cmd_cat() {
-    load_env
+    parse_env_args "$@"
     echo "=== Service File: ${SERVICE_FILE} ==="
     if [[ -f "${SERVICE_FILE}" ]]; then
         cat "${SERVICE_FILE}"
@@ -721,8 +884,15 @@ cmd_cat() {
     echo ""
     echo "=== Transient Execution Command (exec) ==="
     local args
-    get_tts_args args
-    echo "${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server} ${args[*]}"
+    local bin_cmd
+    if [[ "${LTTS_ENGINE:-qwen3}" == "kokoro" ]]; then
+        get_kokoro_args args
+        bin_cmd="${KOKORO_CTL_BIN:-$(dirname "$0")/../scripts/kokoro-ctl.py}"
+    else
+        get_qwen3_args args
+        bin_cmd="${QWEN3_TTS_SERVER_BIN:-qwen3-tts-server}"
+    fi
+    echo "${bin_cmd} ${args[*]}"
 }
 
 main() {
@@ -748,7 +918,7 @@ main() {
     exec) cmd_exec "$@" ;;
     run) cmd_run "$@" ;;
     shell) cmd_shell "$@" ;;
-    cat) cmd_cat ;;
+    cat) cmd_cat "$@" ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"

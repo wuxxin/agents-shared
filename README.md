@@ -23,7 +23,7 @@ It provides **`sandbox-ctl`** (a generalized systemd and bubblewrap container la
 | **[Local Embedding](#local-embedding-services)** | [20082](http://localhost:20082) | TEI (`text-embeddings-router`) or `llama-server` serving Text Embeddings |
 | **[Local Reranking](#local-reranking-services)** | [20086](http://localhost:20086) | Llama-server serving Document Reranking |
 | **[Local Speech to Text](#local-speech-to-text)** | [20090](http://localhost:20090) | Whisper-server audio transcription API (HTTP) |
-| **[Local Text to Speech](#local-text-to-speech)** | [20095](http://localhost:20095) | Qwen3-tts-server audio synthesis API (HTTP) |
+| **[Local Text to Speech](#local-text-to-speech)** | [20095](http://localhost:20095) | Kokoro-82M ONNX (default) or Qwen3-TTS audio synthesis API (HTTP) |
 | **[Local Image Generation](#local-image-services)** | [20100](http://localhost:20100) | sd-server serving Image Generation API (HTTP) |
 | **[Local Memory Service](#local-memory-service)** | [28888](http://localhost:28888), [28889](http://localhost:28889), [8890](http://localhost:8890) | Hindsight API (28888), Worker Control Plane (28889) & Control UI (8890) |
 | **[Local Router](#local-combined-inference-router)** | [21080](http://localhost:21080) | Combined service router / OpenAI proxy (HTTP) |
@@ -147,9 +147,9 @@ flowchart LR
 - Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
 
 ### Local Text-to-Speech
-- **Description**: Manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) synthesis. Serves an OpenAI-compatible audio synthesis API on port 20095.
-- **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in `cpu` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
-- **Features**: performance tuning modes cpu, fully parallelized CPU threading, and streaming/batch PCM generation.
+- **Description**: Manages persistent Text-to-Speech (TTS) voice synthesis services exposing an OpenAI-compatible audio synthesis API on port 20095. Defaults to **Kokoro-82M ONNX** (`scripts/kokoro-ctl.py`), with optional **Qwen3-TTS** (`qwen3-tts-server`) GGUF serving.
+- **Sandboxing**: Runs purely on CPU with AVX2 MLAS acceleration, consuming **0 MB discrete GPU VRAM** and ~350 MB host RAM. Enforces `ProtectSystem=strict` with sandbox isolation.
+- **Features**: 4.6× – 5.1× real-time synthesis, native accent-free German (`df_victoria`, `dm_martin`) and English (`af_heart`, `am_adam`) voice lineups, length-indexed style embedding lookup (`voice[L-1]`), voice blending, multi-speaker inline dialogue, silence pauses, chunked streaming, OGG/Opus compressed output, in-process audio playback via `python-sounddevice`, and OpenAI API fallback cascades.
 - Documentation: [local-text-to-speech.md](assistants/local-text-to-speech.md)
 
 ### Local Image Services
@@ -221,7 +221,7 @@ See [assistants/agents.md](assistants/agents-ctl.md) for general usage and commo
 - **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-chat` (port 20080) or Ollama.
 - **Embedding Options**: Local embeddings using the `local-embedding` server (port 20082) or Ollama, or OpenAI-compatible embedding APIs.
 - **Reranking Support**: Native weighted hybrid search, or routes to external local-rerank service (`http://localhost:20086/v1/rerank`).
-- **STT/TTS Support**: Natively routes voice uploads to local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Qwen3-tts (`local-text-to-speech` on port 20095).
+- **STT/TTS Support**: Natively routes voice uploads to local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Kokoro-82M ONNX / Qwen3-tts (`local-text-to-speech` on port 20095).
 - **Agent Client Protocol**: Yes — Native stdio-based ACP server via `zeroclaw-acp-bridge` and a dedicated `Acp` (Code) pane in the `zerocode` TUI.
 - **Agent to Agent Protocol**: Yes — Built-in peer-to-peer delegation via the `delegate` tool, restricted by shared risk profiles and `delegation_policy` configurations.
 - **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
@@ -296,7 +296,7 @@ See [assistants/agents.md](assistants/agents-ctl.md) for general usage and commo
 - **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-chat` (port 20080) or Ollama.
 - **Embedding Options**: Local embeddings using the `local-embedding` server (port 20082) or Ollama, or remote/Ollama embeddings.
 - **Reranking Support**: None. Reranking is not supported by the LibreFang daemon.
-- **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Qwen3-tts (`local-text-to-speech` on port 20095) supported via a patched package (`librefang-git` with `feature-local-stt-tts` patchset).
+- **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Kokoro-82M ONNX / Qwen3-tts (`local-text-to-speech` on port 20095).
 - **Agent Client Protocol**: Yes — Bridges the runtime to the Agent Client Protocol (ACP) for editor integrations (stdio or Unix socket).
 - **Agent to Agent Protocol**: Yes — Spawns subagents isolated with bubblewrap (`bwrap`), passing context via `SubagentContext` for context inheritance.
 - **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)

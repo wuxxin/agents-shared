@@ -1,11 +1,17 @@
 # Local Text-to-Speech Management Guide
 
-`local-text-to-speech.sh` manages a persistent `qwen3-tts-server` instance for text-to-speech (TTS) voice synthesis. It exposes an OpenAI-compatible audio generation endpoint, enabling local, private speech synthesis.
+`local-text-to-speech.sh` manages local text-to-speech (TTS) voice synthesis services. It supports two switchable backend engines exposing an OpenAI-compatible audio generation endpoint (`/v1/audio/speech`):
+1. **`kokoro`** (Default): Fast ONNX Runtime CPU inference (`scripts/kokoro-ctl.py`) with AVX2 MLAS acceleration, C API `libespeak-ng.so`, and in-process audio playback via `python-sounddevice`. Generates German (`df_victoria`, `dm_martin`) and all 55 official multilingual voices at **4.6× real-time** with **0 MB VRAM** and ~350 MB host RAM.
+2. **`qwen3`**: Runs `qwen3-tts-server` (C++ GGML backend) loading Qwen3-TTS and WavTokenizer GGUF models with CPU, Vulkan, and ROCm/HIP support.
 
-- **Source Code**: [GitHub - khimaros/qwen3-tts.cpp](https://github.com/khimaros/qwen3-tts.cpp)
-- **Arch/AUR Package**:
-  - `qwen3-tts.cpp-git-ggml-hip` (private package in repo https://github.com/wuxxin/aur-packages )
-
+- **Source Code**:
+  - Kokoro-82M ONNX: [Hugging Face - hexgrad/Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)
+  - Qwen3-TTS C++: [GitHub - khimaros/qwen3-tts.cpp](https://github.com/khimaros/qwen3-tts.cpp)
+  - kokoro.cpp (Vulkan/CPU GGML): [GitHub - simonfxr/kokoro.cpp](https://github.com/simonfxr/kokoro.cpp)
+- **Arch/AUR Packages**:
+  - `python-onnxruntime` + `python-sounddevice` + `python-soundfile` + `python-fastapi` + `python-uvicorn` + `espeak-ng` (system Arch packages for Kokoro ONNX)
+  - `python-gguf` (AUR) + `python-safetensors` (Arch official repo) for offline voice conversion
+  - `qwen3-tts.cpp-git-ggml-hip` (in `aur-packages/libggml-git-hip` for Qwen3)
 ## Usage
 
 | Command | Description |
@@ -33,14 +39,114 @@ These overrides are kept transient, keeping the main `.env` configuration file u
 
 ## Architecture
 
-The service runs `qwen3-tts-server` which loads a Qwen3-TTS talker model and a WavTokenizer vocoder model, exposing a REST API.
-
+The service routes requests to either `kokoro-ctl.py` (Kokoro ONNX) or `qwen3-tts-server` (Qwen3-TTS) based on the configured `LTTS_ENGINE`. Both engines serve an OpenAI-compatible REST API on port `20095`.
 ### Endpoints (all on port 20095)
 
 | Endpoint | Purpose |
 |---|---|
-| `/v1/audio/speech` | OpenAI-compatible text-to-speech API (POST JSON with model, input, voice, and response_format) |
-| `/v1/audio/voices` | Returns loaded voice names/presets |
+| `/v1/audio/speech` | OpenAI-compatible text-to-speech API (supports `wav`, `pcm`, `ogg`, `opus`, and `stream: true`) |
+| `/v1/audio/voices` | Returns all available voice style IDs |
+| `/v1/audio/voices/combine` | Creates or queries a combined/blended voice style definition |
+| `/health` | Health check reporting loaded voices, formats, and active features |
+
+### Kokoro Advanced Serving Features
+
+The Kokoro engine (`scripts/kokoro-ctl.py`) includes advanced speech synthesis features:
+
+#### 1. Voice Blending / Adaptation
+Blend two or more voice style embeddings with custom weights:
+```json
+{
+  "model": "kokoro",
+  "input": "Diese synthetische Stimme ist eine Mischung aus Kerstin und Martin.",
+  "voice": "df_kerstin(0.6)+dm_martin(0.4)"
+}
+```
+You can also call `POST /v1/audio/voices/combine` with `{"voices": ["df_kerstin", "dm_martin"], "weights": [0.6, 0.4]}`.
+
+#### 2. Multi-Speaker Inline Dialogue (`[voice:...]`)
+Switch speakers mid-utterance within a single request:
+```json
+{
+  "model": "kokoro",
+  "input": "[voice:df_kerstin] Guten Morgen Martin! [voice:dm_martin] Hallo Kerstin, ein wunderschöner Tag heute. [voice:af_heart] And hello from America!",
+  "voice": "df_kerstin"
+}
+```
+Each segment automatically switches phonemizer language and voice embedding.
+
+#### 3. Inline Silence / Pause Tags (`[pause:...]`)
+Insert explicit acoustic pauses anywhere in the text:
+```json
+{
+  "model": "kokoro",
+  "input": "Erster Satz vor der Pause. [pause:1.5s] Zweiter Satz nach anderthalb Sekunden Stille."
+}
+```
+Supports seconds (e.g. `[pause:1.5s]`) and milliseconds (e.g. `[pause:500ms]`).
+
+#### 4. Chunked Low-Latency Streaming (`stream: true`)
+Receive audio chunks as each sentence finishes synthesizing:
+```json
+{
+  "model": "kokoro",
+  "input": "Erster Satz im Stream. Zweiter Satz folgt sofort. Dritter Satz beendet die Übertragung.",
+  "stream": true,
+  "response_format": "pcm"
+}
+```
+Time-to-first-audio drops to **< 250 ms**.
+
+#### 5. OGG/Opus Compressed Audio Output (`response_format: "opus"`)
+Generate high-fidelity compressed audio for low-bandwidth transfer:
+```json
+{
+  "model": "kokoro",
+  "input": "Hochkomprimiertes Ogg Opus Audioformat für minimale Bandbreite.",
+  "response_format": "opus"
+}
+```
+Achieves **> 10× compression** relative to uncompressed 16-bit PCM WAV.
+
+#### 6. OpenAI API Fallback Cascades & Language Resolution
+To ensure seamless drop-in compatibility with OpenAI client libraries that may omit `model`, `voice`, or `language`:
+- **Omitted Model & Language**: Defaults to English using `LTTS_DEFAULT_VOICE_EN` (`af_heart`).
+- **German Language (`language: "de"` or `"german"`)**: Automatically selects the default German voice `LTTS_DEFAULT_VOICE_DE` (`df_victoria`) even if `model` is omitted.
+- **OpenAI Standard Voice Mappings**: Standard OpenAI voice names map directly to their Kokoro counterparts:
+  - `alloy` $\rightarrow$ `af_alloy`
+  - `echo` $\rightarrow$ `am_echo`
+  - `fable` $\rightarrow$ `bm_fable`
+  - `onyx` $\rightarrow$ `am_onyx`
+  - `nova` $\rightarrow$ `af_nova`
+  - `shimmer` $\rightarrow$ `af_sarah`
+
+These defaults can be customized in `~/.config/systemd/user/local-text-to-speech.env`:
+```bash
+LTTS_DEFAULT_VOICE_EN="af_heart"
+LTTS_DEFAULT_VOICE_DE="df_victoria"
+LTTS_DEFAULT_LANGUAGE="en"
+```
+### Approved High-Quality Voice Lineup
+
+The following voice profiles have been auditioned, benchmarked, and verified for production use:
+
+| Voice ID | Language / Gender | Provenance & Character | Recommended Use Case |
+| :--- | :--- | :--- | :--- |
+| **`dm_martin`** | German Male | Martin Harbecke, Kokoro Stage-2 HUI corpus fine-tune (Godelaune / dida-80b). Natural, accent-free German. | Primary German male voice for assistant conversations. |
+| **`dm_heinrich`** | German Male | Heinrich, trained from scratch on German HUI corpus (junkstage/kikiri-de). Crisp, native German male timbre. | Alternative German male voice. |
+| **`df_victoria`** | German Female | Victoria, Kikiri Kokoro Stage-2 HUI corpus fine-tune. Natural German prosody. | Primary German female voice. |
+| **`df_anna`** | German Female | Anna, trained from scratch on German HUI corpus (junkstage/kikiri-de). Natural, accent-free German female voice. | Alternative German female voice. |
+| **`df_kerstin`** | German Female | Kerstin German fine-tune. Consistent pacing across mixed phrasing. | Secondary German female voice. |
+| **`af_heart`** | English Female | Official Kokoro-82M reference voice. Clear, friendly American English female timbre. | Primary English female voice. |
+| **`af_bella`** | English Female | Official Kokoro-82M American female voice. Warm, natural vocal delivery. | Secondary English female voice (warm timbre). |
+| **`af_sarah`** | English Female | Official Kokoro-82M American female voice. Professional, clear midrange articulation. | Secondary English female voice (articulate). |
+| **`bf_emma`** | English Female | Official Kokoro-82M British female voice. Clear, polished British English articulation. | Primary British English female voice. |
+| **`am_adam`** | English Male | Official Kokoro-82M American male voice. Mid-range, articulate, clear cadence. | Primary English male voice. |
+| **`am_michael`** | English Male | Official Kokoro-82M American male voice. Deeper, warmer vocal presence. | Secondary English male voice. |
+| **`bm_george`** | English Male | Official Kokoro-82M British male voice. Polished, refined British English articulation. | Primary British English male voice. |
+
+> **Note on External References**: Piper Thorsten (`thorsten-high`) is retained strictly as an external reference baseline for acoustic comparison, and is not bundled or routed inside the `local-text-to-speech` service.
+
 
 ### Configuration Files
 
@@ -92,16 +198,30 @@ A key feature of Qwen3-TTS is its **cross-language consistency**. Each voice is 
 
 For optimal pronunciation naturalness, it is recommended to align the input language with the speaker's native language.
 
-### Performance Tuning Presets
+### Performance Tuning Presets & Engine Modes
 
-The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`. This control toggles four primary presets:
+#### 1. Kokoro Engine (`LTTS_ENGINE="kokoro"`)
+Kokoro runs via `scripts/kokoro-server.py` using system ONNX Runtime (`libonnxruntime.so.1`) with AVX2 MLAS thread pooling:
+- **Zero VRAM Consumption**: Leaves discrete GPU VRAM completely free for large conversational LLMs.
+- **High Throughput**: 4.6× real-time synthesis (RTF 0.218) on an 8-core CPU (Ryzen 7 PRO 5750G).
+- **Native German & Multilingual Support**: Automatic language mapping by voice prefix (e.g. `df_*`/`dm_*` -> German `de`, `af_*`/`am_*` -> American English `en-us`, `bf_*`/`bm_*` -> British English `en-gb`).
+- **Long-Form Sentence Chunking**: Seamless regex-based clause/sentence splitting with 150ms natural pauses, bypassing the 510-token hard limit of Kokoro's PL-BERT encoder.
+- **Voice Caching**: In-memory caching of 256-dimensional style embeddings across requests.
+- **Thread Tuning**: Configurable with `LTTS_KOKORO_THREADS=8`.
 
-1. **`gpu`**: Runs inference on the ROCm GPU. Keeps both the TTS transformer and the vocoder decoder models warm in VRAM, delivering maximum generation throughput.
-2. **`hybrid`** (Performance Sweet Spot): Offloads Code Generation (`TTSTransformer`) to the CPU (setting `QWEN3_TTS_TRANSFORMER_FORCE_CPU=1`), while running Vocoder Decode (`AudioTokenizerDecoder`) on the GPU (`ROCm0`). This bypasses GEMV thread starvation and kernel launch latency on the GPU during the autoregressive stage, yielding a **1.5x to 2x speedup** over GPU-only and saving **1.5 GB to 2.7 GB of VRAM**.
-3. **`cpu`** (Default): Completely bypasses ROCm GPU initialization and offloads all tensor computations to the CPU. Propagates dynamic threading settings to all GGML CPU backends.
-
-To configure thread counts, edit the `LTTS_THREADS` option in the `.env` file (defaults to all cores via `$(nproc)`). For CPU-bound execution (cpu or Hybrid), the optimal thread count is **8 threads**. Setting it to 16 threads causes a ~2.2x slowdown due to CCD boundaries and synchronization overhead.
-
+##### Dependencies for Kokoro Server (`scripts/kokoro-server.py`)
+All dependencies are available as standard Arch Linux packages:
+* **`python`** (>= 3.10)
+* **`python-onnxruntime`** (provides `libonnxruntime.so.1` with AVX2 MLAS)
+* **`python-fastapi`** & **`python-uvicorn`** (asynchronous REST HTTP serving)
+* **`python-soundfile`** & **`python-numpy`** (audio encoding and vector operations)
+* **`espeak-ng`** (`/usr/bin/espeak-ng` for IPA phonemization)
+* **Model**: `/data/public/machine-learning/models/text-to-speech/Kokoro-82M-v1.0-German-ONNX` (containing `onnx/model.onnx`, `tokenizer.json`, and `voices/*.bin`)
+#### 2. Qwen3 Engine (`LTTS_ENGINE="qwen3"`)
+The server performance can be optimized using the `LTTS_MODE` environment variable in `local-text-to-speech.env`:
+1. **`gpu`**: Runs inference on the ROCm GPU. Keeps both the TTS transformer and the vocoder decoder models warm in VRAM.
+2. **`hybrid`** (Performance Sweet Spot): Offloads Code Generation (`TTSTransformer`) to the CPU (`QWEN3_TTS_TRANSFORMER_FORCE_CPU=1`), while running Vocoder Decode on GPU (`ROCm0`).
+3. **`cpu`** (Default): Offloads all tensor computations to CPU threads (`LTTS_THREADS=8`).
 ### Backend Device Selection (Dynamic Backend Loading)
 
 When using a combined backend build (such as `qwen3-tts.cpp-git-ggml-hip`), the service supports dynamic loading of different acceleration backends (CPU, OpenBLAS, Vulkan, and HIP/ROCm) at runtime. 
@@ -121,17 +241,39 @@ You can configure the target device using the `LTTS_DEVICE` environment variable
 
 ## Models & Repositories
 
-Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](https://huggingface.co/collections/khimaros/qwen3-tts) on Hugging Face:
+### Kokoro Engine Models
+Kokoro models are downloaded via `scripts/local-download.sh --tts`:
+- **Kokoro-82M German ONNX (Default)**: [crane-local-ai/Kokoro-82M-v1.0-German-ONNX](https://huggingface.co/crane-local-ai/Kokoro-82M-v1.0-German-ONNX) (Voice: `df_kerstin`, includes all 55 official voices in `voices/`)
+- **German HUI GGUF Models**: [cstr/kokoro-de-hui-base-GGUF](https://huggingface.co/cstr/kokoro-de-hui-base-GGUF) (`kokoro-de-hui-base-q8_0.gguf`, `kokoro-de-hui-base-f16.gguf` for kokoro.cpp)
+- **German GGUF Voicepack Cascade**: [cstr/kokoro-voices-GGUF](https://huggingface.co/cstr/kokoro-voices-GGUF) (`kokoro-voice-df_victoria.gguf`, `kokoro-voice-dm_martin.gguf`)
+- **Multilingual Kokoro GGUF**: [simonfxr/kokoro.cpp-GGUF](https://huggingface.co/simonfxr/kokoro.cpp-GGUF) (`kokoro-82m-q8_0.gguf`)
+- **Thorsten Voice German Kokoro**: [Thorsten-Voice/Kokoro](https://huggingface.co/Thorsten-Voice/Kokoro)
+- **Martin German ONNX Model**: [miro-dietiker/kokoro-de-martin](https://huggingface.co/miro-dietiker/kokoro-de-martin)
+### Qwen3-TTS (GGUF) Engine Models
+Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](https://huggingface.co/collections/khimaros/qwen3-tts):
+- **0.6B CustomVoice Model**: `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`
+- **0.6B Base Model**: `Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf`
+- **1.7B CustomVoice Model**: `Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`
+- **Shared Vocoder**: `Qwen3-TTS-Tokenizer-12Hz-F16.gguf`
+## Feature Comparison: Kokoro ONNX vs. kokoro.cpp (simonfxr)
 
-The default Model selected in the environment template is **0.6B CustomVoice**
-
-
-- **0.6B Base Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-Base-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-Base-Q8_0.gguf`)
-- **0.6B CustomVoice Model**: [khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF) (File: `Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf`)
-- **1.7B Base Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-Base-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf`)
-- **1.7B CustomVoice Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-CustomVoice-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-CustomVoice-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-CustomVoice-Q8_0.gguf`)
-- **1.7B VoiceDesign Model**: [khimaros/Qwen3-TTS-12Hz-1.7B-VoiceDesign-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-12Hz-1.7B-VoiceDesign-GGUF) (File: `Qwen3-TTS-12Hz-1.7B-VoiceDesign-Q8_0.gguf`)
-- **Shared Vocoder**: [khimaros/Qwen3-TTS-Tokenizer-12Hz-GGUF](https://huggingface.co/khimaros/Qwen3-TTS-Tokenizer-12Hz-GGUF) (File: `Qwen3-TTS-Tokenizer-12Hz-F16.gguf`)
+| Feature / Metric | Kokoro ONNX (`scripts/kokoro-ctl.py`) | `kokoro.cpp` (`simonfxr/kokoro.cpp`) |
+| :--- | :--- | :--- |
+| **Execution Engine** | System ONNX Runtime (`libonnxruntime.so.1` AVX2 MLAS) | `libggml` C++ runtime + Google Highway SIMD |
+| **Hardware Backends** | CPU (`CPUExecutionProvider`) | CPU (AVX2), Vulkan (`Vulkan0` APU, `Vulkan1` dGPU), CUDA, Metal |
+| **CPU Real-Time Speed** | **4.6× – 5.1× real-time** (RTF ~0.20, 0.75s for 3.5s audio) | **1.73× real-time** (RTF 0.577, 1.86s for 3.22s audio) |
+| **Vulkan iGPU Speed** | N/A (ONNX Runtime Linux lacks Vulkan EP) | **2.1× – 3.2× real-time** on Renoir APU (`Vulkan0`) |
+| **Vulkan dGPU Speed** | N/A | **4.01× real-time** on RX 7900 XTX (`Vulkan1`) |
+| **CPU Load (8 threads)**| ~550% (multithreaded batch) | 592% on CPU; **111% on Vulkan0 APU** (offloaded) |
+| **Memory RSS (Host RAM)**| **~350 MB** | **601 MB** on CPU; **205 MB** on Vulkan |
+| **dGPU VRAM Footprint** | **0 MB** | **0 MB** on Vulkan0 (APU) / CPU; ~120 MB on Vulkan1 (dGPU) |
+| **Serving Protocol** | Native HTTP daemon: `/v1/audio/speech`, `/v1/audio/voices`, `/v1/audio/voices/combine` | CLI utility (`kokoro-cli`); requires external HTTP daemon wrapper |
+| **Audio Output** | Direct in-process host playback via `python-sounddevice` (0 exec spawn) | CLI WAV file export |
+| **Model Container** | ONNX (`model.onnx`, `model-de.onnx`) | GGUF (`kokoro-82m-q8_0.gguf`, `kokoro-de-hui-base-q8_0.gguf`) |
+| **Voice Formats** | Pre-converted standard float32 `.bin` ($510 \times 256$, 522 KB) | GGUF voicepacks (`kokoro-voice-*.gguf`) |
+| **Phonemizer** | Direct `libespeak-ng.so` C API via `ctypes` (zero subprocess overhead) | `libespeak-ng.so` direct C API link |
+| **Long-Text Handling** | Automatic sentence chunking with 150ms speech gaps | Hard limit of 510 tokens (caller must chunk externally) |
+| **Voice Blending** | Native linear style combination (e.g. `df_victoria(0.6)+dm_martin(0.4)`) | Supports voice style blending expressions |
 
 ## VRAM Usage
 
@@ -163,6 +305,9 @@ The text-to-speech service can be validated using its built-in integration test 
 
 ```bash
 ./assistants/local-text-to-speech.sh test
+
+# Or run the comprehensive testsuite (all voices, OpenAI fallbacks, and features):
+python3 tests/test-kokoro-features.py
 ```
 
 This runs a complete text-to-audio synthesis cycle, pipes the generated audio file to the local transcription service, outputs the transcription, and plays the audio if a command-line player (`aplay`, `paplay`, `pw-play`) is available.

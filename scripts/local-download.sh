@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 target_dir=""
 download_all=false
 download_llm=false
@@ -808,17 +809,164 @@ snapshot_download(
 
     if [[ "$download_tts" == true ]]; then
         echo "=== Acquiring Text-to-Speech Models ==="
-        # 5a. CustomVoice 0.6B
+        # 5a. CustomVoice 0.6B (GGUF for qwen3-tts.cpp)
         acquire_file \
             "text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf" \
             "https://huggingface.co/khimaros/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF/resolve/main/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf" \
             "${target_dir}/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"
 
-        # 5b. Tokenizer
+        # 5b. Tokenizer (GGUF for qwen3-tts.cpp)
         acquire_file \
             "text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf" \
             "https://huggingface.co/khimaros/Qwen3-TTS-Tokenizer-12Hz-GGUF/resolve/main/Qwen3-TTS-Tokenizer-12Hz-F16.gguf" \
             "${target_dir}/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
+
+        # 5c. Qwen3-TTS Safetensors Checkpoint
+        echo "Downloading Qwen3-TTS checkpoint (Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice)..."
+        mkdir -p "${target_dir}/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+        if command -v hf &>/dev/null; then
+            hf download Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice --local-dir "${target_dir}/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+        else
+            echo "Warning: 'hf' CLI not found. Skipping Qwen3-TTS download." >&2
+        fi
+
+        local onnx_dir="${target_dir}/text-to-speech/kokoro-onnx"
+        local gguf_dir="${target_dir}/text-to-speech/kokoro-gguf"
+        mkdir -p "${onnx_dir}/voices" "${gguf_dir}/voices"
+
+        # 5d. Multilingual Kokoro-82M ONNX Reference Model & English Voices
+        if command -v hf &>/dev/null; then
+            echo "Acquiring Multilingual Kokoro-82M ONNX model (English & Multilingual)..."
+            hf download onnx-community/Kokoro-82M-v1.0-ONNX \
+                --include "onnx/model.onnx" \
+                --include "tokenizer.json" \
+                --include "voices/*.bin" \
+                --local-dir "${onnx_dir}"
+            # Standardize filename if inside subfolder
+            if [[ -f "${onnx_dir}/onnx/model.onnx" && ! -f "${onnx_dir}/model.onnx" ]]; then
+                ln -sfn "onnx/model.onnx" "${onnx_dir}/model.onnx"
+            fi
+        fi
+
+        # 5e. Native German Martin ONNX Model
+        if command -v hf &>/dev/null; then
+            echo "Acquiring Native German Martin ONNX model..."
+            hf download Godelaune/Kokoro-82M-ONNX-German-Martin \
+                --include "kokoro-martin.onnx" \
+                --include "voices-martin.npz" \
+                --local-dir "${onnx_dir}"
+            if [[ -f "${onnx_dir}/kokoro-martin.onnx" && ! -f "${onnx_dir}/model-de.onnx" ]]; then
+                ln -sfn "kokoro-martin.onnx" "${onnx_dir}/model-de.onnx"
+            fi
+            # Extract German Victoria voice embedding
+            hf download soniqo/Kokoro-82M-German-Victoria-ONNX \
+                --include "voices/df_victoria.bin" \
+                --local-dir "${onnx_dir}"
+        fi
+
+        # 5f. Multilingual Kokoro-82M GGUF Model & Approved English Voices
+        echo "Acquiring Multilingual Kokoro-82M Q8_0 GGUF model..."
+        acquire_file \
+            "text-to-speech/kokoro-gguf/kokoro-82m-q8_0.gguf" \
+            "https://huggingface.co/simonfxr/kokoro.cpp-GGUF/resolve/main/kokoro-82m-q8_0.gguf" \
+            "${gguf_dir}/kokoro-82m-q8_0.gguf"
+        if command -v hf &>/dev/null; then
+            echo "Acquiring approved English GGUF voicepacks..."
+            hf download simonfxr/kokoro.cpp-GGUF \
+                --include "voices/kokoro-voice-af_heart.gguf" \
+                --include "voices/kokoro-voice-af_bella.gguf" \
+                --include "voices/kokoro-voice-af_sarah.gguf" \
+                --include "voices/kokoro-voice-bf_emma.gguf" \
+                --include "voices/kokoro-voice-am_adam.gguf" \
+                --include "voices/kokoro-voice-am_michael.gguf" \
+                --include "voices/kokoro-voice-bm_george.gguf" \
+                --local-dir "${gguf_dir}"
+        fi
+
+        # 5g. German Multispeaker Kokoro HUI Base GGUF Model & German Voicepacks
+        acquire_file \
+            "text-to-speech/kokoro-gguf/kokoro-de-hui-base-q8_0.gguf" \
+            "https://huggingface.co/cstr/kokoro-de-hui-base-GGUF/resolve/main/kokoro-de-hui-base-q8_0.gguf" \
+            "${gguf_dir}/kokoro-de-hui-base-q8_0.gguf"
+        if command -v hf &>/dev/null; then
+            echo "Acquiring approved German GGUF voicepacks (dm_martin, df_victoria)..."
+            hf download cstr/kokoro-voices-GGUF \
+                --include "kokoro-voice-dm_martin.gguf" \
+                --include "kokoro-voice-df_victoria.gguf" \
+                --local-dir "${gguf_dir}/voices"
+        fi
+
+        # 5h. Native German Kikiri-de Model: Heinrich & Anna (junkstage/kikiri-de)
+        if command -v hf &>/dev/null; then
+            echo "Acquiring Native German Kikiri-de Model (Heinrich & Anna)..."
+            local kikiri_dir="${target_dir}/text-to-speech/kokoro-kikiri-de"
+            mkdir -p "${kikiri_dir}"
+            hf download junkstage/kikiri-de \
+                --include "model.safetensors" \
+                --include "config.json" \
+                --include "voices/Heinrich.safetensors" \
+                --include "voices/Anna.safetensors" \
+                --local-dir "${kikiri_dir}"
+        fi
+
+        # 5i. Post-Processing: Convert all voice formats into standard .bin in kokoro-onnx/voices/
+        echo "Converting and standardizing all voices into ${onnx_dir}/voices/ as .bin files..."
+        local convert_cli="${SCRIPT_DIR}/kokoro-ctl.py"
+
+        # Convert and clean up any NPZ files in onnx_dir (e.g. voices-martin.npz -> voices/dm_martin.bin)
+        for npz_file in "${onnx_dir}"/*.npz "${onnx_dir}/voices"/*.npz; do
+            if [[ -f "$npz_file" ]]; then
+                local base_npz
+                base_npz="$(basename "$npz_file" .npz)"
+                local out_bin="${onnx_dir}/voices/${base_npz}.bin"
+                if [[ "$base_npz" == "voices-martin" ]]; then
+                    out_bin="${onnx_dir}/voices/dm_martin.bin"
+                fi
+                echo "  Converting NPZ voice: ${npz_file} -> ${out_bin}"
+                "$convert_cli" --convert-voice "$npz_file" "$out_bin"
+                rm -f "$npz_file"
+            fi
+        done
+
+        # Convert GGUF voices from kokoro-gguf/voices/ if not already present in kokoro-onnx/voices/
+        if [[ -d "${gguf_dir}/voices" ]]; then
+            for gguf_file in "${gguf_dir}/voices"/*.gguf; do
+                if [[ -f "$gguf_file" ]]; then
+                    local base_gguf
+                    base_gguf="$(basename "$gguf_file" .gguf)"
+                    base_gguf="${base_gguf#kokoro-voice-}"
+                    local out_bin="${onnx_dir}/voices/${base_gguf}.bin"
+                    if [[ ! -f "$out_bin" ]]; then
+                        echo "  Converting GGUF voice: ${gguf_file} -> ${out_bin}"
+                        "$convert_cli" --convert-voice "$gguf_file" "$out_bin"
+                    fi
+                fi
+            done
+        fi
+
+        # Convert Safetensors voices from kokoro-kikiri-de/voices/ if present
+        local kikiri_voices="${target_dir}/text-to-speech/kokoro-kikiri-de/voices"
+        if [[ -d "$kikiri_voices" ]]; then
+            for st_file in "${kikiri_voices}"/*.safetensors; do
+                if [[ -f "$st_file" ]]; then
+                    local st_name
+                    st_name="$(basename "$st_file" .safetensors)"
+                    local out_bin=""
+                    if [[ "${st_name,,}" == "heinrich" ]]; then
+                        out_bin="${onnx_dir}/voices/dm_heinrich.bin"
+                    elif [[ "${st_name,,}" == "anna" ]]; then
+                        out_bin="${onnx_dir}/voices/df_anna.bin"
+                    else
+                        out_bin="${onnx_dir}/voices/${st_name}.bin"
+                    fi
+                    if [[ ! -f "$out_bin" ]]; then
+                        echo "  Converting Safetensors voice: ${st_file} -> ${out_bin}"
+                        "$convert_cli" --convert-voice "$st_file" "$out_bin"
+                    fi
+                fi
+            done
+        fi
+        echo "All Kokoro voices successfully standardized as .bin format in ${onnx_dir}/voices/."
     fi
 
     # 6. Image Generation (Z-Image-Turbo)

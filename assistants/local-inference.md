@@ -134,7 +134,7 @@ For example, to run the image diffusion and VAE modules on a specific Vulkan GPU
 ```env
 LIMG_OVERRIDE=(
     'LIMG_BACKEND="vulkan1,te=cpu"'
-    'LIMG_LLM="/home/wuxxin/models/image/Qwen3-4B-Q4_K_M.gguf"'
+    'LIMG_LLM="/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf"'
 )
 ```
 
