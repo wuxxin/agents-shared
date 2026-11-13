@@ -17,9 +17,10 @@ load_env() {
     # Default parameters
     LIMG_PORT=20100
     LIMG_HOST=127.0.0.1
-    LIMG_MODEL=/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf
-    LIMG_VAE=/data/public/machine-learning/models/image/ae.safetensors
-    LIMG_LLM=/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf
+    LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    LIMG_MODEL="${LOCAL_MODELS_DIR}/image/z_image_turbo-Q8_0.gguf"
+    LIMG_VAE="${LOCAL_MODELS_DIR}/image/ae.safetensors"
+    LIMG_LLM="${LOCAL_MODELS_DIR}/image/Qwen3-4B-Q4_K_M.gguf"
     LIMG_BACKEND=""
     LIMG_STEPS=8
     LIMG_CFG_SCALE="1.0"
@@ -125,7 +126,12 @@ get_shared_options() {
     # Allow read-write access to model storage and home-based paths
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadWritePaths=${base_mount}"
 
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
@@ -233,13 +239,14 @@ LIMG_PORT=20100
 LIMG_HOST=127.0.0.1
 
 # Path to the standalone GGUF diffusion model file (Z-Image-Turbo)
-LIMG_MODEL=/data/public/machine-learning/models/image/z_image_turbo-Q8_0.gguf
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+LIMG_MODEL="${LOCAL_MODELS_DIR}/image/z_image_turbo-Q8_0.gguf"
 
 # Path to the standalone VAE file (Flux VAE)
-LIMG_VAE=/data/public/machine-learning/models/image/ae.safetensors
+LIMG_VAE="${LOCAL_MODELS_DIR}/image/ae.safetensors"
 
 # Path to the LLM Text Encoder GGUF file (Qwen3-4B)
-LIMG_LLM=/data/public/machine-learning/models/image/Qwen3-4B-Q4_K_M.gguf
+LIMG_LLM="${LOCAL_MODELS_DIR}/image/Qwen3-4B-Q4_K_M.gguf"
 
 # GPU/CPU backend device to use (run 'sd-cli --help' or check hardware targets)
 # Valid options for LIMG_BACKEND include:

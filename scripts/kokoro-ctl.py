@@ -181,35 +181,24 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
 # Search paths for models
+LOCAL_MODELS_DIR = os.environ.get("LOCAL_MODELS_DIR", "/data/public/machine-learning/models")
+
 MODEL_EN_SEARCH_PATHS = [
-    "/data/public/machine-learning/models/text-to-speech/kokoro-onnx/model.onnx",
-    "/data/public/machine-learning/models/text-to-speech/kokoro-onnx/onnx/model.onnx",
-    os.path.expanduser("~/.cache/kokoro/multilingual-onnx/onnx/model.onnx"),
-    os.path.expanduser("~/.cache/kokoro/Kokoro-82M-v1.0-ONNX/onnx/model.onnx"),
-    "/data/public/machine-learning/models/text-to-speech/Kokoro-82M-ONNX/onnx/model.onnx",
+    os.path.join(LOCAL_MODELS_DIR, "text-to-speech/kokoro-onnx/model.onnx"),
+    os.path.join(LOCAL_MODELS_DIR, "text-to-speech/kokoro-onnx/onnx/model.onnx"),
 ]
 
 MODEL_DE_SEARCH_PATHS = [
-    "/data/public/machine-learning/models/text-to-speech/kokoro-onnx/model-de.onnx",
-    "/data/public/machine-learning/models/text-to-speech/kokoro-onnx/kokoro-martin.onnx",
-    os.path.expanduser("~/.cache/kokoro/german-martin-onnx/kokoro-martin.onnx"),
-    "/data/public/machine-learning/models/text-to-speech/Kokoro-82M-German-Martin-ONNX/kokoro-martin.onnx",
-    "/data/public/machine-learning/models/text-to-speech/Kokoro-82M-v1.0-German-ONNX/onnx/model.onnx",
+    os.path.join(LOCAL_MODELS_DIR, "text-to-speech/kokoro-onnx/model-de.onnx"),
+    os.path.join(LOCAL_MODELS_DIR, "text-to-speech/kokoro-onnx/kokoro-martin.onnx"),
 ]
 
 TOKENIZER_SEARCH_PATHS = [
-    "/data/public/machine-learning/models/text-to-speech/kokoro-onnx/tokenizer.json",
-    "/data/public/machine-learning/models/text-to-speech/Kokoro-82M-v1.0-German-ONNX/tokenizer.json",
-    os.path.expanduser("~/.cache/kokoro/multilingual-onnx/tokenizer.json"),
+    os.path.join(LOCAL_MODELS_DIR, "text-to-speech/kokoro-onnx/tokenizer.json"),
 ]
 
 VOICE_SEARCH_DIRS = [
-    "/data/public/machine-learning/models/text-to-speech/kokoro-onnx/voices",
-    os.path.expanduser("~/.cache/kokoro/voices"),
-    os.path.expanduser("~/.cache/kokoro/german-martin-onnx"),
-    os.path.expanduser("~/.cache/kokoro/german-victoria-onnx/voices"),
-    "/data/public/machine-learning/models/text-to-speech/Kokoro-82M-v1.0-German-ONNX/voices",
-    os.path.join(REPO_ROOT, "scratch/kokoro-cpp/models/voices"),
+    os.path.join(LOCAL_MODELS_DIR, "text-to-speech/kokoro-onnx/voices"),
 ]
 
 
@@ -305,7 +294,7 @@ def convert_voice_file(src_path: str, dst_path: Optional[str] = None) -> str:
         elif stem.lower() == "voices-martin":
             stem = "dm_martin"
 
-        voices_dir = Path(os.path.expanduser("~/.cache/kokoro/voices"))
+        voices_dir = Path(LOCAL_MODELS_DIR) / "text-to-speech" / "kokoro-onnx" / "voices"
         voices_dir.mkdir(parents=True, exist_ok=True)
         dst_path = str(voices_dir / f"{stem}.bin")
 
@@ -905,6 +894,31 @@ def create_app(
     @app.get("/v1/audio/voices")
     def get_voices():
         return {"voices": list_available_voices()}
+
+    @app.post("/v1/audio/voices/combine")
+    async def combine_voices(request: fastapi.Request):
+        try:
+            body = await request.json()
+        except Exception:
+            raise fastapi.HTTPException(status_code=400, detail="Invalid JSON body")
+
+        voices = body.get("voices", [])
+        weights = body.get("weights", [])
+        if not voices or not isinstance(voices, list):
+            raise fastapi.HTTPException(status_code=400, detail="Missing or invalid 'voices' list")
+
+        if not weights or len(weights) != len(voices):
+            weights = [round(1.0 / len(voices), 2)] * len(voices)
+
+        blend_parts = [f"{v}({w})" for v, w in zip(voices, weights)]
+        voice_id = "+".join(blend_parts)
+
+        return {
+            "status": "ok",
+            "voice_id": voice_id,
+            "voices": voices,
+            "weights": weights,
+        }
 
     @app.post("/v1/audio/speech")
     async def speech(request: fastapi.Request):

@@ -42,12 +42,13 @@ load_env() {
     LCHAT_DEVICE=""
     LCHAT_THREADS=4
     LCHAT_N_GPU_LAYERS=999
-    LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.IQ4_XS.gguf
+    LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    LCHAT_MODEL="${LOCAL_MODELS_DIR}/vision-text/BigBang-v1-heretic.IQ4_XS.gguf"
     LCHAT_ALIAS=qwen3.6-35B-A3B
     LCHAT_ALIASES="qwen3.6-moe,qwen3.6,qwen3"
     LCHAT_CTX_SIZE=240384
     LCHAT_PARALLEL=2
-    LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.mmproj-Q8_0.gguf
+    LCHAT_MMPROJ="${LOCAL_MODELS_DIR}/vision-text/BigBang-v1-heretic.mmproj-Q8_0.gguf"
     LCHAT_CHAT_TEMPLATE_FILE=""
     LCHAT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": true}'
     LCHAT_MTP=""
@@ -58,7 +59,7 @@ load_env() {
 
     # Default parameters for embedding section
     LMBD_ENABLED=true
-    LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    LMBD_MODEL="${LOCAL_MODELS_DIR}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
     LMBD_ALIAS=qwen3-embedding
     LMBD_CTX_SIZE=16384
     LMBD_PARALLEL=2
@@ -72,7 +73,7 @@ load_env() {
 
     # Default parameters for completion section
     LCOMP_ENABLED=true
-    LCOMP_MODEL=/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+    LCOMP_MODEL="${LOCAL_MODELS_DIR}/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
     LCOMP_ALIAS=qwen-coder-fim
     LCOMP_CTX_SIZE=8192
     LCOMP_PARALLEL=2
@@ -281,7 +282,12 @@ get_shared_options() {
     # Allow read-write access to model storage and home-based paths
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadWritePaths=${base_mount}"
 
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
@@ -494,7 +500,9 @@ HEADER
         echo ' &'
         echo 'MAIN_PID=$!'
         echo 'sleep 2'
+        # shellcheck disable=SC2016
         echo 'if ! kill -0 "$MAIN_PID" 2>/dev/null; then'
+        # shellcheck disable=SC2016
         echo '    echo "Main llama-server process (PID $MAIN_PID) failed to start." >&2'
         echo '    exit 1'
         echo 'fi'
@@ -523,7 +531,9 @@ HEADER
         echo 'wait -n'
         echo ""
         echo "# Report which process died"
+        # shellcheck disable=SC2016
         echo 'if ! kill -0 "$MAIN_PID" 2>/dev/null; then'
+        # shellcheck disable=SC2016
         echo '    echo "Main llama-server process (PID $MAIN_PID) terminated."'
         echo 'fi'
         idx=0
@@ -614,11 +624,12 @@ LCHAT_N_GPU_LAYERS=999
 
 # ### CHAT / VISION MODEL SETTINGS
 
+# Base directory for local models repository (override to use custom storage)
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+
 # Path to the chat model file
-# spec-type mtp Model (original Qwen3.6 MoE)
-# LCHAT_MODEL=/data/public/machine-learning/models/vision-text/Qwen3.6-35B-A3B-APEX-I-Compact-mtp.gguf
 # Default Model: BigBang-v1 (Qwen3.6-35B-A3B fine-tune via self-evolving synthetic tasks)
-LCHAT_MODEL=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.IQ4_XS.gguf
+LCHAT_MODEL="${LOCAL_MODELS_DIR}/vision-text/BigBang-v1-heretic.IQ4_XS.gguf"
 # Separate MTP draft model file path (leave empty when using built-in MTP model)
 LCHAT_MTP=""
 
@@ -641,7 +652,7 @@ LCHAT_CTX_SIZE=240384
 LCHAT_PARALLEL=2
 
 # Multimodal projector arguments (optional)
-LCHAT_MMPROJ=/data/public/machine-learning/models/vision-text/BigBang-v1-heretic.mmproj-f16.gguf
+LCHAT_MMPROJ="${LOCAL_MODELS_DIR}/vision-text/BigBang-v1-heretic.mmproj-f16.gguf"
 
 # Chat template file (optional; leave empty to use the integrated BigBang-v1 model chat template via 'jinja = on')
 # LCHAT_CHAT_TEMPLATE_FILE=/data/public/machine-learning/models/vision-text/Qwen3.6-chat_template.jinja
@@ -691,7 +702,7 @@ LMBD_ENABLED=true
 LMBD_MIRROR_PORT=20082
 
 # Path to the text embedding model file
-LMBD_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+LMBD_MODEL="${LOCAL_MODELS_DIR}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
 
 # Model alias used by client integrations (default: qwen3-embedding)
 LMBD_ALIAS=qwen3-embedding
@@ -719,7 +730,7 @@ LMBD_EXTRA_ARGS="--flash-attn on"
 LCOMP_ENABLED=true
 
 # Path to the completions model file
-LCOMP_MODEL=/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+LCOMP_MODEL="${LOCAL_MODELS_DIR}/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 
 # Model alias used by client integrations (default: qwen-coder-fim)
 LCOMP_ALIAS=qwen-coder-fim
@@ -996,7 +1007,7 @@ wait_for_endpoint() {
     local max_retries="${2:-30}"
     local delay="${3:-2}"
     local label="${4:-server}"
-    for i in $(seq 1 $max_retries); do
+    for i in $(seq 1 "$max_retries"); do
         if curl -s -f "$url" >/dev/null 2>&1; then
             return 0
         fi
@@ -1052,7 +1063,7 @@ cmd_test() {
 
     if [ "$benchmark" = "true" ]; then
         local context_file
-        context_file="/data/public/machine-learning/models/benchmark-context.md"
+        context_file="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/benchmark-context.md"
         if [[ ! -f "$context_file" ]]; then
             context_file="$(dirname "$(dirname "$LCHAT_MODEL")")/benchmark-context.md"
         fi
@@ -1121,7 +1132,7 @@ cmd_test() {
         if [ "${LCOMP_ENABLED}" = "true" ] && [ "$skip_completion" = "false" ]; then
             local c_alias="${LCOMP_ALIAS:-qwen-coder-fim}"
             local comp_file
-            comp_file="/data/public/machine-learning/models/completion/test_fim.py"
+            comp_file="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/completion/test_fim.py"
             if [[ ! -f "$comp_file" ]]; then
                 comp_file="$(dirname "$(dirname "$LCHAT_MODEL")")/completion/test_fim.py"
             fi

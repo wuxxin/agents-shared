@@ -221,33 +221,61 @@ PRICING_REGISTRY: dict[str, dict[str, str]] = {
 }
 
 
+DEFAULT_SERVICE_PORTS: dict[str, tuple[str, int]] = {
+    "chat": ("127.0.0.1", 20080),
+    "embedding": ("127.0.0.1", 20082),
+    "rerank": ("127.0.0.1", 20086),
+    "stt": ("127.0.0.1", 20090),
+    "tts": ("127.0.0.1", 20095),
+    "image": ("127.0.0.1", 20100),
+}
+
+DEFAULT_SERVICE_ALIASES: dict[str, str] = {
+    "chat": "qwen3.6-35B-A3B",
+    "embedding": "qwen3-embedding",
+    "rerank": "qwen3-reranker",
+    "stt": "whisper-1",
+    "tts": "kokoro",
+    "image": "z-image-turbo",
+}
+
+SERVICE_ENV_PREFIXES: dict[str, list[str]] = {
+    "chat": ["LROUT_CHAT", "LCHAT"],
+    "embedding": ["LROUT_EMBEDDING", "LMBD"],
+    "rerank": ["LROUT_RERANK", "LRR"],
+    "stt": ["LROUT_STT", "LSTT"],
+    "tts": ["LROUT_TTS", "LTTS"],
+    "image": ["LROUT_IMAGE", "LIMG"],
+}
+
+SERVICE_TIMEOUT_DEFAULTS: dict[str, float] = {
+    "image": 900.0,
+    "chat": 600.0,
+    "tts": 300.0,
+    "stt": 300.0,
+    "embedding": 120.0,
+    "rerank": 120.0,
+}
+
+
 def resolve_service_alias(name: str) -> str:
-    """Resolve the alias for a service by checking its own env file, falling back to defaults."""
-    user_dir = get_systemd_user_dir()
+    """Resolve the alias for a service from environment variables or built-in defaults."""
     if name == "chat":
-        coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
-        val = coord_env.get("LCHAT_STRATA_ENABLED", "0")
-        if val not in ("0", "false", "no", "FALSE", "NO"):
-            strata_env = parse_env_file(os.path.join(user_dir, "local-chat-strata.env"))
-            return strata_env.get("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next")
-        chat_env = parse_env_file(os.path.join(user_dir, "local-chat.env"))
-        return chat_env.get("LCHAT_ALIAS", "qwen3.6-35B-A3B")
-    elif name == "embedding":
-        embed_env = parse_env_file(os.path.join(user_dir, "local-embedding.env"))
-        return embed_env.get("LMBD_ALIAS", "qwen3-embedding")
-    elif name == "rerank":
-        rerank_env = parse_env_file(os.path.join(user_dir, "local-rerank.env"))
-        return rerank_env.get("LRR_ALIAS", "qwen3-reranker")
-    elif name == "stt":
-        stt_env = parse_env_file(os.path.join(user_dir, "local-speech-to-text.env"))
-        return stt_env.get("LSTT_ALIAS", "whisper-1")
-    elif name == "tts":
-        tts_env = parse_env_file(os.path.join(user_dir, "local-text-to-speech.env"))
-        return tts_env.get("LTTS_ALIAS", "kokoro")
-    elif name == "image":
-        image_env = parse_env_file(os.path.join(user_dir, "local-image.env"))
-        return image_env.get("LIMG_ALIAS", "z-image-turbo")
-    return ""
+        strata_val = os.environ.get("LCHAT_STRATA_ENABLED", "0")
+        if strata_val.lower() not in ("0", "false", "no"):
+            return os.environ.get("LCHAT_STRATA_ALIAS", "qwen3.8-flash-next")
+        return (
+            os.environ.get("LROUT_CHAT_ALIAS")
+            or os.environ.get("LCHAT_ALIAS")
+            or DEFAULT_SERVICE_ALIASES["chat"]
+        )
+
+    prefixes = SERVICE_ENV_PREFIXES.get(name, [f"LROUT_{name.upper()}"])
+    for pfx in prefixes:
+        val = os.environ.get(f"{pfx}_ALIAS")
+        if val:
+            return val
+    return DEFAULT_SERVICE_ALIASES.get(name, "")
 
 
 def resolve_service_from_model_id(model_id: str, default_svc: str) -> str:
@@ -267,23 +295,25 @@ def resolve_service_from_model_id(model_id: str, default_svc: str) -> str:
 
 
 def get_enabled_services() -> dict[str, bool]:
-    """Parse local-inference.env to determine which services are enabled."""
-    user_dir = get_systemd_user_dir()
-    coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
+    """Determine which services are expected to be online using environment variable switches."""
 
-    def is_enabled(key: str, default: bool) -> bool:
-        val = coord_env.get(key)
-        if val is None:
-            return default
-        return val not in ("0", "false", "no", "FALSE", "NO")
+    def is_enabled(pfx: str, default: bool) -> bool:
+        for var in [f"LROUT_{pfx}_ENABLED", f"L{pfx[:3]}_ENABLED"]:
+            val = os.environ.get(var)
+            if val is not None:
+                return val.lower() not in ("0", "false", "no")
+        return default
+
+    strata_active = os.environ.get("LCHAT_STRATA_ENABLED", "0").lower() not in ("0", "false", "no")
+    chat_active = is_enabled("CHAT", True) or strata_active
 
     return {
-        "chat": is_enabled("LCHAT_ENABLED", True) or is_enabled("LCHAT_STRATA_ENABLED", False),
-        "embedding": is_enabled("LMBD_ENABLED", False),  # 0 (combined mode) by default
-        "rerank": is_enabled("LRR_ENABLED", True),
-        "stt": is_enabled("LSTT_ENABLED", True),
-        "tts": is_enabled("LTTS_ENABLED", True),
-        "image": is_enabled("LIMG_ENABLED", True),
+        "chat": chat_active,
+        "embedding": is_enabled("EMBEDDING", False),  # 0 (combined mode) by default
+        "rerank": is_enabled("RERANK", True),
+        "stt": is_enabled("STT", True),
+        "tts": is_enabled("TTS", True),
+        "image": is_enabled("IMAGE", True),
     }
 
 
@@ -306,7 +336,7 @@ async def check_service(name: str, url: str) -> list[dict] | None:
     if is_debug():
         print(f"[ROUTER CHECK] Probing service '{name}' at {url}...", file=sys.stderr)
 
-    if name in ("chat", "embedding", "rerank"):
+    if name in ("chat", "embedding", "rerank", "tts"):
         try:
             models_url = f"{url}/v1/models"
             if is_debug():
@@ -321,8 +351,6 @@ async def check_service(name: str, url: str) -> list[dict] | None:
                 data = resp.json().get("data", [])
                 return data
             elif resp.status_code == 404:
-                # Some servers (e.g. TEI text-embeddings-router) do not expose /v1/models.
-                # Fallback to probing /health endpoint.
                 health_url = f"{url}/health"
                 if is_debug():
                     print(
@@ -344,9 +372,16 @@ async def check_service(name: str, url: str) -> list[dict] | None:
                     file=sys.stderr,
                 )
             pass
-        return None
+        if name == "tts":
+            try:
+                reader, writer = await asyncio.open_connection(host, port)
+                writer.close()
+                await writer.wait_closed()
+                return []
+            except Exception:
+                return None
     else:
-        # For STT, TTS, Image: check if port is open
+        # For STT and Image: check if port is open
         try:
             if is_debug():
                 print(
@@ -418,22 +453,11 @@ def _init_fallback_inventory():
                     model_inventory_list.append(legacy_entry)
 
                 # Register secondary aliases from env
-                user_dir = get_systemd_user_dir()
-                coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
-                sec_str = ""
-                if coord_env.get("LCHAT_STRATA_ENABLED", "0") not in (
-                    "0",
-                    "false",
-                    "no",
-                    "FALSE",
-                    "NO",
-                ):
-                    strata_env = parse_env_file(os.path.join(user_dir, "local-chat-strata.env"))
-                    sec_str = strata_env.get("LCHAT_STRATA_ALIASES", "")
-                else:
-                    chat_env = parse_env_file(os.path.join(user_dir, "local-chat.env"))
-                    sec_str = chat_env.get("LCHAT_ALIASES", "")
-
+                sec_str = (
+                    os.environ.get("LROUT_CHAT_ALIASES")
+                    or os.environ.get("LCHAT_STRATA_ALIASES")
+                    or os.environ.get("LCHAT_ALIASES", "qwen3.6-moe,qwen3.6,qwen3")
+                )
                 for sa in [s.strip() for s in sec_str.split(",") if s.strip()]:
                     model_to_service[sa] = name
                     model_to_service[f"{sa}-thinking"] = name
@@ -533,6 +557,18 @@ async def discover_services_background():
                 "pricing": PRICING_REGISTRY["stt"],
             },
             {
+                "id": "kokoro",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["tts"],
+            },
+            {
+                "id": "kokoro-tts",
+                "object": "model",
+                "owned_by": "local-inference",
+                "pricing": PRICING_REGISTRY["tts"],
+            },
+            {
                 "id": "qwen3-tts",
                 "object": "model",
                 "owned_by": "local-inference",
@@ -553,6 +589,8 @@ async def discover_services_background():
             "qwen3-embedding": "embedding",
             "qwen3-reranker": "rerank",
             "whisper-1": "stt",
+            "kokoro": "tts",
+            "kokoro-tts": "tts",
             "qwen3-tts": "tts",
             "z-image-turbo": "image",
         }
@@ -628,10 +666,7 @@ async def discover_services_background():
 def resolve_target_service(model_name: str) -> str:
     """Resolve the target service name ('chat', 'embedding', etc.) based on the requested model name."""
     if not model_name:
-        # Load default model from local-router.env if set
-        user_dir = get_systemd_user_dir()
-        router_env = parse_env_file(os.path.join(user_dir, "local-router.env"))
-        default_model = router_env.get("LROUT_DEFAULT_MODEL", "")
+        default_model = os.environ.get("LROUT_DEFAULT_MODEL", "").strip()
         if default_model and default_model in model_to_service:
             return model_to_service[default_model]
         chat_alias = resolve_service_alias("chat")
@@ -661,9 +696,7 @@ def resolve_target_service_and_model(model_name: str) -> tuple[str, str]:
     """Resolve both the target service name and normalized model name."""
     clean = model_name.strip() if isinstance(model_name, str) else ""
     if not clean:
-        user_dir = get_systemd_user_dir()
-        router_env = parse_env_file(os.path.join(user_dir, "local-router.env"))
-        default_model = router_env.get("LROUT_DEFAULT_MODEL", "").strip()
+        default_model = os.environ.get("LROUT_DEFAULT_MODEL", "").strip()
         resolved_model = default_model or resolve_service_alias("chat") or "qwen3"
     else:
         resolved_model = clean
@@ -1527,8 +1560,8 @@ except Exception:
 async def lifespan(app: FastAPI):
     global client, save_task
     load_usage_data()
-    # Shorter timeouts: 120s total, 5s connect — prevents pool drain hang on shutdown
-    client = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=5.0))
+    # Global client timeout: 900s total, 5s connect
+    client = httpx.AsyncClient(timeout=httpx.Timeout(900.0, connect=5.0))
     # Background discovery — non-blocking, starts fallback inventory immediately
     discovery_task = asyncio.create_task(discover_services_background())
     save_task = asyncio.create_task(periodic_save_task())
@@ -1553,61 +1586,11 @@ app = FastAPI(
 )
 
 
-def get_systemd_user_dir() -> str:
-    """Resolve the systemd user configuration directory."""
-    xdg_config = os.environ.get("XDG_CONFIG_HOME")
-    if xdg_config:
-        return os.path.join(xdg_config, "systemd", "user")
-    return os.path.join(os.path.expanduser("~"), ".config", "systemd", "user")
-
-
-def parse_env_file(filepath: str) -> dict:
-    """Parse key-value environment variables from a bash environment file."""
-    if not os.path.exists(filepath):
-        return {}
-
-    env_vars = {}
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                # Match KEY=VALUE or export KEY=VALUE
-                match = re.match(r"^(?:export\s+)?([A-Za-z0-9_]+)=(.*)$", line)
-                if match:
-                    key = match.group(1)
-                    val = match.group(2).strip()
-                    # Strip inline comments if value is not fully quoted
-                    if not (val.startswith('"') or val.startswith("'")):
-                        val = val.split("#")[0].strip()
-                    else:
-                        val = val[1:-1]
-                    env_vars[key] = val
-    except Exception as exc:
-        print(f"Warning: Failed to parse env file {filepath}: {exc}")
-
-    return env_vars
-
-
 def get_log_config() -> tuple[bool, bool]:
-    """Resolve fused verbose and debug settings from CLI args, environment variables, and local-router.env."""
-    user_dir = get_systemd_user_dir()
-    router_env = parse_env_file(os.path.join(user_dir, "local-router.env"))
-
-    log_level = (
-        os.environ.get("LROUT_LOG_LEVEL") or router_env.get("LROUT_LOG_LEVEL") or ""
-    ).lower()
-
-    env_verbose = (
-        os.environ.get("LROUT_VERBOSE") or router_env.get("LROUT_VERBOSE") or ""
-    ).lower() in ("1", "true", "yes")
-
-    env_debug = (os.environ.get("LROUT_DEBUG") or router_env.get("LROUT_DEBUG") or "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    """Resolve fused verbose and debug settings from CLI args and environment variables."""
+    log_level = os.environ.get("LROUT_LOG_LEVEL", "").lower()
+    env_verbose = os.environ.get("LROUT_VERBOSE", "").lower() in ("1", "true", "yes")
+    env_debug = os.environ.get("LROUT_DEBUG", "").lower() in ("1", "true", "yes")
 
     cli_verbose = "--verbose" in sys.argv
     cli_debug = "--debug" in sys.argv
@@ -1631,57 +1614,42 @@ def is_debug() -> bool:
     return d
 
 
-def resolve_config() -> dict:
-    """Read the latest environment configurations to resolve routing destinations."""
-    user_dir = get_systemd_user_dir()
+def resolve_config() -> dict[str, str]:
+    """Resolve routing destinations using standard default localhost ports with env variable overrides."""
+    lmbd_enabled_env = (
+        os.environ.get("LROUT_EMBEDDING_ENABLED") or os.environ.get("LMBD_ENABLED") or "0"
+    )
+    lmbd_enabled = str(lmbd_enabled_env).lower() not in ("0", "false", "no")
 
-    # 1. Read the wrapper settings to see if standalone embedding is enabled
-    coord_env = parse_env_file(os.path.join(user_dir, "local-inference.env"))
-    lmbd_enabled_str = coord_env.get("LMBD_ENABLED", "1")
-    lmbd_enabled = lmbd_enabled_str not in ("0", "false", "no", "FALSE", "NO")
+    config = {}
+    for svc, (def_host, def_port) in DEFAULT_SERVICE_PORTS.items():
+        prefixes = SERVICE_ENV_PREFIXES.get(svc, [f"LROUT_{svc.upper()}"])
+        host = def_host
+        port = def_port
 
-    # Helper to resolve service hosts & ports
-    def load_addr(svc: str, prefix: str, default_host: str, default_port: int) -> tuple[str, int]:
-        env_path = os.path.join(user_dir, f"{svc}.env")
-        env_data = parse_env_file(env_path)
-        host = env_data.get(f"{prefix}_HOST", default_host)
-        port_str = env_data.get(f"{prefix}_PORT", str(default_port))
-        try:
-            port = int(port_str)
-        except ValueError:
-            port = default_port
-        return host, port
+        for pfx in prefixes:
+            h_val = os.environ.get(f"{pfx}_HOST")
+            if h_val:
+                host = h_val
+                break
+        for pfx in prefixes:
+            p_val = os.environ.get(f"{pfx}_PORT")
+            if p_val:
+                try:
+                    port = int(p_val)
+                    break
+                except ValueError:
+                    pass
 
-    strata_enabled_str = coord_env.get("LCHAT_STRATA_ENABLED", "0")
-    strata_enabled = strata_enabled_str not in ("0", "false", "no", "FALSE", "NO")
-    if strata_enabled:
-        chat_host, chat_port = load_addr("local-chat-strata", "LCHAT_STRATA", "127.0.0.1", 20080)
-    else:
-        chat_host, chat_port = load_addr("local-chat", "LCHAT", "127.0.0.1", 20080)
+        config[svc] = f"http://{host}:{port}"
 
-    # Embedding destination depends on whether the dedicated embedding service is active
-    if lmbd_enabled:
-        embed_host, embed_port = load_addr("local-embedding", "LMBD", "127.0.0.1", 20082)
-    else:
-        # Combined mode: routes embedding directly to local-chat port
-        embed_host, embed_port = chat_host, chat_port
+    if not lmbd_enabled:
+        config["embedding"] = config["chat"]
 
-    rerank_host, rerank_port = load_addr("local-rerank", "LRR", "127.0.0.1", 20086)
-    rerank_env = parse_env_file(os.path.join(user_dir, "local-rerank.env"))
-    rerank_api_path = rerank_env.get("LRR_API_PATH", "/v1/rerank")
-    stt_host, stt_port = load_addr("local-speech-to-text", "LSTT", "127.0.0.1", 20090)
-    tts_host, tts_port = load_addr("local-text-to-speech", "LTTS", "127.0.0.1", 20095)
-    image_host, image_port = load_addr("local-image", "LIMG", "127.0.0.1", 20100)
-
-    return {
-        "chat": f"http://{chat_host}:{chat_port}",
-        "embedding": f"http://{embed_host}:{embed_port}",
-        "rerank": f"http://{rerank_host}:{rerank_port}",
-        "rerank_api_path": rerank_api_path,
-        "stt": f"http://{stt_host}:{stt_port}",
-        "tts": f"http://{tts_host}:{tts_port}",
-        "image": f"http://{image_host}:{image_port}",
-    }
+    config["rerank_api_path"] = os.environ.get("LROUT_RERANK_PATH") or os.environ.get(
+        "LRR_API_PATH", "/v1/rerank"
+    )
+    return config
 
 
 async def handle_mock_backend(
@@ -2154,11 +2122,19 @@ async def proxy_request(
         }
 
         try:
-            # Build and send the streaming request
-            req_timeout = (
-                float(os.environ.get("LROUT_IMAGE_TIMEOUT", "600.0"))
-                if service == "image"
-                else 120.0
+            default_svc_to = SERVICE_TIMEOUT_DEFAULTS.get(service or "", 120.0)
+            env_var_name = (
+                f"LROUT_{service.upper()}_TIMEOUT" if service else "LROUT_DEFAULT_TIMEOUT"
+            )
+            read_timeout_val = float(os.environ.get(env_var_name, str(default_svc_to)))
+            connect_timeout_val = float(os.environ.get("LROUT_CONNECT_TIMEOUT", "5.0"))
+
+            req_timeout = httpx.Timeout(
+                timeout=read_timeout_val,
+                connect=connect_timeout_val,
+                read=read_timeout_val,
+                write=60.0,
+                pool=10.0,
             )
             req = client.build_request(
                 method=request.method,
@@ -2552,9 +2528,9 @@ async def route_rerank(request: Request):
 @app.post("/v1/audio/transcriptions")
 async def route_stt(request: Request):
     config = resolve_config()
-    user_dir = get_systemd_user_dir()
-    stt_env = parse_env_file(os.path.join(user_dir, "local-speech-to-text.env"))
-    inf_path = stt_env.get("LSTT_INFERENCE_PATH", "/v1/audio/transcriptions")
+    inf_path = os.environ.get("LROUT_STT_PATH") or os.environ.get(
+        "LSTT_INFERENCE_PATH", "/v1/audio/transcriptions"
+    )
     agent = extract_request_agent(request)
     model = "whisper-1"
     body_bytes = b""
@@ -2816,3 +2792,11 @@ async def route_catchall(path: str, request: Request):
             }
         },
     )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    host = os.environ.get("LROUT_HOST", "127.0.0.1")
+    port = int(os.environ.get("LROUT_PORT", "21080"))
+    uvicorn.run(app, host=host, port=port)

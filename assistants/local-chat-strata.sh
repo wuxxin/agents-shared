@@ -24,7 +24,7 @@ STRATA_ENGINE_BIN="${STRATA_ENGINE_BIN:-/usr/lib/strata/engine/strata}"
 STRATA_VISION_BIN="${STRATA_VISION_BIN:-/usr/lib/strata/engine/strata-vision-hip}"
 STRATA_VISION_CPU_BIN="${STRATA_VISION_CPU_BIN:-/usr/lib/strata/engine/strata-vision}"
 STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/serve/server.py}"
-export STRATA_DEFAULT_MODEL_DIR="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata/swift15_iq3s}"
+export STRATA_DEFAULT_MODEL_DIR="${LCHAT_STRATA_MODEL_DIR:-${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/swift15_iq3s}"
 
 # Hardware, ROCm, and Strata Execution Tuning Constants (AMD Navi 31 / RX 7900 XTX)
 export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
@@ -147,14 +147,14 @@ load_env() {
     LCHAT_STRATA_DEVICE="0"
 
     # Native Strata layout paths
-    local base_m_dir="${LCHAT_STRATA_MODEL_DIR:-/data/public/machine-learning/models/strata/swift15_iq3s}"
+    local base_m_dir="${LCHAT_STRATA_MODEL_DIR:-${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/swift15_iq3s}"
 
     local def_model="${base_m_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
     local def_ple="${base_m_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
     local def_pack="${base_m_dir}/packs/swift-iq3_s"
     local def_mmproj="${base_m_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
     local def_mtp="${base_m_dir}/mtp/rt"
-    local def_esp="/data/public/machine-learning/models/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+    local def_esp="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
     [[ ! -f "$def_esp" ]] && def_esp="/usr/share/strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 
     # Default model files (clean un-ablated Swift 1.5 GSQ-RCO)
@@ -358,7 +358,12 @@ get_shared_options() {
     # Allow read-write access to model storage and home-based paths
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf /usr /opt/rocm"
-    echo "ReadWritePaths=/data/public/machine-learning /dev/shm /tmp"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadWritePaths=${base_mount} /dev/shm /tmp"
 
     # Memory and resource limits (unlimited to consume all host memory)
     echo "LimitMEMLOCK=infinity"
@@ -779,26 +784,29 @@ LCHAT_STRATA_DEVICE="0"
 
 
 # ### MODEL AND ENGINE PATHS
+# Base directory for local models repository (override to use custom storage)
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+
 # Shard 1 (Native IQ3_S model - clean un-ablated Swift 1.5)
-LCHAT_STRATA_MODEL="/data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+LCHAT_STRATA_MODEL="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
 
 # Shard 2 (PLE GGUF)
-LCHAT_STRATA_PLE_MODEL="/data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+LCHAT_STRATA_PLE_MODEL="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
 
 # Strata native pack directory
-LCHAT_STRATA_PACK="/data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s"
+LCHAT_STRATA_PACK="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/packs/swift-iq3_s"
 
 # Vision mmproj model (BF16 vision encoder)
-LCHAT_STRATA_MMPROJ="/data/public/machine-learning/models/strata/swift15_iq3s/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
+LCHAT_STRATA_MMPROJ="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
 
 # MTP Draft head runtime folder (speculative decoding)
-LCHAT_STRATA_MTP="/data/public/machine-learning/models/strata/swift15_iq3s/mtp/rt"
+LCHAT_STRATA_MTP="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/mtp/rt"
 
 # MTP Draft vocabulary override (empty = default full bilingual/multilingual draft_vocab.bin)
 LCHAT_STRATA_MTP_VOCAB=""
 
 # Runtime experimental speed projection / refusal control vector (uncensored)
-LCHAT_STRATA_ESP="/data/public/machine-learning/models/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+LCHAT_STRATA_ESP="${LOCAL_MODELS_DIR}/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 LCHAT_STRATA_ESP_SCALE="1.0"
 LCHAT_STRATA_ESP_LAYERS="4 44"
 # ### ENGINE TUNING PARAMETERS

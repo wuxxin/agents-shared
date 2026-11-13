@@ -27,7 +27,8 @@ load_env() {
 
     # llama-server parameters (Qwen3-Embedding: causal decoder, 596M params, 1×8K kv, Q8_0 GGUF)
     # Benchmarked config: 2.01 GB VRAM (ROCm), 8,211 t/s hindsight, 7,282 t/s standard
-    LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+    LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    LMBD_LLAMA_MODEL="${LOCAL_MODELS_DIR}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
     LMBD_LLAMA_N_CTX=8192
     LMBD_LLAMA_N_UBATCH=1024
     LMBD_LLAMA_N_GPU_LAYERS=999
@@ -40,7 +41,7 @@ load_env() {
     # Qwen3-Embedding: causal Qwen3 decoder, 596M params, Q8_0 GGUF, last-token pooling
     # kv-unified: single 18K shared KV pool, 1 slot. ubatch=1024 for optimal GPU occupancy.
     # Single slot saturates GPU compute for this model size — adding slots hurts throughput.
-    LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/bge-m3 # NOTE: TEI engine abandoned; only llama-server path is active
+    LMBD_TEI_MODEL="${LOCAL_MODELS_DIR}/embedding/bge-m3" # NOTE: TEI engine abandoned; only llama-server path is active
     LMBD_ALIAS=qwen3-embedding
     LMBD_TEI_MAX_CONCURRENT=6
     LMBD_TEI_MAX_BATCH_TOKENS=49152
@@ -197,7 +198,12 @@ get_shared_options() {
     # Allow read-write access to model storage and home-based paths
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadWritePaths=${base_mount}"
 
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
@@ -368,7 +374,8 @@ LMBD_HOST=127.0.0.1
 # optimized, allowing for larger batch sizes and long contexts without pre-allocation.
 #
 # Path to the safetensors model directory (original bge-m3 safetensors, not active)
-LMBD_TEI_MODEL=/data/public/machine-learning/models/embedding/bge-m3
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+LMBD_TEI_MODEL="${LOCAL_MODELS_DIR}/embedding/bge-m3"
 
 # Max concurrent request slots (default: 6, 4 for Hindsight recall search + 2 background)
 # GPU dynamically packs requests up to max-batch-tokens per pass; extra slots are queue-only (zero VRAM cost)
@@ -408,7 +415,7 @@ EOF
 #   LMBD_LLAMA_N_CTX=8192, LMBD_LLAMA_N_UBATCH=1024, LMBD_LLAMA_PARALLEL=1
 
 # Path to the text embedding GGUF model file
-LMBD_LLAMA_MODEL=/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf
+LMBD_LLAMA_MODEL="${LOCAL_MODELS_DIR}/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"
 
 # Context size (default: 8192)
 LMBD_LLAMA_N_CTX=8192
@@ -673,7 +680,7 @@ wait_for_endpoint() {
     local max_retries="${2:-30}"
     local delay="${3:-2}"
     local label="${4:-server}"
-    for i in $(seq 1 $max_retries); do
+    for i in $(seq 1 "$max_retries"); do
         if curl -s -f "$url" >/dev/null 2>&1; then
             return 0
         fi
@@ -720,7 +727,7 @@ cmd_test() {
     if [ "$benchmark" = "true" ]; then
         local context_file
         if [ "$hindsight" = "true" ]; then
-            context_file="/data/public/machine-learning/models/hindsight-context.txt"
+            context_file="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/hindsight-context.txt"
             if [[ ! -f "$context_file" ]]; then
                 context_file="$(dirname "$(dirname "$LMBD_MODEL")")/hindsight-context.txt"
             fi
@@ -732,7 +739,7 @@ cmd_test() {
                 python3 "$(dirname "$0")/../scripts/download-helper.py" hindsight-context --output "$context_file" || true
             fi
         else
-            context_file="/data/public/machine-learning/models/benchmark-context.md"
+            context_file="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/benchmark-context.md"
             if [[ ! -f "$context_file" ]]; then
                 context_file="$(dirname "$(dirname "$LMBD_MODEL")")/benchmark-context.md"
             fi

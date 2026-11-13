@@ -4687,7 +4687,10 @@ def main() -> None:
                                 "run",
                                 whisper_cli,
                                 "-m",
-                                "/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin",
+                                os.path.join(
+                                    os.environ.get("LOCAL_MODELS_DIR", "/data/public/machine-learning/models"),
+                                    "speech-to-text/ggml-large-v3-turbo-q5_0.bin",
+                                ),
                                 "-f",
                                 os.path.join(
                                     REPO_ROOT, "scratch", "tts_benchmark_output.wav"

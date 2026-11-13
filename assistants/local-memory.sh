@@ -748,6 +748,7 @@ cmd_cat() {
 cmd_test() {
     load_env
     echo "=== Testing Hindsight Memory API ==="
+    # shellcheck disable=SC2153
     echo "Querying API health: http://${LMEM_HOST}:${LMEM_PORT}/health"
     local resp
     if ! resp=$(curl -s -f --max-time 10 "http://${LMEM_HOST}:${LMEM_PORT}/health"); then

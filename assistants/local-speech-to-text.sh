@@ -23,7 +23,8 @@ load_env() {
     # Default parameters
     LSTT_PORT=20090
     LSTT_HOST=127.0.0.1
-    LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
+    LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    LSTT_MODEL="${LOCAL_MODELS_DIR}/speech-to-text/ggml-large-v3-turbo-q5_0.bin"
     # shellcheck disable=SC2034
     LSTT_ALIAS=whisper-1
     LSTT_THREADS=8
@@ -86,7 +87,12 @@ get_shared_options() {
     # Allow read-write access to home-based paths (for temp ffmpeg files)
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadWritePaths=${base_mount}"
 
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
@@ -200,9 +206,12 @@ LSTT_PORT=20090
 # Host to bind the server to (127.0.0.1 for local access only)
 LSTT_HOST=127.0.0.1
 
+# Base directory for local models repository (override to use custom storage)
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+
 # Path to the GGML Whisper model file
 # Source: https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin
-LSTT_MODEL=/data/public/machine-learning/models/speech-to-text/ggml-large-v3-turbo-q5_0.bin
+LSTT_MODEL="${LOCAL_MODELS_DIR}/speech-to-text/ggml-large-v3-turbo-q5_0.bin"
 
 # Model alias used by client integrations (default: whisper-1)
 LSTT_ALIAS="whisper-1"

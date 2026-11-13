@@ -27,7 +27,8 @@ load_env() {
     LRR_ALIAS=qwen3-reranker
 
     # llama-server parameters (Qwen3-Reranker-0.6B: generative yes/no classifier, 40K ctx, Q4_K_M GGUF)
-    LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+    LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    LRR_LLAMA_MODEL="${LOCAL_MODELS_DIR}/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"
     LRR_LLAMA_N_CTX=12288
     LRR_LLAMA_N_UBATCH=12288
     LRR_LLAMA_N_GPU_LAYERS=999
@@ -39,7 +40,7 @@ load_env() {
 
     # Infinity parameters (infinity_emb v2 CLI interface, configured natively via INFINITY_* env vars)
     # Default model: bge-reranker-v2-m3 with ONNX Optimum engine backend
-    LRR_INF_MODEL=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3
+    LRR_INF_MODEL="${LOCAL_MODELS_DIR}/reranker/bge-reranker-v2-m3"
     LRR_INF_ENGINE=optimum
     LRR_INF_DEVICE=cuda
     LRR_INF_DTYPE=auto
@@ -214,7 +215,12 @@ get_shared_options() {
     # Allow read-write access to model storage and home-based paths
     echo "BindPaths=${home_spec}"
     echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf"
-    echo "ReadWritePaths=/data/public/machine-learning"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadWritePaths=${base_mount}"
 
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
@@ -365,8 +371,9 @@ LRR_API_PATH=/v1/rerank
 # Systemd environment variables directly configure the infinity_emb v2 CLI.
 #
 # Path to the safetensors / ONNX model directory
-LRR_INF_MODEL=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3-ONNX
-INFINITY_MODEL_ID=/data/public/machine-learning/models/reranker/bge-reranker-v2-m3-ONNX
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+LRR_INF_MODEL="${LOCAL_MODELS_DIR}/reranker/bge-reranker-v2-m3-ONNX"
+INFINITY_MODEL_ID="${LOCAL_MODELS_DIR}/reranker/bge-reranker-v2-m3-ONNX"
 
 # Served model nickname
 INFINITY_SERVED_MODEL_NAME=qwen3-reranker
@@ -422,7 +429,7 @@ EOF
 # Total VRAM: ~1.04 GB (360M Q4_K_M weights + 896M KV + 400M runtime + ~100M activations).
 #
 # Path to the text reranker GGUF model file
-LRR_LLAMA_MODEL=/data/public/machine-learning/models/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf
+LRR_LLAMA_MODEL="${LOCAL_MODELS_DIR}/reranker/Qwen3-Reranker-0.6B.Q4_K_M.gguf"
 
 # Context size per parallel slot (default: 12288)
 LRR_LLAMA_N_CTX=12288
@@ -722,7 +729,7 @@ cmd_test() {
             context_file="$(dirname "$(dirname "$LRR_MODEL")")/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
-            context_file="/data/public/machine-learning/models/benchmark-context.md"
+            context_file="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/benchmark-context.md"
         fi
         if [[ ! -f "$context_file" ]]; then
             context_file="/tmp/benchmark-context.md"

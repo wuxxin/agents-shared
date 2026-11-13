@@ -36,9 +36,11 @@ load_env() {
     LTTS_ALIAS=""
     LTTS_VOICE=""
 
+    LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+
     # Qwen3-TTS engine parameters (GGUF via qwen3-tts-server)
-    LTTS_QWEN3_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
-    LTTS_QWEN3_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
+    LTTS_QWEN3_MODEL="${LOCAL_MODELS_DIR}/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"
+    LTTS_QWEN3_VOCODER="${LOCAL_MODELS_DIR}/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
     LTTS_QWEN3_THREADS=8
     LTTS_QWEN3_MODE="cpu"
     LTTS_QWEN3_EXTRA_ARGS="--language de"
@@ -46,7 +48,7 @@ load_env() {
     LTTS_QWEN3_VOICE="serena"
 
     # Kokoro engine parameters (ONNX via kokoro-ctl.py)
-    LTTS_KOKORO_MODEL=/data/public/machine-learning/models/text-to-speech/kokoro-onnx
+    LTTS_KOKORO_MODEL="${LOCAL_MODELS_DIR}/text-to-speech/kokoro-onnx"
     LTTS_KOKORO_VOICE="df_victoria"
     LTTS_KOKORO_THREADS=8
     LTTS_KOKORO_EXTRA_ARGS=""
@@ -98,17 +100,13 @@ load_env() {
         fi
     fi
     # Map generic variables based on selected engine for backward compatibility
-    if [[ "${LTTS_ENGINE}" == "kokoro" || "${LTTS_ENGINE}" == "crane" ]]; then
-        LTTS_ENGINE="kokoro"
-        if [[ -n "${LTTS_KOKORO_MODEL:-}" && ( -z "${LTTS_MODEL:-}" || "${LTTS_MODEL:-}" =~ \.gguf$ ) ]]; then
-            LTTS_MODEL="${LTTS_KOKORO_MODEL}"
-        else
-            LTTS_MODEL="${LTTS_KOKORO_MODEL:-${LTTS_CRANE_MODEL:-${LTTS_MODEL:-}}}"
-        fi
-        LTTS_VOICE="${LTTS_KOKORO_VOICE:-${LTTS_CRANE_VOICE:-${LTTS_VOICE:-df_kerstin}}}"
+    # Map generic variables based on selected engine
+    if [[ "${LTTS_ENGINE}" == "kokoro" ]]; then
+        LTTS_MODEL="${LTTS_KOKORO_MODEL:-${LTTS_MODEL:-}}"
+        LTTS_VOICE="${LTTS_KOKORO_VOICE:-${LTTS_VOICE:-df_victoria}}"
         LTTS_THREADS="${LTTS_KOKORO_THREADS:-${LTTS_THREADS:-8}}"
         LTTS_ALIAS="${LTTS_ALIAS:-kokoro}"
-        LTTS_EXTRA_ARGS="${LTTS_KOKORO_EXTRA_ARGS:-${LTTS_CRANE_EXTRA_ARGS:-}}"
+        LTTS_EXTRA_ARGS="${LTTS_KOKORO_EXTRA_ARGS:-${LTTS_EXTRA_ARGS:-}}"
     else
         LTTS_MODEL="${LTTS_QWEN3_MODEL:-${LTTS_MODEL:-}}"
         LTTS_VOCODER="${LTTS_QWEN3_VOCODER:-${LTTS_VOCODER:-}}"
@@ -203,8 +201,6 @@ get_shared_options() {
     echo "Environment=QWEN3_TTS_LOW_MEM=${low_mem}"
     echo "Environment=QWEN3_TTS_TRANSFORMER_FORCE_CPU=${transformer_force_cpu}"
     echo "Environment=QWEN3_TTS_VOCODER_FORCE_CPU=${vocoder_force_cpu}"
-    echo "Environment=HF_HOME=${home_spec}/.cache/kokoro/hf"
-    echo "Environment=KOKORO_CACHE_DIR=${home_spec}/.cache/kokoro"
     echo "EnvironmentFile=-${home_spec}/.config/systemd/user/local-text-to-speech.env"
     echo "WorkingDirectory=${home_spec}"
 
@@ -223,7 +219,12 @@ get_shared_options() {
     echo "ProtectSystem=strict"
     # Allow read-write access to home-based paths (where ~/.cache and ~/.config live)
     echo "BindPaths=${home_spec}"
-    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf /data/public/machine-learning"
+    local models_mount="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
+    local base_mount="/data/public/machine-learning"
+    if [[ "$models_mount" != /data/public/* ]]; then
+        base_mount="$models_mount"
+    fi
+    echo "ReadOnlyPaths=/etc/ssl /etc/ca-certificates /etc/resolv.conf /etc/hosts /etc/nsswitch.conf ${base_mount}"
     echo "ProtectKernelTunables=yes"
     echo "ProtectKernelModules=yes"
     echo "ProtectKernelLogs=yes"
@@ -265,7 +266,7 @@ get_kokoro_args() {
     local -n out_kokoro_args=$1
     out_kokoro_args=(
         --server
-        --model-dir "${LTTS_MODEL:-/data/public/machine-learning/models/text-to-speech/kokoro-onnx}"
+        --model-dir "${LTTS_MODEL:-${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/text-to-speech/kokoro-onnx}"
         --host "${LTTS_HOST}"
         --port "${LTTS_PORT}"
         --threads "${LTTS_THREADS:-8}"
@@ -384,8 +385,11 @@ LTTS_ALIAS="kokoro"
 # Fast ONNX Runtime CPU inference for Kokoro-82M. Supports native German (df_victoria, dm_martin)
 # and all official 55 multilingual voice styles. Low memory (~350 MB RAM, 0 MB VRAM).
 
+# Base directory for local models repository (override to use custom storage)
+LOCAL_MODELS_DIR="/data/public/machine-learning/models"
+
 # Path to Kokoro ONNX model directory
-LTTS_KOKORO_MODEL=/data/public/machine-learning/models/text-to-speech/kokoro-onnx
+LTTS_KOKORO_MODEL="${LOCAL_MODELS_DIR}/text-to-speech/kokoro-onnx"
 
 # Default voice style for Kokoro
 LTTS_KOKORO_VOICE="df_victoria"
@@ -411,10 +415,10 @@ LTTS_KOKORO_EXTRA_ARGS=""
 # Fast C++ GGML-based serving for Qwen3-TTS GGUF models.
 
 # Path to the GGUF Talker model file
-LTTS_QWEN3_MODEL=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf
+LTTS_QWEN3_MODEL="${LOCAL_MODELS_DIR}/text-to-speech/Qwen3-TTS-12Hz-0.6B-CustomVoice-Q8_0.gguf"
 
 # Path to the GGUF Tokenizer/Vocoder model file
-LTTS_QWEN3_VOCODER=/data/public/machine-learning/models/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf
+LTTS_QWEN3_VOCODER="${LOCAL_MODELS_DIR}/text-to-speech/Qwen3-TTS-Tokenizer-12Hz-F16.gguf"
 
 # Performance mode preset for Qwen3:
 #   - gpu                : Runs on GPU, holds models warm (fastest)
@@ -601,9 +605,6 @@ export_tts_env_vars() {
     export QWEN3_TTS_LOW_MEM="${low_mem}"
     export QWEN3_TTS_TRANSFORMER_FORCE_CPU="${transformer_force_cpu}"
     export QWEN3_TTS_VOCODER_FORCE_CPU="${vocoder_force_cpu}"
-    local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/kokoro"
-    export HF_HOME="${cache_dir}/hf"
-    export KOKORO_CACHE_DIR="${cache_dir}"
 }
 
 cmd_exec() {
