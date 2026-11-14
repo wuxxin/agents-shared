@@ -71,6 +71,20 @@ Run validation tests (or benchmark):
 ./local-chat-strata.sh test [--benchmark]
 ```
 
+### System Sleep & S3 Suspend Hook
+
+Manage the host system-sleep hook that prevents S3 deep suspend allocation deadlocks by saving active sessions to NVMe and reclaiming conversation cache memory on `SIGUSR1`:
+```bash
+# Check status of the system-sleep hook
+./local-chat-strata.sh system-suspend-hook status
+
+# Install the sleep hook into /usr/lib/systemd/system-sleep/local-chat-strata.sh (requires sudo)
+./local-chat-strata.sh system-suspend-hook install
+
+# Remove the sleep hook
+./local-chat-strata.sh system-suspend-hook uninstall
+```
+
 ### Execution & Transient Commands
 
 Run Strata as a transient systemd user service (or foreground process in sandbox):
@@ -217,3 +231,42 @@ To switch from standard `local-chat` to `local-chat-strata`:
    ```
 
 Because both services default to port `20080`, `local-inference.sh` enforces a port collision safeguard: if both `LCHAT_ENABLED=1` and `LCHAT_STRATA_ENABLED=1` are set, the coordinator will fail fast and warn you to disable one before starting.
+
+---
+
+## NVMe Tier-3 KV Spillover & S3 Memory Reclaim Architecture
+
+### 1. Lazy NVMe Spillover (`--disk-spill`)
+In multi-agent workloads (LifeOS, OMP, Claude Code), subagents and tool calls (`@scout`, `@task`, `OmpHooksBridge`) frequently fire short queries (500–2,000 tokens) that can evict deep parent project contexts (50k–100k tokens) from the 8 in-RAM conversation slots.
+
+- **Zero-I/O Normal Processing:** While conversations fit within the 8 in-RAM slots (`--conversation-cache-slots 8`), all turns execute in DDR4 RAM at microsecond speeds with **zero disk writes**.
+- **Lazy Eviction Spillover:** Only when `ConversationCache::drop_oldest()` is forced to evict a slot does the engine check conversation length:
+  - Sessions $< 4,096$ tokens are dropped from RAM with zero disk I/O.
+  - Sessions $\ge 4,096$ tokens are streamed to NVMe (`rpool/data/user-cache`) via `O_DIRECT` in **~450 ms** immediately before their memory is erased from RAM.
+- **Sub-Second Restoration:** When the user returns to that deep context, Strata restores it from NVMe in **463 ms** (`1,667 MB/s`), achieving a **99.96% KV cache hit** without re-reading from token 0.
+
+### 2. S3 Suspend Memory Reclaim via `SIGUSR1` / `SIGUSR2`
+AMD RDNA3 discrete GPUs (`amdgpu` driver) must evict all 24.0 GiB of VRAM into host system RAM during S3 deep sleep (`PM: suspend entry (deep)`). When Strata holds 16 GiB of conversation cache in RAM alongside 73.7 GiB of pinned model memory, host RAM can be exhausted, deadlocking the kernel page allocator.
+
+- **Pre-Suspend (`SIGUSR1`):**
+  1. Actively snapshots the current session to NVMe (`POST /slots/0?action=save {"filename": "suspend-session.bin"}`) in ~450 ms.
+  2. Sends `CLEAR_CACHE` to the engine stdin, which calls `conversations.clear()` and `malloc_trim(0)`.
+  3. Reclaims **16.0 GiB** of host RAM while leaving the 24.0 GiB model weights resident in VRAM and the 46.8 GiB expert arena resident in host RAM.
+  4. ZFS ARC automatically shrinks by up to **10.0 GiB** under memory pressure. Available host RAM reaches **~34–42 GiB**, allowing the 24.0 GiB VRAM to evict cleanly with **8–11 GiB of safe headroom**.
+- **Post-Suspend Wake (`SIGUSR2`):**
+  1. AMDGPU restores the 24.0 GiB VRAM in ~2 seconds.
+  2. Restores the active session from NVMe (`POST /slots/0?action=restore {"filename": "suspend-session.bin"}`) in **463 ms**.
+  3. The model is active and answering in **under 3 seconds** with zero cold weight reloading delay.
+
+### 3. Dedicated ZFS Storage Dataset (`rpool/data/user-cache`)
+Configured on the host Samsung 980 PRO NVMe mirror:
+```bash
+sudo zfs set atime=on rpool/data/user-cache
+sudo zfs set quota=30G rpool/data/user-cache
+sudo zfs set recordsize=1M rpool/data/user-cache
+sudo zfs set compression=off rpool/data/user-cache
+sudo zfs set sync=disabled rpool/data/user-cache
+```
+- **1M Recordsize:** Perfectly aligns with Strata's internal 16 MiB streaming chunks, unlocking **1,667 MB/s** NVMe restore rates.
+- **30G Quota:** Enforces a hard ceiling to protect the shared 375 GiB OS pool.
+- **Decoupled Janitor:** Automatically prunes session files unused for $> 3$ days, and trims oldest files by access time whenever total cache size crosses the 25 GiB high watermark down to the 20 GiB low watermark.

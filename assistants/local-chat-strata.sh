@@ -140,6 +140,10 @@ load_env() {
     local env_lchat_alias="${LCHAT_STRATA_ALIAS:-}"
     local env_lchat_aliases="${LCHAT_STRATA_ALIASES:-}"
     local env_lchat_extra_args="${LCHAT_STRATA_EXTRA_ARGS:-}"
+    local env_lchat_idle_unload="${LCHAT_STRATA_IDLE_UNLOAD:-}"
+    local env_lchat_disk_spill="${LCHAT_STRATA_DISK_SPILL:-}"
+    local env_lchat_user_cache_max_gib="${LCHAT_STRATA_USER_CACHE_MAX_GIB:-}"
+    local env_lchat_user_cache_max_age_days="${LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS:-}"
 
     # Default server settings (matching local-chat on port 20080 for drop-in replacement)
     LCHAT_STRATA_PORT=20080
@@ -201,6 +205,10 @@ load_env() {
     LCHAT_STRATA_PLE_IO="ram"
     LCHAT_STRATA_SPEED="faster"
     LCHAT_STRATA_EXPERT_PROFILE_SAVE="${STRATA_STATE_DIR}/${SERVICE_NAME}-profile.bin"
+    LCHAT_STRATA_IDLE_UNLOAD=3600
+    LCHAT_STRATA_DISK_SPILL=0
+    LCHAT_STRATA_USER_CACHE_MAX_GIB=25
+    LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS=3
     # Default vision settings
     LCHAT_STRATA_VISION=true
     LCHAT_STRATA_VISION_TOKENS=1024
@@ -277,6 +285,10 @@ load_env() {
     LCHAT_STRATA_TOKENIZER_DIR="${env_lchat_tokenizer_dir:-${LCHAT_STRATA_TOKENIZER_DIR}}"
     LCHAT_STRATA_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS}}"
     LCHAT_STRATA_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_STRATA_EXTRA_ARGS}}"
+    LCHAT_STRATA_IDLE_UNLOAD="${env_lchat_idle_unload:-${LCHAT_STRATA_IDLE_UNLOAD}}"
+    LCHAT_STRATA_DISK_SPILL="${env_lchat_disk_spill:-${LCHAT_STRATA_DISK_SPILL}}"
+    LCHAT_STRATA_USER_CACHE_MAX_GIB="${env_lchat_user_cache_max_gib:-${LCHAT_STRATA_USER_CACHE_MAX_GIB}}"
+    LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS="${env_lchat_user_cache_max_age_days:-${LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS}}"
 }
 
 # Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
@@ -456,6 +468,9 @@ engine_args.extend([
     "--ple-io", get_env("LCHAT_STRATA_PLE_IO", "ram"),
     "--ple-gguf", model,
 ])
+disk_spill = get_env("LCHAT_STRATA_DISK_SPILL", "0").lower() in ("true", "1", "yes", "on")
+if disk_spill:
+    engine_args.append("--disk-spill")
 kv_grow = get_env("LCHAT_STRATA_KV_GROW", "true").lower() in ("true", "1", "yes")
 kv_resident = int(get_env("LCHAT_STRATA_KV_RESIDENT", "0") or "0")
 if kv_grow:
@@ -525,6 +540,7 @@ cfg = {
     "aliases": aliases,
     "arch": "qwen",
     "backend": "hip",
+    "idle_unload_s": float(get_env("LCHAT_STRATA_IDLE_UNLOAD", "3600")),
     "drafting": get_env("LCHAT_STRATA_DRAFTING", "mtp"),
     "sampling": {
         "temperature": float(get_env("LCHAT_STRATA_TEMPERATURE", "0.6")),
@@ -646,13 +662,174 @@ sys.path.insert(0, "/usr/share/strata")
 from serve import lifeline
 import serve.server as strata_server
 
-# Patch lifeline.popen so engine and vision processes stream stderr directly to sys.stderr
+# Forward engine stderr to sys.stderr while updating conv_log in real time for the Monitor GUI
+def _forward_stderr(pipe_r):
+    with os.fdopen(pipe_r, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            if "conversation cache:" in line:
+                svc = getattr(strata_server, "_active_svc", None)
+                if svc and hasattr(svc, "conv_log"):
+                    m = strata_server.ConvCacheLog.EVENT.search(line)
+                    if m:
+                        st = svc.conv_log.state
+                        st["parked"], st["bytes"] = int(m.group(3)), int(m.group(4))
+                        if m.group(5) is not None:
+                            st["evictions"] = int(m.group(5))
+                        if m.group(1) != "skipped":
+                            st["parks" if m.group(1) == "parked" else "restores"] += 1
+                            st["last_event"], st["last_tokens"], st["last_at"] = m.group(1), int(m.group(2)), time.time()
+                    else:
+                        m2 = strata_server.ConvCacheLog.DROPPED.search(line)
+                        if m2:
+                            svc.conv_log.state["parked"] = int(m2.group(1))
+
 _orig_popen = lifeline.popen
 def _direct_popen(args, role="engine", **kw):
+    if role == "engine":
+        r, w = os.pipe()
+        kw["stderr"] = w
+        proc = _orig_popen(args, role=role, **kw)
+        os.close(w)
+        threading.Thread(target=_forward_stderr, args=(r,), daemon=True).start()
+        return proc
     if kw.get("stderr") in (None, subprocess.DEVNULL):
         kw["stderr"] = sys.stderr
     return _orig_popen(args, role=role, **kw)
 lifeline.popen = _direct_popen
+
+_orig_conv_poll = strata_server.ConvCacheLog.poll
+def _hooked_conv_poll(self, path, start):
+    if not path or start is None:
+        return dict(self.state)
+    return _orig_conv_poll(self, path, start)
+strata_server.ConvCacheLog.poll = _hooked_conv_poll
+
+# Hook Service initialization to capture active service instance
+import signal
+import threading
+import time
+
+_orig_svc_init = strata_server.Service.__init__
+def _hooked_svc_init(self, *a, **kw):
+    _orig_svc_init(self, *a, **kw)
+    strata_server._active_svc = self
+strata_server.Service.__init__ = _hooked_svc_init
+
+# Watermarked, event-driven NVMe user-cache Janitor
+def _run_prune():
+    svc = getattr(strata_server, "_active_svc", None)
+    cache_dir = getattr(svc, "slot_save_path", None) if svc else None
+    if not cache_dir or not os.path.isdir(cache_dir):
+        return
+    try:
+        if hasattr(os, "nice"):
+            try: os.nice(19)
+            except OSError: pass
+        max_quota = int(os.environ.get("LCHAT_STRATA_USER_CACHE_MAX_GIB", "25")) * (1024**3)
+        max_age = float(os.environ.get("LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS", "3")) * 86400.0
+        now = time.time()
+        files = []
+        total_bytes = 0
+        for entry in os.scandir(cache_dir):
+            if entry.name.endswith(".bin"):
+                try:
+                    st = entry.stat()
+                    last_access = max(st.st_atime, st.st_mtime)
+                    files.append({"path": entry.path, "size": st.st_size, "last_access": last_access})
+                    total_bytes += st.st_size
+                except OSError:
+                    pass
+        # 1. Prune expired files (> max_age)
+        retained = []
+        for f in files:
+            if now - f["last_access"] > max_age:
+                try:
+                    os.remove(f["path"])
+                    total_bytes -= f["size"]
+                except OSError:
+                    pass
+            else:
+                retained.append(f)
+        # 2. Prune by LRU if exceeding high watermark (max_quota)
+        if total_bytes > max_quota:
+            retained.sort(key=lambda x: x["last_access"])
+            low_watermark = int(max_quota * 0.8)
+            for f in retained:
+                if total_bytes <= low_watermark:
+                    break
+                try:
+                    os.remove(f["path"])
+                    total_bytes -= f["size"]
+                except OSError:
+                    pass
+    except Exception as e:
+        sys.stderr.write(f"[strata-janitor] error: {e}\n")
+
+def _trigger_prune():
+    threading.Thread(target=_run_prune, daemon=True).start()
+
+# Hook slot_action to trigger prune on save and update atime on restore
+_orig_slot_action = strata_server.Service.slot_action
+def _hooked_slot_action(self, slot, action, filename):
+    res = _orig_slot_action(self, slot, action, filename)
+    if action == "save":
+        _trigger_prune()
+    elif action == "restore" and self.slot_save_path and filename:
+        p = os.path.join(self.slot_save_path, filename)
+        if os.path.exists(p):
+            try: os.utime(p, None)
+            except OSError: pass
+    return res
+strata_server.Service.slot_action = _hooked_slot_action
+
+# Signal handlers for pre-suspend save & reclaim (SIGUSR1) and post-suspend restore (SIGUSR2)
+def _handle_sigusr1(signum, frame):
+    svc = getattr(strata_server, "_active_svc", None)
+    if svc and hasattr(svc, "slot_action") and svc.loaded():
+        try:
+            code, body = svc.slot_action("0", "save", "suspend-session.bin")
+            sys.stderr.write(f"[strata-launcher] SIGUSR1: session saved ({code})\n")
+        except Exception as e:
+            sys.stderr.write(f"[strata-launcher] SIGUSR1 save error: {e}\n")
+        engine = getattr(svc, "engine", None)
+        if engine and hasattr(engine, "proc") and engine.proc and engine.proc.stdin:
+            try:
+                with engine._exclusive_control():
+                    engine.proc.stdin.write("CLEAR_CACHE\n")
+                    engine.proc.stdin.flush()
+                    try:
+                        resp = engine.lines.get(timeout=5.0)
+                        sys.stderr.write(f"[strata-launcher] SIGUSR1: CLEAR_CACHE response: {resp.strip()!r}\n")
+                    except Exception as e:
+                        sys.stderr.write(f"[strata-launcher] SIGUSR1: lines.get error: {e}\n")
+            except Exception as e:
+                sys.stderr.write(f"[strata-launcher] SIGUSR1 CLEAR_CACHE error: {e}\n")
+        try:
+            with open("/tmp/strata-reclaimed", "w") as f:
+                f.write("ok\n")
+        except OSError:
+            pass
+        _trigger_prune()
+def _handle_sigusr2(signum, frame):
+    svc = getattr(strata_server, "_active_svc", None)
+    if svc and hasattr(svc, "slot_action"):
+        try:
+            if not svc.loaded():
+                svc.load()
+            code, body = svc.slot_action("0", "restore", "suspend-session.bin")
+            sys.stderr.write(f"[strata-launcher] SIGUSR2: session restored ({code})\n")
+            save_path = os.path.join(svc.slot_save_path, "suspend-session.bin") if svc.slot_save_path else None
+            if save_path and os.path.exists(save_path):
+                try: os.utime(save_path, None)
+                except OSError: pass
+        except Exception as e:
+            sys.stderr.write(f"[strata-launcher] SIGUSR2 restore error: {e}\n")
+
+signal.signal(signal.SIGUSR1, _handle_sigusr1)
+signal.signal(signal.SIGUSR2, _handle_sigusr2)
+
 
 # If custom arguments were passed to launcher, forward them; else construct standard invocation
 if len(sys.argv) > 1:
@@ -855,6 +1032,16 @@ LCHAT_STRATA_KV="k8v4"
 LCHAT_STRATA_KV_GROW=true
 LCHAT_STRATA_KV_RESIDENT=0
 LCHAT_STRATA_SLOT_SAVE_PATH="${HOME}/.cache/user-cache"
+
+# Model idle unload timeout in seconds without requests (default: 3600 = 1 hour; 0 to disable)
+LCHAT_STRATA_IDLE_UNLOAD=3600
+
+# Opt-in NVMe KV cache spillover (--disk-spill in engine) (0=disabled, 1=enabled)
+LCHAT_STRATA_DISK_SPILL=0
+
+# NVMe Janitor cache limits
+LCHAT_STRATA_USER_CACHE_MAX_GIB=25
+LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS=3
 LCHAT_STRATA_EXPERT_CACHE="auto"
 LCHAT_STRATA_VRAM_RESERVE_MIB=576
 # Routing profile and adaptive persistence
@@ -966,6 +1153,8 @@ write_service_file() {
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
     export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
     export LCHAT_STRATA_EXPERT_PROFILE LCHAT_STRATA_EXPERT_PROFILE_SAVE
+    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_DISK_SPILL
+    export LCHAT_STRATA_USER_CACHE_MAX_GIB LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS
 
     # Generate 48-row tuned hipBLASLt table for gfx1100 in state dir
     generate_hipblaslt_table >"${TUNING_TABLE_FILE}"
@@ -1081,6 +1270,69 @@ cmd_enable() {
 }
 cmd_disable() { run_systemctl disable "${SERVICE_NAME}.service"; }
 cmd_logs() { journalctl --user -u "${SERVICE_NAME}.service" "$@"; }
+
+cmd_system_suspend_hook() {
+    local subcmd="${1:-status}"
+    local hook_path="/usr/lib/systemd/system-sleep/local-chat-strata.sh"
+
+    case "${subcmd}" in
+    status)
+        if [[ -f "${hook_path}" ]]; then
+            echo "System suspend hook is installed at ${hook_path}:"
+            cat "${hook_path}"
+        else
+            echo "System suspend hook is NOT installed (${hook_path} absent)."
+        fi
+        ;;
+    install)
+        echo "Installing system suspend hook to ${hook_path} (requires sudo)..."
+        sudo tee "${hook_path}" >/dev/null <<'EOF'
+#!/bin/sh
+case "$1/$2" in
+pre/*)
+    # Safety fallback: unfreeze user.slice if frozen by cgroup freezer
+    echo 0 > /sys/fs/cgroup/user.slice/cgroup.freeze 2>/dev/null || true
+    rm -f /tmp/strata-reclaimed
+    pkill -USR1 -f local-chat-strata-launcher.py || true
+    # Wait up to 3 seconds for memory reclamation barrier to complete
+    for i in $(seq 1 30); do
+        [ -f /tmp/strata-reclaimed ] && break
+        sleep 0.1
+    done
+    rm -f /tmp/strata-reclaimed
+    ;;
+post/*)
+    pkill -USR2 -f local-chat-strata-launcher.py || true
+    ;;
+esac
+EOF
+        sudo chmod 755 "${hook_path}"
+        # Configure systemd sleep services to keep user sessions unfrozen during sleep scripts
+        for svc in systemd-suspend systemd-hibernate systemd-hybrid-sleep systemd-suspend-then-hibernate; do
+            sudo mkdir -p "/etc/systemd/system/${svc}.service.d"
+            sudo tee "/etc/systemd/system/${svc}.service.d/override.conf" >/dev/null <<'EOF'
+[Service]
+Environment="SYSTEMD_SLEEP_FREEZE_USER_SESSIONS=false"
+EOF
+        done
+        sudo systemctl daemon-reload
+        echo "Installed ${hook_path} and systemd sleep overrides successfully."
+        ;;
+    uninstall)
+        echo "Removing system suspend hook from ${hook_path} (requires sudo)..."
+        if [[ -f "${hook_path}" ]]; then
+            sudo rm -f "${hook_path}"
+            echo "Removed ${hook_path}."
+        else
+            echo "${hook_path} was not present."
+        fi
+        ;;
+    *)
+        echo "Usage: $0 system-suspend-hook [status|install|uninstall]" >&2
+        exit 1
+        ;;
+    esac
+}
 
 cmd_edit() {
     mkdir -p "$(dirname "${ENV_FILE}")"
@@ -1305,6 +1557,7 @@ Commands:
   run       - Run a command inside the Strata environment
   shell     - Spawn an interactive shell in the Strata environment
   cat       - Print service file, environment config, config JSON, and launcher script
+  system-suspend-hook [status|install|uninstall] - Manage /usr/lib/systemd/system-sleep hook
   test [--benchmark ...] - Run validation tests or benchmarks (chat + vision)
 EOF
 }
@@ -1333,6 +1586,7 @@ main() {
     run) cmd_run "$@" ;;
     shell) cmd_shell "$@" ;;
     cat) cmd_cat ;;
+    system-suspend-hook) cmd_system_suspend_hook "$@" ;;
     test) cmd_test "$@" ;;
     *)
         echo "Unknown command: $COMMAND"
