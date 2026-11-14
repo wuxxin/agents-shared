@@ -1,8 +1,8 @@
 # Strata Machine Crashes, Memory/I/O Forensics & Hardware Audit
 
 **Host:** `power` (`Gigabyte B550 AORUS ELITE AX V2`, BIOS `F19d`, Manjaro Linux `7.2.14-1-MANJARO`)  
-**Audit Date:** 2026-11-12  
-**Scope:** Read-only forensic investigation of system hangs/crashes over 2026-11-10 – 2026-11-12 following `local-chat-strata.sh` deployment, ZFS ARC reclaim behavior under memory pressure, and full privileged (`sudo`) hardware/BIOS/PCIe/ZFS audit for [`strata-tuning.md`](./strata-tuning.md) Section 12.
+**Audit Date:** 2026-11-12 (Updated 2026-11-14 after Boot -1 S3 Suspend Eviction Hang Forensic)  
+**Scope:** Read-only forensic investigation of system hangs/crashes over 2026-11-10 – 2026-11-14 following `local-chat-strata.sh` deployment, ZFS ARC reclaim behavior under memory pressure, full privileged (`sudo`) hardware/BIOS/PCIe/ZFS audit for [`strata-tuning.md`](./strata-tuning.md) Section 12, and forensic diagnosis of the 2026-11-14 05:07 S3 suspend freeze.
 
 ---
 
@@ -16,24 +16,26 @@ The machine hangs were **not hardware defects** (EDAC reports `0` correctable an
    - When `systemd` (`Restart=on-failure`, `RestartSec=10s`) repeatedly respawned `strata` into OOM, the third OOM-kill at **`14:40:53`** struck `strata` mid-`kfd_ioctl` (`svm_range_validate_and_map`), triggering a **kernel NULL pointer dereference Oops in `amdgpu_hmm_range_valid+0x15/0x30 [amdgpu]`** (`exited with irqs disabled`, kernel tainted `D`), hanging the host hard at `14:44:06`.
    - Adding **32 GiB ZRAM** (`2026-11-10 15:09`) could not swap the `~75.85 GiB` of `mlock`/`cudaHostRegister` memory. Instead, during a `strata` restart overlap at `17:22–17:30`, ZRAM filled to **27.4 GiB used** (`4.8–6.4 GiB` `zspages` in `Normal` zone RAM), driving `Normal` free RAM to **1.26 MiB** and causing **11-second `GFP_KERNEL` page-allocation stalls and failures**.
 
-2. **S3 Deep Suspend (`deep`) Deadlock/Hang Whenever `local-chat-strata` Is Running (`Boot -4`, `Boot -3`, `Boot -2`):**
-   - On **2026-11-10 20:19:38**, **2026-11-11 03:45:38**, and **2026-11-11 21:43:20**, the system entered `PM: suspend entry (deep)` (with `/usr/lib/systemd/system-sleep/rtc-wakeup` scheduling wake for 12:00) while `local-chat-strata` was running and **hung every single time** (next boot reported `system.journal corrupted or uncleanly shut down`).
-   - By contrast, on **2026-11-12 (`Boot -1`)**, `local-chat-strata` stopped cleanly at `02:35:41` *before* `PM: suspend entry (deep)` at `05:04:56`, and the machine **resumed cleanly at `09:16:15`** (`amdgpu 0000:03:00.0: MODE1 reset`, `PM: suspend exit`).
-   - Before ZRAM (`Boot -5`, Nov 07–10), `amdgpu_device_evict_resources()` failed fast during suspend with `[TTM] Buffer eviction failed` / `pci_pm_prepare returns -12` (`-ENOMEM`), aborting sleep safely. Once 32 GiB ZRAM existed, TTM VRAM eviction (~23.4 GiB on RX 7900 XTX) no longer failed `-ENOMEM` in `prepare`, colliding with pinned KFD/SVM memory + ZRAM during S3 suspend/resume and freezing the kernel.
-
+2. **S3 Deep Suspend (`deep`) VRAM Eviction Deadlock Whenever `local-chat-strata` Is Running (`Boot -4`, `-3`, `-2`, and Nov 14 `Boot -1`):**
+   - **Mechanism:** On AMD discrete GPUs (`amdgpu` driver on Linux), S3 deep suspend (`PM: suspend entry (deep)`) invokes `amdgpu_device_evict_resources()` during `pci_pm_prepare` to evict the entire VRAM footprint into host system RAM via TTM (`ttm_bo_evict` -> `amdgpu_ttm_tt_populate` -> `__alloc_frozen_pages_noprof`).
+   - When `local-chat-strata` runs, RX 7900 XTX VRAM is **98% full (~23.5–24.0 GiB)** (resident expert cache, vision encoder, KV verify windows).
+   - Concurrently, Strata holds **~73.7–82.5 GiB of resident, unswappable host RAM** (`26.82 GiB` `mlock`ed PLE table + `46.84 GiB` `cudaHostRegister` expert arena + up to `8.8–16 GiB` active conversation cache).
+   - With desktop apps (`~10–12 GiB`) and ZFS ARC / slab (`~6–8 GiB`), available host RAM drops to only **~16–20 GiB** under `117.76 GiB` `MemTotal`.
+   - During S3 suspend, user space is already frozen and the kernel OOM-killer is explicitly disabled (`OOM killer disabled`). Because 24.0 GiB of required eviction pages cannot fit into the remaining ~16 GiB of free RAM and Strata's pinned pages cannot be evicted or swapped, the page allocator stalls permanently in `__alloc_pages_slowpath` / `ttm_pool_alloc`, hanging the machine dead at `Filesystems sync: 0.013 seconds`.
+   - **Evidence on Nov 12–14 (`Boot -1`):** The system successfully ran 40+ hours of heavy agentic inference with zero OOM-kills and zero swap churn. However, earlier idle suspends at `Nov 12 20:54` and `Nov 13 04:42` already emitted 10-second kernel page allocation stalls (`systemd-sleep: page allocation stall for 10 secs: order:0, mode:0x100cc2(GFP_HIGHUSER)` in `amdgpu_device_evict_resources`). When GNOME `gsd-power` triggered automatic 15-minute idle suspend at `Nov 14 05:07:52` after Strata had parked 8 conversation slots (8.79 GB), the memory deficit became fatal, deadlocking the machine until power-cycled at 10:40.
 ---
 
-## 2. Chronological Boot & Crash Timeline (2026-11-04 – 2026-11-12)
+## 2. Chronological Boot & Crash Timeline (2026-11-04 – 2026-11-14)
 
 | Boot | Window (CET) | Config State | Observed Failure / Crash Event | Clean Exit? |
 |---|---|---|---|---|
-| **`-5`** | Nov 04 14:52 → Nov 10 14:44 | `MemTotal=109.89 GiB` (iGPU `16G`), **0 swap**, `memlock=unlimited` added Nov 05 23:00, `strata.env` updated Nov 09 15:49 | **Nov 07 06:12–10:12:** S3 suspend aborted repeatedly (`[TTM] Buffer eviction failed`, `-12`).<br>**Nov 07 12:07:** OOM-kill `strata-host` (`56.6 GB anon + 28.1 GB file`).<br>**Nov 10 14:38–14:42:** 4× OOM-kills in 3.5 min; at **14:40:53** **Kernel Oops (`amdgpu_hmm_range_valid+0x15/0x30`, NULL ptr `0x50`)** during `kfd_ioctl` (`Tainted: D`, IRQs disabled). System hung at **14:44:06**. | **No** (Hard hang) |
-| **`-4`** | Nov 10 15:38 → Nov 10 20:19 | `MemTotal=109.89 GiB` (iGPU `16G`), **32 GiB ZRAM (`zstd`)** added `15:09` (`swappiness=100`, `page-cluster=0`) | Boot journal flagged `system.journal corrupted`.<br>**17:22:49:** `verify: timed out at layer 1` (`907 MiB` avail) → restart overlapped old 80 GiB instance → **27.4 GiB ZRAM used**, `Normal free: 1,288 kB`, `GFP_KERNEL` order-0 page allocation failures (`Bun Pool 3`, `HeapHelper`, 11s stall).<br>**20:19:38:** `PM: suspend entry (deep)` with `strata` active → **never woke / hung**. | **No** (Suspend hang) |
-| **`-3`** | Nov 11 00:43 → Nov 11 03:45 | Same as `-4` (`109.89 GiB` + 32 GiB ZRAM) | Boot journal flagged `system.journal corrupted`.<br>Heavy 164k-token `oh-my-pi` session (`9.72 GB` parked conv cache).<br>**03:45:38:** `PM: suspend entry (deep)` with `strata` active → **never woke / hung**. | **No** (Suspend hang) |
-| **`-2`** | Nov 11 09:29 → Nov 11 21:43 | Same as `-4` (`109.89 GiB` + 32 GiB ZRAM) | Boot journal flagged `system.journal corrupted`.<br>Startup logged `WARNING: 11.63 GiB short` (`35.21 GiB` avail vs `46.84 GiB` needed) due to ZFS ARC.<br>`oh-my-pi` + `zed` sessions (`2.15 GB` conv cache).<br>**21:43:20:** `PM: suspend entry (deep)` with `strata` active → **never woke / hung**. | **No** (Suspend hang) |
-| **`-1`** | Nov 12 00:42 → Nov 12 13:00 | Same as `-4` (`109.89 GiB` + 32 GiB ZRAM) | Boot journal flagged `system.journal corrupted`.<br>Startup logged `WARNING: 12.15 GiB short` (`34.69 GiB` avail).<br>**02:35:41:** `local-chat-strata.service` **stopped** (`75.4G` peak, `66M` swap peak).<br>**05:04:56:** `PM: suspend entry (deep)` → **09:16:15 clean resume** (`MODE1 reset`).<br>**13:00:20:** Clean reboot for BIOS iGPU change. | **Yes** (Clean reboot) |
-| **`0`** | Nov 12 13:02 → active | `MemTotal=117.76 GiB` (iGPU `8G`, **+7.87 GiB reclaimed**) + 32 GiB ZRAM | Clean boot; `strata` tested briefly (`75.6G` peak) and stopped (`13:05:06`). | Active |
-
+| **`-6`** | Nov 04 14:52 → Nov 10 14:44 | `MemTotal=109.89 GiB` (iGPU `16G`), **0 swap**, `memlock=unlimited` added Nov 05 23:00, `strata.env` updated Nov 09 15:49 | **Nov 07 06:12–10:12:** S3 suspend aborted repeatedly (`[TTM] Buffer eviction failed`, `-12`).<br>**Nov 07 12:07:** OOM-kill `strata-host` (`56.6 GB anon + 28.1 GB file`).<br>**Nov 10 14:38–14:42:** 4× OOM-kills in 3.5 min; at **14:40:53** **Kernel Oops (`amdgpu_hmm_range_valid+0x15/0x30`, NULL ptr `0x50`)** during `kfd_ioctl` (`Tainted: D`, IRQs disabled). System hung at **14:44:06**. | **No** (Hard hang) |
+| **`-5`** | Nov 10 15:38 → Nov 10 20:19 | `MemTotal=109.89 GiB` (iGPU `16G`), **32 GiB ZRAM (`zstd`)** added `15:09` (`swappiness=100`, `page-cluster=0`) | Boot journal flagged `system.journal corrupted`.<br>**17:22:49:** `verify: timed out at layer 1` (`907 MiB` avail) → restart overlapped old 80 GiB instance → **27.4 GiB ZRAM used**, `Normal free: 1,288 kB`, `GFP_KERNEL` order-0 page allocation failures (`Bun Pool 3`, `HeapHelper`, 11s stall).<br>**20:19:38:** `PM: suspend entry (deep)` with `strata` active → **never woke / hung**. | **No** (Suspend hang) |
+| **`-4`** | Nov 11 00:43 → Nov 11 03:45 | Same as `-5` (`109.89 GiB` + 32 GiB ZRAM) | Boot journal flagged `system.journal corrupted`.<br>Heavy 164k-token `oh-my-pi` session (`9.72 GB` parked conv cache).<br>**03:45:38:** `PM: suspend entry (deep)` with `strata` active → **never woke / hung**. | **No** (Suspend hang) |
+| **`-3`** | Nov 11 09:29 → Nov 11 21:43 | Same as `-5` (`109.89 GiB` + 32 GiB ZRAM) | Boot journal flagged `system.journal corrupted`.<br>Startup logged `WARNING: 11.63 GiB short` (`35.21 GiB` avail vs `46.84 GiB` needed) due to ZFS ARC.<br>`oh-my-pi` + `zed` sessions (`2.15 GB` conv cache).<br>**21:43:20:** `PM: suspend entry (deep)` with `strata` active → **never woke / hung**. | **No** (Suspend hang) |
+| **`-2`** | Nov 12 00:42 → Nov 12 13:00 | Same as `-5` (`109.89 GiB` + 32 GiB ZRAM) | Boot journal flagged `system.journal corrupted`.<br>Startup logged `WARNING: 12.15 GiB short` (`34.69 GiB` avail).<br>**02:35:41:** `local-chat-strata.service` **stopped** (`75.4G` peak, `66M` swap peak).<br>**05:04:56:** `PM: suspend entry (deep)` → **09:16:15 clean resume** (`MODE1 reset`).<br>**13:00:20:** Clean reboot for BIOS iGPU change (`16G -> 8G`). | **Yes** (Clean reboot) |
+| **`-1`** | Nov 12 13:02 → Nov 14 05:07 | `MemTotal=117.76 GiB` (iGPU `8G`, **+7.87 GiB reclaimed**) + 32 GiB ZRAM | **40h clean operation (zero OOMs, zero swap churn)**.<br>**Nov 12 20:54:** S3 suspend → `systemd-sleep: page allocation stall for 10 secs` in `amdgpu_device_evict_resources`; resumed 22:00.<br>**Nov 13 04:42:** S3 suspend → 10s allocation stall in `amdgpu_device_evict_resources`; resumed 11:59.<br>**Nov 14 02:45:** Multi-agent sessions fill 8 conv slots (`8.79 GB` parked, `79.4G` resident).<br>**Nov 14 05:07:52:** GNOME `gsd-power` triggers idle S3 suspend. `amdgpu_device_evict_resources` attempts to evict `24.0 GiB` VRAM into ~`16 GiB` free RAM. Memory allocation deadlock at `Filesystems sync: 0.013s`; system hung hard until power cycle at 10:40. | **No** (S3 Eviction Hang) |
+| **`0`** | Nov 14 10:40 → active | `MemTotal=117.76 GiB` (iGPU `8G`) + 32 GiB ZRAM | Journal flagged unclean shutdown from Nov 14 05:07 freeze. Strata auto-started (`Memory: 79.4G`, VRAM 98%). System stable. | Active |
 ---
 
 ## 3. Memory, Swap, and Usage Profile Before Crashes
@@ -75,6 +77,21 @@ From `systemd` accounting and kernel `Mem-Info` / `strata` startup logs:
 3. **Boots `-3` (`2026-11-11 00:43–03:45`) & `-2` (`2026-11-11 09:29–21:43`):**
    - **Boot `-3` usage profile:** `oh-my-pi` active up to **`164,698` input tokens** (`parked=6`, `bytes=9.72 GB`, `reused_kv_bytes=1.94 GB`) until `01:47:48`; suspended at `03:45:38` and hung.
    - **Boot `-2` usage profile:** `oh-my-pi` (`600–9,000` tokens) + `zed` (`1,300–8,000` tokens) alternating until `17:49:33` (`parked=6`, `bytes=2.15 GB`); suspended at `21:43:20` and hung.
+
+4. **Boot `-1` (`2026-11-12 13:02` → `2026-11-14 05:07`, 117.76 GiB `MemTotal`, 32 GiB ZRAM, Session 4 Settings):**
+   - **Active Operational Stability:** 40+ hours of continuous, heavy multi-agent inference (`oh-my-pi`, `omp bench`, `zed-editor`). **Zero OOM kills, zero swap churn during active inference (0 B ZRAM swap used), 75–80 tok/s decode, 2,600+ tok/s prefill**. Active inference memory management is rock-solid.
+   - **Warning Precursors During Idle Suspend:**
+     - `2026-11-12 20:54:58`: System suspended idle. On resume (`22:00:27`), logged `systemd-sleep: page allocation stall for 10 secs: order:0, mode:0x100cc2(GFP_HIGHUSER)` inside `amdgpu_device_evict_resources`.
+     - `2026-11-13 04:42:16`: System suspended idle. On resume (`11:59:45`), logged identical 10-second `systemd-sleep: page allocation stall` inside `amdgpu_device_evict_resources`.
+   - **Failure Point (`2026-11-14 05:07:52`):**
+     - By `02:45:37`, multi-agent sessions filled all 8 conversation cache slots (`parked=8 bytes=8,789,447,664 evictions=31`). Strata resident host RAM grew to ~82.45 GiB (cgroup reported `Memory: 79.4G`).
+     - The last active request completed at **`02:56:40`**. The workstation remained idle: display locked after 15 minutes, and GNOME power management reached its **2-hour idle suspend-to-RAM timer** at `05:07:52` (exactly 2 hours and 11 minutes after the last request).
+     - Available host RAM hovered around ~16–20 GiB (under `117.76 GiB` `MemTotal` with desktop and ZFS).
+     - At `05:07:52`, `gsd-power` triggered S3 deep suspend via `systemd-logind`.
+     - `systemd-sleep` entered `PM: suspend entry (deep)`.
+     - `amdgpu_device_evict_resources` attempted to allocate 24.0 GiB of host RAM pages to evict the 98% full RX 7900 XTX VRAM into system memory.
+     - Available host RAM was only ~16 GiB; Strata's `73.7 GiB` of base memory was `mlock`ed / pinned and could not be evicted or swapped.
+     - With user processes frozen and the kernel OOM killer disabled during sleep, the page allocator deadlocked permanently inside `__alloc_frozen_pages_noprof` / `ttm_pool_alloc`. The system froze dead at `Filesystems sync: 0.013 seconds` until power-cycled at `10:40:56`.
 
 ---
 
@@ -158,8 +175,27 @@ This section records all root-only hardware/system facts required by [`strata-tu
 
 *(No system modifications were performed during this investigation. Apply only when approved.)*
 
-1. **Block/Stop `strata` Across S3 Suspend (Fixes the Nightly Suspend Hangs):**
-   - Add a `systemd` sleep hook (or `Conflicts=sleep.target` / `Before=sleep.target` wrapper stopping `local-chat-strata.service` before suspend and restarting on resume) so S3 sleep never enters with 23.4 GiB VRAM + 49 GiB `cudaHostRegister` pinned.
+1. **Prevent / Eliminate S3 Suspend Eviction Deadlocks (Direct Fix for the Nightly Hangs):**
+   - **Root Cause Confirmed:** The hangs on Nov 10, Nov 11, and Nov 14 (05:07) were **not** runtime inference OOMs. Active inference with 117.76 GiB RAM + 32 GiB ZRAM ran for 40+ hours with zero OOMs and zero swap churn. The hang was triggered exclusively when GNOME `gsd-power` auto-suspended the idle workstation (15 min screen lock + 2 hours idle to suspend-to-RAM), forcing `amdgpu_device_evict_resources` to attempt evicting `24.0 GiB` VRAM into host RAM when available RAM was only ~`16–20 GiB`.
+   - **Engine Memory Eviction Research Findings:**
+     - *C++ Engine Limit:* Inspecting `/usr/lib/strata/engine/strata` reveals that in-place segmented VRAM trimming (`--vram-elastic` / `VRAM <reserve_mib>` stdin command) is **CUDA-only** in Strata `0.1.59.1` (`ExpertCache: --vram-elastic (a segmented expert cache) is CUDA-only for now`). On AMD ROCm/HIP (`gfx1100`), in-place partial VRAM shrinking without restarting the engine is unavailable.
+     - *Why Partial Cache Eviction Fails:* Dropping only the conversation cache (8.8 GiB) still leaves 24.0 GiB VRAM on the GPU and 73.7 GiB pinned in host RAM, leaving a dangerous ~4–5 GiB margin during 24 GiB VRAM eviction that triggers allocation stalls.
+     - *Native Full Unload:* Strata's HTTP server (`server.py`) natively supports `svc.unload()`. It terminates the engine subprocess, immediately releasing **100% of the 24.0 GiB VRAM** and **100% of the 73.7 GiB host RAM** while keeping `server.py` resident on `:20080` (`is_sleeping: true`, `models_autoload: true`).
+     - *Context Preservation:* Saving the active KV context to NVMe (`POST /slots/0?action=save {"filename": "suspend-session.bin"}`) takes **~450 ms** on `rpool/data/user-cache`. On resume, restoring takes **463 ms** (`1,667 MB/s`), achieving a **99.96% KV hit** on the next prompt.
+   - **Dual-Protection Architecture Options (Ready for Implementation):**
+     - **Option 1: Idle Auto-Unload (`--idle-unload 2400` / 40 min):**
+       Because the system idles for 2 hours before suspending to RAM, setting an idle unload of 30–45 minutes (`LCHAT_STRATA_IDLE_UNLOAD=2400`) causes Strata to automatically release all 24 GiB VRAM and 74 GiB RAM long before the 2-hour suspend timer triggers. When suspend begins, VRAM is already 0% and RAM is 95+ GiB free.
+     - **Option 2: Systemd Pre-Suspend Hook / POSIX Signal (`SIGUSR1` / `SIGUSR2`):**
+       An executable hook in `/usr/lib/systemd/system-sleep/local-chat-strata.sh` (or `pkill -USR1 -f local-chat-strata-launcher.py`) that executes before any suspend:
+       1. `POST /slots/0?action=save {"filename": "suspend-session.bin"}` (persists active conversation).
+       2. `POST /unload?wait=5` (drops VRAM to 0%, frees 74G RAM).
+       On wake (`post/*` or `SIGUSR2`):
+       1. `POST /load` (reloads model in ~15s).
+       2. `POST /slots/0?action=restore {"filename": "suspend-session.bin"}` (restores conversation in ~460ms).
+     - **Option 3: Disable GNOME Auto-Suspend on AC Power:**
+       ```bash
+       gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+       ```
 2. **ZFS ARC & Dataset Tuning Status (`2026-11-12`):**
    - **Applied & Baked into Initramfs:** `/etc/modprobe.d/zfs.conf` (`zfs_arc_max=12 GiB`, `zfs_arc_min=2 GiB`, `l2arc_write_max=512 MiB/s`, `l2arc_write_boost=512 MiB/s`), `mkinitcpio -P` completed, `dpool/data/public` (`atime=off`, `logbias=throughput`), and `rpool/data/user-cache` (`/home/wuxxin/.cache/user-cache` for Tier-3 NVMe KV offload).
 3. **Fit Strata's Pinned RAM Budget Inside `117.76 GiB` (`MemTotal`) Safely:**

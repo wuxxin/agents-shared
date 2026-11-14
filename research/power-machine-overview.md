@@ -1,7 +1,7 @@
 # Host `power` — Strata & Local Inference Architecture Overview
 
 **Host:** `power` (`Gigabyte B550 AORUS ELITE AX V2`, BIOS `F19d`, Manjaro Linux `7.2.14-1-MANJARO`)  
-**Updated:** 2026-11-12 (Session 4 Tuning: Tiered Memory, NVMe KV Offload & RDNA3 `gfx1100` Round 2)  
+**Updated:** 2026-11-14 (Boot -1 Post-Mortem, S3 Suspend Eviction Guard & Zero-OOM Runtime Verification)  
 **Related Docs:** [`strata-tuning.md`](./strata-tuning.md) | [`strata-machine-crashes.md`](./strata-machine-crashes.md)
 
 ---
@@ -107,7 +107,10 @@ local-router.service (FastAPI / uvicorn)
 
 ### 4.3 Operational Rules & Guardrails
 
-1. **S3 Deep Suspend Guard:** S3 deep suspend (`PM: suspend entry (deep)`) deadlocks/hangs whenever `local-chat-strata.service` is active due to TTM VRAM buffer eviction colliding with the `73.66 GiB` pinned KFD/HMM memory and ZRAM. **Always stop `local-chat-strata.service` before sleep.**
+1. **S3 Deep Suspend Guard & Idle Sleep Architecture:** S3 deep suspend (`PM: suspend entry (deep)`) deadlocks/hangs whenever `local-chat-strata.service` is active. During S3 suspend, `amdgpu_device_evict_resources` attempts to evict all `24.0 GiB` of RX 7900 XTX VRAM into host RAM via TTM. Because Strata holds `~73.7–82.5 GiB` of resident, pinned/locked host RAM (leaving only `~16–20 GiB` available), the kernel page allocator deadlocks with userspace frozen and OOM killer disabled.
+   - **Workstation Power Timeline:** 15 minutes of inactivity triggers display screen lock; **2 hours of inactivity triggers suspend-to-RAM** (`02:56:40` last prompt $\to$ `05:07:52` suspend entry).
+   - **Primary Prevention (Idle Auto-Unload):** Configure Strata `--idle-unload 2400` (40 min). Strata unloads the engine process after 40 minutes of zero requests, returning all 24 GiB VRAM and 74 GiB host RAM to the OS. When the 2-hour suspend timer triggers, VRAM is already 0% and host RAM is completely free.
+   - **Safety Net Hook / Signal:** Install `/usr/lib/systemd/system-sleep/local-chat-strata.sh` (or signal `SIGUSR1` to launcher) to save the active conversation to NVMe (`/slots/0?action=save`) in ~450ms and unload before any manual/scheduled suspend. On resume, restore via `/slots/0?action=restore` in 463ms with 99.96% KV hit.
 2. **Single-Stream Benchmark Protocol:** Current `omp bench` defaults `--par` to `4`. For single-user benchmarks (Oracles A & B), always pass `--par 1` explicitly alongside `OMP_BRIDGE_SETTINGS=/dev/null` to prevent synthetic multi-stream concurrency.
 3. **State vs. Config Path Separation:** Keep configuration files in `~/.config/systemd/user/` and runtime tables/profiles in `~/.local/state/strata/`. All environment paths use `${HOME}` rather than `%h` for POSIX and shell consistency.
 4. **Model Path Safety:** Use scratch symlink trees (`scratch/models/strata/`) when downloading or testing experimental drafters/weights to prevent unauthorized write attempts to read-only `/data/public/`.

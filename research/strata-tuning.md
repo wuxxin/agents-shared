@@ -972,3 +972,50 @@ Executed on a clean cold start with `--kv-grow`, `slot_save_path`, `slots=8 / mi
 
 ### 13.5 Production Cutover & Deployment Summary
 Persisted into `assistants/local-chat-strata.sh` (which generates `local-chat-strata.env`, `local-chat-strata-config.json`, `local-chat-strata-launcher.py`, `~/.local/state/strata/local-chat-strata-hipblaslt.txt`, and `local-chat-strata.service` with `StartLimitBurst=3` / `RestartSec=30s` OOM-storm protection). Because agent execution runs inside `bwrap`, host systemd installation requires running `./assistants/local-chat-strata.sh install --new-config` outside the sandbox.
+
+---
+
+### 13.6 Long-Term Stability Audit & S3 Suspend Eviction Guard (2026-11-14 Post-Mortem)
+
+#### 1. Active Runtime Stability Verified
+Across 40+ hours of continuous uptime on Boot `-1` (2026-11-12 13:02 to 2026-11-14 05:07):
+- **Zero OOM-killer events:** No memory exhaustion crashes or process kills during live multi-agent execution.
+- **Zero Swap Churn:** ZRAM usage remained at `0 B` throughout active generation and prefill passes.
+- **Peak Inference Performance Maintained:** Decode throughput sustained at `75.0 – 80.6 tok/s`, cold prefill at `2,500 – 2,685 tok/s`.
+- **Memory Reclaim Effectiveness:** Reclaiming `+7.87 GiB` from Cezanne iGPU UMA (`109.89 -> 117.76 GiB` `MemTotal`), switching to `--kv-grow` (`-2.19 GiB` pinned host RAM), and enforcing `--conversation-cache-min-free-mib 6144` completely eliminated the live memory exhaustion and OOM restart storms that caused the Nov 10 kernel Oops.
+
+#### 2. Root Cause of the 2026-11-14 05:07 Freeze: S3 Suspend VRAM Eviction Deadlock
+The machine hang was **not** a runtime memory leak or inference OOM. It occurred exclusively during system idle suspend:
+1. **Workstation Idle Timeline:** The last active request completed at `02:56:40`. The display timed out and locked after 15 minutes, and GNOME power management reached its **2-hour idle suspend-to-RAM timer** at `05:07:52` (exactly 2 hours and 11 minutes after the last request).
+2. **AMDGPU TTM Eviction Requirement:** In Linux `amdgpu`, S3 deep sleep (`PM: suspend entry (deep)`) invokes `amdgpu_device_evict_resources()` to evict all VRAM buffers into host system memory before cutting power to the discrete GPU.
+3. **The Eviction Deficit:**
+   - RX 7900 XTX VRAM was **98% full (~23.5–24.0 GiB)** with Strata's resident expert cache and runtime buffers.
+   - Host DDR4 RAM was holding `~82.5 GiB` resident for Strata (`26.82 GiB` `mlock`ed PLE + `46.84 GiB` pinned expert arena + `8.79 GiB` across 8 parked conversation slots) plus desktop apps (`~10 GiB`) and ZFS ARC / slab (`~6–8 GiB`).
+   - Available host RAM was only **~16–20 GiB**.
+   - Evicting `24.0 GiB` of VRAM into `~16 GiB` of available host memory with frozen userspace and disabled kernel OOM killer (`OOM killer disabled`) triggered an unresolvable page allocation deadlock inside `ttm_pool_alloc` / `__alloc_frozen_pages_noprof`.
+4. **Prior Warning Precursors:** Identical 10-second allocation stalls (`systemd-sleep: page allocation stall for 10 secs: order:0, mode:0x100cc2(GFP_HIGHUSER)` in `amdgpu_device_evict_resources`) occurred during idle suspends at `Nov 12 20:54` and `Nov 13 04:42`, confirming that S3 suspend with resident Strata was always operating on a razor-thin memory margin.
+
+#### 3. Signal & Memory Eviction Research Findings
+1. **C++ Engine Limit:** Inspecting `/usr/lib/strata/engine/strata` confirms that segmented live in-place VRAM cache trimming (`--vram-elastic` / `VRAM <reserve_mib>` stdin command) is **CUDA-only** in Strata `0.1.59.1` (`ExpertCache: --vram-elastic (a segmented expert cache) is CUDA-only for now`). On AMD ROCm/HIP (`gfx1100`), in-place partial VRAM cache shrinking without process restart is unavailable.
+2. **Why Partial Cache Eviction Fails:** Dropping only the conversation cache (8.8 GiB) still leaves 24.0 GiB VRAM on the GPU and 73.7 GiB pinned in host RAM, leaving a dangerous ~4–5 GiB margin during 24 GiB VRAM eviction that triggers allocation stalls.
+3. **Native Full Unload (`svc.unload()`):** Strata's HTTP server (`server.py`) natively supports `svc.unload()`. It terminates the engine subprocess, immediately releasing **100% of the 24.0 GiB VRAM** (drops to 0%) and **100% of the 73.7 GiB host RAM** while keeping `server.py` resident on `:20080` (`is_sleeping: true`, `models_autoload: true`).
+4. **KV Context Preservation Across Suspend:** Saving the active KV context to NVMe (`POST /slots/0?action=save {"filename": "suspend-session.bin"}`) takes **~450 ms** on `rpool/data/user-cache`. On resume, restoring takes **463 ms** (`1,667 MB/s`), achieving a **99.96% KV hit** on the next prompt.
+
+#### 4. Actionable Dual-Protection Architecture
+1. **Primary Layer: Idle Auto-Unload (`--idle-unload 2400` / 40 min):**
+   Because the workstation idles for 2 hours before suspending to RAM, setting an idle unload of 30–45 minutes (`LCHAT_STRATA_IDLE_UNLOAD=2400`) causes Strata to automatically release all 24 GiB VRAM and 74 GiB RAM long before the 2-hour suspend timer triggers. When suspend begins, VRAM is already 0% and RAM is 95+ GiB free.
+2. **Safety Net Layer: Systemd Pre-Suspend Hook / POSIX Signal (`SIGUSR1` / `SIGUSR2`):**
+   An executable hook in `/usr/lib/systemd/system-sleep/local-chat-strata.sh` (or `pkill -USR1 -f local-chat-strata-launcher.py`) that executes before any manual or scheduled suspend:
+   - *Pre-suspend (`pre/*`):*
+     1. `POST /slots/0?action=save {"filename": "suspend-session.bin"}` (persists active conversation to NVMe in ~450ms).
+     2. `POST /unload?wait=5` (drops VRAM to 0%, frees 74G RAM).
+   - *Post-suspend wake (`post/*`):*
+     1. `POST /load` (reloads model in ~15s).
+     2. `POST /slots/0?action=restore {"filename": "suspend-session.bin"}` (restores conversation in ~460ms with 99.96% KV reuse).
+3. **Immediate Mitigation (No Root Required):**
+   Disable GNOME auto-suspend when plugged into AC power:
+   ```bash
+   gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+   ```
+4. **Optional BIOS Memory Reclaim:**
+   Lower Cezanne iGPU `UMA Frame Buffer Size` from `8G` to `2G` or `4G` in motherboard UEFI setup to reclaim another **4–6 GiB** of host RAM for the OS pool.
