@@ -858,9 +858,13 @@ snapshot_download(
             if [[ -f "${onnx_dir}/kokoro-martin.onnx" && ! -f "${onnx_dir}/model-de.onnx" ]]; then
                 ln -sfn "kokoro-martin.onnx" "${onnx_dir}/model-de.onnx"
             fi
-            # Extract German Victoria voice embedding
+            # Extract German Victoria voice embedding (full GGUF pack preferred over 1KB stub)
             hf download soniqo/Kokoro-82M-German-Victoria-ONNX \
                 --include "voices/df_victoria.bin" \
+                --local-dir "${onnx_dir}"
+            # Acquire Kerstin voicepack (cryptomilk/kokoro-german-kerstin)
+            hf download cryptomilk/kokoro-german-kerstin \
+                --include "voices/df_kerstin.pt" \
                 --local-dir "${onnx_dir}"
         fi
 
@@ -889,10 +893,12 @@ snapshot_download(
             "https://huggingface.co/cstr/kokoro-de-hui-base-GGUF/resolve/main/kokoro-de-hui-base-q8_0.gguf" \
             "${gguf_dir}/kokoro-de-hui-base-q8_0.gguf"
         if command -v hf &>/dev/null; then
-            echo "Acquiring approved German GGUF voicepacks (dm_martin, df_victoria)..."
+            echo "Acquiring approved German GGUF voicepacks (dm_martin, df_victoria, df_eva, dm_bernd)..."
             hf download cstr/kokoro-voices-GGUF \
                 --include "kokoro-voice-dm_martin.gguf" \
                 --include "kokoro-voice-df_victoria.gguf" \
+                --include "kokoro-voice-df_eva.gguf" \
+                --include "kokoro-voice-dm_bernd.gguf" \
                 --local-dir "${gguf_dir}/voices"
         fi
 
@@ -927,6 +933,19 @@ snapshot_download(
                 rm -f "$npz_file"
             fi
         done
+        # Convert PyTorch voicepacks (.pt) in onnx_dir (e.g. df_kerstin.pt -> voices/df_kerstin.bin)
+        for pt_file in "${onnx_dir}"/*.pt "${onnx_dir}/voices"/*.pt; do
+            if [[ -f "$pt_file" ]]; then
+                local base_pt
+                base_pt="$(basename "$pt_file" .pt)"
+                local out_bin="${onnx_dir}/voices/${base_pt}.bin"
+                if [[ ! -f "$out_bin" || $(stat -c%s "$out_bin" 2>/dev/null || echo 0) -lt 500000 ]]; then
+                    echo "  Converting PT voice: ${pt_file} -> ${out_bin}"
+                    "$convert_cli" --convert-voice "$pt_file" "$out_bin"
+                fi
+                rm -f "$pt_file"
+            fi
+        done
 
         # Convert GGUF voices from kokoro-gguf/voices/ if not already present in kokoro-onnx/voices/
         if [[ -d "${gguf_dir}/voices" ]]; then
@@ -936,7 +955,8 @@ snapshot_download(
                     base_gguf="$(basename "$gguf_file" .gguf)"
                     base_gguf="${base_gguf#kokoro-voice-}"
                     local out_bin="${onnx_dir}/voices/${base_gguf}.bin"
-                    if [[ ! -f "$out_bin" ]]; then
+                    # Overwrite if missing or incomplete (< 500KB)
+                    if [[ ! -f "$out_bin" || $(stat -c%s "$out_bin" 2>/dev/null || echo 0) -lt 500000 ]]; then
                         echo "  Converting GGUF voice: ${gguf_file} -> ${out_bin}"
                         "$convert_cli" --convert-voice "$gguf_file" "$out_bin"
                     fi

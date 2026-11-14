@@ -34,7 +34,7 @@ load_env() {
     LTTS_HOST=127.0.0.1
     LTTS_ENGINE="kokoro"
     LTTS_ALIAS="kokoro"
-    LTTS_VOICE="df_victoria"
+    LTTS_VOICE="df_kerstin"
 
     LOCAL_MODELS_DIR="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}"
 
@@ -49,12 +49,12 @@ load_env() {
 
     # Kokoro engine parameters (ONNX via kokoro-ctl.py)
     LTTS_KOKORO_MODEL="${LOCAL_MODELS_DIR}/text-to-speech/kokoro-onnx"
-    LTTS_KOKORO_VOICE="df_victoria"
+    LTTS_KOKORO_VOICE="df_kerstin"
     LTTS_KOKORO_THREADS=8
     LTTS_KOKORO_EXTRA_ARGS=""
     # OpenAI API compatibility & fallback defaults
     LTTS_DEFAULT_VOICE_EN="af_heart"
-    LTTS_DEFAULT_VOICE_DE="df_victoria"
+    LTTS_DEFAULT_VOICE_DE="df_kerstin"
     LTTS_DEFAULT_LANGUAGE="en"
 
     # Source the env file to get model paths and settings if it exists
@@ -99,7 +99,7 @@ load_env() {
     # Map generic variables based on selected engine
     if [[ "${LTTS_ENGINE}" == "kokoro" ]]; then
         LTTS_MODEL="${LTTS_KOKORO_MODEL:-${LTTS_MODEL:-}}"
-        LTTS_VOICE="${LTTS_KOKORO_VOICE:-${LTTS_VOICE:-df_victoria}}"
+        LTTS_VOICE="${LTTS_KOKORO_VOICE:-${LTTS_VOICE:-df_kerstin}}"
         LTTS_THREADS="${LTTS_KOKORO_THREADS:-${LTTS_THREADS:-8}}"
         LTTS_ALIAS="${LTTS_ALIAS:-kokoro}"
         LTTS_EXTRA_ARGS="${LTTS_KOKORO_EXTRA_ARGS:-${LTTS_EXTRA_ARGS:-}}"

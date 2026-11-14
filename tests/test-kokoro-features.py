@@ -3,8 +3,8 @@
 
 Verifies:
 1. All Approved German Voices:
-   - df_victoria, df_anna, df_kerstin
-   - dm_martin, dm_heinrich
+   - df_kerstin (default female), df_victoria, df_eva
+   - dm_martin (default male), dm_bernd
 2. All Approved English Voices:
    - af_heart, af_bella, af_sarah, bf_emma
    - am_adam, am_michael, bm_george
@@ -21,6 +21,7 @@ Verifies:
 """
 
 import argparse
+import io
 import json
 import os
 import subprocess
@@ -28,6 +29,10 @@ import sys
 import time
 import urllib.request
 from typing import Dict, List, Tuple
+
+import numpy as np
+import sounddevice as sd
+import soundfile as sf
 
 TEST_DIR = "/tmp/kokoro_advanced_tests"
 os.makedirs(TEST_DIR, exist_ok=True)
@@ -59,8 +64,25 @@ def verify_audio_file(file_path: str, expected_format: str = "wav") -> dict:
     }
 
 
+def play_audio_bytes(raw_bytes: bytes, fmt: str = "wav") -> None:
+    """Plays audio bytes aloud on host speakers via sounddevice (capped at 30s)."""
+    fmt_lower = fmt.lower()
+    if fmt_lower == "pcm":
+        pcm = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        sr = 24000
+    else:
+        pcm, sr = sf.read(io.BytesIO(raw_bytes), dtype="float32")
+    pcm = pcm[: int(sr * 30)]
+    sd.play(pcm, samplerate=sr)
+    sd.wait()
+
+
 def send_speech_request(
-    base_url: str, payload: dict, output_file: str, stream: bool = False
+    base_url: str,
+    payload: dict,
+    output_file: str,
+    stream: bool = False,
+    play: bool = False,
 ) -> float:
     """Sends /v1/audio/speech request and returns synthesis wall time."""
     url = f"{base_url}/v1/audio/speech"
@@ -74,6 +96,10 @@ def send_speech_request(
 
     with open(output_file, "wb") as f:
         f.write(content)
+
+    if play:
+        fmt = str(payload.get("response_format", "wav"))
+        play_audio_bytes(content, fmt)
 
     return t1 - t0
 
@@ -103,24 +129,23 @@ def transcribe_audio(stt_url: str, file_path: str) -> str:
     return "(STT unreachable)"
 
 
-def run_tests(base_url: str, stt_url: str) -> int:
+def run_tests(base_url: str, stt_url: str, play: bool = False) -> int:
     print("=" * 76)
     print(" KOKORO ONNX COMPREHENSIVE INTEGRATION TESTSUITE")
     print(f" Target Server: {base_url}")
     print(f" STT Server:    {stt_url}")
+    print(f" Speaker Play:  {'ENABLED' if play else 'disabled (use --play / -p)'}")
     print("=" * 76)
 
     results: List[Tuple[str, bool, float]] = []
 
-    # --------------------------------------------------------------------------
     # Group 1: Approved German Voices
-    # --------------------------------------------------------------------------
     german_voices: Dict[str, str] = {
-        "df_victoria": "Guten Tag, hier spricht Victoria mit einer natürlichen deutschen Stimme.",
-        "df_anna": "Hallo, hier spricht Anna mit einer klaren Frauenstimme.",
-        "df_kerstin": "Guten Tag, das ist Kerstins deutsche Stimme für Text zu Sprache.",
-        "dm_martin": "Hallo, hier spricht Martin mit einer männlichen deutschen Stimme.",
-        "dm_heinrich": "Guten Tag, hier spricht Heinrich mit einer präzisen deutschen Stimme.",
+        "df_kerstin": "Guten Tag, hier spricht Kerstin mit einer klaren deutschen Stimme.",
+        "df_victoria": "Guten Tag, hier spricht Victoria mit der zweiten Stimme.",
+        "df_eva": "Guten Tag, hier spricht Eva mit einer warmen deutschen Stimme.",
+        "dm_martin": "Guten Tag, hier spricht Martin mit natürlicher Betonung.",
+        "dm_bernd": "Hallo, ich bin Bernd, die männliche deutsche Stimme.",
     }
 
     print("\n--- GROUP 1: Approved German Voices ---")
@@ -135,6 +160,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
                 "response_format": "wav",
             },
             out_path,
+            play=play,
         )
         meta = verify_audio_file(out_path, "wav")
         rtf = t_wall / meta["duration"] if meta["duration"] > 0 else 0
@@ -145,17 +171,15 @@ def run_tests(base_url: str, stt_url: str) -> int:
         assert meta["duration"] > 1.5, f"Audio too short for {voice_id}"
         results.append((f"Voice: {voice_id} (German)", True, rtf))
 
-    # --------------------------------------------------------------------------
     # Group 2: Approved English Voices
-    # --------------------------------------------------------------------------
     english_voices: Dict[str, str] = {
-        "af_heart": "The quick brown fox jumps over the lazy dog.",
-        "af_bella": "Warm and gentle speech synthesis runs completely on your CPU.",
-        "af_sarah": "Precise and articulate pronunciation with zero discrete GPU memory usage.",
-        "bf_emma": "Good afternoon, this is British English speech synthesis.",
-        "am_adam": "Artificial intelligence runs locally and completely privately.",
-        "am_michael": "Deep vocal presence running on modern neural architectures.",
-        "bm_george": "Polished British English delivery with crystal clear clarity.",
+        "af_heart": "Hello, I am Heart, the primary American English voice.",
+        "af_bella": "Hi there, this is Bella speaking with a warm tone.",
+        "af_sarah": "Good day, I am Sarah, clear and articulate.",
+        "bf_emma": "Good afternoon, this is Emma with British English.",
+        "am_adam": "Hello, this is Adam, the primary American male voice.",
+        "am_michael": "Greetings, I am Michael with a deeper vocal presence.",
+        "bm_george": "Good evening, this is George speaking British English.",
     }
 
     print("\n--- GROUP 2: Approved English Voices ---")
@@ -170,6 +194,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
                 "response_format": "wav",
             },
             out_path,
+            play=play,
         )
         meta = verify_audio_file(out_path, "wav")
         rtf = t_wall / meta["duration"] if meta["duration"] > 0 else 0
@@ -180,17 +205,16 @@ def run_tests(base_url: str, stt_url: str) -> int:
         assert meta["duration"] > 1.5, f"Audio too short for {voice_id}"
         results.append((f"Voice: {voice_id} (English)", True, rtf))
 
-    # --------------------------------------------------------------------------
     # Group 3: OpenAI API Fallbacks & Defaults
-    # --------------------------------------------------------------------------
     print("\n--- GROUP 3: OpenAI API Compatibility & Fallbacks ---")
 
     # 3a. Completely omitted model, language, and voice -> defaults to English (af_heart)
     out_omitted = os.path.join(TEST_DIR, "fallback_omitted.wav")
     t_omitted = send_speech_request(
         base_url,
-        {"input": "Testing OpenAI fallback when model, voice, and language are all omitted."},
+        {"input": "No model or voice specified, defaulting to English."},
         out_omitted,
+        play=play,
     )
     meta_omitted = verify_audio_file(out_omitted, "wav")
     rtf_omitted = t_omitted / meta_omitted["duration"] if meta_omitted["duration"] > 0 else 0
@@ -198,30 +222,30 @@ def run_tests(base_url: str, stt_url: str) -> int:
     assert meta_omitted["duration"] > 1.5, "Omitted fallback audio too short"
     results.append(("Fallback: Omitted Model/Lang/Voice -> English", True, rtf_omitted))
 
-    # 3b. German language specified without model or voice -> defaults to German (df_victoria)
+    # 3b. German language specified without model or voice -> defaults to German (df_kerstin)
     out_de_fallback = os.path.join(TEST_DIR, "fallback_german.wav")
     t_de_fallback = send_speech_request(
         base_url,
         {
             "language": "de",
-            "input": "Deutsche Sprache automatisch ohne Modell oder Stimme ausgewählt.",
+            "input": "Nur Deutsch als Sprache gewählt, automatischer Standard.",
         },
         out_de_fallback,
+        play=play,
     )
     meta_de = verify_audio_file(out_de_fallback, "wav")
     rtf_de = t_de_fallback / meta_de["duration"] if meta_de["duration"] > 0 else 0
     print(f"  [Lang 'de' -> DE] {meta_de['duration']:.2f}s in {t_de_fallback:.3f}s")
     assert meta_de["duration"] > 1.5, "German fallback audio too short"
-    results.append(("Fallback: Language 'de' without Model -> German", True, rtf_de))
-
+    results.append(("Fallback: Language 'de' without Model -> German (df_kerstin)", True, rtf_de))
     # 3c. OpenAI voice names mapped to Kokoro equivalents
     openai_voice_samples = {
-        "alloy": "Testing OpenAI alloy voice mapping on the local inference router.",
-        "echo": "Testing OpenAI echo voice mapping on the local inference router.",
-        "fable": "Testing OpenAI fable voice mapping on the local inference router.",
-        "onyx": "Testing OpenAI onyx voice mapping on the local inference router.",
-        "nova": "Testing OpenAI nova voice mapping on the local inference router.",
-        "shimmer": "Testing OpenAI shimmer voice mapping on the local inference router.",
+        "alloy": "OpenAI Alloy alias mapped directly to Kokoro.",
+        "echo": "OpenAI Echo alias mapped directly to Kokoro.",
+        "fable": "OpenAI Fable alias mapped directly to Kokoro.",
+        "onyx": "OpenAI Onyx alias mapped directly to Kokoro.",
+        "nova": "OpenAI Nova alias mapped directly to Kokoro.",
+        "shimmer": "OpenAI Shimmer alias mapped directly to Kokoro.",
     }
     for oai_voice, text_oai in openai_voice_samples.items():
         out_oai = os.path.join(TEST_DIR, f"fallback_openai_{oai_voice}.wav")
@@ -229,6 +253,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
             base_url,
             {"voice": oai_voice, "input": text_oai},
             out_oai,
+            play=False if (play and oai_voice != "nova") else play,
         )
         meta_oai = verify_audio_file(out_oai, "wav")
         rtf_oai = t_oai / meta_oai["duration"] if meta_oai["duration"] > 0 else 0
@@ -239,9 +264,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
         assert meta_oai["duration"] > 1.5, f"Audio too short for OpenAI voice {oai_voice}"
         results.append((f"OpenAI Mapping: voice='{oai_voice}'", True, rtf_oai))
 
-    # --------------------------------------------------------------------------
     # Group 4: Advanced Engine Features
-    # --------------------------------------------------------------------------
     print("\n--- GROUP 4: Advanced Engine Features ---")
 
     # 4a. Feature 1: Linear Voice Blending
@@ -250,10 +273,11 @@ def run_tests(base_url: str, stt_url: str) -> int:
         base_url,
         {
             "model": "kokoro",
-            "input": "Diese synthetische Stimme ist eine lineare Mischung aus Victoria und Martin.",
+            "input": "Diese Stimme ist eine Mischung aus Victoria und Martin.",
             "voice": "df_victoria(0.6)+dm_martin(0.4)",
         },
         out_blend,
+        play=play,
     )
     meta_blend = verify_audio_file(out_blend, "wav")
     rtf_blend = t_blend / meta_blend["duration"] if meta_blend["duration"] > 0 else 0
@@ -268,18 +292,19 @@ def run_tests(base_url: str, stt_url: str) -> int:
         {
             "model": "kokoro",
             "input": (
-                "[voice:df_victoria] Guten Morgen Martin! "
-                "[voice:dm_martin] Hallo Victoria, ein wunderschöner Tag heute. "
-                "[voice:af_heart] And good morning to everyone listening across the globe!"
+                "[voice:df_victoria] Hallo Martin! "
+                "[voice:dm_martin] Grüß dich Victoria! "
+                "[voice:af_heart] And hello from Heart!"
             ),
             "voice": "df_victoria",
         },
         out_dialogue,
+        play=play,
     )
     meta_dialogue = verify_audio_file(out_dialogue, "wav")
     rtf_dialogue = t_dialogue / meta_dialogue["duration"] if meta_dialogue["duration"] > 0 else 0
     print(f"  [Multi-Speaker] {meta_dialogue['duration']:.2f}s in {t_dialogue:.3f}s")
-    assert meta_dialogue["duration"] > 4.5, "Dialogue audio too short"
+    assert meta_dialogue["duration"] > 3.0, "Dialogue audio too short"
     results.append(("Feature 2: Multi-Speaker Inline Dialogue", True, rtf_dialogue))
 
     # 4c. Feature 3: Inline Acoustic Silence Pauses
@@ -288,15 +313,16 @@ def run_tests(base_url: str, stt_url: str) -> int:
         base_url,
         {
             "model": "kokoro",
-            "input": "Erster Satz vor der Pause. [pause:1.5s] Zweiter Satz nach anderthalb Sekunden Stille.",
+            "input": "Achtung, jetzt folgt eine Sekunde Pause. [pause:1.0s] Und weiter geht es.",
             "voice": "df_victoria",
         },
         out_pause,
+        play=play,
     )
     meta_pause = verify_audio_file(out_pause, "wav")
     rtf_pause = t_pause / meta_pause["duration"] if meta_pause["duration"] > 0 else 0
     print(f"  [Inline Pause]  {meta_pause['duration']:.2f}s in {t_pause:.3f}s")
-    assert meta_pause["duration"] > 4.0, "Pause audio too short"
+    assert meta_pause["duration"] > 3.0, "Pause audio too short"
     results.append(("Feature 3: Inline Silence Pauses", True, rtf_pause))
 
     # 4d. Feature 4: Low-Latency Chunked Streaming
@@ -311,6 +337,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
             "stream": True,
         },
         out_stream,
+        play=play,
     )
     file_size_stream = os.path.getsize(out_stream)
     dur_stream = file_size_stream / (24000 * 2)
@@ -330,6 +357,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
             "response_format": "opus",
         },
         out_opus,
+        play=play,
     )
     meta_opus = verify_audio_file(out_opus, "ogg")
     wav_equiv = int(meta_opus["duration"] * 24000 * 2)
@@ -342,9 +370,7 @@ def run_tests(base_url: str, stt_url: str) -> int:
     assert meta_opus["codec"] == "opus", f"Expected opus codec, got {meta_opus['codec']}"
     results.append(("Feature 5: Native OGG/Opus Encoding", True, rtf_opus))
 
-    # --------------------------------------------------------------------------
     # Summary
-    # --------------------------------------------------------------------------
     print("\n" + "=" * 76)
     print(" KOKORO INTEGRATION TESTSUITE SUMMARY")
     print("=" * 76)
@@ -369,8 +395,14 @@ def run_tests(base_url: str, stt_url: str) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Kokoro ONNX Testsuite")
-    parser.add_argument("--base-url", default="http://127.0.0.1:20095")
+    parser.add_argument("--base-url", default="http://127.0.0.1:21080")
     parser.add_argument("--stt-url", default="http://127.0.0.1:20090")
+    parser.add_argument(
+        "-p",
+        "--play",
+        action="store_true",
+        help="Play each synthesized audio sample aloud on speakers via sounddevice",
+    )
     args = parser.parse_args()
 
-    sys.exit(run_tests(args.base_url, args.stt_url))
+    sys.exit(run_tests(args.base_url, args.stt_url, play=args.play))

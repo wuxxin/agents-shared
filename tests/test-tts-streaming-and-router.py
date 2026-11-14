@@ -24,8 +24,11 @@ import time
 import urllib.request
 from typing import List, Tuple
 
+import numpy as np
+import sounddevice as sd
 
-def test_streaming(url: str, label: str) -> Tuple[bool, float, float, int]:
+
+def test_streaming(url: str, label: str, play: bool = False) -> Tuple[bool, float, float, int]:
     """Tests chunked audio streaming, measuring TTFB and total duration."""
     payload = {
         "model": "kokoro",
@@ -45,6 +48,7 @@ def test_streaming(url: str, label: str) -> Tuple[bool, float, float, int]:
     first_chunk_time = 0.0
     total_bytes = 0
     chunk_count = 0
+    chunks: List[bytes] = []
 
     with urllib.request.urlopen(req) as resp:
         while True:
@@ -55,6 +59,7 @@ def test_streaming(url: str, label: str) -> Tuple[bool, float, float, int]:
                 first_chunk_time = time.perf_counter() - t0
             chunk_count += 1
             total_bytes += len(chunk)
+            chunks.append(chunk)
 
     total_time = time.perf_counter() - t0
     dur_sec = total_bytes / (24000 * 2)
@@ -68,6 +73,13 @@ def test_streaming(url: str, label: str) -> Tuple[bool, float, float, int]:
     print(
         f"  Streaming efficiency:       TTFB is {first_chunk_time / total_time * 100:.1f}% of total duration"
     )
+
+    if play and chunks:
+        raw_pcm = b"".join(chunks)
+        pcm = np.frombuffer(raw_pcm, dtype=np.int16).astype(np.float32) / 32768.0
+        pcm = pcm[: 24000 * 30]
+        sd.play(pcm, samplerate=24000)
+        sd.wait()
 
     # Verification criteria:
     # 1. First chunk should arrive within 600ms (sentence 1 completion)
@@ -124,6 +136,12 @@ def main():
     parser.add_argument(
         "--skip-router", action="store_true", help="Skip router tests if router is offline"
     )
+    parser.add_argument(
+        "-p",
+        "--play",
+        action="store_true",
+        help="Play streamed audio aloud on speakers via sounddevice",
+    )
     args = parser.parse_args()
 
     print("=" * 76)
@@ -136,7 +154,9 @@ def main():
 
     # 1. Direct streaming test
     try:
-        p1, ttfb1, tot1, _ = test_streaming(args.tts_url, "Direct Kokoro TTS Streaming")
+        p1, ttfb1, tot1, _ = test_streaming(
+            args.tts_url, "Direct Kokoro TTS Streaming", play=args.play
+        )
         results.append(("Direct Kokoro Streaming (TTFB < 600ms, multi-chunk)", p1))
     except Exception as e:
         print(f"Direct streaming error: {e}")
@@ -145,7 +165,9 @@ def main():
     if not args.skip_router:
         # 2. Router proxied streaming test
         try:
-            p2, ttfb2, tot2, _ = test_streaming(args.router_url, "Proxied Router TTS Streaming")
+            p2, ttfb2, tot2, _ = test_streaming(
+                args.router_url, "Proxied Router TTS Streaming", play=args.play
+            )
             results.append(("Proxied Router Streaming (Non-buffering passthrough)", p2))
         except Exception as e:
             print(f"Router streaming error: {e}")

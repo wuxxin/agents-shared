@@ -263,17 +263,24 @@ class EspeakPhonemizer:
             if chunk:
                 res.append(chunk.decode("utf-8"))
         ipa = " ".join(res)
-        # Apply standard Kokoro IPA ligature & phoneme substitutions
-        ipa = (
-            ipa.replace("dʒ", "ʤ")
-            .replace("tʃ", "ʧ")
-            .replace("r", "ɹ")
-            .replace("ʏ", "y")
-            .replace("kəkˈoːɹoʊ", "kˈoʊkəɹoʊ")
-            .replace("ʲ", "j")
-            .replace("x", "k")
-            .replace("ɬ", "l")
-        )
+        # Standard affricates / tie substitutions present in Kokoro vocabulary
+        ipa = ipa.replace("dʒ", "ʤ").replace("tʃ", "ʧ").replace("dz", "ʣ").replace("ts", "ʦ")
+        if lang == "de":
+            # German phoneme normalization:
+            # - 'ʏ' (short lax ü, e.g. 'Bücher') is not in Kokoro vocab; map to 'y' per kikiri-tts architecture.
+            # - German alveolar/uvular 'r' is in Kokoro vocab (both 'r' and 'ɾ' and 'ʁ'); NEVER replace 'r' with retroflex 'ɹ'!
+            # - German ach-Laut 'x' is in Kokoro vocab; NEVER replace 'x' with 'k'!
+            ipa = ipa.replace("ʏ", "y")
+        else:
+            # English and other languages: standard Kokoro substitutions
+            ipa = (
+                ipa.replace("r", "ɹ")
+                .replace("ʏ", "y")
+                .replace("kəkˈoːɹoʊ", "kˈoʊkəɹoʊ")
+                .replace("ʲ", "j")
+                .replace("x", "k")
+                .replace("ɬ", "l")
+            )
         return ipa.strip()
 
 
@@ -441,6 +448,11 @@ class KokoroPureEngine:
             if not self.model_de_path:
                 self.model_de_path = self._find_first(MODEL_DE_SEARCH_PATHS)
 
+            # Optional Kerstin-native backbone
+            kerstin_candidate = os.path.join(model_path, "kokoro-kerstin.onnx")
+            self.model_kerstin_path = (
+                kerstin_candidate if os.path.isfile(kerstin_candidate) else None
+            )
             v_dir = os.path.join(model_path, "voices")
             if os.path.isdir(v_dir) and v_dir not in VOICE_SEARCH_DIRS:
                 VOICE_SEARCH_DIRS.insert(0, v_dir)
@@ -455,7 +467,7 @@ class KokoroPureEngine:
             self.model_en_path, sess_opts, providers=["CPUExecutionProvider"]
         )
 
-        # German session
+        # German session (Martin backbone)
         if self.model_de_path and os.path.isfile(self.model_de_path):
             logger.info("Loading Native German ONNX model: %s", self.model_de_path)
             self.session_de = ort.InferenceSession(
@@ -466,6 +478,20 @@ class KokoroPureEngine:
             self.session_de = self.session_en
             self.input_de_name = "input_ids"
 
+        # Kerstin-native German session
+        if (
+            hasattr(self, "model_kerstin_path")
+            and self.model_kerstin_path
+            and os.path.isfile(self.model_kerstin_path)
+        ):
+            logger.info("Loading Native Kerstin ONNX model: %s", self.model_kerstin_path)
+            self.session_kerstin = ort.InferenceSession(
+                self.model_kerstin_path, sess_opts, providers=["CPUExecutionProvider"]
+            )
+            self.input_kerstin_name = self.session_kerstin.get_inputs()[0].name
+        else:
+            self.session_kerstin = None
+            self.input_kerstin_name = None
         self.phonemizer = EspeakPhonemizer()
         self.voice_raw_cache: Dict[str, np.ndarray] = {}
 
@@ -529,13 +555,17 @@ class KokoroPureEngine:
             return self._load_voice_matrix(fallback)
         raise FileNotFoundError(f"Voice file for '{voice_name}' not found.")
 
+    DISABLED_VOICES = {"df_anna", "dm_heinrich", "anna", "heinrich"}
+
     def has_voice(self, voice_name: str) -> bool:
-        """Checks if a voice exists as a .bin file or in cache."""
+        """Checks if a voice exists as a .bin file or in cache and is not deprecated/disabled."""
         if not voice_name:
             return False
         v_clean = voice_name.strip()
         v_clean = re.sub(r"^kokoro-voice-", "", v_clean)
         v_clean = re.sub(r"\.(bin|gguf|pt|npz|safetensors)$", "", v_clean)
+        if v_clean.lower() in self.DISABLED_VOICES:
+            return False
         if v_clean in self.voice_raw_cache:
             return True
         for v_dir in VOICE_SEARCH_DIRS:
@@ -599,7 +629,12 @@ class KokoroPureEngine:
         return tokens
 
     def synthesize_chunk(
-        self, tokens: List[int], style_vector: np.ndarray, speed: float = 1.0, lang: str = "en-us"
+        self,
+        tokens: List[int],
+        style_vector: np.ndarray,
+        speed: float = 1.0,
+        lang: str = "en-us",
+        voice: str = "",
     ) -> np.ndarray:
         if len(tokens) <= 2:
             return np.zeros((0,), dtype=np.float32)
@@ -608,15 +643,19 @@ class KokoroPureEngine:
 
         input_arr = np.array([tokens], dtype=np.int64)
 
-        if lang == "de" and self.session_de is not None:
+        # Dynamic German checkpoint routing:
+        # If voice is Kerstin (or starts with df_kerstin) and kerstin model is loaded, route to Kerstin backbone.
+        clean_voice = voice.lower().strip()
+        if lang == "de" and self.session_kerstin is not None and ("kerstin" in clean_voice):
+            sess = self.session_kerstin
+            in_name = self.input_kerstin_name
+        elif lang == "de" and self.session_de is not None:
             sess = self.session_de
             in_name = self.input_de_name
-            speed_val = speed if speed != 1.0 else 1.125
         else:
             sess = self.session_en
             in_name = "input_ids"
-            speed_val = speed
-
+        speed_val = speed
         speed_tensor = np.array([speed_val], dtype=np.float32)
         outputs = sess.run(
             None,
@@ -693,11 +732,15 @@ class KokoroPureEngine:
                         if st[-1] != 0:
                             st.append(0)
                         sub_style = self.get_style_for_tokens(active_voice, len(st))
-                        chunk = self.synthesize_chunk(st, sub_style, speed, lang=lang)
+                        chunk = self.synthesize_chunk(
+                            st, sub_style, speed, lang=lang, voice=active_voice
+                        )
                         if len(chunk) > 0:
                             yield chunk
                 else:
-                    chunk = self.synthesize_chunk(tokens, style_vec, speed, lang=lang)
+                    chunk = self.synthesize_chunk(
+                        tokens, style_vec, speed, lang=lang, voice=active_voice
+                    )
                     if len(chunk) > 0:
                         yield chunk
 
@@ -711,6 +754,7 @@ class KokoroPureEngine:
 
 
 def list_available_voices() -> List[str]:
+    disabled = KokoroPureEngine.DISABLED_VOICES
     voices = set()
     for v_dir in VOICE_SEARCH_DIRS:
         if not os.path.isdir(v_dir):
@@ -719,7 +763,8 @@ def list_available_voices() -> List[str]:
             if f.endswith((".bin", ".gguf")) and not f.startswith("."):
                 name = re.sub(r"^kokoro-voice-", "", f)
                 name = re.sub(r"\.(bin|gguf)$", "", name)
-                voices.add(name)
+                if name.lower() not in disabled:
+                    voices.add(name)
     return sorted(voices)
 
 
@@ -1018,7 +1063,7 @@ def main():
     )
     parser.add_argument(
         "--default-voice-de",
-        default=os.environ.get("LTTS_DEFAULT_VOICE_DE", "df_victoria"),
+        default=os.environ.get("LTTS_DEFAULT_VOICE_DE", "df_kerstin"),
         help="Default German voice for OpenAI fallback (default: df_victoria)",
     )
     parser.add_argument(
