@@ -3,15 +3,6 @@
 This repository contains orchestration for deploying sandboxed local AI assistants and developer runtimes using local inference services.
 
 It provides **`sandbox-ctl`** (a generalized systemd and bubblewrap container launcher), systemd-confinement configurations, and standardized daemon control utilities (`*-ctl` scripts) to ensure secure, isolated agent execution.
-## Repository Structure
-
-- `README.md` — Agent/script instructions, default ports, and isolation requirements
-- `scripts/sandbox-ctl` — Generalized systemd/bubblewrap container launcher and environment manager (documentation: [scripts/sandbox-ctl.md](scripts/sandbox-ctl.md))
-- `assistants/` — Daemon control scripts (`*-ctl`) and configuration documentation
-- `scripts/` — Benchmarking, model downloader (`local-download.sh`), and utility tools
-- `skills/` — Portable skill definitions
-- `research/` — Development activity reports, LLM adapter research, and benchmark notes
-- `scratch/` — Workspace for temporary files and checkout sources (`scratch/*-sources`)
 
 ## Services
 
@@ -36,20 +27,6 @@ It provides **`sandbox-ctl`** (a generalized systemd and bubblewrap container la
 | **[Syncthing Integration](#syncthing-integration)** | [8384](http://localhost:8384), 22000 | Syncthing Web UI (HTTP) & Sync Protocol (TCP/UDP) |
 
 
-### Assistant/Agent Services
-
-| Agent | Language | Default Port(s) | Description |
-| :--- | :---: | :---: | :--- |
-| **[ZeroClaw](#zeroclaw)** | Rust | [42617](http://localhost:42617) | ZeroClaw Gateway |
-| **[IronClaw](#ironclaw)** | Rust | [28080](http://localhost:28080) | IronClaw Web Gateway & HTTP Webhooks |
-| **[LibreFang](#librefang)** | Rust | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
-| **[Hermes](#hermes)** | Python | [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Gateway (API: 8642, UI: 9119) |
-| **[NanoBot](#nanobot)** | Python | [8790](http://localhost:8790) | NanoBot Gateway API |
-| **[PicoClaw](#picoclaw)** | Go | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
-| **[NanoClaw](#nanoclaw)** | TypeScript | [3000](http://localhost:3000) | Webhook Server |
-
-See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
-
 ## Sandboxing & Container Isolation (`sandbox-ctl`)
 
 The repository includes **`sandbox-ctl`** (`scripts/sandbox-ctl`), a generalized execution wrapper that runs any CLI tool, coding agent (like OpenCode), or GUI application inside an isolated Linux container sandbox.
@@ -72,11 +49,29 @@ The repository includes **`sandbox-ctl`** (`scripts/sandbox-ctl`), a generalized
 
 For complete usage styles, environment options, and architecture details, see **[scripts/sandbox-ctl.md](scripts/sandbox-ctl.md)**.
 
+## Assistant/Agent Services
+
+Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
+
+- See [assistants/agents.md](assistants/agents-ctl.md) for general usage and common configuration options.
+- See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
+
 ## Helper Utilities
 
 The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
 
 For details, see the [scripts/README.md](scripts/README.md).
+
+## Repository Structure
+
+- `README.md` — Agent/script instructions, default ports, and isolation requirements
+- `scripts/sandbox-ctl` — Generalized systemd/bubblewrap container launcher and environment manager (documentation: [scripts/sandbox-ctl.md](scripts/sandbox-ctl.md))
+- `assistants/` — Daemon control scripts (`*-ctl`) and configuration documentation
+- `scripts/` — Benchmarking, model downloader (`local-download.sh`), and utility tools
+- `skills/` — Portable skill definitions
+- `research/` — Development activity reports, LLM adapter research, and benchmark notes
+- `scratch/` — Workspace for temporary files and checkout sources (`scratch/*-sources`)
+
 
 ## System Architecture
 
@@ -197,146 +192,4 @@ To configure them, refer to their specific configuration sections in their respe
 - **Features**: Decentralized and secure background file synchronization for agent workspaces and shared data.
 - **Documentation**: [syncthing-ctl.md](assistants/syncthing-ctl.md)
 
----
-
-## Assistant Details
-
-
-Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
-
-See [assistants/agents.md](assistants/agents-ctl.md) for general usage and common configuration options.
-
-
-### ZeroClaw
-- **Major Features**: Rust-based security-focused agent gateway and runtime featuring built-in SQLite hybrid memory (vector + keyword FTS5) and native Landlock/Bubblewrap sandbox backends.
-- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend, no Web GUI).
-- **Requirements**: Support for Linux namespace isolation or Landlock.
-- **Sandboxing**: **Relaxed Namespaces Profile** is enforced via the systemd unit so that ZeroClaw can spawn secure nested sub-sandboxes via `bwrap` internally.
-- **Memory**: Native SQLite-based memory system. Supports `sqlite` and `sqlite-hybrid` (vector + keyword FTS5) natively; can also use PostgreSQL or Qdrant.
-- **Retention/Compression/Compaction**: Features time-decay scoring (evergreen Core category, time-decayed Conversation/others with a 7-day half-life), two-phase LLM-driven memory consolidation (Daily history + Core fact extraction) at the end of each turn, and periodic memory hygiene (every 12 hours) to archive, purge, and prune database rows.
-- **Search & Retrieval**: Native hybrid search (0.7 vector similarity / 0.3 keyword FTS5) directly inside SQLite.
-- **Autonomous 24/7 Support**: Yes — Built-in scheduling and task memory for unattended 24/7 operations.
-- **Signal Support**: Yes — Native channel integration communicating via the Go REST API wrapper (port 20889).
-- **Coding Agent Support**: Yes — Natively supports **OpenCode** as a coding worker tool (`opencode_cli`).
-- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings using the `local-embedding` server (port 20082) or Ollama, or OpenAI-compatible embedding APIs.
-- **Reranking Support**: Native weighted hybrid search, or routes to external local-rerank service (`http://localhost:20086/v1/rerank`).
-- **STT/TTS Support**: Natively routes voice uploads to local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Kokoro-82M ONNX / Qwen3-tts (`local-text-to-speech` on port 20095).
-- **Agent Client Protocol**: Yes — Native stdio-based ACP server via `zeroclaw-acp-bridge` and a dedicated `Acp` (Code) pane in the `zerocode` TUI.
-- **Agent to Agent Protocol**: Yes — Built-in peer-to-peer delegation via the `delegate` tool, restricted by shared risk profiles and `delegation_policy` configurations.
-- **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
-
-
-### IronClaw
-- **Major Features**: Security-focused Agent OS providing WASM-sandboxed tool execution, credential protection with leak detection, prompt injection defense, and endpoint allowlisting. Built as a Rust reimplementation of OpenClaw with a focus on privacy, zero-trust architecture, and self-expanding capabilities via dynamic WASM tool building.
-- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web Gateway GUI).
-- **Requirements**: PostgreSQL 15+ with [pgvector](https://github.com/pgvector/pgvector) extension. Rust 1.92+ for source builds. NEAR AI account for default authentication.
-- **Sandboxing**: **Relaxed Namespaces Profile** to support WASM sandbox execution (wasmtime) and optional Docker sandbox orchestrator/worker pattern. `MemoryDenyWriteExecute=no` required for WASM JIT compilation.
-- **Memory**: PostgreSQL 15+ database with the `pgvector` extension. Workspace filesystem provides flexible path-based storage for notes, logs, and context. Identity files maintain settings and contexts.
-- **Retention/Compression/Compaction**: Context compaction supports auto-summarization of history. Settings and metadata are persisted in PostgreSQL.
-- **Search & Retrieval**: Hybrid search combining full-text search and vector similarity via Reciprocal Rank Fusion (RRF) backed by PostgreSQL.
-- **Autonomous 24/7 Support**: Yes — Heartbeat support (`HEARTBEAT_ENABLED`) for background tasks and cron jobs.
-- **Signal Support**: Yes — Native integration communicating via the `signal-cli` HTTP daemon (port 20889).
-- **Coding Agent Support**: Yes — Supports external coding agents via Agent Client Protocol (e.g. `ironclaw acp add goose`). No native OpenCode support.
-- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings using the `local-embedding` server (port 20082) or Ollama, or remote/Ollama embeddings.
-- **Reranking Support**: Native Reciprocal Rank Fusion (RRF) algorithm. No external reranker required.
-- **STT/TTS Support**: Local STT via OpenAI-compatible transcription endpoint (`local-speech-to-text` on port 20090). No native TTS support.
-- **Agent Client Protocol**: Yes — Configurable external coding agents using ACP commands (e.g. `ironclaw acp add goose`).
-- **Agent to Agent Protocol**: Yes — Orchestrator/worker pattern for RPC-based sub-agent execution, and NEAR AI multi-agent routing.
-- **Detailed Guide & Onboarding**: [ironclaw-ctl.md](assistants/ironclaw-ctl.md)
-
-### Hermes
-- **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
-- **Language/Runtime**: Python (Source) / private 3.11 Python Runtime /opt (Web-based Dashboard GUI).
-- **Requirements**: `~/.local/sandbox/hermes` for persistent state, `~/agent-shared` for integration. Can integrate with podman/docker backend.
-- **Sandboxing**: Utilizes the **Relaxed Namespaces Profile** to support nested `bwrap` orchestration. Isolated `HOME` directory redirection.
-- **Memory**: Built-in SQLite-based SessionDB/State management. Keeps localized context via `MEMORY.md` and `USER.md` prompt injections. Context compaction (`ContextCompressor`) supports tool output pruning (removes screenshots, replaces outputs with 1-line summaries), token-budget tail protection, and iterative summary updates (LLM summarizes middle turns). Offline trajectory compressor (`trajectory_compressor.py`) compresses trajectories under a target budget (default 15,250 tokens) for model training.
-- **Search & Retrieval**: SQLite FTS5 for keyword search, plus vector search using the `sqlite-vec` extension. Direct integrations with external vector databases (Qdrant, Chroma) and memory frameworks (Mem0, Honcho).
-- **Autonomous 24/7 Support**: Yes — Built-in cron scheduler with platform delivery. Background batch and SWE runners (`batch_runner.py` / `mini_swe_runner.py`).
-- **Signal Support**: Yes — Native integration connecting to a local `signal-cli` HTTP daemon (port 20888/20889).
-- **Coding Agent Support**: Yes — Supports Claude Code, Codex, and **OpenCode** via bundled skills.
-- **Local LLM & Inference**: Supports local GGUF models via `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-embedding` (port 20082) or Ollama, or remote embedding providers (OpenAI, Cohere, Jina, Voyage AI).
-- **Reranking Support**: Native reranking via auxiliary model slots and QMD hybrid retrieval engine, or routes to external reranker (`http://localhost:20086/v1/rerank`).
-- **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090). No native TTS support.
-- **Agent Client Protocol (ACP)**: Yes — Native stdio-based ACP server adapter (`acp_adapter/server.py`) for editor integrations (VS Code, Zed, JetBrains).
-- **Agent to Agent Protocol**: Yes — Supports spawning isolated subagents for parallel workstreams and calling tools/subagents via RPC.
-- **Detailed Guide & Onboarding**: [hermes-ctl.md](assistants/hermes-ctl.md)
-
-### NanoBot
-- **Major Features**: Lightweight python service built with `uv` featuring an onboarding setup wizard, a structured two-stage memory system ("Dream"), and Bubblewrap tool confinement.
-- **Language/Runtime**: Python (Source) / Python runtime managed by `uv` (Python CLI + Setup Wizard, no Web GUI).
-- **Requirements**: `uv` package manager installed.
-- **Sandboxing**: Relies on the **Relaxed Namespaces Profile** because it natively spawns agent code wrapped in nested `bwrap` isolation. Isolated `HOME`.
-- **Memory**: Two-stage memory system. Active conversation buffers in session jsonl files, and long-term memory in a file-based `MEMORY.md` (and persona/user preferences in `SOUL.md`/`USER.md`). Auto-versioned via GitStore. Auto-compaction of idle sessions via `AutoCompact` based on `session_ttl_minutes` limit (keeps last 8 messages, archives the rest into session metadata). Context-length/token-triggered memory consolidation (`maybe_consolidate_by_tokens`) during active turns loops to archive message chunks to `history.jsonl`. Ephemeral background "Dream" loop reads `history.jsonl` (tracked via `.dream_cursor`) and runs an ephemeral agent to synthesize and update `MEMORY.md`, `SOUL.md`, or `USER.md` with auto-commits via Git.
-- **Search & Retrieval**: Vector similarity search (RAG) for long-term memory. Document Store for indexing and searching local files (PDFs, TXT, markdown). External search via MCP tools (Brave Search).
-- **Autonomous 24/7 Support**: Yes — Periodic background "Dream" loop and cron tasks.
-- **Signal Support**: Yes — Native integration via HTTP Server-Sent Events (SSE) (port 20888) with markdown-to-Signal formatting.
-- **Coding Agent Support**: None (No OpenCode support).
-- **Local LLM & Inference**: Routes to local GGUF models via `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-embedding` (port 20082) or Ollama, or remote embeddings.
-- **Reranking Support**: No native reranking. Integrates with external reranker via custom MCP tools.
-- **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090). No native local TTS.
-- **Agent Client Protocol (ACP)**: No ACP support.
-- **Agent to Agent Protocol**: Yes — Background subagent spawning (`SubagentManager`) communicating asynchronously via the message bus (`MessageBus` / `InboundMessage` system injection).
-- **Detailed Guide & Onboarding**: [nanobot-ctl.md](assistants/nanobot-ctl.md)
-
-### LibreFang
-- **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project.
-- **Language/Runtime**: Rust (Source) / Compiled binary (Rust Backend + Web-based Dashboard GUI).
-- **Requirements**: `~/.local/sandbox/librefang` and `~/agent-shared`.
-- **Sandboxing**: **Relaxed Namespaces Profile** to support bubblewrap (`bwrap`) nested sandboxing for sub-agents. Read-only system paths and strict filesystem protection for the host.
-- **Memory**: SQLite-based memory system and vector storage for persistent agent memories and knowledge. Custom configuration workspace.
-- **Retention/Compression/Compaction**: Context limit handling: automatically extracts facts and summarizes history when approaching context limits.
-- **Search & Retrieval**: Native SQLite and vector memory stores for persistent agent memory, task scheduling, and background search/research. Can connect to external databases via MCP.
-- **Autonomous 24/7 Support**: Yes — Built-in scheduling and task memory for running 24/7 (run autonomous background execution via `hand activate researcher` or other hands).
-- **Signal Support**: Yes — Native channel integration interfacing with the Go REST API wrapper (port 20889), using `[[sidecar_channels]]` adapter `librefang.sidecar.adapters.signal`.
-- **Coding Agent Support**: Yes — Supports Claude Code, Aider, Qwen Code, Gemini CLI, and Codex CLI (spawned as subprocesses; No native OpenCode support).
-- **Local LLM & Inference**: Supports local GGUF models via OpenAI-compatible endpoints served by `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings using the `local-embedding` server (port 20082) or Ollama, or remote/Ollama embeddings.
-- **Reranking Support**: None. Reranking is not supported by the LibreFang daemon.
-- **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Kokoro-82M ONNX / Qwen3-tts (`local-text-to-speech` on port 20095).
-- **Agent Client Protocol**: Yes — Bridges the runtime to the Agent Client Protocol (ACP) for editor integrations (stdio or Unix socket).
-- **Agent to Agent Protocol**: Yes — Spawns subagents isolated with bubblewrap (`bwrap`), passing context via `SubagentContext` for context inheritance.
-- **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
-
-
-### PicoClaw
-- **Major Features**: Ultra-lightweight gateway (<10MB memory) with built-in web console and CLI integration, leveraging Model Context Protocol (MCP) for tools/memory.
-- **Language/Runtime**: Go (Source) / Compiled binary (Go Backend + Web-based Console GUI).
-- **Requirements**: `~/.local/sandbox/picoclaw` for persistent configuration.
-- **Sandboxing**: **Relaxed Namespaces Profile**. Uses standard agent isolation with redirected `HOME` and strict filesystem protection. Isolated `HOME`.
-- **Memory**: RAW JSON files for session/history (history limit default 50). No native vector db.
-- **Retention/Compression/Compaction**: Simple context limit: history limit (default 50). No native compression.
-- **Search & Retrieval**: Uses Model Context Protocol (MCP) to delegate search/retrieval tasks to external databases (such as `sqlite-vec` MCP, Qdrant MCP, or Chroma MCP).
-- **Autonomous 24/7 Support**: Yes — Messaging gateway daemon background service (`picoclaw-launcher -no-browser`).
-- **Signal Support**: No — Not natively supported.
-- **Coding Agent Support**: Yes — Supports Claude Code, Codex, and Copilot CLI via provider-wrapped CLI execution (No OpenCode support).
-- **Local LLM & Inference**: Routes to local GGUF models via `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-embedding` (port 20082) or Ollama via API routing or MCP.
-- **Reranking Support**: No native reranking. Reranking can be delegated via MCP to the local-inference reranker endpoint on port 20086.
-- **STT/TTS Support**: Local STT by defining an ASR provider pointing to the local whisper-server on port 20090. No native TTS engine; requires an external MCP TTS tool.
-- **Agent Client Protocol**: No native ACP support.
-- **Agent to Agent Protocol**: Yes — Supports `spawn` (asynchronous background subagents via goroutines) and `delegate` (synchronous targeted subagents) tools, with target allowlist validation.
-- **Detailed Guide & Onboarding**: [picoclaw-ctl.md](assistants/picoclaw-ctl.md)
-
-### NanoClaw
-- **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
-- **Language/Runtime**: TypeScript/Node.js (Source) / Node.js containerized (Node.js Webhook Backend, no Web GUI).
-- **Requirements**: Requires Docker/Podman running locally to spawn tool environments.
-- **Sandboxing**: **Relaxed Namespaces Profile** with `PrivateDevices=no`. Strict profiles are dropped to allow the agent to launch local Docker/Podman containers successfully.
-- **Memory**: Per-session SQLite database mounted inside the container at `/workspace/session.db` (containing `messages_in` and `messages_out` tables) and a central SQLite database. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories under `/workspace/agent/`.
-- **Retention/Compression/Compaction**: Context limit handling is handled by the agent (e.g. Claude SDK) discovering its own session data in `.claude/` inside `/workspace/.claude/`. No native compaction.
-- **Search & Retrieval**: Uses SQLite databases within the Node.js process to maintain state. Maintains `CLAUDE.md` and related markdown files in isolated agent group directories. Heavy search, retrieval, and vector storage tasks are delegated to external MCP servers (like `sqlite-vec` MCP, Qdrant MCP, or Chroma MCP) or handled by the agent calling custom tools.
-- **Autonomous 24/7 Support**: Yes — background host sweep (every ~60s) and active container poll (~1s) check for due `process_after` / `deliver_after` timestamps, reschedule recurring tasks using cron, and wake up agents.
-- **Signal Support**: No — Not natively supported.
-- **Coding Agent Support**: None (No native OpenCode support), but has an optional `add-opencode` skill for local inference.
-- **Local LLM & Inference**: Routes to local GGUF models via OpenAI-compatible endpoints served by `local-chat` (port 20080) or Ollama.
-- **Embedding Options**: Local embeddings via `local-embedding` (port 20082) or Ollama, or remote embeddings.
-- **Reranking Support**: No native reranking. Reranking can be added via a custom skill or by configuring an MCP tool that calls the local-inference reranker endpoint on port 20086.
-- **STT/TTS Support**: No native STT/TTS in the core daemon, but easily integrated via custom tools/skills calling `local-speech-to-text` (port 20090) and `local-text-to-speech` (port 20095).
-- **Agent Client Protocol**: No native ACP support.
-- **Agent to Agent Protocol**: Yes — supported via target-agent routing on `messages_out`. An agent-runner can set `channel_type: 'agent'`, `platform_id` to the target agent group ID, and `thread_id` to a target session ID. The host reads this, validates permissions, and writes a `messages_in` row to the target session's DB.
-- **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](assistants/nanoclaw-ctl.md)
 
