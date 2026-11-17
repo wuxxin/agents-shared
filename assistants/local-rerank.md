@@ -129,10 +129,6 @@ llama-server auto-detects the best available backend (ROCm, Vulkan, or CPU). To 
 ```
 
 
-## VRAM Usage
-
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](assistants/local-memory-map.md).
-
 ## Verification & Manual Testing
 
 You can test that the service is running and behaving correctly by running the validation command:

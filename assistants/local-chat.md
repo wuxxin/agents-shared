@@ -414,10 +414,6 @@ LCHAT_MTP=""
 LCHAT_SPECULATIVE=""
 ```
 
-## VRAM Usage
-
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](local-memory-map.md).
-
 
 ## Editor `Language Model` and `Edit Prediction Service` Integration
 

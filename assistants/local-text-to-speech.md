@@ -275,10 +275,6 @@ Pre-converted GGUF models are hosted on the [khimaros/qwen3-tts Collection](http
 | **Long-Text Handling** | Automatic sentence chunking with 150ms speech gaps | Hard limit of 510 tokens (caller must chunk externally) |
 | **Voice Blending** | Native linear style combination (e.g. `df_victoria(0.6)+dm_martin(0.4)`) | Supports voice style blending expressions |
 
-## VRAM Usage
-
-For detailed breakdowns of memory usage and concurrent execution scenarios (co-running Inference, Speech-to-Text, and Text-to-Speech), refer to [Central Memory Map](assistants/local-memory-map.md).
-
 ## Implementation & Security Considerations
 
 ### Centralized Sandboxing Configuration

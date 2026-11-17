@@ -142,12 +142,6 @@ You can configure the target device using the `LSTT_DEVICE` environment variable
 ```
 
 
-## VRAM Usage
-
-The speech-to-text service requires approximately **~1.4 GiB** of VRAM when loaded (including weights, caches, compute buffers, and HIP context overhead). 
-
-For a detailed breakdown of all VRAM allocations, options, and scenarios (including concurrent running of all three local services), refer to [Central VRAM Memory Map](assistants/local-memory-map.md).
-
 ## Implementation & Security Considerations
 
 ### Centralized Sandboxing Configuration
