@@ -44,20 +44,16 @@
 ### Workspace & Documentation
 - **Workspace Isolation:** Use `scratch/` for temporary files, research, and git checkouts (`scratch/*-sources`). Always use the top-level repository root `scratch/`: if checked out independently, use its own root `scratch/`; if checked out as a git submodule, use the parent repository's root `scratch/`.
 - **Docs Maintenance:** Update `README.md`, `assistants/*-ctl.md`, and `scripts/` whenever script behaviors or ports change. Update the "## Sandboxing Architecture" section if isolation profiles change.
-- **Sandbox Templates:**
-  - **OpenCode:** Keep `sandbox-templates/opencode/opencode.json` and `~/.config/opencode/opencode.json` synced. Run `~/.config/opencode/copy-config-to-target.sh` to save running configs back to the repo.
-  - **OMP:** Templates reside in `sandbox-templates/omp/`.
 
 ### Local Inference Benchmarking Rules
 - **Script Sync:** Update `scripts/run-local-benchmark.py` whenever local service outputs, performance formats, or env variable prefixes (`LLM_` -> `LCHAT_`, `EMBED_` -> `LMBD_`) change.
 - **Report Protection:** Running `--mock` auto-redirects outputs to `scratch/local-benchmark-mock.*`. For custom tests, explicitly pass `--report scratch/test.md --data scratch/test.json` to prevent overwriting production reports in `assistants/`.
 
-### Sandboxing & Bubblewrap (`bwrap`) Discipline
-Check if running inside a bwrap sandbox:
-```bash
-[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ] || echo "bwrapped"
-```
-**If bwrapped (systemd socket unavailable):**
+### Sandboxing Discipline
+
+**Check:** if env `SANDBOX_NAME` or `SANDBOX` is set read `submodules/agents-shared/scripts/sandbox-ctl.md` how to behave and use.
+
+**If sandboxed:**
 - **Restriction:** Do **NOT** execute systemd service management commands (`systemctl start/stop/restart/status`).
 - **Introspection:** Inspect active processes and logs using `journalctl` (`--user`), `ps`, `/proc`, and `pgrep`.
 - **Debugging Control Wrappers:**
@@ -75,5 +71,4 @@ Discover configuration schemas and features by inspecting checked-out sources in
 - **LibreFang:** `librefang.toml.example`, `.env.example`, `crates/librefang-types/src/config/types.rs`
 - **NanoClaw:** `.env.example`, `src/config.ts`, `src/env.ts`
 - **PicoClaw:** `.env.example`, `config/config.example.json`, `pkg/config/config.go`
-
 
