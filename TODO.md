@@ -1,7 +1,9 @@
 # TODO
 
++ strata: redo optimization and integrate with launcher
 + local-chat-*: readd or make a new service for fim, fix fim benchmark
-+ local-speech-to-text: add second engine, beside whisper.cpp use parakeet.cpp as second engine, with https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3 in q8 as model.
++ local-speech-to-text: add second engine, beside whisper.cpp use parakeet.cpp as second engine, with phonon multilingual 
+https://huggingface.co/gradium/phonon-40m-multilingual/tree/main
 + local-reranking: transform into multi engine like local-embedding. make a reranking benchmark, 8k,8k
 + local-benchmark: refactor chat, embedding, rerank engines (--engines all default), skip the combined code paths for now, is brittle
 
