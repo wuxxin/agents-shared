@@ -266,7 +266,16 @@ for arm in ${arms//,/ }; do
     summary="$(config_summary)"
     echo "  config: ${summary}"
 
-    python3 "$LAUNCHER" >"$log" 2>&1 &
+    # Source the env file into the engine's environment: systemd does this via
+    # EnvironmentFile=, a direct launch does not, and env-only knobs (e.g.
+    # STRATA_HIP_PROMPT_F16) would otherwise never reach the engine.
+    (
+        set -a
+        # shellcheck disable=SC1090
+        source "$ENV_FILE"
+        set +a
+        exec python3 "$LAUNCHER"
+    ) >"$log" 2>&1 &
     launcher_pid=$!
     if ! wait_ready "$launcher_pid"; then
         echo "  engine did not become ready; see ${log}" >&2
@@ -301,7 +310,7 @@ for arm in ${arms//,/ }; do
         # --detailed is mutually exclusive with --profile (bench validates this),
         # and it carries its own --runs, so only use --profile for plain cells.
         # shellcheck disable=SC2086
-        if [[ "$bench_args" == *--detailed* ]]; then
+        if [[ "$bench_args" == *--detailed* || "$bench_args" == *--profile* ]]; then
             omp bench "$MODEL" ${bench_args} >"$cellout" 2>&1 || true
         else
             omp bench "$MODEL" --profile generation --runs "$runs" ${bench_args} >"$cellout" 2>&1 || true

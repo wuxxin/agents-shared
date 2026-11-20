@@ -1,0 +1,6 @@
+llama.cpp/qwen3.8-flash-next (qwen3.8-flash-next)
+  ✓ run 1/2 TTFT 8.3s prefill 2671/s in 22K out 64 total 9.2s
+  ✓ run 2/2 TTFT 17.4s prefill 1273/s in 22K out 64 total 18.3s
+
+model                         TTFT p50  p95    prefill  cost/run
+llama.cpp/qwen3.8-flash-next  8.3s      17.4s  1273     $0.0067
