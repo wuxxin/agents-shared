@@ -1083,3 +1083,14 @@ Engine log: `spilled 140071 tokens to the SSD tier (evicted from RAM)` → `rest
 **Verdict:** the tier converts the production symptom (idle main evicted by subagent traffic) from a 140k cold re-prefill into a 213 ms restore — **53.8 s → 2.3 s, ≈23×**. It coexists with `parallel: 2` (core's `--batch` refusal covers slot session files, not the conversation cache), costing ~0.9 s on the return. Arms D/E (`strata_prefix`, rewind ladder) are moot for this workload: they preside over a *shared* long prefix, a regime where we measured main never being evicted anyway. See `bench-results/2026-11-20-oracleD-fixed/ANALYSIS.md`.
 
 **Protocol lesson:** K must exceed the slot count (K=9 for 8 slots) *and* workers must not share main's full prefix — with a shared 120k prefix, worker traffic pins it and `parks/evictions` move while main is never evicted (measured: reuse 99.97%, `prompt_n=42`).
+
+### 14.6 C3 prompt F16 (`STRATA_HIP_PROMPT_F16=1`)
+
+Oracle B 22k prefill, 2 cells per arm, engagement verified in the engine log (`STRATA_HIP_PROMPT_F16=1: the prompt's 16-bit GEMMs run FP16 in and out`; 1 occurrence in the f16 arm, 0 in base).
+
+| Test ID | Config | 22k prefill (engine-side) | Mean |
+|---|---|---|---|
+| `S5-C3-base` | engine default (F16 prompt path off) | 2,736 / 2,722 / 2,718 / 2,627 tok/s | **2,701** |
+| `S5-C3-f16` | `STRATA_HIP_PROMPT_F16=1` | 2,695 / 2,679 / 2,685 / 2,607 tok/s | 2,667 |
+
+**Verdict: −1.3 %, keep it off.** Upstream enables this by default only on gfx103x (discrete RX 6000: "11–14 % faster" there) and gfx1103; `prompt_f16_resolve` leaves gfx1100 on the default path. Every f16 sample was below its base counterpart, and the route is explicitly not bit-identical, so there is no quality trade to accept either. See `bench-results/2026-11-20-c3-prompt-f16/ANALYSIS.md`.
