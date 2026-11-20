@@ -1659,6 +1659,14 @@ def is_debug() -> bool:
     return d
 
 
+def mock_n_ctx() -> int:
+    """Context length reported by the mock backend; matches the strata engine's real meta.n_ctx."""
+    try:
+        return int(os.environ.get("LROUT_MOCK_N_CTX", "240384"))
+    except ValueError:
+        return 240384
+
+
 def resolve_config() -> dict[str, str]:
     """Resolve routing destinations using standard default localhost ports with env variable overrides."""
     lmbd_enabled = get_enabled_services()["embedding"]
@@ -1727,9 +1735,12 @@ async def handle_mock_backend(
             pass
 
     if request.url.path in ("/props", "/v1/props"):
+        # Mock only: the live path proxies the engine's /v1/models, whose chat
+        # entry carries the real value under meta.n_ctx (240384 on strata).
+        # 120192 was a llama.cpp two-slot leftover.
         return JSONResponse(
             {
-                "default_generation_settings": {"n_ctx": 120192},
+                "default_generation_settings": {"n_ctx": mock_n_ctx()},
                 "model_alias": resolve_service_alias("chat") or "qwen3",
             }
         )

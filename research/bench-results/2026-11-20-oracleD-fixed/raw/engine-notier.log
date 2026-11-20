@@ -1,0 +1,811 @@
+[strata] sampling defaults from the config: temperature=0.6, repetition_penalty=1.1, top_p=0.95, top_k=20, presence_penalty=0.0
+loading the vision encoder ...
+strata-vision: own tower (qwen3vl_merger, 27 layers, width 1152) loaded in 0.5 s, on the GPU
+strata-vision: warmed up at 1024 image tokens in 0.8 s, 956 MiB of GPU memory
+loading the model (the first start takes a minute or two) ...
+[strata] engine priority: nice +5 (this PC has built-in Radeon graphics that usually draw the desktop; STRATA_ENGINE_NICE=0 turns it off)
+[strata] memory: 10.0 GiB of the ZFS ARC is counted as available RAM (ZFS gives it back when programs need it; #5519)
+strata generate: memory guard: limit 117.8 GiB (source: meminfo), current 15.9 GiB, reclaimable cache credited 0.0 GiB; available 101.8 GiB (MemAvailable 101.8 GiB), floor 6144 MiB
+strata generate: CPU expert kernels: AVX-2
+strata generate: native pack: /data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s experts (largest blob 2.66 MB), token embedding IQ4_XS in mapped host memory (322 MiB, 0.1 s)
+strata generate: 1466 MiB of weights loaded from /data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s in 0.6 s (302 canonical tensors skipped: served natively)
+strata generate: 300 native projection matrices, 2018.88 MiB of weights, in 0.6 s
+strata generate: control vector mode = project, dir = per-layer, layers 4..44 (41 steered)
+strata generate: PLE table locked in RAM (--ple-io ram) in 2.1 s
+strata generate: profile /usr/share/strata/terminal/data/expert-profile.bin: 24576 ranked pairs, built for 24576 slots
+strata generate: PLE on, table 320001536 rows of /data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf
+strata mtp: draft layer loaded, 833 MiB of VRAM (experts 675, dense 111), files read in 0.48 s (1642 MiB/s)
+strata generate: experimental native Q6_K head, 521472000 bytes, in 0.1 s
+strata generate: GPU 0: AMD Radeon RX 7900 XTX (gfx1100)
+prefill gemm: hipBLASLt tuning enabled (48 rows, gfx1100, version 100202)
+strata prefill: warmed the BF16 and FP16 GEMM libraries on GPU 0 in 9 ms (STRATA_PREFILL_WARM=0 skips)
+strata generate: expert arena read through the file cache (buffered (not Windows))
+strata generate: expert arena: cudaHostRegister PORTABLE ok; MAP_HUGETLB unavailable (needed 23983 2 MiB pages, vm.nr_hugepages=0); transparent huge pages are on for every mapping (THP always): MADV_HUGEPAGE not requested
+strata generate: loaded 46.84 GiB at 2.07 GiB/s
+strata generate: GPU host-callback thread started before host-core pinning
+strata generate: CPU pool tasks/phase: 24 (automatic), participating threads: 8
+strata generate: CPU pool: 7 workers by default (8 physical cores, 16 logical processors; bounded by every physical core but the host's)
+strata generate: 7 pool workers on logical processors 1,2,3,4,5,6,7, the host thread on 0 (draining too) (--host-core first)
+strata generate: CPU workers on logical processors 1-7 (7 workers, one per physical core; host on 0)
+strata aux cpus: threads that are neither pool workers nor the host go to CPUs 8 (off at start; a request's aux_cpus=1 turns it on)
+strata: STRATA_HIP_WMMA: the prompt attention on matrix cores on (gfx1100)
+strata generate: expert cache auto: 16.91 GiB free, 576 MiB reserved (+220 MiB for the draft head, +256 MiB for what is allocated after the cache) -> 6406 slots
+strata generate: expert cache 8374 slots, 15.88 GiB of VRAM; policy is
+strata generate: the GPU computes the experts in the cache; it rounds differently from the CPU,
+                 so a reply can differ slightly from a run without the cache (same quality:
+                 bench/results/2026-09-27-cache-parity).
+                 PROFILE, ranked by routing frequency, no eviction.
+strata generate: pre-filled 8374 of 8374 slots from the profile in 2.1 s (8078 MB/s); slot 0 verified
+strata generate: R4 hit path ON - resident experts are computed on the GPU
+strata generate: 7 expert-pool workers + the host thread
+strata generate: session is up (engine 0.1.62)
+strata generate: token graph hit path: 8374 resident experts, decided on the device
+strata: prompt kernels: chunks of 1024 tokens or more run 48 of 48 layers on the fused kernels; shorter chunks run 48 on the staged fused entry.
+strata serve: the prompt path borrows 3481 CUDA0 cache slots (6.57 GiB)
+prefill gemm: hipBLASLt tuning enabled (48 rows, gfx1100, version 100202)
+strata prefill: chunk 24576 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+strata generate: elastic K/V: 16384 of 240384 cells in VRAM (0.21 of 2.46 GiB); the expert cache (8374 slots) gives the K/V room below slot 4893 as the context grows
+strata hc: CUDA0: the hyper-connection read runs as staged (the norm per token and stream, the down projection's activations staged ahead by cp.async); checked bit for bit against the plain read on this card (STRATA_HC_SPLIT=1 or 0 for the earlier ones)
+strata verify: window up to 8 tokens, 87.4 MiB of device buffers
+strata mtp: draft head over 106299 tokens (212.9 MiB)
+strata serve: conversation cache: no SSD tier: its disk cannot be read (No such file or directory)
+strata serve: adaptive overlap: off: not with --adapt-async
+strata serve: adaptive tier asynchronous (--adapt-async 1): up to 160 swaps per round, a round every 1 windows (arena: copy-in only)
+strata serve: 672 MiB of VRAM free with everything loaded
+strata verify: capturing the 1-token window (672 MiB of VRAM free)
+strata verify: captured the 1-token window (upload no error, sync no error) in 304.1 ms
+strata verify: capturing the 2-token window (604 MiB of VRAM free)
+strata verify: captured the 2-token window (upload no error, sync no error) in 9.3 ms
+strata verify: capturing the 3-token window (600 MiB of VRAM free)
+strata verify: captured the 3-token window (upload no error, sync no error) in 7.9 ms
+strata verify: capturing the 4-token window (596 MiB of VRAM free)
+strata verify: captured the 4-token window (upload no error, sync no error) in 11.6 ms
+strata verify: capturing the 5-token window (592 MiB of VRAM free)
+strata verify: captured the 5-token window (upload no error, sync no error) in 9.4 ms
+strata verify: capturing the 6-token window (588 MiB of VRAM free)
+strata verify: captured the 6-token window (upload no error, sync no error) in 11.0 ms
+strata verify: capturing the 7-token window (584 MiB of VRAM free)
+strata verify: captured the 7-token window (upload no error, sync no error) in 11.0 ms
+strata verify: capturing the 8-token window (580 MiB of VRAM free)
+strata verify: captured the 8-token window (upload no error, sync no error) in 11.6 ms
+strata serve: window warm-up: ms per width 1:33 2:40 3:49 4:53 5:72 6:66 7:82 8:89, total 861 ms
+[strata] note: 672 MiB of VRAM free with the model loaded. If this AMD card also drives your desktop and the desktop or apps crash after the start (the driver moves the expert cache to RAM and the OOM killer ends the session), keep more VRAM free: ./setup.sh --vram-reserve-mib 3072 (remembered; the expert cache gets 2.4 GB less, a few % of speed)
+[strata] model aliases: qwen3.8-flash-next-swift15, qwen3.8-moe, swift-1.5, qwen3.8, qwen3
+[strata] slot save/restore on: /home/wuxxin/.cache/user-cache (session files are kept until deleted: about 1.2 GB per 63K-token conversation; restore only files this server wrote)
+[strata] the model unloads after 3600.0 s without requests
+ready: http://127.0.0.1:20080/v1  (OpenAI: /v1/chat/completions, Anthropic: /v1/messages, context 240384 tokens, images on)
+       open http://127.0.0.1:20080/ in a browser to chat; close this window to stop the model
+strata: K/V grown to 147456 cells (1.53 GiB); the expert cache gave 707 slots for it, 233 hotter experts moved to colder ones' slots (7667 of 8374 slots hold experts)
+strata prefill: chunk 23339 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+strata serve: the lent prompt buffers are sized for the request's own short last chunk (tail 0 tokens, not the stream floor's 1023); STRATA_PREFILL_TAIL_LOAN=0 keeps the floor's
+strata: STRATA_PREFILL_ROUTED_STREAM=1: a streamed prompt chunk drops the experts no token routes to before they are copied (at most 16 copies queued ahead of the link)
+strata: prompt experts on the fused int8 kernels (STRATA_PF_FUSED=1, #136)
+strata prefill: QSA layers: norm + rope in one pass on, attention gate in the attention epilogue off
+[strata] reading the prompt: 23,339 of 140,056 tokens, 9 s so far
+[strata] reading the prompt: 46,678 of 140,056 tokens, 18 s so far
+[strata] reading the prompt: 70,017 of 140,056 tokens, 28 s so far
+[strata] reading the prompt: 93,356 of 140,056 tokens, 38 s so far
+[strata] reading the prompt: 116,695 of 140,056 tokens, 47 s so far
+[strata] reading the prompt: 116,695 of 140,056 tokens, 57 s so far
+[strata] thinking: 1 of max 16 tokens, 4.0 tok/s, 59 s
+[strata] done: 16 tokens in 59 s (34.4 tok/s) (length, cancel=False), expert cache 79.8% hit (+1.7% of the routed experts over PCIe)strata serve: prompt 140056 tokens = 0 reused + 140056 read in 58473 ms (2395.2 tok/s), 16 generated in 465 ms (34.4 tok/s), drafts accepted 9 of 16, 6 checkpoints
+
+strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 3 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 79.8% (8657 hits / 10854 lookups); 186 more read by the GPU over PCIe or from another GPU (1.7% of all 11040 routed)
+
+strata serve: asynchronous adaptive tier: 7 rounds, 960 experts swapped in, 58.9 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.14 ms/round)
+strata serve: lookup chain: 0 of 7 windows, 0 of 0 chained drafts accepted
+strata serve: the graphics driver paused the GPU for 355 ms between requests while Linux moved memory the GPU uses
+strata serve: conversation cache: parked 140071 tokens in 384.7 ms; parked=1 bytes=2563996108 evictions=0 snapshot_bytes=2563996108 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 707 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 38 of max 64 tokens, 50.8 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3688 ms (1164.9 tok/s), 64 generated in 1197 ms (53.4 tok/s), drafts accepted 24 of 50, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 87.3% (37495 hits / 42954 lookups); 246 more read by the GPU over PCIe or from another GPU (0.6% of all 43200 routed)
+strata serve: asynchronous adaptive tier: 47 rounds, 2829 experts swapped in, 354.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.10 ms/round)
+strata serve: suffix drafts: 2 windows, 3 of 4 drafts accepted
+strata serve: lookup chain: 0 of 40 windows, 0 of 0 chained drafts accepted
+[strata] done: 64 tokens in 5 s (53.4 tok/s) (length, cancel=False), expert cache 87.3% hit (+0.6% of the routed experts over PCIe)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 25 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 60 of max 64 tokens, 83.1 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (79.6 tok/s) (length, cancel=False), expert cache 94.0% hit (+0.1% of the routed experts over PCIe)
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3280 ms (1890.7 tok/s), 64 generated in 804 ms (79.6 tok/s), drafts accepted 34 of 47, 2 checkpoints
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 94.0% (34687 hits / 36916 lookups); 44 more read by the GPU over PCIe or from another GPU (0.1% of all 36960 routed)
+strata serve: asynchronous adaptive tier: 77 rounds, 3295 experts swapped in, 226.7 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+strata serve: lookup chain: 0 of 30 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 18 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 63 of max 64 tokens, 91.6 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (90.4 tok/s) (length, cancel=False), expert cache 93.3% hit (+0.4% of the routed experts over PCIe)strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3733 ms (2209.9 tok/s), 64 generated in 708 ms (90.4 tok/s), drafts accepted 41 of 50, 3 checkpoints
+
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 93.3% (32542 hits / 34896 lookups); 144 more read by the GPU over PCIe or from another GPU (0.4% of all 35040 routed)
+
+strata serve: asynchronous adaptive tier: 100 rounds, 3840 experts swapped in, 181.6 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 2 of 23 windows, 0 of 4 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 93.0 ms; parked=2 bytes=3269944392 evictions=0 snapshot_bytes=705948284 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 58 of max 64 tokens, 72.9 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3226 ms (1331.8 tok/s), 64 generated in 896 ms (71.4 tok/s), drafts accepted 33 of 49, 1 checkpoints
+strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (71.4 tok/s) (length, cancel=False), expert cache 91.7% hit (+0.7% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 91.7% (34956 hits / 38120 lookups); 280 more read by the GPU over PCIe or from another GPU (0.7% of all 38400 routed)
+
+strata serve: asynchronous adaptive tier: 131 rounds, 4192 experts swapped in, 144.9 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 2 windows, 5 of 11 drafts accepted
+
+strata serve: lookup chain: 0 of 31 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 17 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 60 of max 64 tokens, 84.2 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3285 ms (1887.8 tok/s), 64 generated in 766 ms (83.6 tok/s), drafts accepted 39 of 52, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.5% (34417 hits / 36815 lookups); 145 more read by the GPU over PCIe or from another GPU (0.4% of all 36960 routed)
+[strata] done: 64 tokens in 4 s (83.6 tok/s) (length, cancel=False), expert cache 93.5% hit (+0.4% of the routed experts over PCIe)strata serve: asynchronous adaptive tier: 156 rounds, 4880 experts swapped in, 126.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 11 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 90.1 tok/s, 4 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3741 ms (2205.4 tok/s), 64 generated in 727 ms (88.0 tok/s), drafts accepted 37 of 50, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (88.0 tok/s) (length, cancel=False), expert cache 95.6% hit (+0.1% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 95.6% (35292 hits / 36922 lookups); 38 more read by the GPU over PCIe or from another GPU (0.1% of all 36960 routed)
+strata serve: asynchronous adaptive tier: 183 rounds, 5206 experts swapped in, 111.6 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 27 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: conversation cache: parked 18801 tokens in 106.5 ms; parked=3 bytes=3975729764 evictions=0 snapshot_bytes=705785372 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3238 ms (1326.6 tok/s), 64 generated in 742 ms (86.2 tok/s), drafts accepted 35 of 46, 1 checkpoints
+strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (86.2 tok/s) (length, cancel=False), expert cache 96.2% hit (+0.1% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 96.2% (34591 hits / 35969 lookups); 31 more read by the GPU over PCIe or from another GPU (0.1% of all 36000 routed)
+
+strata serve: asynchronous adaptive tier: 212 rounds, 5475 experts swapped in, 99.6 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 1 windows, 2 of 3 drafts accepted
+
+strata serve: lookup chain: 0 of 29 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 25 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 59 of max 64 tokens, 80.7 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (79.0 tok/s) (length, cancel=False), expert cache 96.0% hit (+0.1% of the routed experts over PCIe)strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3346 ms (1853.7 tok/s), 64 generated in 810 ms (79.0 tok/s), drafts accepted 32 of 49, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: the graphics driver paused the GPU for 134 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+strata serve: decode expert cache hit rate: 96.0% (37310 hits / 38846 lookups); 34 more read by the GPU over PCIe or from another GPU (0.1% of all 38880 routed)
+
+strata serve: asynchronous adaptive tier: 244 rounds, 5777 experts swapped in, 90.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 16 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] done: 64 tokens in 4 s (94.6 tok/s) (length, cancel=False), expert cache 96.5% hit (+0.1% of the routed experts over PCIe)strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3747 ms (2201.6 tok/s), 64 generated in 676 ms (94.6 tok/s), drafts accepted 39 of 49, 3 checkpoints
+
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 96.5% (34239 hits / 35481 lookups); 39 more read by the GPU over PCIe or from another GPU (0.1% of all 35520 routed)
+
+strata serve: asynchronous adaptive tier: 269 rounds, 5980 experts swapped in, 83.9 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 126.4 ms; parked=4 bytes=4681123288 evictions=0 snapshot_bytes=705393524 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 80.3 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (74.9 tok/s) (length, cancel=False), expert cache 94.4% hit (+0.4% of the routed experts over PCIe)
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3261 ms (1317.3 tok/s), 64 generated in 854 ms (74.9 tok/s), drafts accepted 32 of 50, 1 checkpoints
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 94.4% (37012 hits / 39222 lookups); 138 more read by the GPU over PCIe or from another GPU (0.4% of all 39360 routed)
+strata serve: asynchronous adaptive tier: 301 rounds, 6341 experts swapped in, 77.5 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 1 windows, 1 of 1 drafts accepted
+strata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 18 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 54 of max 64 tokens, 75.2 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (76.3 tok/s) (length, cancel=False), expert cache 97.3% hit (+0.1% of the routed experts over PCIe)
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3292 ms (1884.1 tok/s), 64 generated in 838 ms (76.3 tok/s), drafts accepted 31 of 57, 2 checkpoints
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 97.3% (42007 hits / 43166 lookups); 34 more read by the GPU over PCIe or from another GPU (0.1% of all 43200 routed)
+strata serve: asynchronous adaptive tier: 334 rounds, 6579 experts swapped in, 72.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 33 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 19 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 59 of max 64 tokens, 87.0 tok/s, 4 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3752 ms (2198.9 tok/s), 64 generated in 768 ms (83.4 tok/s), drafts accepted 36 of 56, 3 checkpoints
+[strata] done: 64 tokens in 5 s (83.4 tok/s) (length, cancel=False), expert cache 96.1% hit (+0.2% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.1% (38688 hits / 40255 lookups); 65 more read by the GPU over PCIe or from another GPU (0.2% of all 40320 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 362 rounds, 6871 experts swapped in, 68.5 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 1 of 28 windows, 0 of 2 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 126.6 ms; parked=5 bytes=5386483832 evictions=0 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 60 of max 64 tokens, 79.0 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (77.6 tok/s) (length, cancel=False), expert cache 95.7% hit (+0.2% of the routed experts over PCIe)
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3259 ms (1318.2 tok/s), 64 generated in 824 ms (77.6 tok/s), drafts accepted 32 of 49, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 95.7% (37117 hits / 38787 lookups); 93 more read by the GPU over PCIe or from another GPU (0.2% of all 38880 routed)
+strata serve: asynchronous adaptive tier: 394 rounds, 7117 experts swapped in, 64.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+strata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 15 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3291 ms (1884.4 tok/s), 64 generated in 724 ms (88.4 tok/s), drafts accepted 39 of 48, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (88.4 tok/s) (length, cancel=False), expert cache 94.3% hit (+0.4% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 94.3% (32934 hits / 34907 lookups); 133 more read by the GPU over PCIe or from another GPU (0.4% of all 35040 routed)
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 419 rounds, 7448 experts swapped in, 62.5 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 13 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3751 ms (2199.5 tok/s), 64 generated in 674 ms (94.9 tok/s), drafts accepted 39 of 44, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (94.9 tok/s) (length, cancel=False), expert cache 95.5% hit (+0.2% of the routed experts over PCIe)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: decode expert cache hit rate: 95.5% (31544 hits / 33044 lookups); 76 more read by the GPU over PCIe or from another GPU (0.2% of all 33120 routed)
+strata serve: asynchronous adaptive tier: 444 rounds, 7712 experts swapped in, 60.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 215.1 ms; parked=6 bytes=6091844376 evictions=0 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 57 of max 64 tokens, 73.0 tok/s, 4 s
+[strata] done: 64 tokens in 4 s (75.3 tok/s) (length, cancel=False), expert cache 96.0% hit (+0.2% of the routed experts over PCIe)strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3552 ms (1209.4 tok/s), 64 generated in 850 ms (75.3 tok/s), drafts accepted 33 of 60, 1 checkpoints
+
+strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: the graphics driver paused the GPU for 415 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+
+strata serve: decode expert cache hit rate: 96.0% (41816 hits / 43578 lookups); 102 more read by the GPU over PCIe or from another GPU (0.2% of all 43680 routed)
+strata serve: asynchronous adaptive tier: 475 rounds, 7922 experts swapped in, 58.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 31 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 14 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3290 ms (1885.0 tok/s), 64 generated in 709 ms (90.2 tok/s), drafts accepted 38 of 51, 2 checkpoints
+[strata] done: 64 tokens in 4 s (90.2 tok/s) (length, cancel=False), expert cache 96.4% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.4% (35576 hits / 36911 lookups); 49 more read by the GPU over PCIe or from another GPU (0.1% of all 36960 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 501 rounds, 8248 experts swapped in, 56.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+strata serve: lookup chain: 0 of 26 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 9 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3758 ms (2195.1 tok/s), 64 generated in 678 ms (94.4 tok/s), drafts accepted 38 of 44, 3 checkpoints
+[strata] done: 64 tokens in 4 s (94.4 tok/s) (length, cancel=False), expert cache 96.3% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.3% (32330 hits / 33555 lookups); 45 more read by the GPU over PCIe or from another GPU (0.1% of all 33600 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 527 rounds, 8422 experts swapped in, 54.4 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 26 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 208.4 ms; parked=7 bytes=6797237900 evictions=0 snapshot_bytes=705393524 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 59 of max 64 tokens, 76.7 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3342 ms (1285.6 tok/s), 64 generated in 820 ms (78.1 tok/s), drafts accepted 31 of 51, 1 checkpoints
+[strata] done: 64 tokens in 4 s (78.1 tok/s) (length, cancel=False), expert cache 96.7% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 96.7% (38972 hits / 40298 lookups); 22 more read by the GPU over PCIe or from another GPU (0.1% of all 40320 routed)
+strata serve: asynchronous adaptive tier: 560 rounds, 8668 experts swapped in, 52.5 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 33 windows, 0 of 0 chained drafts accepted
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 18 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 55 of max 64 tokens, 77.2 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3293 ms (1883.7 tok/s), 64 generated in 822 ms (77.9 tok/s), drafts accepted 32 of 55, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (77.9 tok/s) (length, cancel=False), expert cache 97.0% hit (+0.1% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 97.0% (40480 hits / 41728 lookups); 32 more read by the GPU over PCIe or from another GPU (0.1% of all 41760 routed)
+
+strata serve: asynchronous adaptive tier: 592 rounds, 8895 experts swapped in, 50.9 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 11 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 64 of max 64 tokens, 92.8 tok/s, 4 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3767 ms (2190.0 tok/s), 64 generated in 709 ms (90.3 tok/s), drafts accepted 38 of 49, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (90.3 tok/s) (length, cancel=False), expert cache 95.9% hit (+0.2% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 95.9% (34443 hits / 35922 lookups); 78 more read by the GPU over PCIe or from another GPU (0.2% of all 36000 routed)
+
+strata serve: asynchronous adaptive tier: 618 rounds, 9128 experts swapped in, 49.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: lookup chain: 1 of 26 windows, 0 of 1 chained drafts accepted
+
+strata serve: conversation cache: parked 18801 tokens in 212.1 ms; parked=8 bytes=7502631424 evictions=0 snapshot_bytes=705393524 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 64 of max 64 tokens, 83.5 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3348 ms (1283.3 tok/s), 64 generated in 786 ms (81.5 tok/s), drafts accepted 34 of 43, 1 checkpoints
+strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (81.5 tok/s) (length, cancel=False), expert cache 94.5% hit (+0.4% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 94.5% (32972 hits / 34905 lookups); 135 more read by the GPU over PCIe or from another GPU (0.4% of all 35040 routed)
+
+strata serve: asynchronous adaptive tier: 648 rounds, 9435 experts swapped in, 48.4 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 1 windows, 1 of 1 drafts accepted
+
+strata serve: lookup chain: 0 of 30 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 11 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 33 of max 64 tokens, 45.0 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3293 ms (1883.2 tok/s), 64 generated in 1132 ms (56.5 tok/s), drafts accepted 37 of 40, 2 checkpoints
+[strata] done: 64 tokens in 4 s (56.5 tok/s) (length, cancel=False), expert cache 95.8% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: the graphics driver paused the GPU for 849 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 95.8% (30787 hits / 32121 lookups); 39 more read by the GPU over PCIe or from another GPU (0.1% of all 32160 routed)
+
+strata serve: asynchronous adaptive tier: 675 rounds, 9649 experts swapped in, 48.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 27 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 10 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 57 of max 64 tokens, 83.4 tok/s, 4 s
+[strata] done: 64 tokens in 5 s (78.8 tok/s) (length, cancel=False), expert cache 97.3% hit (+0.1% of the routed experts over PCIe)strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3758 ms (2195.2 tok/s), 64 generated in 812 ms (78.8 tok/s), drafts accepted 32 of 53, 3 checkpoints
+
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 97.3% (39652 hits / 40773 lookups); 27 more read by the GPU over PCIe or from another GPU (0.1% of all 40800 routed)
+
+strata serve: asynchronous adaptive tier: 707 rounds, 9850 experts swapped in, 47.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 97.8 ms; parked=8 bytes=5644028840 evictions=1 snapshot_bytes=705393524 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 59 of max 64 tokens, 76.6 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3251 ms (1321.5 tok/s), 64 generated in 832 ms (77.0 tok/s), drafts accepted 34 of 45, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (77.0 tok/s) (length, cancel=False), expert cache 93.1% hit (+0.5% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 93.1% (33327 hits / 35811 lookups); 189 more read by the GPU over PCIe or from another GPU (0.5% of all 36000 routed)
+
+strata serve: asynchronous adaptive tier: 737 rounds, 10137 experts swapped in, 46.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+
+strata serve: lookup chain: 0 of 30 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 17 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 84.2 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3293 ms (1883.3 tok/s), 64 generated in 744 ms (86.0 tok/s), drafts accepted 34 of 49, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (86.0 tok/s) (length, cancel=False), expert cache 97.8% hitstrata serve: decode expert cache hit rate: 97.8% (37076 hits / 37903 lookups); 17 more read by the GPU over PCIe or from another GPU (0.0% of all 37920 routed)
+
+strata serve: asynchronous adaptive tier: 767 rounds, 10416 experts swapped in, 45.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: lookup chain: 0 of 30 windows, 0 of 0 chained drafts accepted
+
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 9 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3764 ms (2192.0 tok/s), 64 generated in 685 ms (93.4 tok/s), drafts accepted 39 of 50, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (93.4 tok/s) (length, cancel=False), expert cache 96.4% hit (+0.2% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 96.4% (34651 hits / 35932 lookups); 68 more read by the GPU over PCIe or from another GPU (0.2% of all 36000 routed)
+
+strata serve: asynchronous adaptive tier: 792 rounds, 10618 experts swapped in, 44.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: lookup chain: 2 of 25 windows, 2 of 3 chained drafts accepted
+
+strata: K/V grown to 147456 cells (1.53 GiB); the expert cache gave 660 slots for it, 232 hotter experts moved to colder ones' slots (7627 of 8374 slots hold experts)
+strata serve: conversation cache: parked 18801 tokens in 98.8 ms; parked=8 bytes=5643441100 evictions=2 snapshot_bytes=705360544 reused_kv_bytes=0
+strata prefill: chunk 23339 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 23,339 of 140,072 tokens, 8 s so far
+[strata] reading the prompt: 46,678 of 140,072 tokens, 17 s so far
+[strata] reading the prompt: 70,017 of 140,072 tokens, 25 s so far
+[strata] reading the prompt: 93,356 of 140,072 tokens, 34 s so far
+[strata] reading the prompt: 116,695 of 140,072 tokens, 43 s so far
+[strata] reading the prompt: 140,030 of 140,072 tokens, 52 s so far
+[strata] reading the prompt: 140,067 of 140,072 tokens, 53 s so far
+strata serve: prompt 140072 tokens = 0 reused + 140072 read in 53341 ms (2626.0 tok/s), 1 generated in 25 ms (40.8 tok/s), drafts accepted 0 of 0, 6 checkpoints
+strata serve: checkpoint pool: this request took 7 checkpoints ready from the pool and allocated 4 fresh
+[strata] done: 1 tokens in 53 s (no speed) (length, cancel=False), expert cache 93.3% hitstrata serve: the graphics driver paused the GPU for 250 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+
+strata serve: decode expert cache hit rate: 93.3% (448 hits / 480 lookups)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: asynchronous adaptive tier: 793 rounds, 10619 experts swapped in, 44.4 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 1 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 140072 tokens in 359.7 ms; parked=8 bytes=7501658048 evictions=3 snapshot_bytes=2564002320 reused_kv_bytes=0
+[strata] reading the prompt: 23,339 of 140,056 tokens, 9 s so far
+[strata] reading the prompt: 46,678 of 140,056 tokens, 17 s so far
+[strata] reading the prompt: 70,017 of 140,056 tokens, 26 s so far
+[strata] reading the prompt: 93,356 of 140,056 tokens, 34 s so far
+[strata] reading the prompt: 116,695 of 140,056 tokens, 44 s so far
+[strata] reading the prompt: 140,030 of 140,056 tokens, 53 s so far
+[strata] thinking: 11 of max 16 tokens, 44.0 tok/s, 54 s
+strata serve: prompt 140056 tokens = 0 reused + 140056 read in 53577 ms (2614.1 tok/s), 16 generated in 275 ms (58.2 tok/s), drafts accepted 7 of 16, 6 checkpoints
+strata serve: checkpoint pool: this request took 8 checkpoints ready from the pool and allocated 3 fresh
+[strata] done: 16 tokens in 54 s (58.2 tok/s) (length, cancel=False), expert cache 93.4% hit (+0.1% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 93.4% (11194 hits / 11988 lookups); 12 more read by the GPU over PCIe or from another GPU (0.1% of all 12000 routed)
+
+strata serve: asynchronous adaptive tier: 802 rounds, 11617 experts swapped in, 44.5 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: lookup chain: 0 of 9 windows, 0 of 0 chained drafts accepted
+
+strata serve: the graphics driver paused the GPU for 299 ms between requests while Linux moved memory the GPU uses
+strata serve: conversation cache: parked 140071 tokens in 819.2 ms; parked=8 bytes=9360260632 evictions=4 snapshot_bytes=2563996108 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 747 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 4 s so far
+[strata] thinking: 52 of max 64 tokens, 67.5 tok/s, 5 s
+[strata] done: 64 tokens in 5 s (69.8 tok/s) (length, cancel=False), expert cache 93.9% hit (+0.2% of the routed experts over PCIe)strata serve: prompt 4296 tokens = 0 reused + 4296 read in 4103 ms (1047.0 tok/s), 64 generated in 917 ms (69.8 tok/s), drafts accepted 28 of 49, 1 checkpoints
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.9% (38219 hits / 40705 lookups); 95 more read by the GPU over PCIe or from another GPU (0.2% of all 40800 routed)
+strata serve: asynchronous adaptive tier: 838 rounds, 12174 experts swapped in, 61.6 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 2 windows, 3 of 6 drafts accepted
+strata serve: lookup chain: 0 of 36 windows, 0 of 0 chained drafts accepted
+
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 9 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 57 of max 64 tokens, 78.7 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3285 ms (1887.9 tok/s), 64 generated in 825 ms (77.6 tok/s), drafts accepted 31 of 53, 2 checkpoints
+[strata] done: 64 tokens in 4 s (77.6 tok/s) (length, cancel=False), expert cache 96.7% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 96.7% (39888 hits / 41253 lookups); 27 more read by the GPU over PCIe or from another GPU (0.1% of all 41280 routed)
+
+strata serve: asynchronous adaptive tier: 871 rounds, 12426 experts swapped in, 60.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+
+strata serve: lookup chain: 0 of 33 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 6 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3752 ms (2198.9 tok/s), 64 generated in 689 ms (92.9 tok/s), drafts accepted 39 of 49, 3 checkpoints
+[strata] done: 64 tokens in 4 s (92.9 tok/s) (length, cancel=False), expert cache 95.9% hit (+0.2% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: decode expert cache hit rate: 95.9% (34005 hits / 35449 lookups); 71 more read by the GPU over PCIe or from another GPU (0.2% of all 35520 routed)
+strata serve: asynchronous adaptive tier: 896 rounds, 12696 experts swapped in, 59.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 90.4 ms; parked=8 bytes=9361221796 evictions=5 snapshot_bytes=706321708 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 62 of max 64 tokens, 79.3 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3233 ms (1328.9 tok/s), 64 generated in 800 ms (80.0 tok/s), drafts accepted 34 of 44, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.7% (33158 hits / 35372 lookups); 148 more read by the GPU over PCIe or from another GPU (0.4% of all 35520 routed)
+[strata] done: 64 tokens in 4 s (80.0 tok/s) (length, cancel=False), expert cache 93.7% hit (+0.4% of the routed experts over PCIe)strata serve: asynchronous adaptive tier: 926 rounds, 13005 experts swapped in, 58.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: suffix drafts: 1 windows, 1 of 1 drafts accepted
+strata serve: lookup chain: 0 of 30 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 14 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 85.4 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3288 ms (1886.4 tok/s), 64 generated in 765 ms (83.6 tok/s), drafts accepted 37 of 48, 2 checkpoints
+[strata] done: 64 tokens in 4 s (83.6 tok/s) (length, cancel=False), expert cache 94.1% hit (+0.4% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 94.1% (33748 hits / 35871 lookups); 129 more read by the GPU over PCIe or from another GPU (0.4% of all 36000 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 953 rounds, 13449 experts swapped in, 57.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 27 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 12 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 55 of max 64 tokens, 80.4 tok/s, 4 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3765 ms (2191.5 tok/s), 64 generated in 805 ms (79.5 tok/s), drafts accepted 35 of 50, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 5 s (79.5 tok/s) (length, cancel=False), expert cache 94.3% hit (+0.3% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 94.3% (35641 hits / 37807 lookups); 113 more read by the GPU over PCIe or from another GPU (0.3% of all 37920 routed)
+
+strata serve: asynchronous adaptive tier: 982 rounds, 13902 experts swapped in, 56.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 2 windows, 2 of 3 drafts accepted
+
+strata serve: lookup chain: 0 of 29 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 98.8 ms; parked=8 bytes=9361613372 evictions=6 snapshot_bytes=705752120 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 60 of max 64 tokens, 78.1 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3312 ms (1297.2 tok/s), 64 generated in 820 ms (78.0 tok/s), drafts accepted 32 of 49, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+strata serve: the graphics driver paused the GPU for 165 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+strata serve: decode expert cache hit rate: 95.6% (37131 hits / 38835 lookups); 45 more read by the GPU over PCIe or from another GPU (0.1% of all 38880 routed)
+strata serve: asynchronous adaptive tier: 1014 rounds, 14193 experts swapped in, 55.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+[strata] done: 64 tokens in 4 s (78.0 tok/s) (length, cancel=False), expert cache 95.6% hit (+0.1% of the routed experts over PCIe)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 13 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3293 ms (1883.3 tok/s), 64 generated in 711 ms (90.0 tok/s), drafts accepted 36 of 43, 2 checkpoints
+[strata] done: 64 tokens in 4 s (90.0 tok/s) (length, cancel=False), expert cache 96.6% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.6% (32914 hits / 34056 lookups); 24 more read by the GPU over PCIe or from another GPU (0.1% of all 34080 routed)
+strata serve: asynchronous adaptive tier: 1042 rounds, 14398 experts swapped in, 54.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 28 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 14 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 63 of max 64 tokens, 92.6 tok/s, 4 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3773 ms (2186.8 tok/s), 64 generated in 700 ms (91.4 tok/s), drafts accepted 37 of 45, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (91.4 tok/s) (length, cancel=False), expert cache 96.5% hit (+0.1% of the routed experts over PCIe)
+strata serve: decode expert cache hit rate: 96.5% (33291 hits / 34515 lookups); 45 more read by the GPU over PCIe or from another GPU (0.1% of all 34560 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 1069 rounds, 14586 experts swapped in, 53.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 1 of 27 windows, 0 of 1 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 91.4 ms; parked=8 bytes=9361580392 evictions=7 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 79.0 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3256 ms (1319.4 tok/s), 64 generated in 861 ms (74.4 tok/s), drafts accepted 31 of 48, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (74.4 tok/s) (length, cancel=False), expert cache 94.3% hit (+0.3% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 94.3% (36572 hits / 38765 lookups); 115 more read by the GPU over PCIe or from another GPU (0.3% of all 38880 routed)
+strata serve: asynchronous adaptive tier: 1102 rounds, 14927 experts swapped in, 52.4 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 33 windows, 0 of 0 chained drafts accepted
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 14 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3294 ms (1882.8 tok/s), 64 generated in 717 ms (89.3 tok/s), drafts accepted 38 of 47, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (89.3 tok/s) (length, cancel=False), expert cache 95.1% hit (+0.2% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 95.1% (33243 hits / 34953 lookups); 87 more read by the GPU over PCIe or from another GPU (0.2% of all 35040 routed)
+
+strata serve: asynchronous adaptive tier: 1128 rounds, 15244 experts swapped in, 51.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 2 windows, 3 of 5 drafts accepted
+
+strata serve: lookup chain: 0 of 26 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 13 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] done: 64 tokens in 4 s (94.5 tok/s) (length, cancel=False), expert cache 95.6% hit (+0.2% of the routed experts over PCIe)strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3774 ms (2186.1 tok/s), 64 generated in 677 ms (94.5 tok/s), drafts accepted 39 of 46, 3 checkpoints
+
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 95.6% (32510 hits / 34014 lookups); 66 more read by the GPU over PCIe or from another GPU (0.2% of all 34080 routed)
+
+strata serve: asynchronous adaptive tier: 1153 rounds, 15482 experts swapped in, 51.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 91.0 ms; parked=8 bytes=9361547412 evictions=8 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3268 ms (1314.7 tok/s), 64 generated in 760 ms (84.2 tok/s), drafts accepted 36 of 49, 1 checkpoints
+strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (84.2 tok/s) (length, cancel=False), expert cache 94.8% hit (+0.3% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 94.8% (34924 hits / 36848 lookups); 112 more read by the GPU over PCIe or from another GPU (0.3% of all 36960 routed)
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: asynchronous adaptive tier: 1181 rounds, 15710 experts swapped in, 50.6 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+strata serve: lookup chain: 0 of 28 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 9 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 60 of max 64 tokens, 79.2 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3297 ms (1881.3 tok/s), 64 generated in 778 ms (82.3 tok/s), drafts accepted 43 of 47, 2 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (82.3 tok/s) (length, cancel=False), expert cache 93.6% hit (+0.5% of the routed experts over PCIe)strata serve: the graphics driver paused the GPU for 257 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+
+strata serve: decode expert cache hit rate: 93.6% (30402 hits / 32488 lookups); 152 more read by the GPU over PCIe or from another GPU (0.5% of all 32640 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: asynchronous adaptive tier: 1202 rounds, 16088 experts swapped in, 50.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 1 windows, 4 of 4 drafts accepted
+strata serve: lookup chain: 0 of 21 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 11 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3786 ms (2179.4 tok/s), 64 generated in 663 ms (96.5 tok/s), drafts accepted 39 of 45, 3 checkpoints
+[strata] done: 64 tokens in 4 s (96.5 tok/s) (length, cancel=False), expert cache 96.4% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.4% (32351 hits / 33563 lookups); 37 more read by the GPU over PCIe or from another GPU (0.1% of all 33600 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: asynchronous adaptive tier: 1227 rounds, 16284 experts swapped in, 49.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 25 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 108.8 ms; parked=8 bytes=9361514432 evictions=9 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 57 of max 64 tokens, 75.0 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3283 ms (1308.6 tok/s), 64 generated in 854 ms (74.9 tok/s), drafts accepted 33 of 48, 1 checkpoints
+[strata] done: 64 tokens in 4 s (75.0 tok/s) (length, cancel=False), expert cache 93.3% hit (+0.4% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.3% (35242 hits / 37780 lookups); 140 more read by the GPU over PCIe or from another GPU (0.4% of all 37920 routed)
+
+strata serve: asynchronous adaptive tier: 1258 rounds, 16807 experts swapped in, 49.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 31 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 8 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3296 ms (1881.6 tok/s), 64 generated in 656 ms (97.6 tok/s), drafts accepted 42 of 48, 2 checkpoints
+[strata] done: 64 tokens in 4 s (97.6 tok/s) (length, cancel=False), expert cache 94.6% hit (+0.4% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 94.6% (31647 hits / 33456 lookups); 144 more read by the GPU over PCIe or from another GPU (0.4% of all 33600 routed)
+
+strata serve: asynchronous adaptive tier: 1280 rounds, 17002 experts swapped in, 48.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 1 windows, 5 of 7 drafts accepted
+strata serve: lookup chain: 1 of 22 windows, 0 of 1 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 13 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3784 ms (2180.3 tok/s), 64 generated in 640 ms (100.1 tok/s), drafts accepted 40 of 45, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (100.0 tok/s) (length, cancel=False), expert cache 96.6% hit (+0.1% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 96.6% (31957 hits / 33082 lookups); 38 more read by the GPU over PCIe or from another GPU (0.1% of all 33120 routed)
+
+strata serve: asynchronous adaptive tier: 1304 rounds, 17218 experts swapped in, 48.4 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: lookup chain: 1 of 24 windows, 0 of 1 chained drafts accepted
+
+strata serve: conversation cache: parked 18801 tokens in 93.9 ms; parked=8 bytes=9361514432 evictions=10 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3260 ms (1317.9 tok/s), 64 generated in 729 ms (87.8 tok/s), drafts accepted 35 of 44, 1 checkpoints
+[strata] done: 64 tokens in 4 s (87.8 tok/s) (length, cancel=False), expert cache 96.2% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.2% (33688 hits / 35003 lookups); 37 more read by the GPU over PCIe or from another GPU (0.1% of all 35040 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: asynchronous adaptive tier: 1333 rounds, 17429 experts swapped in, 47.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 29 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 3 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 54 of max 64 tokens, 75.3 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3295 ms (1882.1 tok/s), 64 generated in 844 ms (75.8 tok/s), drafts accepted 32 of 61, 2 checkpoints
+[strata] done: 64 tokens in 4 s (75.8 tok/s) (length, cancel=False), expert cache 96.8% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 96.8% (43169 hits / 44599 lookups); 41 more read by the GPU over PCIe or from another GPU (0.1% of all 44640 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 1365 rounds, 17710 experts swapped in, 47.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 32 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 4 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 86.7 tok/s, 5 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3782 ms (2181.1 tok/s), 64 generated in 745 ms (85.9 tok/s), drafts accepted 36 of 49, 3 checkpoints
+[strata] done: 64 tokens in 5 s (85.9 tok/s) (length, cancel=False), expert cache 96.0% hit (+0.1% of the routed experts over PCIe)
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 96.0% (35454 hits / 36923 lookups); 37 more read by the GPU over PCIe or from another GPU (0.1% of all 36960 routed)
+
+strata serve: asynchronous adaptive tier: 1393 rounds, 17929 experts swapped in, 46.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 28 windows, 0 of 0 chained drafts accepted
+strata serve: conversation cache: parked 18801 tokens in 96.3 ms; parked=8 bytes=7502872656 evictions=11 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 62 of max 64 tokens, 82.6 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3249 ms (1322.1 tok/s), 64 generated in 770 ms (83.1 tok/s), drafts accepted 35 of 46, 1 checkpoints
+strata serve: checkpoint pool: this request took 4 checkpoints ready from the pool and allocated 0 fresh
+[strata] done: 64 tokens in 4 s (83.1 tok/s) (length, cancel=False), expert cache 95.0% hit (+0.3% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 95.0% (34078 hits / 35880 lookups); 120 more read by the GPU over PCIe or from another GPU (0.3% of all 36000 routed)
+
+strata serve: asynchronous adaptive tier: 1422 rounds, 18168 experts swapped in, 46.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: suffix drafts: 1 windows, 1 of 3 drafts accepted
+
+strata serve: lookup chain: 0 of 29 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 7 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 58 of max 64 tokens, 80.0 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3292 ms (1883.9 tok/s), 64 generated in 806 ms (79.4 tok/s), drafts accepted 33 of 51, 2 checkpoints
+[strata] done: 64 tokens in 4 s (79.4 tok/s) (length, cancel=False), expert cache 96.3% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 96.3% (37857 hits / 39301 lookups); 59 more read by the GPU over PCIe or from another GPU (0.1% of all 39360 routed)
+
+strata serve: asynchronous adaptive tier: 1453 rounds, 18466 experts swapped in, 45.7 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 31 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 9 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 4 s so far
+[strata] thinking: 63 of max 64 tokens, 92.3 tok/s, 5 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3904 ms (2113.3 tok/s), 64 generated in 726 ms (88.2 tok/s), drafts accepted 36 of 43, 3 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: the graphics driver paused the GPU for 187 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+strata serve: decode expert cache hit rate: 96.1% (32676 hits / 34012 lookups); 68 more read by the GPU over PCIe or from another GPU (0.2% of all 34080 routed)
+[strata] done: 64 tokens in 5 s (88.2 tok/s) (length, cancel=False), expert cache 96.1% hit (+0.2% of the routed experts over PCIe)strata serve: asynchronous adaptive tier: 1481 rounds, 18722 experts swapped in, 45.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 28 windows, 0 of 0 chained drafts accepted
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answer
+strata serve: conversation cache: parked 18801 tokens in 87.2 ms; parked=8 bytes=5644237092 evictions=12 snapshot_bytes=705360544 reused_kv_bytes=0
+strata: K/V trimmed to 8192 cells; 87 slots back to the expert cache, refilled from the profile
+strata prefill: chunk 4352 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 4,291 of 4,296 tokens, 3 s so far
+[strata] thinking: 61 of max 64 tokens, 80.8 tok/s, 4 s
+strata serve: prompt 4296 tokens = 0 reused + 4296 read in 3349 ms (1283.0 tok/s), 64 generated in 814 ms (78.6 tok/s), drafts accepted 31 of 41, 1 checkpoints
+[strata] done: 64 tokens in 4 s (78.6 tok/s) (length, cancel=False), expert cache 95.7% hit (+0.3% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 5 checkpoints ready from the pool and allocated 0 fresh
+
+strata serve: the graphics driver paused the GPU for 224 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 95.7% (33901 hits / 35427 lookups); 93 more read by the GPU over PCIe or from another GPU (0.3% of all 35520 routed)
+
+strata serve: asynchronous adaptive tier: 1514 rounds, 19000 experts swapped in, 44.8 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 33 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 16384 cells (0.21 GiB); the expert cache gave 44 slots for it, 18 hotter experts moved to colder ones' slots (8330 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 4291)
+strata prefill: chunk 6400 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 10,488 of 10,493 tokens, 3 s so far
+[strata] thinking: 62 of max 64 tokens, 84.0 tok/s, 4 s
+strata serve: prompt 10493 tokens = 4291 reused + 6202 read in 3297 ms (1881.1 tok/s), 64 generated in 758 ms (84.5 tok/s), drafts accepted 33 of 44, 2 checkpoints
+[strata] done: 64 tokens in 4 s (84.5 tok/s) (length, cancel=False), expert cache 97.4% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 97.4% (35048 hits / 35978 lookups); 22 more read by the GPU over PCIe or from another GPU (0.1% of all 36000 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 1545 rounds, 19145 experts swapped in, 44.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: lookup chain: 0 of 31 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 24576 cells (0.29 GiB); the expert cache gave 43 slots for it, 7 hotter experts moved to colder ones' slots (8287 of 8374 slots hold experts)
+strata serve: conversation cache: the reply this request replaces is not parked (68 tokens past the turn checkpoint at 10488)
+strata prefill: chunk 8448 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 18,733 of 18,738 tokens, 3 s so far
+[strata] thinking: 60 of max 64 tokens, 88.1 tok/s, 4 s
+strata serve: prompt 18738 tokens = 10488 reused + 8250 read in 3781 ms (2182.0 tok/s), 64 generated in 773 ms (82.8 tok/s), drafts accepted 37 of 44, 3 checkpoints
+[strata] done: 64 tokens in 5 s (82.8 tok/s) (length, cancel=False), expert cache 93.0% hit (+0.4% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 93.0% (31549 hits / 33927 lookups); 153 more read by the GPU over PCIe or from another GPU (0.4% of all 34080 routed)
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: asynchronous adaptive tier: 1572 rounds, 19560 experts swapped in, 44.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: suffix drafts: 1 windows, 1 of 2 drafts accepted
+strata serve: lookup chain: 0 of 27 windows, 0 of 0 chained drafts accepted
+strata: K/V grown to 147456 cells (1.53 GiB); the expert cache gave 660 slots for it, 176 hotter experts moved to colder ones' slots (7627 of 8374 slots hold experts)
+strata serve: conversation cache: parked 18801 tokens in 90.8 ms; parked=8 bytes=5643275928 evictions=13 snapshot_bytes=705360544 reused_kv_bytes=0
+strata prefill: chunk 23339 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+[strata] reading the prompt: 23,339 of 140,072 tokens, 8 s so far
+[strata] reading the prompt: 46,678 of 140,072 tokens, 17 s so far
+[strata] reading the prompt: 70,017 of 140,072 tokens, 26 s so far
+[strata] reading the prompt: 93,356 of 140,072 tokens, 35 s so far
+[strata] reading the prompt: 116,695 of 140,072 tokens, 44 s so far
+[strata] reading the prompt: 140,030 of 140,072 tokens, 53 s so far
+strata serve: prompt 140072 tokens = 0 reused + 140072 read in 54061 ms (2591.0 tok/s), 1 generated in 24 ms (41.5 tok/s), drafts accepted 0 of 0, 6 checkpoints
+strata serve: checkpoint pool: this request took 7 checkpoints ready from the pool and allocated 4 fresh
+[strata] done: 1 tokens in 54 s (no speed) (length, cancel=False), expert cache 96.7% hitstrata serve: the graphics driver paused the GPU for 526 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+
+[strata] the reply reached max tokens while still thinking, so it has no answer: a thinking budget (reasoning_budget_tokens, in the request or in strata-<model>.json for every request) leaves room to answerstrata serve: decode expert cache hit rate: 96.7% (464 hits / 480 lookups)
+
+strata serve: asynchronous adaptive tier: 1573 rounds, 19570 experts swapped in, 44.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: lookup chain: 0 of 1 windows, 0 of 0 chained drafts accepted
+
+[strata] stopping (Ctrl+C again to end the engine at once) ...
+strata serve: expert profile saved to /home/wuxxin/.local/state/strata/local-chat-strata-profile.bin (exit)
+[strata] stopped

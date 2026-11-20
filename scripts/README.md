@@ -5,6 +5,9 @@
 - **[sandbox-ctl](sandbox-ctl)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
 - **[antigravity-launcher.sh](antigravity-launcher.sh)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
 - **[run-local-benchmark.py](run-local-benchmark.py)**: Automate running and recording local service benchmarks (chat, completion, embedding, rerank, STT, TTS, image) across configurations.
+- **[strata-baseline-cells.sh](strata-baseline-cells.sh)**: Capture paired strata benchmark cells (`omp bench` Oracle A/B against the live chat service) with per-cell journal slices and a README skeleton for `research/bench-results/`.
+- **[strata-launcher.py](strata-launcher.py)**: runtime half of the strata service — `assistants/local-chat-strata.sh install` copies it next to the unit as `~/.config/systemd/user/local-chat-strata-launcher.py`. Supervises the engine (start, readiness, idle unload, SIGUSR1/2 save-restore, CLEAR_CACHE); it builds no argv and reads no knobs, because `generate_config_json()` owns both.
+- **[strata-park-lab.py](strata-park-lab.py)**: Oracle D park-churn driver (plan §5) — warms a ~120k-token conversation, fires K prefix-sharing subagent conversations, then probes the main conversation and records reuse %, TTFT and `/metrics` refusal deltas per arm (A–E).
 - **[local-router.py](local-router.py)**: Combined local inference router application serving unified OpenAI-compatible routes, token tracking, estimated cost metrics, and Prometheus scrapable endpoints.
 - **[scripts/test/](test/)**: Automated test suite directory housing integration and benchmark test scripts (`test-local-router-usage.py`, `local-memory-test.py`, `test_fim_perf.py`).
 - **[tiktoken_count.py](tiktoken_count.py)** / **[tiktoken_tps_sim.py](tiktoken_tps_sim.py)**: Calibrates timeout thresholds and measures token counts of input texts using OpenAI-compatible counts.
@@ -55,6 +58,21 @@ Documentation: [antigravity-launcher.md](antigravity-launcher.md)
 A Python automation script to run local service benchmarks (chat, completion, embedding, rerank, STT, TTS, image) across configurations (HIP, Vulkan, CPU, special) and write a comparative markdown report.
 
 Documentation: [run-local-benchmark.md](run-local-benchmark.md)
+
+
+## `strata-baseline-cells.sh`
+
+Runs the strata benchmark cells defined in `research/strata-tuning.md` §12.7 (Oracle A = sustained decode, Oracle B = deep-context cold prefill) with `omp bench` against the **running** chat service on 20080, then records per-cell journal slices, exit codes and durations into `research/bench-results/<out>/raw/` plus a generated README (hardware line from `/v1/status`, config identity from the generator script's SHA-256).
+
+```bash
+# From an isolated session whose model is NOT the local model under test
+# (Pulse stopped, bridge/hooks disabled) - see strata-v0.2.16-adoption-plan.md §7 step 0:
+./scripts/strata-baseline-cells.sh --out <UTC-date>-gfx1100-<engine>-cells \
+    --background "pulse stopped; bridge off; driver = deepseek-v4-flash"
+# Options: --cells A,B (default both) · --force (re-run existing cell outputs)
+```
+
+Pre-strata note: `run-local-benchmark.py` has no strata awareness (its chat service targets `llama-server` on 20080), so it stays a box-continuity check; use this script for paired engine A/B.
 
 
 ## `tiktoken_count.py`

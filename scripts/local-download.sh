@@ -3,6 +3,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Installed Strata layout (override for non-standard installs)
+STRATA_TOOLS_DIR="${STRATA_TOOLS_DIR:-/usr/share/strata/terminal/tools}"
+STRATA_DATA_DIR="${STRATA_DATA_DIR:-/usr/share/strata/terminal/data}"
+# DFlash2 lives with the model it drafts for: <target>/strata/swift15_iq3s/dflash2
+# (resolved after the target dir is known; override with LCHAT_STRATA_DFLASH2_DIR)
+DFLASH2_DIR="${LCHAT_STRATA_DFLASH2_DIR:-}"
+# Provenance stays outside the model tree by default (the tree may be mounted read-only)
+PROVENANCE_FILE="${LCHAT_STRATA_PROVENANCE:-${XDG_DATA_HOME:-$HOME/.local/share}/strata/PROVENANCE.json}"
+
 target_dir=""
 download_all=false
 download_llm=false
@@ -17,7 +27,8 @@ download_projections=false
 download_strata=false
 download_strata_shards=false
 download_strata_aux=false
-download_dspark=false
+download_strata_dflash2=false
+verify_provenance=false
 # Wrapper for hf to catch click.exceptions.Exit on python 3.14
 hf() {
     python3 -c '
@@ -60,9 +71,12 @@ Options:
   --benchmark-context, --benchmark Build the benchmark-context.md file using downloaded skills
   --strata          Download both Strata Qwen3.8-Flash-Next model shards and all auxiliary runtime files
   --strata-shards, --strata-model Download only the massive Strata model shards (~84 GB)
-  --strata-additional, --strata-aux Download all Strata auxiliary files (vision, MTP, DSpark, projections, chat template, tokenizer runtime) without huge shards
+  --strata-additional, --strata-aux Download all Strata auxiliary files (vision, MTP, DFlash2, projections, chat template, tokenizer runtime) without huge shards
+  --strata-dflash2  Download the Qwen3.8-Flash-Next DFlash2 drafter and build its q4_0 pack (included in --strata-aux)
   --projections, --strata-projections Download all Strata experimental speed projection and control vector files
-  --dspark          Download the Qwen3.8-Flash-Next DSpark speculative drafter
+  --verify-provenance Verify recorded Strata file hashes against the provenance file (no downloads)
+                      (default: \${XDG_DATA_HOME:-\$HOME/.local/share}/strata/PROVENANCE.json,
+                       override with LCHAT_STRATA_PROVENANCE)
   -h, --help        Show this help message and exit
 
 Examples:
@@ -316,6 +330,118 @@ hf_to_mlc() {
     fi
 }
 
+# record_provenance <target_path> <repo> <revision>
+# Writes/updates the sha256 + size entry for a fetched file in
+# ${PROVENANCE_FILE} (default: ${XDG_DATA_HOME:-$HOME/.local/share}/strata/
+# PROVENANCE.json; the model tree under /data/public is read-only). Paths
+# outside target_dir are stored absolute (DFlash2 lives in the user data dir).
+# Entries whose size, repo and revision are unchanged are left as-is so
+# multi-GB shards are not re-hashed on every run.
+record_provenance() {
+    local recorded_path="$1"
+    local repo="$2"
+    local revision="$3"
+    local rel_path="${recorded_path#"${target_dir}/"}"
+    local prov_file="$PROVENANCE_FILE"
+
+    ensure_real_dir "$(dirname "$prov_file")"
+
+    python3 - "$prov_file" "$rel_path" "$repo" "$revision" "$recorded_path" <<'PY'
+import datetime
+import hashlib
+import json
+import os
+import sys
+
+prov_file, rel_path, repo, revision, file_path = sys.argv[1:6]
+try:
+    with open(prov_file, encoding="utf-8") as fh:
+        data = json.load(fh)
+except FileNotFoundError:
+    data = {}
+
+files = data.setdefault("files", {})
+size = os.path.getsize(file_path)
+entry = files.get(rel_path)
+if (
+    entry
+    and entry.get("sha256")
+    and entry.get("size") == size
+    and entry.get("repo") == repo
+    and entry.get("revision") == revision
+):
+    sys.exit(0)
+
+digest = hashlib.sha256()
+with open(file_path, "rb") as fh:
+    for chunk in iter(lambda: fh.read(8 * 1024 * 1024), b""):
+        digest.update(chunk)
+
+files[rel_path] = {
+    "repo": repo,
+    "revision": revision,
+    "sha256": digest.hexdigest(),
+    "size": size,
+    "downloaded_at": datetime.datetime.now(
+        datetime.timezone.utc
+    ).replace(microsecond=0).isoformat(),
+}
+tmp_path = prov_file + ".tmp"
+with open(tmp_path, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+os.replace(tmp_path, prov_file)
+PY
+}
+
+# verify_provenance_files -> nonzero on any sha256 mismatch (no downloads)
+verify_provenance_files() {
+    local prov_file="$PROVENANCE_FILE"
+    if [[ ! -f "$prov_file" ]]; then
+        echo "No provenance file at $prov_file; nothing to verify."
+        return 0
+    fi
+
+    python3 - "$prov_file" "$target_dir" <<'PY'
+import hashlib
+import json
+import os
+import sys
+
+prov_file, target_dir = sys.argv[1:3]
+with open(prov_file, encoding="utf-8") as fh:
+    files = json.load(fh).get("files", {})
+if not files:
+    print(f"No recorded files in {prov_file}.")
+    sys.exit(0)
+
+mismatched = 0
+missing = 0
+verified = 0
+for rel_path in sorted(files):
+    recorded = files[rel_path]
+    path = rel_path if os.path.isabs(rel_path) else os.path.join(target_dir, rel_path)
+    if not os.path.isfile(path):
+        print(f"MISSING  {path}")
+        missing += 1
+        continue
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    actual = digest.hexdigest()
+    if actual != recorded.get("sha256"):
+        print(f"MISMATCH {path}: recorded {recorded.get('sha256')}, actual {actual}")
+        mismatched += 1
+    else:
+        print(f"OK       {path}")
+        verified += 1
+
+print(f"Provenance: {verified} verified, {mismatched} mismatched, {missing} missing")
+sys.exit(1 if mismatched else 0)
+PY
+}
+
 main() {
     # Check arguments
     if [[ $# -lt 1 ]]; then
@@ -382,7 +508,7 @@ main() {
             download_strata_shards=true
             download_strata_aux=true
             download_projections=true
-            download_dspark=true
+            download_strata_dflash2=true
             shift
             ;;
         --strata-shards | --strata-model)
@@ -392,11 +518,15 @@ main() {
         --strata-additional | --strata-aux)
             download_strata_aux=true
             download_projections=true
-            download_dspark=true
+            download_strata_dflash2=true
             shift
             ;;
-        --dspark)
-            download_dspark=true
+        --strata-dflash2)
+            download_strata_dflash2=true
+            shift
+            ;;
+        --verify-provenance)
+            verify_provenance=true
             shift
             ;;
         *)
@@ -407,8 +537,8 @@ main() {
         esac
     done
 
-    if [[ "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false && "$download_strata_shards" == false && "$download_strata_aux" == false && "$download_dspark" == false ]]; then
-        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata, --strata-shards, --strata-additional, --dspark)." >&2
+    if [[ "$verify_provenance" == false && "$download_all" == false && "$download_llm" == false && "$download_embedding" == false && "$download_reranker" == false && "$download_stt" == false && "$download_tts" == false && "$download_image" == false && "$download_completion" == false && "$download_benchmark" == false && "$download_projections" == false && "$download_strata" == false && "$download_strata_shards" == false && "$download_strata_aux" == false && "$download_strata_dflash2" == false ]]; then
+        echo "Error: No models or tasks specified. Please use --all or select specific models/tasks (--llm, --embedding, --reranker, --speech-to-text, --text-to-speech, --image, --completion, --benchmark-context, --projections, --strata, --strata-shards, --strata-additional, --strata-dflash2, --verify-provenance)." >&2
         exit 1
     fi
 
@@ -425,13 +555,21 @@ main() {
         download_strata=true
         download_strata_shards=true
         download_strata_aux=true
-        download_dspark=true
+        download_strata_dflash2=true
     fi
 
     # Resolve absolute target path
     target_dir="$(mkdir -p "$target_dir" && cd "$target_dir" && pwd)"
 
     echo "Target directory: $target_dir"
+
+    if [[ "$verify_provenance" == true ]]; then
+        if verify_provenance_files; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
 
     # 1. Vision-Text (LLM)
 
@@ -1046,10 +1184,10 @@ snapshot_download(
             "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-projection.gguf" \
             "${proj_dir}/Qwen3.8-Flash-Next-refusal-projection.gguf"
 
-        acquire_file \
-            "strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf" \
-            "https://huggingface.co/Cudecnik/Qwen3.8-Flash-Next-refusal-projection/resolve/main/Qwen3.8-Flash-Next-refusal-projection.gguf" \
-            "${proj_dir}/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+        # The experimental speed projection is not published in the Cudecnik HF
+        # repo (the only repo named for it); the package ships the canonical
+        # file under ${STRATA_DATA_DIR}/experimental-speed-projection/. The only
+        # supported override is LCHAT_STRATA_ESP, so there is nothing to fetch.
 
         acquire_file \
             "strata/projections/Qwen3.8-Flash-Next-refusal-projection.json" \
@@ -1097,16 +1235,20 @@ snapshot_download(
         ensure_real_dir "${strata_dir}/models/swift-IQ3_S"
 
         # Shard 1 (Dense + Experts ~55 GB)
+        local shard1_path="${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
         acquire_file \
             "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
-            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
-            "${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/99bb8f7/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf" \
+            "$shard1_path"
+        record_provenance "$shard1_path" "ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF" "99bb8f7"
 
         # Shard 2 (PLE n-gram table ~28.8 GB)
+        local shard2_path="${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
         acquire_file \
             "strata/swift15_iq3s/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
-            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
-            "${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/99bb8f7/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf" \
+            "$shard2_path"
+        record_provenance "$shard2_path" "ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF" "99bb8f7"
     fi
 
     # 9b. Strata Auxiliary Files & Runtimes
@@ -1115,19 +1257,21 @@ snapshot_download(
         ensure_real_dir "${strata_dir}/models"
         ensure_real_dir "${strata_dir}/mtp"
         ensure_real_dir "${strata_dir}/packs"
-        ensure_real_dir "${strata_dir}/dspark"
 
         # Vision Projector (BF16)
+        local mmproj_path="${strata_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
         acquire_file \
             "strata/swift15_iq3s/mmproj-Qwen3.8-Flash-Next-BF16.gguf" \
-            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf" \
-            "${strata_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
+            "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/99bb8f7/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf" \
+            "$mmproj_path"
+        record_provenance "$mmproj_path" "ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF" "99bb8f7"
 
         # MTP Speculative Drafter weights
         acquire_file \
             "strata/swift15_iq3s/mtp-q2_0.gguf" \
-            "https://huggingface.co/SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF/resolve/main/mtp-q2_0.gguf" \
+            "https://huggingface.co/SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF/resolve/3db919a9/mtp-q2_0.gguf" \
             "${strata_dir}/mtp/mtp-q2_0.gguf"
+        record_provenance "${strata_dir}/mtp/mtp-q2_0.gguf" "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF" "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3"
 
         # Qwen3.8 Fixed Community Chat Template (froggeric v22.5)
         acquire_file \
@@ -1136,24 +1280,13 @@ snapshot_download(
             "${target_dir}/strata/Qwen3.8-chat_template.jinja"
         ln -sfn "../Qwen3.8-chat_template.jinja" "${strata_dir}/Qwen3.8-chat_template.jinja"
 
-        # DSpark Speculative Drafter
-        local dspark_dir="${strata_dir}/dspark"
-        acquire_file \
-            "strata/swift15_iq3s/dspark/model.safetensors" \
-            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/model.safetensors" \
-            "${dspark_dir}/model.safetensors"
-        acquire_file \
-            "strata/swift15_iq3s/dspark/config.json" \
-            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/config.json" \
-            "${dspark_dir}/config.json"
-
         # MTP Runtime Preparation
         local mtp_gguf="${strata_dir}/mtp/mtp-q2_0.gguf"
         local mtp_rt_dir="${strata_dir}/mtp/rt"
         if [[ -s "$mtp_gguf" && ! -s "${mtp_rt_dir}/experts.bin" ]]; then
             echo "=== Preparing Strata MTP Runtime via mtp_rt.py ==="
             ensure_real_dir "$mtp_rt_dir"
-            local mtp_rt_tool="${STRATA_TOOLS_DIR:-/usr/share/strata/tools}/mtp_rt.py"
+            local mtp_rt_tool="${STRATA_TOOLS_DIR}/mtp_rt.py"
             if [[ -f "$mtp_rt_tool" ]]; then
                 python3 "$mtp_rt_tool" --gguf "$mtp_gguf" --out "$mtp_rt_dir"
             else
@@ -1161,20 +1294,22 @@ snapshot_download(
             fi
         fi
 
-        # Draft Vocab Setup
-        local draft_vocab_src="${STRATA_DATA_DIR:-/usr/share/strata/data}/draft_vocab.bin"
-        if [[ -f "$draft_vocab_src" && ! -s "${mtp_rt_dir}/draft_vocab.bin" ]]; then
-            echo "=== Copying MTP draft vocabulary subset ==="
-            ensure_real_dir "$mtp_rt_dir"
-            cp --remove-destination "$draft_vocab_src" "${mtp_rt_dir}/draft_vocab.bin"
-        fi
+        # Draft Vocab Setup (base + shipped language variants)
+        for draft_vocab in draft_vocab.bin draft_vocab_en.bin draft_vocab_fr.bin draft_vocab_latin.bin draft_vocab_cyrillic.bin; do
+            local draft_vocab_src="${STRATA_DATA_DIR}/${draft_vocab}"
+            if [[ -f "$draft_vocab_src" && ! -s "${mtp_rt_dir}/${draft_vocab}" ]]; then
+                echo "=== Copying MTP draft vocabulary subset ${draft_vocab} ==="
+                ensure_real_dir "$mtp_rt_dir"
+                cp --remove-destination "$draft_vocab_src" "${mtp_rt_dir}/${draft_vocab}"
+            fi
+        done
 
         # Strata Native Pack Preparation (if Shard 1 is present)
         local shard1_path="${strata_dir}/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
         if [[ -s "$shard1_path" && ! -s "${pack_dir}/native_experts.txt" ]]; then
             echo "=== Preparing Strata Native Pack via iq_pack.py ==="
             ensure_real_dir "$pack_dir"
-            local iq_pack_tool="${STRATA_TOOLS_DIR:-/usr/share/strata/tools}/iq_pack.py"
+            local iq_pack_tool="${STRATA_TOOLS_DIR}/iq_pack.py"
             if [[ -f "$iq_pack_tool" ]]; then
                 python3 "$iq_pack_tool" --gguf "$shard1_path" --out "$pack_dir"
             else
@@ -1204,21 +1339,60 @@ snapshot_download(
         fi
     fi
 
-    # 10. Standalone DSpark Speculative Drafter (if requested without --strata-aux)
-    if [[ "$download_dspark" == true && "$download_strata_aux" == false ]]; then
-        echo "=== Acquiring Qwen3.8-Flash-Next DSpark Speculative Drafter ==="
-        local dspark_dir="${strata_dir}/dspark"
-        ensure_real_dir "$dspark_dir"
+    # 10. Strata DFlash2 Speculative Drafter
+    if [[ "$download_strata_dflash2" == true ]]; then
+        echo "=== Acquiring Qwen3.8-Flash-Next DFlash2 Drafter ==="
+        if [[ -z "$DFLASH2_DIR" ]]; then
+            DFLASH2_DIR="${target_dir}/strata/swift15_iq3s/dflash2"
+        fi
+        ensure_real_dir "$DFLASH2_DIR"
+        echo "DFlash2 target: ${DFLASH2_DIR}"
+
+        # Pinned upstream revision validated by the engine
+        local dflash2_repo="incoai/Qwen3.8-Flash-Next-DFlash2"
+        local dflash2_rev="a22a174"
+        local dflash2_model="${DFLASH2_DIR}/model.safetensors"
+        local dflash2_pack="${DFLASH2_DIR}/qwen3.8-flash-next-dflash2.q4_0.pack"
 
         acquire_file \
-            "strata/swift15_iq3s/dspark/model.safetensors" \
-            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/model.safetensors" \
-            "${dspark_dir}/model.safetensors"
+            "strata/dflash2/config.json" \
+            "https://huggingface.co/${dflash2_repo}/resolve/${dflash2_rev}/config.json" \
+            "${DFLASH2_DIR}/config.json"
 
         acquire_file \
-            "strata/swift15_iq3s/dspark/config.json" \
-            "https://huggingface.co/shadowpa0327/Qwen3.8-Flash-Next-DSpark/resolve/main/config.json" \
-            "${dspark_dir}/config.json"
+            "strata/dflash2/model.safetensors" \
+            "https://huggingface.co/${dflash2_repo}/resolve/${dflash2_rev}/model.safetensors" \
+            "$dflash2_model"
+
+        local dflash2_size
+        dflash2_size="$(stat -c%s "$dflash2_model")"
+        if [[ "$dflash2_size" != "1206140008" ]]; then
+            echo "Error: ${dflash2_model} has unexpected size ${dflash2_size} B (expected 1206140008 B)." >&2
+            exit 1
+        fi
+
+        record_provenance "${DFLASH2_DIR}/config.json" "$dflash2_repo" "$dflash2_rev"
+        record_provenance "$dflash2_model" "$dflash2_repo" "$dflash2_rev"
+
+        # Pack into the q4_0 runtime format expected by the engine
+        if [[ -s "$dflash2_pack" ]]; then
+            echo "DFlash2 pack already exists: $dflash2_pack (Skipping)"
+        else
+            local dflash2_pack_tool="${STRATA_TOOLS_DIR}/dflash2_pack.py"
+            if [[ -f "$dflash2_pack_tool" ]]; then
+                echo "=== Packing DFlash2 drafter into $dflash2_pack ==="
+                python3 "$dflash2_pack_tool" "$dflash2_model" "${DFLASH2_DIR}/config.json" "$dflash2_pack" --q4_0
+            else
+                echo "Warning: dflash2_pack.py not found at $dflash2_pack_tool; skipping DFlash2 pack." >&2
+            fi
+        fi
+
+        # Provenance/license shipped with the package
+        for f in LICENSE NOTICE.md; do
+            if [[ -f "${STRATA_DATA_DIR}/dflash2-tuned/${f}" ]]; then
+                cp -f "${STRATA_DATA_DIR}/dflash2-tuned/${f}" "${DFLASH2_DIR}/${f}"
+            fi
+        done
     fi
 
     echo "=== All requested model downloads/conversions completed. ==="

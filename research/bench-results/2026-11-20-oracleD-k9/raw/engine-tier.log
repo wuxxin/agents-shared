@@ -1,0 +1,45 @@
+[strata] sampling defaults from the config: temperature=0.6, repetition_penalty=1.1, top_p=0.95, top_k=20, presence_penalty=0.0
+loading the vision encoder ...
+strata-vision: own tower (qwen3vl_merger, 27 layers, width 1152) loaded in 0.5 s, on the GPU
+strata-vision: warmed up at 1024 image tokens in 0.8 s, 956 MiB of GPU memory
+loading the model (the first start takes a minute or two) ...
+[strata] engine priority: nice +5 (this PC has built-in Radeon graphics that usually draw the desktop; STRATA_ENGINE_NICE=0 turns it off)
+[strata] memory: 6.3 GiB of the ZFS ARC is counted as available RAM (ZFS gives it back when programs need it; #5519)
+strata generate: memory guard: limit 117.8 GiB (source: meminfo), current 15.7 GiB, reclaimable cache credited 0.0 GiB; available 102.1 GiB (MemAvailable 102.1 GiB), floor 6144 MiB
+strata generate: CPU expert kernels: AVX-2
+strata generate: native pack: /data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s experts (largest blob 2.66 MB), token embedding IQ4_XS in mapped host memory (322 MiB, 0.7 s)
+strata generate: 1466 MiB of weights loaded from /data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s in 0.6 s (302 canonical tensors skipped: served natively)
+strata generate: 300 native projection matrices, 2018.88 MiB of weights, in 3.0 s
+strata generate: control vector mode = project, dir = per-layer, layers 4..44 (41 steered)
+strata generate: PLE table locked in RAM (--ple-io ram) in 2.1 s
+strata generate: profile /usr/share/strata/terminal/data/expert-profile.bin: 24576 ranked pairs, built for 24576 slots
+strata generate: PLE on, table 320001536 rows of /data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf
+strata mtp: draft layer loaded, 833 MiB of VRAM (experts 675, dense 111), files read in 0.59 s (1322 MiB/s)
+strata generate: experimental native Q6_K head, 521472000 bytes, in 0.5 s
+strata generate: GPU 0: AMD Radeon RX 7900 XTX (gfx1100)
+prefill gemm: hipBLASLt tuning enabled (48 rows, gfx1100, version 100202)
+strata prefill: warmed the BF16 and FP16 GEMM libraries on GPU 0 in 9 ms (STRATA_PREFILL_WARM=0 skips)
+Traceback (most recent call last):
+  File "/home/wuxxin/.config/systemd/user/local-chat-strata-launcher.py", line 296, in <module>
+    sys.exit(strata_server.main())
+             ~~~~~~~~~~~~~~~~~~^^
+  File "/usr/share/strata/terminal/serve/server.py", line 8073, in main
+    return _main(argv, lifecycle_event=lifecycle_event, interrupt_exit_code=interrupt_exit_code)
+  File "/usr/share/strata/terminal/serve/server.py", line 8411, in _main
+    engine = start_engine_or_fallback(cfg, exe, effort_end, env, lazy, tok, offline=a.offline, batch_telemetry=a.batch_telemetry)
+  File "/usr/share/strata/terminal/serve/server.py", line 7857, in start_engine_or_fallback
+    return StrataEngine(exe, engine_args(cfg, exe) + (effort_end or []), cwd=cfg.get("cwd"), log=cfg.get("log"), env=env, lazy=lazy,
+                        retry_args=mtp_retry_args(cfg, exe, effort_end), retry_vram_args=nodraft_retry_args(cfg, exe, effort_end))
+  File "/usr/share/strata/terminal/serve/server.py", line 826, in __init__
+    line = ready_q.get(timeout=left)
+  File "/usr/lib/python3.14/queue.py", line 210, in get
+    self.not_empty.wait(remaining)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 373, in wait
+    gotit = waiter.acquire(True, timeout)
+  File "/usr/share/strata/terminal/serve/lifeline.py", line 326, in handler
+    request_stop(reason)
+    ~~~~~~~~~~~~^^^^^^^^
+  File "/usr/share/strata/terminal/serve/server.py", line 8196, in request_stop
+    raise KeyboardInterrupt
+KeyboardInterrupt

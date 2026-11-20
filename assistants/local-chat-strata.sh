@@ -23,8 +23,10 @@ TUNING_TABLE_FILE="${STRATA_STATE_DIR}/${SERVICE_NAME}-hipblaslt.txt"
 STRATA_ENGINE_BIN="${STRATA_ENGINE_BIN:-/usr/lib/strata/engine/strata}"
 STRATA_VISION_BIN="${STRATA_VISION_BIN:-/usr/lib/strata/engine/strata-vision-hip}"
 STRATA_VISION_CPU_BIN="${STRATA_VISION_CPU_BIN:-/usr/lib/strata/engine/strata-vision}"
-STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/serve/server.py}"
-export STRATA_DEFAULT_MODEL_DIR="${LCHAT_STRATA_MODEL_DIR:-${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/swift15_iq3s}"
+STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/terminal/serve/server.py}"
+export STRATA_MODELS_DIR="${LCHAT_STRATA_MODEL_DIR:-${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/swift15_iq3s}"
+export STRATA_TOOLS_DIR="${STRATA_TOOLS_DIR:-/usr/share/strata/terminal/tools}"
+export STRATA_DATA_DIR="${STRATA_DATA_DIR:-/usr/share/strata/terminal/data}"
 
 # Hardware, ROCm, and Strata Execution Tuning Constants (AMD Navi 31 / RX 7900 XTX)
 export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
@@ -77,10 +79,10 @@ export STRATA_SPEC_COST=1
 export STRATA_FUSE_HEAD_GR=1
 export STRATA_NORM_ROPE=1
 export HSA_USERPTR_FOR_PAGED_MEM=1
-export STRATA_ROUTE_TAIL_SKIP=7
 export PYTHONUNBUFFERED=1
 export STRATA_REQUEST_LINES=1
 export STRATA_MEMORY_LIMIT_MIB=0
+export STRATA_SLOT_RAM_RESERVE_GIB="${STRATA_SLOT_RAM_RESERVE_GIB:-8}"
 export STRATA_RESIDENT_HEADROOM_GIB=0
 export STRATA_SH_STREAM=0
 export STRATA_ARENA_RELEASE=0
@@ -119,11 +121,14 @@ load_env() {
     local env_lchat_conv_min_free="${LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB:-}"
     local env_lchat_conv_min_tokens="${LCHAT_STRATA_CONV_CACHE_MIN_TOKENS:-}"
     local env_lchat_conv_park_gain="${LCHAT_STRATA_CONV_CACHE_PARK_GAIN:-}"
+    local env_lchat_conv_spill_dir="${LCHAT_STRATA_CONV_SPILL_DIR:-}"
+    local env_lchat_conv_spill_mib="${LCHAT_STRATA_CONV_SPILL_MIB:-}"
     local env_lchat_spec="${LCHAT_STRATA_SPEC:-}"
     local env_lchat_spec_min_p="${LCHAT_STRATA_SPEC_MIN_P:-}"
     local env_lchat_suffix_draft="${LCHAT_STRATA_SUFFIX_DRAFT:-}"
     local env_lchat_lookup_chain="${LCHAT_STRATA_LOOKUP_CHAIN:-}"
     local env_lchat_drafting="${LCHAT_STRATA_DRAFTING:-}"
+    local env_lchat_draft_model="${LCHAT_STRATA_DRAFT_MODEL:-}"
     local env_lchat_adapt_async="${LCHAT_STRATA_ADAPT_ASYNC:-}"
     local env_lchat_adapt_every="${LCHAT_STRATA_ADAPT_EVERY:-}"
     local env_lchat_adapt_swaps="${LCHAT_STRATA_ADAPT_SWAPS:-}"
@@ -141,7 +146,6 @@ load_env() {
     local env_lchat_aliases="${LCHAT_STRATA_ALIASES:-}"
     local env_lchat_extra_args="${LCHAT_STRATA_EXTRA_ARGS:-}"
     local env_lchat_idle_unload="${LCHAT_STRATA_IDLE_UNLOAD:-}"
-    local env_lchat_disk_spill="${LCHAT_STRATA_DISK_SPILL:-}"
     local env_lchat_user_cache_max_gib="${LCHAT_STRATA_USER_CACHE_MAX_GIB:-}"
     local env_lchat_user_cache_max_age_days="${LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS:-}"
 
@@ -158,8 +162,11 @@ load_env() {
     local def_pack="${base_m_dir}/packs/swift-iq3_s"
     local def_mmproj="${base_m_dir}/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"
     local def_mtp="${base_m_dir}/mtp/rt"
-    local def_esp="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
-    [[ ! -f "$def_esp" ]] && def_esp="/usr/share/strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+    # Prefer the package's canonical copy (identical bytes to the HF refusal
+    # projection, by upstream design); the model-dir copy is the legacy fallback
+    # for hosts where the terminal/data tree is absent.
+    local def_esp="${STRATA_DATA_DIR}/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+    [[ ! -f "$def_esp" ]] && def_esp="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 
     # Default model files (clean un-ablated Swift 1.5 GSQ-RCO)
     LCHAT_STRATA_MODEL="$def_model"
@@ -187,6 +194,8 @@ load_env() {
     LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=6144
     LCHAT_STRATA_CONV_CACHE_MIN_TOKENS=4096
     LCHAT_STRATA_CONV_CACHE_PARK_GAIN=2048
+    LCHAT_STRATA_CONV_SPILL_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/user-cache/conv-spill"
+    LCHAT_STRATA_CONV_SPILL_MIB=24576
     LCHAT_STRATA_SPEC=4
     LCHAT_STRATA_SPEC_MIN_P=0.58
     LCHAT_STRATA_SUFFIX_DRAFT=3
@@ -206,7 +215,6 @@ load_env() {
     LCHAT_STRATA_SPEED="faster"
     LCHAT_STRATA_EXPERT_PROFILE_SAVE="${STRATA_STATE_DIR}/${SERVICE_NAME}-profile.bin"
     LCHAT_STRATA_IDLE_UNLOAD=3600
-    LCHAT_STRATA_DISK_SPILL=0
     LCHAT_STRATA_USER_CACHE_MAX_GIB=25
     LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS=3
     # Default vision settings
@@ -223,7 +231,7 @@ load_env() {
     # Binaries and script paths
     STRATA_ENGINE_BIN="${STRATA_ENGINE_BIN:-/usr/lib/strata/engine/strata}"
     STRATA_VISION_BIN="${STRATA_VISION_BIN:-/usr/lib/strata/engine/strata-vision-hip}"
-    STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/serve/server.py}"
+    STRATA_SERVER_SCRIPT="${STRATA_SERVER_SCRIPT:-/usr/share/strata/terminal/serve/server.py}"
 
     # Source the env file if present
     if [[ -f "$ENV_FILE" ]]; then
@@ -260,11 +268,14 @@ load_env() {
     LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB="${env_lchat_conv_min_free:-${LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB}}"
     LCHAT_STRATA_CONV_CACHE_MIN_TOKENS="${env_lchat_conv_min_tokens:-${LCHAT_STRATA_CONV_CACHE_MIN_TOKENS}}"
     LCHAT_STRATA_CONV_CACHE_PARK_GAIN="${env_lchat_conv_park_gain:-${LCHAT_STRATA_CONV_CACHE_PARK_GAIN}}"
+    LCHAT_STRATA_CONV_SPILL_DIR="${env_lchat_conv_spill_dir:-${LCHAT_STRATA_CONV_SPILL_DIR}}"
+    LCHAT_STRATA_CONV_SPILL_MIB="${env_lchat_conv_spill_mib:-${LCHAT_STRATA_CONV_SPILL_MIB}}"
     LCHAT_STRATA_SPEC="${env_lchat_spec:-${LCHAT_STRATA_SPEC}}"
     LCHAT_STRATA_SPEC_MIN_P="${env_lchat_spec_min_p:-${LCHAT_STRATA_SPEC_MIN_P}}"
     LCHAT_STRATA_SUFFIX_DRAFT="${env_lchat_suffix_draft:-${LCHAT_STRATA_SUFFIX_DRAFT}}"
     LCHAT_STRATA_LOOKUP_CHAIN="${env_lchat_lookup_chain:-${LCHAT_STRATA_LOOKUP_CHAIN}}"
     LCHAT_STRATA_DRAFTING="${env_lchat_drafting:-${LCHAT_STRATA_DRAFTING}}"
+    LCHAT_STRATA_DRAFT_MODEL="${env_lchat_draft_model:-${LCHAT_STRATA_DRAFT_MODEL:-}}"
     LCHAT_STRATA_ADAPT_ASYNC="${env_lchat_adapt_async:-${LCHAT_STRATA_ADAPT_ASYNC}}"
     LCHAT_STRATA_ADAPT_EVERY="${env_lchat_adapt_every:-${LCHAT_STRATA_ADAPT_EVERY}}"
     LCHAT_STRATA_ADAPT_SWAPS="${env_lchat_adapt_swaps:-${LCHAT_STRATA_ADAPT_SWAPS}}"
@@ -286,7 +297,6 @@ load_env() {
     LCHAT_STRATA_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS}}"
     LCHAT_STRATA_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_STRATA_EXTRA_ARGS}}"
     LCHAT_STRATA_IDLE_UNLOAD="${env_lchat_idle_unload:-${LCHAT_STRATA_IDLE_UNLOAD}}"
-    LCHAT_STRATA_DISK_SPILL="${env_lchat_disk_spill:-${LCHAT_STRATA_DISK_SPILL}}"
     LCHAT_STRATA_USER_CACHE_MAX_GIB="${env_lchat_user_cache_max_gib:-${LCHAT_STRATA_USER_CACHE_MAX_GIB}}"
     LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS="${env_lchat_user_cache_max_age_days:-${LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS}}"
 }
@@ -416,6 +426,8 @@ pack = get_env("LCHAT_STRATA_PACK")
 mmproj = get_env("LCHAT_STRATA_MMPROJ")
 mtp = get_env("LCHAT_STRATA_MTP")
 mtp_vocab = get_env("LCHAT_STRATA_MTP_VOCAB")
+drafting = get_env("LCHAT_STRATA_DRAFTING", "mtp").strip().lower()
+draft_model = get_env("LCHAT_STRATA_DRAFT_MODEL", "").strip()
 esp = get_env("LCHAT_STRATA_ESP")
 esp_scale = get_env("LCHAT_STRATA_ESP_SCALE", "1.0")
 esp_layers_str = get_env("LCHAT_STRATA_ESP_LAYERS", "4 44")
@@ -437,6 +449,37 @@ if not mmproj:
     mmproj = os.path.join(base_dir, "models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf")
 if not mtp:
     mtp = os.path.join(base_dir, "mtp/rt")
+
+# DFlash2 block drafter: --draft dflash2 --draft-model PACK, needs --spec >= 2 and
+# --mtp DIR only for DIR/draft_vocab.bin (generate.cpp:1161-1162, 6204). A missing or
+# unstartable DFlash2 is fatal at engine start, so fall back to MTP instead.
+if drafting == "dflash2" and not draft_model:
+    dflash_dir = os.path.join(base_dir, "dflash2")
+    if os.path.isdir(dflash_dir):
+        packs = [os.path.join(dflash_dir, f) for f in sorted(os.listdir(dflash_dir)) if f.endswith(".pack")]
+        preferred = [p for p in packs if ".strata1." in os.path.basename(p)]
+        preferred += [p for p in packs if "selq4" in os.path.basename(p) and p not in preferred]
+        draft_model = (preferred + packs)[0] if (preferred or packs) else ""
+if drafting == "dflash2" and not (draft_model and os.path.isfile(draft_model)):
+    print(
+        "[strata-launcher] DFlash2 requested but no usable pack found ("
+        + (draft_model or "none")
+        + ") — run tools/dflash2_pack.py first; falling back to MTP",
+        file=sys.stderr,
+    )
+    drafting = "mtp"
+if drafting == "dflash2":
+    try:
+        spec_n = int(get_env("LCHAT_STRATA_SPEC", "4"))
+    except ValueError:
+        spec_n = 4
+    if spec_n < 2:
+        print(f"[strata-launcher] DFlash2 needs --spec >= 2 (got {spec_n}); using 2", file=sys.stderr)
+        spec_n = 2
+    drafting_spec = str(spec_n)
+else:
+    drafting_spec = get_env("LCHAT_STRATA_SPEC", "4")
+
 engine_args = [
     "--native", model,
     "--native-dense-gguf", model,
@@ -454,7 +497,7 @@ engine_args.extend([
     "--conversation-cache-min-tokens", get_env("LCHAT_STRATA_CONV_CACHE_MIN_TOKENS", "4096"),
     "--conversation-cache-park-gain", get_env("LCHAT_STRATA_CONV_CACHE_PARK_GAIN", "2048"),
     "--max-context", get_env("LCHAT_STRATA_MAX_CONTEXT", "240384"),
-    "--spec", get_env("LCHAT_STRATA_SPEC", "4"),
+    "--spec", drafting_spec,
     "--spec-min-p", get_env("LCHAT_STRATA_SPEC_MIN_P", "0.58"),
     "--suffix-draft", get_env("LCHAT_STRATA_SUFFIX_DRAFT", "3"),
     "--lookup-chain", get_env("LCHAT_STRATA_LOOKUP_CHAIN", "2"),
@@ -468,9 +511,15 @@ engine_args.extend([
     "--ple-io", get_env("LCHAT_STRATA_PLE_IO", "ram"),
     "--ple-gguf", model,
 ])
-disk_spill = get_env("LCHAT_STRATA_DISK_SPILL", "0").lower() in ("true", "1", "yes", "on")
-if disk_spill:
-    engine_args.append("--disk-spill")
+conv_spill_dir = get_env("LCHAT_STRATA_CONV_SPILL_DIR", "").strip()
+if conv_spill_dir:
+    conv_spill_dir = os.path.expanduser(os.path.expandvars(conv_spill_dir))
+    if conv_spill_dir.startswith("%h/"):
+        conv_spill_dir = os.path.join(os.path.expanduser("~"), conv_spill_dir[3:])
+    engine_args.extend([
+        "--conversation-spill-dir", conv_spill_dir,
+        "--conversation-spill-mib", get_env("LCHAT_STRATA_CONV_SPILL_MIB", "24576"),
+    ])
 kv_grow = get_env("LCHAT_STRATA_KV_GROW", "true").lower() in ("true", "1", "yes")
 kv_resident = int(get_env("LCHAT_STRATA_KV_RESIDENT", "0") or "0")
 if kv_grow:
@@ -483,6 +532,29 @@ if mtp:
     engine_args.extend(["--mtp", mtp])
 if mtp_vocab:
     engine_args.extend(["--mtp-draft-vocab", mtp_vocab])
+if drafting == "dflash2":
+    engine_args.extend(["--draft", "dflash2", "--draft-model", draft_model])
+if esp:
+    if not os.path.isfile(esp):
+        # A missing control vector is fatal at engine start; fall back to the
+        # other known location, then to "ESP off" rather than brick the unit.
+        alt = [
+            os.path.join(
+                os.environ.get("STRATA_DATA_DIR", "/usr/share/strata/terminal/data"),
+                "experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf",
+            ),
+            os.path.join(
+                os.environ.get("LOCAL_MODELS_DIR", "/data/public/machine-learning/models"),
+                "strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf",
+            ),
+        ]
+        found = next((c for c in alt if os.path.isfile(c)), "")
+        if found:
+            print(f"[strata-launcher] ESP {esp} missing; using {found}", file=sys.stderr)
+            esp = found
+        else:
+            print(f"[strata-launcher] ESP {esp} missing and no fallback found; ESP disabled", file=sys.stderr)
+            esp = ""
 if esp:
     l_start = esp_layers[0] if len(esp_layers) > 0 else "4"
     l_end = esp_layers[1] if len(esp_layers) > 1 else "44"
@@ -497,7 +569,7 @@ if not profile:
     for cand in [
         os.path.join(base_dir, "expert-profile.bin"),
         os.path.join(base_dir, "data/expert-profile.bin"),
-        "/usr/share/strata/data/expert-profile.bin",
+        os.path.join(get_env("STRATA_DATA_DIR", "/usr/share/strata/terminal/data"), "expert-profile.bin"),
     ]:
         if os.path.exists(cand):
             profile = cand
@@ -538,17 +610,23 @@ cfg = {
     "tokenizer": tok_path,
     "model_name": alias,
     "aliases": aliases,
-    "arch": "qwen",
+    "arch": "qwen4exp",
     "backend": "hip",
     "idle_unload_s": float(get_env("LCHAT_STRATA_IDLE_UNLOAD", "3600")),
-    "drafting": get_env("LCHAT_STRATA_DRAFTING", "mtp"),
+    "drafting": drafting,
     "sampling": {
         "temperature": float(get_env("LCHAT_STRATA_TEMPERATURE", "0.6")),
         "repetition_penalty": float(get_env("LCHAT_STRATA_REPEAT_PENALTY", "1.1")),
         "top_p": float(get_env("LCHAT_STRATA_TOP_P", "0.95")),
         "top_k": int(get_env("LCHAT_STRATA_TOP_K", "20")),
+        "presence_penalty": 0.0,
     },
 }
+# "parallel" (engine batch slots) is emitted only when explicitly raised; a value
+# of 1 keeps the single-slot config byte-identical (server.py:3418).
+_parallel = get_env("LCHAT_STRATA_PARALLEL", "1").strip()
+if _parallel not in ("", "0", "1"):
+    cfg["parallel"] = int(_parallel)
 slot_save_path = get_env("LCHAT_STRATA_SLOT_SAVE_PATH", "").strip()
 if slot_save_path:
     slot_save_path = os.path.expanduser(os.path.expandvars(slot_save_path))
@@ -568,6 +646,7 @@ if vision_enabled:
         "cpu_exe": "/usr/lib/strata/engine/strata-vision",
         "mmproj": mmproj,
         "model": model,
+        "gpu": True,
         "max_tokens": int(get_env("LCHAT_STRATA_VISION_TOKENS", "1024")),
     }
 print(json.dumps(cfg, indent=2))
@@ -576,280 +655,18 @@ print(json.dumps(cfg, indent=2))
 
 # Launcher script generator
 
+# The launcher body lives in scripts/strata-launcher.py: lintable, diffable and
+# testable without shell heredoc quoting. install copies it next to the unit,
+# env file and config; the systemd unit's ExecStart runs the copy.
 generate_launcher_script() {
-    cat <<'EOF'
-#!/usr/bin/env python3
-"""Strata Service Launcher: sets tuning flags, memory limits, and runs server with direct stdout/stderr."""
-import os
-import sys
-import resource
-import subprocess
-
-# Hardware, ROCm, and execution tuning flags
-os.environ.setdefault("STRATA_SCORES_THREAD", "1")
-os.environ.setdefault("STRATA_WMMA_GEMM", "1")
-os.environ.setdefault("STRATA_PF_GEMM", "1")
-os.environ.setdefault("STRATA_PF_PAD", "1")
-os.environ.setdefault("STRATA_PF_FUSED", "1")
-os.environ.setdefault("STRATA_PF_F16", "1")
-os.environ.setdefault("STRATA_PF_DM16", "1")
-os.environ.setdefault("STRATA_DENSE_MMQ", "1")
-os.environ.setdefault("STRATA_HC_UPMIX", "1")
-os.environ.setdefault("STRATA_PF_HCDOWN", "1")
-os.environ.setdefault("STRATA_CVEC_FUSE", "1")
-os.environ.setdefault("STRATA_PF_HC_REGION", "1")
-os.environ.setdefault("STRATA_PLE_COMPACT", "1")
-os.environ.setdefault("STRATA_PLE_COPY_STREAM", "1")
-os.environ.setdefault("STRATA_PREFILL_WARM", "1")
-os.environ.setdefault("STRATA_PREFILL_AUTO_MAX", "24576")
-os.environ.setdefault("STRATA_PREFILL_RING", "512")
-os.environ.setdefault("STRATA_PREFILL_ROUTED_STREAM", "1")
-os.environ.setdefault("STRATA_EMB_REUSE_ACCOUNT", "1")
-os.environ.setdefault("STRATA_GDN_HEAD", "1")
-os.environ.setdefault("STRATA_GDN_PP", "2")
-os.environ.setdefault("STRATA_GDN_CONVL2", "2")
-os.environ.setdefault("STRATA_GDN_NOY", "1")
-os.environ.setdefault("STRATA_HIP_WMMA", "1")
-os.environ.setdefault("STRATA_PA_FAST", "1")
-os.environ.setdefault("STRATA_SELECT_WMMA", "1")
-os.environ.setdefault("STRATA_Q8_PACKED", "1")
-os.environ.setdefault("STRATA_MMVF_ROWS", "1")
-os.environ.setdefault("STRATA_ATTN_LANECELL", "1")
-os.environ.setdefault("STRATA_ATTN_MERGE_V2", "1")
-os.environ.setdefault("STRATA_EXPERT_V2", "1")
-os.environ.setdefault("STRATA_TSUM", "1")
-os.environ.setdefault("STRATA_LFUSE", "1")
-os.environ.setdefault("STRATA_GDN_SPLIT", "1")
-os.environ.setdefault("STRATA_QFUSE", "1")
-os.environ.setdefault("STRATA_PLE_BATCH", "1")
-os.environ.setdefault("STRATA_SMALL_UNR", "3")
-os.environ.setdefault("STRATA_GR_Q32_G", "2")
-os.environ.setdefault("STRATA_GR_Q8_PFS", "1")
-os.environ.setdefault("STRATA_HEAD_MIX_MULTI", "1")
-os.environ.setdefault("STRATA_FUSE_HITS", "1")
-os.environ.setdefault("STRATA_FUSE_WAIT", "1")
-os.environ.setdefault("STRATA_VERIFY_QDEDUP", "1")
-os.environ.setdefault("STRATA_SPEC_COST", "1")
-os.environ.setdefault("STRATA_FUSE_HEAD_GR", "1")
-os.environ.setdefault("STRATA_NORM_ROPE", "1")
-tuned_lt = os.path.expanduser(os.environ.get("STRATA_HIPBLASLT_TUNING", "~/.local/state/strata/local-chat-strata-hipblaslt.txt"))
-fallback_lt = "/usr/share/strata/tools/hip/gfx1100-hipblaslt-100202.txt"
-os.environ.setdefault(
-    "STRATA_HIPBLASLT_TUNING",
-    tuned_lt if os.path.exists(tuned_lt) else fallback_lt,
-)
-os.environ.setdefault("HSA_USERPTR_FOR_PAGED_MEM", "1")
-os.environ.setdefault("STRATA_ROUTE_TAIL_SKIP", "7")
-os.environ.setdefault("ROCM_PATH", os.environ.get("ROCM_PATH", "/opt/rocm"))
-os.environ.setdefault("HIP_PATH", os.environ.get("HIP_PATH", "/opt/rocm"))
-os.environ.setdefault("PYTHONUNBUFFERED", "1")
-os.environ.setdefault("STRATA_REQUEST_LINES", "1")
-os.environ.setdefault("STRATA_MEMORY_LIMIT_MIB", "0")
-os.environ.setdefault("STRATA_RESIDENT_HEADROOM_GIB", "0")
-os.environ.setdefault("STRATA_SH_STREAM", "0")
-if "LCHAT_STRATA_DEVICE" in os.environ:
-    os.environ.setdefault("HIP_VISIBLE_DEVICES", os.environ["LCHAT_STRATA_DEVICE"])
-
-# Set host memory limits to unlimited
-for limit in (resource.RLIMIT_MEMLOCK, resource.RLIMIT_AS, resource.RLIMIT_DATA):
-    try:
-        resource.setrlimit(limit, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
-    except (ValueError, OSError):
-        pass
-
-# Import Strata server and ensure subprocesses stream directly to sys.stderr
-sys.path.insert(0, "/usr/share/strata")
-from serve import lifeline
-import serve.server as strata_server
-
-# Forward engine stderr to sys.stderr while updating conv_log in real time for the Monitor GUI
-def _forward_stderr(pipe_r):
-    with os.fdopen(pipe_r, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            sys.stderr.write(line)
-            sys.stderr.flush()
-            if "conversation cache:" in line:
-                svc = getattr(strata_server, "_active_svc", None)
-                if svc and hasattr(svc, "conv_log"):
-                    m = strata_server.ConvCacheLog.EVENT.search(line)
-                    if m:
-                        st = svc.conv_log.state
-                        st["parked"], st["bytes"] = int(m.group(3)), int(m.group(4))
-                        if m.group(5) is not None:
-                            st["evictions"] = int(m.group(5))
-                        if m.group(1) != "skipped":
-                            st["parks" if m.group(1) == "parked" else "restores"] += 1
-                            st["last_event"], st["last_tokens"], st["last_at"] = m.group(1), int(m.group(2)), time.time()
-                    else:
-                        m2 = strata_server.ConvCacheLog.DROPPED.search(line)
-                        if m2:
-                            svc.conv_log.state["parked"] = int(m2.group(1))
-
-_orig_popen = lifeline.popen
-def _direct_popen(args, role="engine", **kw):
-    if role == "engine":
-        r, w = os.pipe()
-        kw["stderr"] = w
-        proc = _orig_popen(args, role=role, **kw)
-        os.close(w)
-        threading.Thread(target=_forward_stderr, args=(r,), daemon=True).start()
-        return proc
-    if kw.get("stderr") in (None, subprocess.DEVNULL):
-        kw["stderr"] = sys.stderr
-    return _orig_popen(args, role=role, **kw)
-lifeline.popen = _direct_popen
-
-_orig_conv_poll = strata_server.ConvCacheLog.poll
-def _hooked_conv_poll(self, path, start):
-    if not path or start is None:
-        return dict(self.state)
-    return _orig_conv_poll(self, path, start)
-strata_server.ConvCacheLog.poll = _hooked_conv_poll
-
-# Hook Service initialization to capture active service instance
-import signal
-import threading
-import time
-
-_orig_svc_init = strata_server.Service.__init__
-def _hooked_svc_init(self, *a, **kw):
-    _orig_svc_init(self, *a, **kw)
-    strata_server._active_svc = self
-strata_server.Service.__init__ = _hooked_svc_init
-
-# Watermarked, event-driven NVMe user-cache Janitor
-def _run_prune():
-    svc = getattr(strata_server, "_active_svc", None)
-    cache_dir = getattr(svc, "slot_save_path", None) if svc else None
-    if not cache_dir or not os.path.isdir(cache_dir):
-        return
-    try:
-        if hasattr(os, "nice"):
-            try: os.nice(19)
-            except OSError: pass
-        max_quota = int(os.environ.get("LCHAT_STRATA_USER_CACHE_MAX_GIB", "25")) * (1024**3)
-        max_age = float(os.environ.get("LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS", "3")) * 86400.0
-        now = time.time()
-        files = []
-        total_bytes = 0
-        for entry in os.scandir(cache_dir):
-            if entry.name.endswith(".bin"):
-                try:
-                    st = entry.stat()
-                    last_access = max(st.st_atime, st.st_mtime)
-                    files.append({"path": entry.path, "size": st.st_size, "last_access": last_access})
-                    total_bytes += st.st_size
-                except OSError:
-                    pass
-        # 1. Prune expired files (> max_age)
-        retained = []
-        for f in files:
-            if now - f["last_access"] > max_age:
-                try:
-                    os.remove(f["path"])
-                    total_bytes -= f["size"]
-                except OSError:
-                    pass
-            else:
-                retained.append(f)
-        # 2. Prune by LRU if exceeding high watermark (max_quota)
-        if total_bytes > max_quota:
-            retained.sort(key=lambda x: x["last_access"])
-            low_watermark = int(max_quota * 0.8)
-            for f in retained:
-                if total_bytes <= low_watermark:
-                    break
-                try:
-                    os.remove(f["path"])
-                    total_bytes -= f["size"]
-                except OSError:
-                    pass
-    except Exception as e:
-        sys.stderr.write(f"[strata-janitor] error: {e}\n")
-
-def _trigger_prune():
-    threading.Thread(target=_run_prune, daemon=True).start()
-
-# Hook slot_action to trigger prune on save and update atime on restore
-_orig_slot_action = strata_server.Service.slot_action
-def _hooked_slot_action(self, slot, action, filename):
-    res = _orig_slot_action(self, slot, action, filename)
-    if action == "save":
-        _trigger_prune()
-    elif action == "restore" and self.slot_save_path and filename:
-        p = os.path.join(self.slot_save_path, filename)
-        if os.path.exists(p):
-            try: os.utime(p, None)
-            except OSError: pass
-    return res
-strata_server.Service.slot_action = _hooked_slot_action
-
-# Signal handlers for pre-suspend save & reclaim (SIGUSR1) and post-suspend restore (SIGUSR2)
-def _handle_sigusr1(signum, frame):
-    svc = getattr(strata_server, "_active_svc", None)
-    if svc and hasattr(svc, "slot_action") and svc.loaded():
-        try:
-            code, body = svc.slot_action("0", "save", "suspend-session.bin")
-            sys.stderr.write(f"[strata-launcher] SIGUSR1: session saved ({code})\n")
-        except Exception as e:
-            sys.stderr.write(f"[strata-launcher] SIGUSR1 save error: {e}\n")
-        engine = getattr(svc, "engine", None)
-        if engine and hasattr(engine, "proc") and engine.proc and engine.proc.stdin:
-            try:
-                with engine._exclusive_control():
-                    engine.proc.stdin.write("CLEAR_CACHE\n")
-                    engine.proc.stdin.flush()
-                    try:
-                        resp = engine.lines.get(timeout=5.0)
-                        sys.stderr.write(f"[strata-launcher] SIGUSR1: CLEAR_CACHE response: {resp.strip()!r}\n")
-                    except Exception as e:
-                        sys.stderr.write(f"[strata-launcher] SIGUSR1: lines.get error: {e}\n")
-            except Exception as e:
-                sys.stderr.write(f"[strata-launcher] SIGUSR1 CLEAR_CACHE error: {e}\n")
-        try:
-            with open("/tmp/strata-reclaimed", "w") as f:
-                f.write("ok\n")
-        except OSError:
-            pass
-        _trigger_prune()
-def _handle_sigusr2(signum, frame):
-    svc = getattr(strata_server, "_active_svc", None)
-    if svc and hasattr(svc, "slot_action"):
-        try:
-            if not svc.loaded():
-                svc.load()
-            code, body = svc.slot_action("0", "restore", "suspend-session.bin")
-            sys.stderr.write(f"[strata-launcher] SIGUSR2: session restored ({code})\n")
-            save_path = os.path.join(svc.slot_save_path, "suspend-session.bin") if svc.slot_save_path else None
-            if save_path and os.path.exists(save_path):
-                try: os.utime(save_path, None)
-                except OSError: pass
-        except Exception as e:
-            sys.stderr.write(f"[strata-launcher] SIGUSR2 restore error: {e}\n")
-
-signal.signal(signal.SIGUSR1, _handle_sigusr1)
-signal.signal(signal.SIGUSR2, _handle_sigusr2)
-
-
-# If custom arguments were passed to launcher, forward them; else construct standard invocation
-if len(sys.argv) > 1:
-    forward_argv = [sys.argv[0], *sys.argv[1:]]
-else:
-    forward_argv = [
-        sys.argv[0],
-        "--engine", "strata",
-        "--config", os.environ.get("CONFIG_FILE", f"{os.environ.get('HOME', '')}/.config/systemd/user/local-chat-strata-config.json"),
-        "--port", os.environ.get("LCHAT_STRATA_PORT", "20080"),
-        "--host", os.environ.get("LCHAT_STRATA_HOST", "127.0.0.1"),
-    ]
-    extra_args = os.environ.get("LCHAT_STRATA_EXTRA_ARGS", "").strip()
-    if extra_args:
-        import shlex
-        forward_argv.extend(shlex.split(extra_args))
-
-sys.argv = forward_argv
-sys.exit(strata_server.main())
-EOF
+    # same relative lookup the other helpers use (line ~1366): dirname "$0"/../scripts
+    local src
+    src="$(dirname "$0")/../scripts/strata-launcher.py"
+    if [[ ! -f "$src" ]]; then
+        echo "Error: launcher source missing: ${src}" >&2
+        return 1
+    fi
+    cat "$src"
 }
 
 # Systemd service generator
@@ -964,6 +781,10 @@ LCHAT_STRATA_DEVICE="0"
 # Base directory for local models repository (override to use custom storage)
 LOCAL_MODELS_DIR="/data/public/machine-learning/models"
 
+# Package tooling and data folders (hipBLASLt tables, expert profile, ESP projection)
+STRATA_TOOLS_DIR="/usr/share/strata/terminal/tools"
+STRATA_DATA_DIR="/usr/share/strata/terminal/data"
+
 # Shard 1 (Native IQ3_S model - clean un-ablated Swift 1.5)
 LCHAT_STRATA_MODEL="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
 
@@ -983,9 +804,20 @@ LCHAT_STRATA_MTP="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/mtp/rt"
 LCHAT_STRATA_MTP_VOCAB=""
 
 # Runtime experimental speed projection / refusal control vector (uncensored)
-LCHAT_STRATA_ESP="${LOCAL_MODELS_DIR}/strata/projections/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
+# The package ships the canonical copy under /usr/share/strata/terminal/data/experimental-speed-projection/.
+# Upstream ships this OFF by default and documents it as refusal-direction ablation
+# (0.2-0.4% per-token cost); we keep it ON deliberately. Set LCHAT_STRATA_ESP=""
+# to disable, or point it at the model-dir copy to keep the pre-0.2.16 behaviour.
+LCHAT_STRATA_ESP="/usr/share/strata/terminal/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"
 LCHAT_STRATA_ESP_SCALE="1.0"
 LCHAT_STRATA_ESP_LAYERS="4 44"
+
+# API security (0.2.16 defaults are loopback-safe: same-origin and origin==Host
+# always pass; only foreign-Origin /v1 calls and DNS-rebinding Hosts are refused).
+# Only set these if the router or another machine must reach the service.
+# STRATA_ALLOWED_HOSTS="127.0.0.1,localhost"
+# api_key / cors_origins belong in the config JSON, not this env file.
+
 # ### ENGINE TUNING PARAMETERS
 
 # Context window size in tokens (up to 240,384 tokens)
@@ -1016,8 +848,18 @@ LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=6144
 LCHAT_STRATA_CONV_CACHE_MIN_TOKENS=4096
 LCHAT_STRATA_CONV_CACHE_PARK_GAIN=2048
 
+# Conversation-cache SSD tier: parked conversations the RAM tier evicts are written here (empty dir = off)
+LCHAT_STRATA_CONV_SPILL_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/user-cache/conv-spill"
+LCHAT_STRATA_CONV_SPILL_MIB=24576
+
 # Speculative decoding tokens, threshold, and drafter selection
+# drafting: mtp (default) | dflash2 | off. dflash2 needs a pack from
+# tools/dflash2_pack.py and --spec >= 2; a missing pack warns and falls back to mtp.
 LCHAT_STRATA_DRAFTING="mtp"
+# DFlash2 pack path; empty = auto-discover <model-dir>/dflash2/*.pack
+LCHAT_STRATA_DRAFT_MODEL=""
+# Engine batch slots ("parallel"); 1 = single-slot (default). >1 needs VRAM headroom.
+LCHAT_STRATA_PARALLEL=1
 LCHAT_STRATA_SPEC=4
 LCHAT_STRATA_SPEC_MIN_P=0.58
 LCHAT_STRATA_SUFFIX_DRAFT=3
@@ -1036,16 +878,13 @@ LCHAT_STRATA_SLOT_SAVE_PATH="${HOME}/.cache/user-cache"
 # Model idle unload timeout in seconds without requests (default: 3600 = 1 hour; 0 to disable)
 LCHAT_STRATA_IDLE_UNLOAD=3600
 
-# Opt-in NVMe KV cache spillover (--disk-spill in engine) (0=disabled, 1=enabled)
-LCHAT_STRATA_DISK_SPILL=0
-
 # NVMe Janitor cache limits
 LCHAT_STRATA_USER_CACHE_MAX_GIB=25
 LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS=3
 LCHAT_STRATA_EXPERT_CACHE="auto"
 LCHAT_STRATA_VRAM_RESERVE_MIB=576
 # Routing profile and adaptive persistence
-LCHAT_STRATA_EXPERT_PROFILE="/usr/share/strata/data/expert-profile.bin"
+LCHAT_STRATA_EXPERT_PROFILE="/usr/share/strata/terminal/data/expert-profile.bin"
 LCHAT_STRATA_EXPERT_PROFILE_SAVE="${HOME}/.local/state/strata/local-chat-strata-profile.bin"
 LCHAT_STRATA_PLE_IO="ram"
 
@@ -1118,8 +957,8 @@ STRATA_SPEC_COST=1
 STRATA_FUSE_HEAD_GR=1
 STRATA_NORM_ROPE=1
 HSA_USERPTR_FOR_PAGED_MEM=1
-STRATA_ROUTE_TAIL_SKIP=7
 STRATA_MEMORY_LIMIT_MIB=0
+STRATA_SLOT_RAM_RESERVE_GIB=8
 STRATA_RESIDENT_HEADROOM_GIB=0
 STRATA_SH_STREAM=0
 STRATA_ARENA_RELEASE=0
@@ -1143,7 +982,7 @@ write_service_file() {
     export LCHAT_STRATA_CONV_CACHE_MIB LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB
     export LCHAT_STRATA_CONV_CACHE_MIN_TOKENS LCHAT_STRATA_CONV_CACHE_PARK_GAIN
     export LCHAT_STRATA_MAX_CONTEXT LCHAT_STRATA_SPEC LCHAT_STRATA_SPEC_MIN_P
-    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_LOOKUP_CHAIN LCHAT_STRATA_DRAFTING
+    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_LOOKUP_CHAIN LCHAT_STRATA_DRAFTING LCHAT_STRATA_DRAFT_MODEL LCHAT_STRATA_PARALLEL
     export LCHAT_STRATA_ADAPT_ASYNC LCHAT_STRATA_ADAPT_EVERY
     export LCHAT_STRATA_ADAPT_SWAPS LCHAT_STRATA_ADAPT_DECAY
     export LCHAT_STRATA_KV LCHAT_STRATA_KV_RESIDENT LCHAT_STRATA_KV_GROW
@@ -1153,7 +992,7 @@ write_service_file() {
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
     export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
     export LCHAT_STRATA_EXPERT_PROFILE LCHAT_STRATA_EXPERT_PROFILE_SAVE
-    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_DISK_SPILL
+    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_CONV_SPILL_DIR LCHAT_STRATA_CONV_SPILL_MIB
     export LCHAT_STRATA_USER_CACHE_MAX_GIB LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS
 
     # Generate 48-row tuned hipBLASLt table for gfx1100 in state dir
@@ -1490,6 +1329,39 @@ cmd_test() {
         return 1
     fi
 
+    echo "Scraping conversation-cache refusals: ${base_url}/metrics"
+    local metrics_lines
+    metrics_lines=$(curl -s --max-time 5 "${base_url}/metrics" | grep 'conversation_cache.refused' || true)
+    if [ -n "${metrics_lines}" ]; then
+        echo "${metrics_lines}"
+    else
+        echo "No conversation_cache.refused series (cache untouched or metrics unavailable)."
+    fi
+
+    echo "Checking recent journal for hipBLASLt tuning engagement..."
+    local tuning_line
+    tuning_line=$(journalctl --user -u "${SERVICE_NAME}.service" --no-pager -n 4000 2>/dev/null |
+        grep -F 'hipBLASLt tuning enabled (48 rows, gfx1100, version 100202)' | tail -n 1 || true)
+    if [ -n "${tuning_line}" ]; then
+        echo "hipBLASLt tuning: PRESENT - ${tuning_line}"
+    else
+        echo "hipBLASLt tuning: ABSENT from the recent journal (engine not restarted, or fell back to hipBLASEx)."
+    fi
+
+    echo "Probing GPU expert-kernel support (gate/up IQ2_S, down IQ4_NL, n_embd 2560, n_ff 640)..."
+    local engine_bin="${STRATA_ENGINE_BIN:-/usr/lib/strata/engine/strata}"
+    if [[ -x "${engine_bin}" ]]; then
+        local support_rc=0
+        "${engine_bin}" --expert-support 22,20,2560,640 >/dev/null 2>&1 || support_rc=$?
+        case "${support_rc}" in
+        0) echo "Expert kernels: supported." ;;
+        3) echo "Expert kernels: UNSUPPORTED by this build." ;;
+        *) echo "Expert kernels: probe failed (rc=${support_rc}); not fatal." ;;
+        esac
+    else
+        echo "Expert kernels: probe skipped (${engine_bin} not executable)."
+    fi
+
     if [ "$benchmark" = "true" ]; then
         echo "Running chat benchmark via benchmark-helper.py..."
         local helper_script
@@ -1512,7 +1384,7 @@ cmd_cat() {
     export LCHAT_STRATA_CONV_CACHE_MIB LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB
     export LCHAT_STRATA_CONV_CACHE_MIN_TOKENS LCHAT_STRATA_CONV_CACHE_PARK_GAIN
     export LCHAT_STRATA_MAX_CONTEXT LCHAT_STRATA_SPEC LCHAT_STRATA_SPEC_MIN_P
-    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_LOOKUP_CHAIN LCHAT_STRATA_DRAFTING
+    export LCHAT_STRATA_SUFFIX_DRAFT LCHAT_STRATA_LOOKUP_CHAIN LCHAT_STRATA_DRAFTING LCHAT_STRATA_DRAFT_MODEL LCHAT_STRATA_PARALLEL
     export LCHAT_STRATA_ADAPT_ASYNC LCHAT_STRATA_ADAPT_EVERY
     export LCHAT_STRATA_ADAPT_SWAPS LCHAT_STRATA_ADAPT_DECAY
     export LCHAT_STRATA_KV LCHAT_STRATA_KV_RESIDENT LCHAT_STRATA_KV_GROW
@@ -1522,6 +1394,7 @@ cmd_cat() {
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
     export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
     export LCHAT_STRATA_EXPERT_PROFILE LCHAT_STRATA_EXPERT_PROFILE_SAVE
+    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_CONV_SPILL_DIR LCHAT_STRATA_CONV_SPILL_MIB
     echo "=== Service File: ${SERVICE_FILE} ==="
     generate_service_file
     echo ""

@@ -1,0 +1,113 @@
+Nov 19 22:44:41 power local-chat-strata[27305]: [strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+Nov 19 22:44:41 power local-chat-strata[27305]: [strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+Nov 19 22:44:43 power local-chat-strata[27305]: strata serve: conversation cache: parked 96483 tokens in 2018.4 ms; parked=2 bytes=3466879380 evictions=47 snapshot_bytes=2023652764 reused_kv_bytes=977246208
+Nov 19 22:44:43 power local-chat-strata[27305]: strata: K/V trimmed to 8192 cells; 470 slots back to the expert cache, refilled from the profile
+Nov 19 22:44:43 power local-chat-strata[27305]: strata prefill: chunk 256 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+Nov 19 22:44:43 power local-chat-strata[27305]: [strata] reading the prompt: 73 of 78 tokens, 3 s so far
+Nov 19 22:44:44 power local-chat-strata[27305]: [strata] thinking: 68 of budget 1536 (max 2048) tokens, 76.7 tok/s, 4 s
+Nov 19 22:44:45 power local-chat-strata[27305]: [strata] answering: 136 of max 2048 tokens, 71.4 tok/s, 5 s
+Nov 19 22:44:46 power local-chat-strata[27305]: [strata] answering: 200 of max 2048 tokens, 68.5 tok/s, 6 s
+Nov 19 22:44:47 power local-chat-strata[27305]: [strata] answering: 268 of max 2048 tokens, 68.2 tok/s, 7 s
+Nov 19 22:44:48 power local-chat-strata[27305]: [strata] answering: 340 of max 2048 tokens, 68.7 tok/s, 8 s
+Nov 19 22:44:49 power local-chat-strata[27305]: [strata] answering: 415 of max 2048 tokens, 69.6 tok/s, 9 s
+Nov 19 22:44:50 power local-chat-strata[27305]: [strata] answering: 485 of max 2048 tokens, 69.6 tok/s, 10 s
+Nov 19 22:44:51 power local-chat-strata[27305]: [strata] answering: 563 of max 2048 tokens, 70.6 tok/s, 11 s
+Nov 19 22:44:52 power local-chat-strata[27305]: [strata] answering: 644 of max 2048 tokens, 71.6 tok/s, 12 s
+Nov 19 22:44:54 power local-chat-strata[27305]: [strata] answering: 723 of max 2048 tokens, 72.1 tok/s, 13 s
+Nov 19 22:44:55 power local-chat-strata[27305]: [strata] answering: 792 of max 2048 tokens, 71.8 tok/s, 14 s
+Nov 19 22:44:56 power local-chat-strata[27305]: [strata] answering: 856 of max 2048 tokens, 71.1 tok/s, 15 s
+Nov 19 22:44:57 power local-chat-strata[27305]: [strata] answering: 943 of max 2048 tokens, 72.3 tok/s, 16 s
+Nov 19 22:44:58 power local-chat-strata[27305]: [strata] answering: 1025 of max 2048 tokens, 72.9 tok/s, 17 s
+Nov 19 22:44:59 power local-chat-strata[27305]: [strata] answering: 1096 of max 2048 tokens, 72.7 tok/s, 18 s
+Nov 19 22:45:00 power local-chat-strata[27305]: [strata] answering: 1172 of max 2048 tokens, 72.8 tok/s, 19 s
+Nov 19 22:45:01 power local-chat-strata[27305]: [strata] answering: 1237 of max 2048 tokens, 72.4 tok/s, 20 s
+Nov 19 22:45:02 power local-chat-strata[27305]: [strata] answering: 1323 of max 2048 tokens, 73.0 tok/s, 21 s
+Nov 19 22:45:03 power local-chat-strata[27305]: [strata] answering: 1388 of max 2048 tokens, 72.6 tok/s, 22 s
+Nov 19 22:45:04 power local-chat-strata[27305]: [strata] answering: 1468 of max 2048 tokens, 72.9 tok/s, 23 s
+Nov 19 22:45:05 power local-chat-strata[27305]: [strata] answering: 1549 of max 2048 tokens, 73.2 tok/s, 24 s
+Nov 19 22:45:06 power local-chat-strata[27305]: [strata] answering: 1618 of max 2048 tokens, 73.0 tok/s, 25 s
+Nov 19 22:45:07 power local-chat-strata[27305]: [strata] answering: 1696 of max 2048 tokens, 73.1 tok/s, 26 s
+Nov 19 22:45:08 power local-chat-strata[27305]: [strata] answering: 1770 of max 2048 tokens, 73.2 tok/s, 27 s
+Nov 19 22:45:09 power local-chat-strata[27305]: [strata] answering: 1846 of max 2048 tokens, 73.2 tok/s, 28 s
+Nov 19 22:45:10 power local-chat-strata[27305]: [strata] answering: 1911 of max 2048 tokens, 72.9 tok/s, 29 s
+Nov 19 22:45:11 power local-chat-strata[27305]: [strata] answering: 1981 of max 2048 tokens, 72.8 tok/s, 30 s
+Nov 19 22:45:12 power local-chat-strata[27305]: [strata] done: 2048 tokens in 31 s (72.5 tok/s) (length, cancel=False), expert cache 95.7% hit (+0.1% of the routed experts over PCIe)strata serve: prompt 78 tokens = 0 reused + 78 read in 2921 ms (26.7 tok/s), 2048 generated in 28232 ms (72.5 tok/s), drafts accepted 934 of 1717, 1 checkpoints
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: the graphics driver paused the GPU for 4319 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: decode expert cache hit rate: 95.7% (1256764 hits / 1313728 lookups); 1107 more read by the GPU over PCIe or from another GPU (0.1% of all 1314835 routed)
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: route tail skip: 13610493 missed experts skipped (14202949 entries) since the start
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: asynchronous adaptive tier: 176259 rounds, 6671885 experts swapped in, 128.4 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.12 ms/round)
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: suffix drafts: 16 windows, 24 of 60 drafts accepted
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: lookup chain: 27 of 1114 windows, 13 of 54 chained drafts accepted
+Nov 19 22:45:12 power local-chat-strata[27305]: strata serve: conversation cache: skip parking (2125 tokens, below the 4096 minimum; parked=2)
+Nov 19 22:45:12 power local-chat-strata[27305]: [strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+Nov 19 22:45:13 power local-chat-strata[27305]: [strata] thinking: 2 of budget 1536 (max 2048) tokens, 8.0 tok/s, 1 s
+Nov 19 22:45:14 power local-chat-strata[27305]: [strata] thinking: 71 of budget 1536 (max 2048) tokens, 66.4 tok/s, 2 s
+Nov 19 22:45:15 power local-chat-strata[27305]: [strata] thinking: 155 of budget 1536 (max 2048) tokens, 74.4 tok/s, 3 s
+Nov 19 22:45:16 power local-chat-strata[27305]: [strata] thinking: 246 of budget 1536 (max 2048) tokens, 79.5 tok/s, 4 s
+Nov 19 22:45:17 power local-chat-strata[27305]: [strata] answering: 327 of max 2048 tokens, 79.8 tok/s, 5 s
+Nov 19 22:45:18 power local-chat-strata[27305]: [strata] answering: 399 of max 2048 tokens, 78.2 tok/s, 6 s
+Nov 19 22:45:19 power local-chat-strata[27305]: [strata] answering: 470 of max 2048 tokens, 77.0 tok/s, 7 s
+Nov 19 22:45:20 power local-chat-strata[27305]: [strata] answering: 546 of max 2048 tokens, 76.7 tok/s, 8 s
+Nov 19 22:45:21 power local-chat-strata[27305]: [strata] answering: 613 of max 2048 tokens, 75.3 tok/s, 9 s
+Nov 19 22:45:22 power local-chat-strata[27305]: [strata] answering: 684 of max 2048 tokens, 74.7 tok/s, 10 s
+Nov 19 22:45:23 power local-chat-strata[27305]: [strata] answering: 763 of max 2048 tokens, 75.1 tok/s, 11 s
+Nov 19 22:45:24 power local-chat-strata[27305]: [strata] answering: 835 of max 2048 tokens, 74.8 tok/s, 12 s
+Nov 19 22:45:25 power local-chat-strata[27305]: [strata] answering: 913 of max 2048 tokens, 75.0 tok/s, 13 s
+Nov 19 22:45:26 power local-chat-strata[27305]: [strata] answering: 988 of max 2048 tokens, 75.0 tok/s, 14 s
+Nov 19 22:45:27 power local-chat-strata[27305]: [strata] answering: 1054 of max 2048 tokens, 74.3 tok/s, 15 s
+Nov 19 22:45:28 power local-chat-strata[27305]: [strata] answering: 1130 of max 2048 tokens, 74.3 tok/s, 16 s
+Nov 19 22:45:29 power local-chat-strata[27305]: [strata] answering: 1205 of max 2048 tokens, 74.3 tok/s, 17 s
+Nov 19 22:45:30 power local-chat-strata[27305]: [strata] answering: 1279 of max 2048 tokens, 74.3 tok/s, 18 s
+Nov 19 22:45:31 power local-chat-strata[27305]: [strata] answering: 1352 of max 2048 tokens, 74.1 tok/s, 19 s
+Nov 19 22:45:32 power local-chat-strata[27305]: [strata] answering: 1432 of max 2048 tokens, 74.4 tok/s, 20 s
+Nov 19 22:45:33 power local-chat-strata[27305]: [strata] answering: 1504 of max 2048 tokens, 74.2 tok/s, 21 s
+Nov 19 22:45:34 power local-chat-strata[27305]: [strata] answering: 1563 of max 2048 tokens, 73.5 tok/s, 22 s
+Nov 19 22:45:35 power local-chat-strata[27305]: [strata] answering: 1649 of max 2048 tokens, 74.0 tok/s, 23 s
+Nov 19 22:45:36 power local-chat-strata[27305]: [strata] answering: 1720 of max 2048 tokens, 73.8 tok/s, 24 s
+Nov 19 22:45:37 power local-chat-strata[27305]: [strata] answering: 1797 of max 2048 tokens, 73.9 tok/s, 25 s
+Nov 19 22:45:38 power local-chat-strata[27305]: [strata] answering: 1873 of max 2048 tokens, 73.9 tok/s, 26 s
+Nov 19 22:45:39 power local-chat-strata[27305]: [strata] answering: 1955 of max 2048 tokens, 74.2 tok/s, 27 s
+Nov 19 22:45:40 power local-chat-strata[27305]: [strata] answering: 2025 of max 2048 tokens, 74.0 tok/s, 28 s
+Nov 19 22:45:40 power local-chat-strata[27305]: [strata] done: 2048 tokens in 29 s (73.8 tok/s) (length, cancel=False), expert cache 96.1% hit (+0.1% of the routed experts over PCIe)strata serve: prompt 78 tokens = 0 reused + 78 read in 917 ms (85.0 tok/s), 2048 generated in 27758 ms (73.8 tok/s), drafts accepted 943 of 1710, 1 checkpoints
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: decode expert cache hit rate: 96.1% (1257421 hits / 1308493 lookups); 858 more read by the GPU over PCIe or from another GPU (0.1% of all 1309351 routed)
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: route tail skip: 13650709 missed experts skipped (14245042 entries) since the start
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: asynchronous adaptive tier: 177364 rounds, 6690504 experts swapped in, 127.7 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.12 ms/round)
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: suffix drafts: 5 windows, 5 of 23 drafts accepted
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: lookup chain: 17 of 1105 windows, 1 of 34 chained drafts accepted
+Nov 19 22:45:40 power local-chat-strata[27305]: strata serve: conversation cache: skip parking (2125 tokens, below the 4096 minimum; parked=2)
+Nov 19 22:45:41 power local-chat-strata[27305]: [strata] thinking: 2 of budget 1536 (max 2048) tokens, 8.0 tok/s, 1 s
+Nov 19 22:45:42 power local-chat-strata[27305]: [strata] thinking: 69 of budget 1536 (max 2048) tokens, 64.1 tok/s, 2 s
+Nov 19 22:45:43 power local-chat-strata[27305]: [strata] thinking: 146 of budget 1536 (max 2048) tokens, 69.4 tok/s, 3 s
+Nov 19 22:45:44 power local-chat-strata[27305]: [strata] thinking: 247 of budget 1536 (max 2048) tokens, 79.1 tok/s, 4 s
+Nov 19 22:45:45 power local-chat-strata[27305]: [strata] thinking: 339 of budget 1536 (max 2048) tokens, 82.0 tok/s, 5 s
+Nov 19 22:45:47 power local-chat-strata[27305]: [strata] answering: 413 of max 2048 tokens, 79.9 tok/s, 6 s
+Nov 19 22:45:48 power local-chat-strata[27305]: [strata] answering: 482 of max 2048 tokens, 77.9 tok/s, 7 s
+Nov 19 22:45:49 power local-chat-strata[27305]: [strata] answering: 553 of max 2048 tokens, 76.7 tok/s, 8 s
+Nov 19 22:45:50 power local-chat-strata[27305]: [strata] answering: 625 of max 2048 tokens, 75.9 tok/s, 9 s
+Nov 19 22:45:51 power local-chat-strata[27305]: [strata] answering: 701 of max 2048 tokens, 75.9 tok/s, 10 s
+Nov 19 22:45:52 power local-chat-strata[27305]: [strata] answering: 778 of max 2048 tokens, 75.9 tok/s, 11 s
+Nov 19 22:45:53 power local-chat-strata[27305]: [strata] answering: 851 of max 2048 tokens, 75.6 tok/s, 12 s
+Nov 19 22:45:54 power local-chat-strata[27305]: [strata] answering: 926 of max 2048 tokens, 75.5 tok/s, 13 s
+Nov 19 22:45:55 power local-chat-strata[27305]: [strata] answering: 1004 of max 2048 tokens, 75.6 tok/s, 14 s
+Nov 19 22:45:56 power local-chat-strata[27305]: [strata] answering: 1087 of max 2048 tokens, 76.0 tok/s, 15 s
+Nov 19 22:45:57 power local-chat-strata[27305]: [strata] answering: 1159 of max 2048 tokens, 75.7 tok/s, 16 s
+Nov 19 22:45:58 power local-chat-strata[27305]: [strata] answering: 1240 of max 2048 tokens, 75.9 tok/s, 17 s
+Nov 19 22:45:59 power local-chat-strata[27305]: [strata] answering: 1320 of max 2048 tokens, 76.0 tok/s, 18 s
+Nov 19 22:46:00 power local-chat-strata[27305]: [strata] answering: 1401 of max 2048 tokens, 76.3 tok/s, 19 s
+Nov 19 22:46:01 power local-chat-strata[27305]: [strata] answering: 1480 of max 2048 tokens, 76.4 tok/s, 20 s
+Nov 19 22:46:02 power local-chat-strata[27305]: [strata] answering: 1550 of max 2048 tokens, 76.0 tok/s, 21 s
+Nov 19 22:46:03 power local-chat-strata[27305]: [strata] answering: 1633 of max 2048 tokens, 76.3 tok/s, 22 s
+Nov 19 22:46:04 power local-chat-strata[27305]: [strata] answering: 1716 of max 2048 tokens, 76.6 tok/s, 23 s
+Nov 19 22:46:05 power local-chat-strata[27305]: [strata] answering: 1786 of max 2048 tokens, 76.3 tok/s, 24 s
+Nov 19 22:46:06 power local-chat-strata[27305]: [strata] answering: 1858 of max 2048 tokens, 76.1 tok/s, 25 s
+Nov 19 22:46:07 power local-chat-strata[27305]: [strata] answering: 1930 of max 2048 tokens, 75.9 tok/s, 26 s
+Nov 19 22:46:08 power local-chat-strata[27305]: [strata] answering: 2009 of max 2048 tokens, 75.9 tok/s, 27 s
+Nov 19 22:46:08 power local-chat-strata[27305]: strata serve: prompt 78 tokens = 0 reused + 78 read in 920 ms (84.8 tok/s), 2048 generated in 27098 ms (75.6 tok/s), drafts accepted 964 of 1723, 1 checkpoints
+Nov 19 22:46:08 power local-chat-strata[27305]: [strata] done: 2048 tokens in 28 s (75.6 tok/s) (length, cancel=False), expert cache 96.6% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+Nov 19 22:46:08 power local-chat-strata[27305]: strata serve: decode expert cache hit rate: 96.6% (1264956 hits / 1309094 lookups); 809 more read by the GPU over PCIe or from another GPU (0.1% of all 1309903 routed)
+Nov 19 22:46:08 power local-chat-strata[27305]: strata serve: route tail skip: 13686905 missed experts skipped (14282745 entries) since the start
+Nov 19 22:46:08 power local-chat-strata[27305]: strata serve: asynchronous adaptive tier: 178448 rounds, 6706351 experts swapped in, 127.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.12 ms/round)
+Nov 19 22:46:08 power local-chat-strata[27305]: strata serve: suffix drafts: 13 windows, 16 of 43 drafts accepted
+Nov 19 22:46:08 power local-chat-strata[27305]: strata serve: lookup chain: 15 of 1084 windows, 3 of 30 chained drafts accepted

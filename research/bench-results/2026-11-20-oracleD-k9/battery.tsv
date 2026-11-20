@@ -1,0 +1,2 @@
+arm	cell	config	ttft_p50	gen_rates	prefill_reads
+notier	1	drafting=mtp spec=4 draft_model=- f16=env-only	reuse=100.0% ttft=1425 ms prompt_n=42 gate=No 	-	parklab-A

@@ -1019,3 +1019,67 @@ The machine hang was **not** a runtime memory leak or inference OOM. It occurred
    ```
 4. **Optional BIOS Memory Reclaim:**
    Lower Cezanne iGPU `UMA Frame Buffer Size` from `8G` to `2G` or `4G` in motherboard UEFI setup to reclaim another **4–6 GiB** of host RAM for the OS pool.
+
+## 14. Session 5 Execution Results: Engine `0.2.16` Cutover (C0 gate)
+
+**Execution Date:** 2026-11-19 → 2026-11-20
+**Engine Version:** Strata `0.2.16` (commit `58ee32277`) vs baseline `0.1.61` (pkg `12522.r0.g2cbfc3c`)
+**Config delta (audited):** conversation-cache SSD tier (`--conversation-spill-dir`/`-mib 24576`) + `STRATA_SLOT_RAM_RESERVE_GIB=8`; expert-profile path moved but the file is byte-identical (`8f59b4aa…`). Nothing else changed in the running argv.
+**Protocol:** same as §13 (`omp bench`, Oracle A/B), plus the new rule below.
+
+### 14.1 New protocol rule
+
+A freshly restarted engine reads **~7% low on decode** (same run position 5 min apart: 66.7 → 71.3 tok/s). The §13 baseline was measured on an engine with ~48 h uptime. Cells taken within ~10 min of a restart must be **discarded**, and `omp bench` TTFT must never be used as the prefill verdict — read `prompt N tokens = R reused + Y read in X ms` from the engine log.
+
+### 14.2 C0 gate results
+
+| Test ID | Configuration | Oracle A decode (gen tok/s) | Oracle B 22k prefill (engine log) | Park cost (22.2K conv) | Status / Notes |
+|---|---|---|---|---|---|
+| `S5-BASE01` | `0.1.61`, warm engine | 72.6 / 73.9 / 75.7 (med **73.9**) | 2,681 / 2,185 tok/s | 1,892–1,930 ms | Baseline (§13 protocol). |
+| `S5-C0-cold` | `0.2.16`, 5 min after restart | 66.7 / 68.6 / 68.9 (med 68.6) | 2,673 / 2,672 tok/s | **72.2 ms** | **Invalid as verdict** — cold-engine artifact (−7%). |
+| `S5-C0-warm` | `0.2.16`, warm | 71.3 / 70.6 / 70.2 (med **70.6**) | 2,672 / 2,673 tok/s | 72.2 ms | −4.5% decode vs baseline; prefill at parity; park **26× cheaper**; 0 evictions during cells. |
+
+**Verdict:** prefill **pass** (parity within 0.3%), park/tier **clear win**, decode **−4.5% warm, marginally below the §13 floor (71.5)**. Attribution is engine-side, not configuration: the only argv deltas were the tier flags and a byte-identical expert profile. The prime suspect is `STRATA_OWN_CPU_QUANT` (CMake option, ON for x86, moves the CPU expert lane onto Strata's own quant layer) — untested. See `bench-results/2026-11-19-gfx1100-0.2.16-cells/ANALYSIS.md`.
+
+### 14.3 Drafter battery: MTP vs DFlash2 (C2, partial)
+
+Engine restarted per arm by `scripts/strata-env-battery.sh` (env file rewritten + `install`, launcher started directly), 2 Oracle A cells each.
+
+| Test ID | Drafter / spec | Decode median (tok/s) | 2K generation wall | Accept rate | Accepted/run | Notes |
+|---|---|---|---|---|---|---|
+| `S5-C2-base` | MTP, `--spec 4` | **68.5** | 31.0 / 32.4 s | 59.5% | **847** | Production shape; no VRAM cost beyond MTP. |
+| `S5-C2-df2` | DFlash2, `--spec 4` | 66.8 | 31.5 / 32.0 s | 72.1% | 783 | **710 MiB VRAM** (Q4_0 pack + 124 MiB head) evicts expert slots; auto-picked `draft_vocab_latin.bin`. |
+| `S5-C2-df2-s6` | DFlash2, `--spec 6` | 68.3 | **30.0** / 31.7 s | **73.6%** | 804 | Best single run; still inside ±4% noise. |
+
+| `S5-C2-mtp-s6` | **MTP, `--spec 6 --spec-min-p 0.45`** | 67.9 (3 cells) | — | 54.8% | 859 | Deeper speculation on MTP: **−2.4% vs spec 4**; accept rate drops 59.3 → 54.8%. |
+
+**Verdict:** no drafter change. DFlash2 accepts ~12 points more often but proposes ~27% fewer draft tokens, and its VRAM cost displaces experts — the two effects cancel. `--spec 6` is the most promising variant (73.6% accept, fastest single generation) but n=2 cells cannot resolve 2–3% at ±4% spread; needs ≥5 cells/arm or accepted-draft-tokens-per-second from engine counters. **Spec depth is drafter-dependent, not a global knob:** with DFlash2 (73.6% accept) `--spec 6` improved decode 66.8 → 68.3; with MTP (55–59% accept) the same change *regressed* 69.6 → 67.9, because the extra draft work is paid on every step while extra accepted tokens only arrive when the drafter is confident. Keep `spec 4` for MTP. See `bench-results/2026-11-19-env-battery-spec6/ANALYSIS.md`.
+
+### 14.4 C1 batching: `parallel: 1` vs `parallel: 2`
+
+Knob: `LCHAT_STRATA_PARALLEL` (config `"parallel"`, engine `--batch N`). Measured with `omp bench --detailed --par 4 --runs 2`.
+
+| Test ID | Slots | Single-user aggregate | Parallel-phase per-request | Parallel-phase TTFT | Aggregate (4-way) | Cost |
+|---|---|---|---|---|---|---|
+| `S5-C1-p1` | 1 | **71.5 / 69.7** | 33–35 (3 of 4 queued), 72–73 first | **7.6–9.0 s** | 68.1 / 66.7 | 8,374 expert slots |
+| `S5-C1-p2` | 2 | 51.1 / **60.3** | 35–38 (all four served) | **0.15–2.6 s** | 63.9 / 69.6 | −1.42 GiB VRAM, 7,633 slots |
+
+`batch_slots=2` granted (no fitter trim). Aggregate is a wash; the real effect is queueing — with two slots every concurrent request starts within ~1 s instead of waiting ~8 s, at the same ~35 tok/s per request. Price: **single-stream decode −14% warm / −28% cold**, because the slot sessions take 1.42 GiB VRAM the expert cache would otherwise hold.
+
+**Verdict:** keep `parallel: 1` as the production default; `LCHAT_STRATA_PARALLEL=2` is available for burst windows where queue latency beats main-session decode. `/slots` coexistence (plan D-C) untested — needs Oracle D arm C. See `bench-results/2026-11-19-env-battery-par2/ANALYSIS.md`.
+
+### 14.5 Oracle D — park-churn with the SSD tier (park-lab, K=9)
+
+Protocol: `scripts/strata-park-lab.py` — warm 120k, idle, K=9 subagent conversations (workers on a 150-token system prompt), 1-token probe to main. Two repeats per arm, fresh engine per arm.
+
+| Test ID | Config | Probe reuse | `prompt_n` | TTFT | Pressure |
+|---|---|---|---|---|---|
+| `S5-D-A` | no SSD tier | **0.0%** | 140,072 | **53.5 / 54.2 s** | parks 10 / evict 2 / parked 8 |
+| `S5-D-B` | spill tier 24576 MiB | **100%** | **21** | **2.54 / 2.15 s** | identical |
+| `S5-D-C` | B + `"parallel": 2` | **100%** | **21** | **3.42 / 3.04 s** | identical |
+
+Engine log: `spilled 140071 tokens to the SSD tier (evicted from RAM)` → `restored 140051 tokens (checkpoint) in 213.3 ms`.
+
+**Verdict:** the tier converts the production symptom (idle main evicted by subagent traffic) from a 140k cold re-prefill into a 213 ms restore — **53.8 s → 2.3 s, ≈23×**. It coexists with `parallel: 2` (core's `--batch` refusal covers slot session files, not the conversation cache), costing ~0.9 s on the return. Arms D/E (`strata_prefix`, rewind ladder) are moot for this workload: they preside over a *shared* long prefix, a regime where we measured main never being evicted anyway. See `bench-results/2026-11-20-oracleD-fixed/ANALYSIS.md`.
+
+**Protocol lesson:** K must exceed the slot count (K=9 for 8 slots) *and* workers must not share main's full prefix — with a shared 120k prefix, worker traffic pins it and `parks/evictions` move while main is never evicted (measured: reuse 99.97%, `prompt_n=42`).

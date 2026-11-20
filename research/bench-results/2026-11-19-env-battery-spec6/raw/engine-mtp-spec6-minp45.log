@@ -1,0 +1,435 @@
+[strata] sampling defaults from the config: temperature=0.6, repetition_penalty=1.1, top_p=0.95, top_k=20, presence_penalty=0.0
+loading the vision encoder ...
+strata-vision: own tower (qwen3vl_merger, 27 layers, width 1152) loaded in 0.6 s, on the GPU
+strata-vision: warmed up at 1024 image tokens in 0.8 s, 956 MiB of GPU memory
+loading the model (the first start takes a minute or two) ...
+[strata] engine priority: nice +5 (this PC has built-in Radeon graphics that usually draw the desktop; STRATA_ENGINE_NICE=0 turns it off)
+[strata] memory: 9.9 GiB of the ZFS ARC is counted as available RAM (ZFS gives it back when programs need it; #5519)
+strata generate: memory guard: limit 117.8 GiB (source: meminfo), current 17.4 GiB, reclaimable cache credited 0.0 GiB; available 100.4 GiB (MemAvailable 100.4 GiB), floor 6144 MiB
+strata generate: CPU expert kernels: AVX-2
+strata generate: native pack: /data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s experts (largest blob 2.66 MB), token embedding IQ4_XS in mapped host memory (322 MiB, 0.2 s)
+strata generate: 1466 MiB of weights loaded from /data/public/machine-learning/models/strata/swift15_iq3s/packs/swift-iq3_s in 0.7 s (302 canonical tensors skipped: served natively)
+strata generate: 300 native projection matrices, 2018.88 MiB of weights, in 0.9 s
+strata generate: control vector mode = project, dir = per-layer, layers 4..44 (41 steered)
+strata generate: PLE table locked in RAM (--ple-io ram) in 2.1 s
+strata generate: profile /usr/share/strata/terminal/data/expert-profile.bin: 24576 ranked pairs, built for 24576 slots
+strata generate: PLE on, table 320001536 rows of /data/public/machine-learning/models/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf
+strata mtp: draft layer loaded, 833 MiB of VRAM (experts 675, dense 111), files read in 0.59 s (1333 MiB/s)
+strata generate: experimental native Q6_K head, 521472000 bytes, in 0.2 s
+strata generate: GPU 0: AMD Radeon RX 7900 XTX (gfx1100)
+prefill gemm: hipBLASLt tuning enabled (48 rows, gfx1100, version 100202)
+strata prefill: warmed the BF16 and FP16 GEMM libraries on GPU 0 in 9 ms (STRATA_PREFILL_WARM=0 skips)
+strata generate: expert arena read through the file cache (buffered (not Windows))
+strata generate: expert arena: cudaHostRegister PORTABLE ok; MAP_HUGETLB unavailable (needed 23983 2 MiB pages, vm.nr_hugepages=0); transparent huge pages are on for every mapping (THP always): MADV_HUGEPAGE not requested
+strata generate: loaded 46.84 GiB at 1.97 GiB/s
+strata generate: GPU host-callback thread started before host-core pinning
+strata generate: CPU pool tasks/phase: 24 (automatic), participating threads: 8
+strata generate: CPU pool: 7 workers by default (8 physical cores, 16 logical processors; bounded by every physical core but the host's)
+strata generate: 7 pool workers on logical processors 1,2,3,4,5,6,7, the host thread on 0 (draining too) (--host-core first)
+strata generate: CPU workers on logical processors 1-7 (7 workers, one per physical core; host on 0)
+strata aux cpus: threads that are neither pool workers nor the host go to CPUs 8 (off at start; a request's aux_cpus=1 turns it on)
+strata: STRATA_HIP_WMMA: the prompt attention on matrix cores on (gfx1100)
+strata generate: expert cache auto: 16.91 GiB free, 576 MiB reserved (+220 MiB for the draft head, +256 MiB for what is allocated after the cache) -> 6406 slots
+strata generate: expert cache 8374 slots, 15.88 GiB of VRAM; policy is
+strata generate: the GPU computes the experts in the cache; it rounds differently from the CPU,
+                 so a reply can differ slightly from a run without the cache (same quality:
+                 bench/results/2026-09-27-cache-parity).
+                 PROFILE, ranked by routing frequency, no eviction.
+strata generate: pre-filled 8374 of 8374 slots from the profile in 2.1 s (8229 MB/s); slot 0 verified
+strata generate: R4 hit path ON - resident experts are computed on the GPU
+strata generate: 7 expert-pool workers + the host thread
+strata generate: session is up (engine 0.1.62)
+strata generate: token graph hit path: 8374 resident experts, decided on the device
+strata: prompt kernels: chunks of 1024 tokens or more run 48 of 48 layers on the fused kernels; shorter chunks run 48 on the staged fused entry.
+strata serve: the prompt path borrows 3481 CUDA0 cache slots (6.57 GiB)
+prefill gemm: hipBLASLt tuning enabled (48 rows, gfx1100, version 100202)
+strata prefill: chunk 24576 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+strata generate: elastic K/V: 16384 of 240384 cells in VRAM (0.21 of 2.46 GiB); the expert cache (8374 slots) gives the K/V room below slot 4893 as the context grows
+strata hc: CUDA0: the hyper-connection read runs as staged (the norm per token and stream, the down projection's activations staged ahead by cp.async); checked bit for bit against the plain read on this card (STRATA_HC_SPLIT=1 or 0 for the earlier ones)
+strata verify: window up to 8 tokens, 87.4 MiB of device buffers
+strata mtp: draft head over 106299 tokens (212.9 MiB)
+strata serve: conversation cache: SSD tier in /home/wuxxin/.cache/user-cache/conv-spill/3679855-100c126251d0f896, up to 24576 MiB
+strata serve: adaptive overlap: off: not with --adapt-async
+strata serve: adaptive tier asynchronous (--adapt-async 1): up to 160 swaps per round, a round every 1 windows (arena: copy-in only)
+strata serve: 672 MiB of VRAM free with everything loaded
+strata verify: capturing the 1-token window (672 MiB of VRAM free)
+strata verify: captured the 1-token window (upload no error, sync no error) in 322.6 ms
+strata verify: capturing the 2-token window (604 MiB of VRAM free)
+strata verify: captured the 2-token window (upload no error, sync no error) in 7.9 ms
+strata verify: capturing the 3-token window (600 MiB of VRAM free)
+strata verify: captured the 3-token window (upload no error, sync no error) in 7.9 ms
+strata verify: capturing the 4-token window (596 MiB of VRAM free)
+strata verify: captured the 4-token window (upload no error, sync no error) in 10.2 ms
+strata verify: capturing the 5-token window (592 MiB of VRAM free)
+strata verify: captured the 5-token window (upload no error, sync no error) in 9.6 ms
+strata verify: capturing the 6-token window (588 MiB of VRAM free)
+strata verify: captured the 6-token window (upload no error, sync no error) in 10.0 ms
+strata verify: capturing the 7-token window (584 MiB of VRAM free)
+strata verify: captured the 7-token window (upload no error, sync no error) in 11.5 ms
+strata verify: capturing the 8-token window (580 MiB of VRAM free)
+strata verify: captured the 8-token window (upload no error, sync no error) in 11.8 ms
+strata serve: window warm-up: ms per width 1:35 2:41 3:51 4:52 5:73 6:67 7:86 8:88, total 888 ms
+[strata] note: 672 MiB of VRAM free with the model loaded. If this AMD card also drives your desktop and the desktop or apps crash after the start (the driver moves the expert cache to RAM and the OOM killer ends the session), keep more VRAM free: ./setup.sh --vram-reserve-mib 3072 (remembered; the expert cache gets 2.4 GB less, a few % of speed)
+[strata] model aliases: qwen3.8-flash-next-swift15, qwen3.8-moe, swift-1.5, qwen3.8, qwen3
+[strata] slot save/restore on: /home/wuxxin/.cache/user-cache (session files are kept until deleted: about 1.2 GB per 63K-token conversation; restore only files this server wrote)
+[strata] the model unloads after 3600.0 s without requests
+ready: http://127.0.0.1:20080/v1  (OpenAI: /v1/chat/completions, Anthropic: /v1/messages, context 240384 tokens, images on)
+       open http://127.0.0.1:20080/ in a browser to chat; close this window to stop the model
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+strata prefill: chunk 256 tokens: STRATA_PF_HC_REGION on (the hyper-connection read's scratch is in the shared region);
+strata prefill: QSA layers: norm + rope in one pass on, attention gate in the attention epilogue off
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 56 of budget 1536 (max 2048) tokens, 57.4 tok/s, 2 s
+[strata] answering: 112 of max 2048 tokens, 56.4 tok/s, 3 s
+[strata] answering: 170 of max 2048 tokens, 56.8 tok/s, 4 s
+[strata] answering: 228 of max 2048 tokens, 57.0 tok/s, 5 s
+[strata] answering: 295 of max 2048 tokens, 58.8 tok/s, 6 s
+[strata] answering: 353 of max 2048 tokens, 58.5 tok/s, 7 s
+[strata] answering: 425 of max 2048 tokens, 60.3 tok/s, 8 s
+[strata] answering: 485 of max 2048 tokens, 60.2 tok/s, 9 s
+[strata] answering: 548 of max 2048 tokens, 60.4 tok/s, 10 s
+[strata] answering: 615 of max 2048 tokens, 60.9 tok/s, 11 s
+[strata] answering: 686 of max 2048 tokens, 61.7 tok/s, 12 s
+[strata] answering: 761 of max 2048 tokens, 62.8 tok/s, 13 s
+[strata] answering: 834 of max 2048 tokens, 63.5 tok/s, 14 s
+[strata] answering: 907 of max 2048 tokens, 64.1 tok/s, 15 s
+[strata] answering: 971 of max 2048 tokens, 64.0 tok/s, 16 s
+[strata] answering: 1037 of max 2048 tokens, 64.1 tok/s, 17 s
+[strata] answering: 1108 of max 2048 tokens, 64.5 tok/s, 18 s
+[strata] answering: 1174 of max 2048 tokens, 64.5 tok/s, 19 s
+[strata] answering: 1245 of max 2048 tokens, 64.8 tok/s, 20 s
+[strata] answering: 1317 of max 2048 tokens, 65.0 tok/s, 21 s
+[strata] answering: 1387 of max 2048 tokens, 65.2 tok/s, 22 s
+[strata] answering: 1464 of max 2048 tokens, 65.7 tok/s, 23 s
+[strata] answering: 1541 of max 2048 tokens, 66.1 tok/s, 24 s
+[strata] answering: 1610 of max 2048 tokens, 66.2 tok/s, 25 s
+[strata] answering: 1673 of max 2048 tokens, 66.1 tok/s, 26 s
+[strata] answering: 1736 of max 2048 tokens, 65.9 tok/s, 27 s
+[strata] answering: 1809 of max 2048 tokens, 66.1 tok/s, 28 s
+[strata] answering: 1881 of max 2048 tokens, 66.3 tok/s, 29 s
+[strata] answering: 1958 of max 2048 tokens, 66.6 tok/s, 30 s
+[strata] answering: 2033 of max 2048 tokens, 66.9 tok/s, 31 s
+[strata] done: 2048 tokens in 32 s (66.8 tok/s) (length, cancel=False), expert cache 93.7% hit (+0.2% of the routed experts over PCIe)strata serve: prompt 104 tokens = 0 reused + 104 read in 1000 ms (104.0 tok/s), 2048 generated in 30666 ms (66.8 tok/s), drafts accepted 890 of 1834, 1 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+
+strata serve: decode expert cache hit rate: 93.7% (1342444 hits / 1433418 lookups); 2742 more read by the GPU over PCIe or from another GPU (0.2% of all 1436160 routed)
+strata serve: asynchronous adaptive tier: 1158 rounds, 18451 experts swapped in, 25.9 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 21 windows, 28 of 42 drafts accepted
+strata serve: lookup chain: 7 of 1158 windows, 3 of 13 chained drafts accepted
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 58 of budget 1536 (max 2048) tokens, 59.8 tok/s, 2 s
+[strata] answering: 125 of max 2048 tokens, 63.4 tok/s, 3 s
+[strata] answering: 184 of max 2048 tokens, 61.4 tok/s, 4 s
+[strata] answering: 249 of max 2048 tokens, 62.1 tok/s, 5 s
+[strata] answering: 313 of max 2048 tokens, 62.4 tok/s, 6 s
+[strata] answering: 385 of max 2048 tokens, 63.9 tok/s, 7 s
+[strata] answering: 457 of max 2048 tokens, 64.8 tok/s, 8 s
+[strata] answering: 525 of max 2048 tokens, 65.0 tok/s, 9 s
+[strata] answering: 593 of max 2048 tokens, 65.3 tok/s, 10 s
+[strata] answering: 661 of max 2048 tokens, 65.4 tok/s, 11 s
+[strata] answering: 731 of max 2048 tokens, 65.7 tok/s, 12 s
+[strata] answering: 804 of max 2048 tokens, 66.3 tok/s, 13 s
+[strata] answering: 876 of max 2048 tokens, 66.7 tok/s, 14 s
+[strata] answering: 948 of max 2048 tokens, 67.0 tok/s, 15 s
+[strata] answering: 1014 of max 2048 tokens, 66.8 tok/s, 16 s
+[strata] answering: 1080 of max 2048 tokens, 66.7 tok/s, 17 s
+[strata] answering: 1143 of max 2048 tokens, 66.5 tok/s, 18 s
+[strata] answering: 1205 of max 2048 tokens, 66.2 tok/s, 19 s
+[strata] answering: 1278 of max 2048 tokens, 66.6 tok/s, 20 s
+[strata] answering: 1349 of max 2048 tokens, 66.8 tok/s, 21 s
+[strata] answering: 1418 of max 2048 tokens, 66.8 tok/s, 22 s
+[strata] answering: 1498 of max 2048 tokens, 67.4 tok/s, 23 s
+[strata] answering: 1574 of max 2048 tokens, 67.7 tok/s, 24 s
+[strata] answering: 1647 of max 2048 tokens, 67.9 tok/s, 25 s
+[strata] answering: 1717 of max 2048 tokens, 67.9 tok/s, 26 s
+[strata] answering: 1788 of max 2048 tokens, 68.0 tok/s, 27 s
+[strata] answering: 1851 of max 2048 tokens, 67.8 tok/s, 28 s
+[strata] answering: 1919 of max 2048 tokens, 67.8 tok/s, 29 s
+[strata] answering: 1982 of max 2048 tokens, 67.6 tok/s, 30 s
+[strata] done: 2048 tokens in 31 s (67.6 tok/s) (length, cancel=False), expert cache 93.0% hit (+0.2% of the routed experts over PCIe)strata serve: prompt 104 tokens = 0 reused + 104 read in 1099 ms (94.6 tok/s), 2048 generated in 30297 ms (67.6 tok/s), drafts accepted 926 of 1847, 1 checkpoints
+
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.0% (1321999 hits / 1422120 lookups); 3000 more read by the GPU over PCIe or from another GPU (0.2% of all 1425120 routed)
+strata serve: asynchronous adaptive tier: 2280 rounds, 39136 experts swapped in, 26.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 13 windows, 19 of 30 drafts accepted
+strata serve: lookup chain: 10 of 1122 windows, 4 of 20 chained drafts accepted
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 57 of budget 1536 (max 2048) tokens, 59.3 tok/s, 2 s
+[strata] answering: 117 of max 2048 tokens, 59.2 tok/s, 3 s
+[strata] answering: 189 of max 2048 tokens, 63.3 tok/s, 4 s
+[strata] answering: 257 of max 2048 tokens, 64.5 tok/s, 5 s
+[strata] answering: 333 of max 2048 tokens, 66.6 tok/s, 6 s
+[strata] answering: 400 of max 2048 tokens, 66.6 tok/s, 7 s
+[strata] answering: 472 of max 2048 tokens, 67.2 tok/s, 8 s
+[strata] answering: 547 of max 2048 tokens, 68.1 tok/s, 9 s
+[strata] answering: 627 of max 2048 tokens, 69.2 tok/s, 10 s
+[strata] answering: 697 of max 2048 tokens, 69.1 tok/s, 11 s
+[strata] answering: 769 of max 2048 tokens, 69.3 tok/s, 12 s
+[strata] answering: 840 of max 2048 tokens, 69.3 tok/s, 13 s
+[strata] answering: 912 of max 2048 tokens, 69.4 tok/s, 14 s
+[strata] answering: 981 of max 2048 tokens, 69.3 tok/s, 15 s
+[strata] answering: 1046 of max 2048 tokens, 69.0 tok/s, 16 s
+[strata] answering: 1108 of max 2048 tokens, 68.5 tok/s, 17 s
+[strata] answering: 1177 of max 2048 tokens, 68.5 tok/s, 18 s
+[strata] answering: 1254 of max 2048 tokens, 68.8 tok/s, 19 s
+[strata] answering: 1329 of max 2048 tokens, 69.1 tok/s, 20 s
+[strata] answering: 1401 of max 2048 tokens, 69.2 tok/s, 21 s
+[strata] answering: 1473 of max 2048 tokens, 69.3 tok/s, 22 s
+[strata] answering: 1551 of max 2048 tokens, 69.6 tok/s, 23 s
+[strata] answering: 1623 of max 2048 tokens, 69.6 tok/s, 24 s
+[strata] answering: 1699 of max 2048 tokens, 69.9 tok/s, 25 s
+[strata] answering: 1774 of max 2048 tokens, 70.0 tok/s, 26 s
+[strata] answering: 1851 of max 2048 tokens, 70.2 tok/s, 27 s
+[strata] answering: 1921 of max 2048 tokens, 70.2 tok/s, 28 s
+[strata] answering: 1998 of max 2048 tokens, 70.4 tok/s, 29 s
+strata serve: prompt 104 tokens = 0 reused + 104 read in 1041 ms (99.9 tok/s), 2048 generated in 29191 ms (70.2 tok/s), drafts accepted 939 of 1791, 1 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 2048 tokens in 30 s (70.2 tok/s) (length, cancel=False), expert cache 93.7% hit (+0.2% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 93.7% (1302545 hits / 1389745 lookups); 2255 more read by the GPU over PCIe or from another GPU (0.2% of all 1392000 routed)
+
+strata serve: asynchronous adaptive tier: 3389 rounds, 56625 experts swapped in, 26.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 6 windows, 4 of 12 drafts accepted
+strata serve: lookup chain: 7 of 1109 windows, 4 of 14 chained drafts accepted
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 54 of budget 1536 (max 2048) tokens, 56.0 tok/s, 2 s
+[strata] answering: 122 of max 2048 tokens, 61.9 tok/s, 3 s
+[strata] answering: 187 of max 2048 tokens, 62.7 tok/s, 4 s
+[strata] answering: 254 of max 2048 tokens, 63.6 tok/s, 5 s
+[strata] answering: 331 of max 2048 tokens, 66.1 tok/s, 6 s
+[strata] answering: 400 of max 2048 tokens, 66.5 tok/s, 7 s
+[strata] answering: 465 of max 2048 tokens, 66.0 tok/s, 8 s
+[strata] answering: 531 of max 2048 tokens, 65.9 tok/s, 9 s
+[strata] answering: 599 of max 2048 tokens, 66.0 tok/s, 10 s
+[strata] answering: 667 of max 2048 tokens, 66.0 tok/s, 11 s
+[strata] answering: 732 of max 2048 tokens, 65.9 tok/s, 12 s
+[strata] answering: 799 of max 2048 tokens, 65.9 tok/s, 13 s
+[strata] answering: 868 of max 2048 tokens, 66.1 tok/s, 14 s
+[strata] answering: 933 of max 2048 tokens, 65.9 tok/s, 15 s
+[strata] answering: 999 of max 2048 tokens, 65.8 tok/s, 16 s
+[strata] answering: 1063 of max 2048 tokens, 65.7 tok/s, 17 s
+[strata] answering: 1136 of max 2048 tokens, 66.1 tok/s, 18 s
+[strata] answering: 1212 of max 2048 tokens, 66.5 tok/s, 19 s
+[strata] answering: 1279 of max 2048 tokens, 66.5 tok/s, 20 s
+[strata] answering: 1350 of max 2048 tokens, 66.7 tok/s, 21 s
+[strata] answering: 1430 of max 2048 tokens, 67.3 tok/s, 22 s
+[strata] answering: 1504 of max 2048 tokens, 67.5 tok/s, 23 s
+[strata] answering: 1570 of max 2048 tokens, 67.4 tok/s, 24 s
+[strata] answering: 1638 of max 2048 tokens, 67.4 tok/s, 25 s
+[strata] answering: 1706 of max 2048 tokens, 67.4 tok/s, 26 s
+[strata] answering: 1775 of max 2048 tokens, 67.5 tok/s, 27 s
+[strata] answering: 1849 of max 2048 tokens, 67.7 tok/s, 28 s
+[strata] answering: 1911 of max 2048 tokens, 67.5 tok/s, 29 s
+[strata] answering: 1987 of max 2048 tokens, 67.7 tok/s, 30 s
+strata serve: prompt 104 tokens = 0 reused + 104 read in 1063 ms (97.8 tok/s), 2048 generated in 30286 ms (67.6 tok/s), drafts accepted 848 of 1442, 1 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 2048 tokens in 31 s (67.6 tok/s) (length, cancel=False), expert cache 92.5% hit (+0.2% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 92.5% (1170659 hits / 1265563 lookups); 2597 more read by the GPU over PCIe or from another GPU (0.2% of all 1268160 routed)
+
+strata serve: asynchronous adaptive tier: 4589 rounds, 75743 experts swapped in, 26.1 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 9 windows, 9 of 17 drafts accepted
+strata serve: lookup chain: 3 of 1200 windows, 1 of 4 chained drafts accepted
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+[strata] reading the prompt: 104 of 105 tokens, 1 s so far
+[strata] thinking: 58 of budget 1536 (max 2048) tokens, 60.4 tok/s, 2 s
+[strata] answering: 127 of max 2048 tokens, 64.2 tok/s, 3 s
+[strata] answering: 187 of max 2048 tokens, 62.8 tok/s, 4 s
+[strata] answering: 249 of max 2048 tokens, 62.2 tok/s, 5 s
+[strata] answering: 322 of max 2048 tokens, 64.2 tok/s, 6 s
+[strata] answering: 394 of max 2048 tokens, 65.3 tok/s, 7 s
+[strata] answering: 462 of max 2048 tokens, 65.6 tok/s, 8 s
+[strata] answering: 532 of max 2048 tokens, 66.1 tok/s, 9 s
+[strata] answering: 598 of max 2048 tokens, 66.0 tok/s, 10 s
+[strata] answering: 672 of max 2048 tokens, 66.7 tok/s, 11 s
+[strata] answering: 737 of max 2048 tokens, 66.5 tok/s, 12 s
+[strata] answering: 809 of max 2048 tokens, 66.9 tok/s, 13 s
+[strata] answering: 880 of max 2048 tokens, 67.1 tok/s, 14 s
+[strata] answering: 956 of max 2048 tokens, 67.7 tok/s, 15 s
+[strata] answering: 1026 of max 2048 tokens, 67.9 tok/s, 16 s
+[strata] answering: 1101 of max 2048 tokens, 68.3 tok/s, 17 s
+[strata] answering: 1173 of max 2048 tokens, 68.4 tok/s, 18 s
+[strata] answering: 1243 of max 2048 tokens, 68.5 tok/s, 19 s
+[strata] answering: 1314 of max 2048 tokens, 68.6 tok/s, 20 s
+[strata] answering: 1385 of max 2048 tokens, 68.6 tok/s, 21 s
+[strata] answering: 1457 of max 2048 tokens, 68.8 tok/s, 22 s
+[strata] answering: 1528 of max 2048 tokens, 68.8 tok/s, 23 s
+[strata] answering: 1593 of max 2048 tokens, 68.6 tok/s, 24 s
+[strata] answering: 1668 of max 2048 tokens, 68.9 tok/s, 25 s
+[strata] answering: 1738 of max 2048 tokens, 68.8 tok/s, 26 s
+[strata] answering: 1807 of max 2048 tokens, 68.8 tok/s, 27 s
+[strata] answering: 1878 of max 2048 tokens, 68.8 tok/s, 28 s
+[strata] answering: 1944 of max 2048 tokens, 68.7 tok/s, 29 s
+[strata] answering: 2009 of max 2048 tokens, 68.5 tok/s, 30 s
+strata serve: prompt 105 tokens = 0 reused + 105 read in 1048 ms (100.2 tok/s), 2048 generated in 29904 ms (68.5 tok/s), drafts accepted 760 of 1164, 1 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.5% (1099159 hits / 1175404 lookups); 1556 more read by the GPU over PCIe or from another GPU (0.1% of all 1176960 routed)
+strata serve: asynchronous adaptive tier: 5877 rounds, 89782 experts swapped in, 25.3 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 4 windows, 4 of 7 drafts accepted
+strata serve: lookup chain: 4 of 1288 windows, 2 of 5 chained drafts accepted
+[strata] done: 2048 tokens in 31 s (68.5 tok/s) (length, cancel=False), expert cache 93.5% hit (+0.1% of the routed experts over PCIe)
+strata serve: conversation cache: skip parking (2152 tokens, below the 4096 minimum; parked=0)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 64 of budget 1536 (max 2048) tokens, 65.6 tok/s, 2 s
+[strata] answering: 131 of max 2048 tokens, 65.5 tok/s, 3 s
+[strata] answering: 193 of max 2048 tokens, 64.2 tok/s, 4 s
+[strata] answering: 260 of max 2048 tokens, 64.7 tok/s, 5 s
+[strata] answering: 329 of max 2048 tokens, 65.6 tok/s, 6 s
+[strata] answering: 400 of max 2048 tokens, 66.3 tok/s, 7 s
+[strata] answering: 460 of max 2048 tokens, 65.2 tok/s, 8 s
+[strata] answering: 525 of max 2048 tokens, 65.2 tok/s, 9 s
+[strata] answering: 594 of max 2048 tokens, 65.6 tok/s, 10 s
+[strata] answering: 659 of max 2048 tokens, 65.5 tok/s, 11 s
+[strata] answering: 722 of max 2048 tokens, 65.2 tok/s, 12 s
+[strata] answering: 793 of max 2048 tokens, 65.7 tok/s, 13 s
+[strata] answering: 865 of max 2048 tokens, 66.1 tok/s, 14 s
+[strata] answering: 933 of max 2048 tokens, 66.1 tok/s, 15 s
+[strata] answering: 999 of max 2048 tokens, 66.0 tok/s, 16 s
+[strata] answering: 1071 of max 2048 tokens, 66.4 tok/s, 17 s
+[strata] answering: 1140 of max 2048 tokens, 66.5 tok/s, 18 s
+[strata] answering: 1205 of max 2048 tokens, 66.3 tok/s, 19 s
+[strata] answering: 1270 of max 2048 tokens, 66.2 tok/s, 20 s
+[strata] answering: 1335 of max 2048 tokens, 66.1 tok/s, 21 s
+[strata] answering: 1409 of max 2048 tokens, 66.4 tok/s, 22 s
+[strata] answering: 1469 of max 2048 tokens, 66.1 tok/s, 23 s
+[strata] answering: 1536 of max 2048 tokens, 66.1 tok/s, 24 s
+[strata] answering: 1600 of max 2048 tokens, 66.0 tok/s, 25 s
+[strata] answering: 1664 of max 2048 tokens, 65.9 tok/s, 26 s
+[strata] answering: 1731 of max 2048 tokens, 65.9 tok/s, 27 s
+[strata] answering: 1809 of max 2048 tokens, 66.3 tok/s, 28 s
+[strata] answering: 1871 of max 2048 tokens, 66.1 tok/s, 29 s
+[strata] answering: 1938 of max 2048 tokens, 66.1 tok/s, 30 s
+[strata] answering: 2006 of max 2048 tokens, 66.2 tok/s, 31 s
+strata serve: prompt 104 tokens = 0 reused + 104 read in 1008 ms (103.1 tok/s), 2048 generated in 30988 ms (66.1 tok/s), drafts accepted 731 of 1186, 1 checkpoints
+[strata] done: 2048 tokens in 32 s (66.1 tok/s) (length, cancel=False), expert cache 92.8% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 92.8% (1113274 hits / 1199777 lookups); 1663 more read by the GPU over PCIe or from another GPU (0.1% of all 1201440 routed)
+
+strata serve: asynchronous adaptive tier: 7194 rounds, 106043 experts swapped in, 25.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 19 windows, 18 of 19 drafts accepted
+strata serve: lookup chain: 5 of 1317 windows, 2 of 6 chained drafts accepted
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 60 of budget 1536 (max 2048) tokens, 62.5 tok/s, 2 s
+[strata] thinking: 129 of budget 1536 (max 2048) tokens, 65.6 tok/s, 3 s
+[strata] answering: 192 of max 2048 tokens, 64.5 tok/s, 4 s
+[strata] answering: 255 of max 2048 tokens, 63.8 tok/s, 5 s
+[strata] answering: 319 of max 2048 tokens, 63.8 tok/s, 6 s
+[strata] answering: 386 of max 2048 tokens, 64.3 tok/s, 7 s
+[strata] answering: 457 of max 2048 tokens, 65.2 tok/s, 8 s
+[strata] answering: 525 of max 2048 tokens, 65.4 tok/s, 9 s
+[strata] answering: 596 of max 2048 tokens, 66.0 tok/s, 10 s
+[strata] answering: 663 of max 2048 tokens, 66.1 tok/s, 11 s
+[strata] answering: 733 of max 2048 tokens, 66.4 tok/s, 12 s
+[strata] answering: 804 of max 2048 tokens, 66.6 tok/s, 13 s
+[strata] answering: 879 of max 2048 tokens, 67.2 tok/s, 14 s
+[strata] answering: 945 of max 2048 tokens, 67.0 tok/s, 15 s
+[strata] answering: 1014 of max 2048 tokens, 67.1 tok/s, 16 s
+[strata] answering: 1082 of max 2048 tokens, 67.1 tok/s, 17 s
+[strata] answering: 1148 of max 2048 tokens, 67.0 tok/s, 18 s
+[strata] answering: 1223 of max 2048 tokens, 67.4 tok/s, 19 s
+[strata] answering: 1290 of max 2048 tokens, 67.3 tok/s, 20 s
+[strata] answering: 1360 of max 2048 tokens, 67.4 tok/s, 21 s
+[strata] answering: 1427 of max 2048 tokens, 67.4 tok/s, 22 s
+[strata] answering: 1498 of max 2048 tokens, 67.5 tok/s, 23 s
+[strata] answering: 1566 of max 2048 tokens, 67.5 tok/s, 24 s
+[strata] answering: 1639 of max 2048 tokens, 67.7 tok/s, 25 s
+[strata] answering: 1709 of max 2048 tokens, 67.7 tok/s, 26 s
+[strata] answering: 1777 of max 2048 tokens, 67.7 tok/s, 27 s
+[strata] answering: 1846 of max 2048 tokens, 67.8 tok/s, 28 s
+[strata] answering: 1916 of max 2048 tokens, 67.8 tok/s, 29 s
+[strata] answering: 1991 of max 2048 tokens, 68.0 tok/s, 30 s
+strata serve: prompt 104 tokens = 0 reused + 104 read in 1056 ms (98.4 tok/s), 2048 generated in 30129 ms (68.0 tok/s), drafts accepted 753 of 1192, 1 checkpoints
+[strata] done: 2048 tokens in 31 s (68.0 tok/s) (length, cancel=False), expert cache 93.6% hit (+0.1% of the routed experts over PCIe)strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+strata serve: decode expert cache hit rate: 93.6% (1115291 hits / 1192066 lookups); 1694 more read by the GPU over PCIe or from another GPU (0.1% of all 1193760 routed)
+strata serve: asynchronous adaptive tier: 8489 rounds, 119891 experts swapped in, 24.7 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+
+strata serve: suffix drafts: 33 windows, 30 of 38 drafts accepted
+strata serve: lookup chain: 4 of 1295 windows, 2 of 4 chained drafts accepted
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] thinking limited to 1536 of max_tokens 2048 so the answer has room ("answer_room": false in the config turns this off)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 53 of budget 1536 (max 2048) tokens, 54.6 tok/s, 2 s
+[strata] answering: 114 of max 2048 tokens, 57.4 tok/s, 3 s
+[strata] answering: 183 of max 2048 tokens, 61.1 tok/s, 4 s
+[strata] answering: 253 of max 2048 tokens, 63.1 tok/s, 5 s
+[strata] answering: 320 of max 2048 tokens, 63.6 tok/s, 6 s
+[strata] answering: 393 of max 2048 tokens, 65.0 tok/s, 7 s
+[strata] answering: 463 of max 2048 tokens, 65.6 tok/s, 8 s
+[strata] answering: 533 of max 2048 tokens, 66.0 tok/s, 9 s
+[strata] answering: 605 of max 2048 tokens, 66.6 tok/s, 10 s
+[strata] answering: 680 of max 2048 tokens, 67.4 tok/s, 11 s
+[strata] answering: 765 of max 2048 tokens, 69.0 tok/s, 12 s
+[strata] answering: 842 of max 2048 tokens, 69.6 tok/s, 13 s
+[strata] answering: 917 of max 2048 tokens, 69.9 tok/s, 14 s
+[strata] answering: 985 of max 2048 tokens, 69.7 tok/s, 15 s
+[strata] answering: 1061 of max 2048 tokens, 70.0 tok/s, 16 s
+[strata] answering: 1136 of max 2048 tokens, 70.2 tok/s, 17 s
+[strata] answering: 1202 of max 2048 tokens, 69.9 tok/s, 18 s
+[strata] answering: 1267 of max 2048 tokens, 69.6 tok/s, 19 s
+[strata] answering: 1347 of max 2048 tokens, 70.1 tok/s, 20 s
+[strata] answering: 1413 of max 2048 tokens, 69.9 tok/s, 21 s
+[strata] answering: 1479 of max 2048 tokens, 69.7 tok/s, 22 s
+[strata] answering: 1550 of max 2048 tokens, 69.7 tok/s, 23 s
+[strata] answering: 1626 of max 2048 tokens, 69.8 tok/s, 24 s
+[strata] answering: 1699 of max 2048 tokens, 70.0 tok/s, 25 s
+[strata] answering: 1771 of max 2048 tokens, 70.0 tok/s, 26 s
+[strata] answering: 1838 of max 2048 tokens, 69.9 tok/s, 27 s
+[strata] answering: 1917 of max 2048 tokens, 70.1 tok/s, 28 s
+[strata] answering: 1991 of max 2048 tokens, 70.2 tok/s, 29 s
+strata serve: prompt 104 tokens = 0 reused + 104 read in 1073 ms (96.9 tok/s), 2048 generated in 29321 ms (69.8 tok/s), drafts accepted 967 of 1810, 1 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 2048 tokens in 30 s (69.8 tok/s) (length, cancel=False), expert cache 92.8% hit (+0.2% of the routed experts over PCIe)strata serve: the graphics driver paused the GPU for 121 ms during this request while Linux moved memory the GPU uses; the request was slower by up to that much
+
+strata serve: decode expert cache hit rate: 92.8% (1285287 hits / 1384813 lookups); 2867 more read by the GPU over PCIe or from another GPU (0.2% of all 1387680 routed)
+strata serve: asynchronous adaptive tier: 9570 rounds, 140518 experts swapped in, 25.0 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 17 windows, 18 of 35 drafts accepted
+strata serve: lookup chain: 6 of 1081 windows, 4 of 10 chained drafts accepted
+strata serve: conversation cache: skip parking (2151 tokens, below the 4096 minimum; parked=0)
+[strata] reading the prompt: 103 of 104 tokens, 1 s so far
+[strata] thinking: 58 of budget 1536 (max 2048) tokens, 58.9 tok/s, 2 s
+[strata] answering: 134 of max 2048 tokens, 67.1 tok/s, 3 s
+[strata] answering: 197 of max 2048 tokens, 65.5 tok/s, 4 s
+[strata] answering: 267 of max 2048 tokens, 66.3 tok/s, 5 s
+[strata] answering: 329 of max 2048 tokens, 65.4 tok/s, 6 s
+[strata] answering: 395 of max 2048 tokens, 65.4 tok/s, 7 s
+[strata] answering: 460 of max 2048 tokens, 65.2 tok/s, 8 s
+[strata] answering: 533 of max 2048 tokens, 66.0 tok/s, 9 s
+[strata] answering: 602 of max 2048 tokens, 66.3 tok/s, 10 s
+[strata] answering: 670 of max 2048 tokens, 66.3 tok/s, 11 s
+[strata] answering: 733 of max 2048 tokens, 66.0 tok/s, 12 s
+[strata] answering: 809 of max 2048 tokens, 66.7 tok/s, 13 s
+[strata] answering: 883 of max 2048 tokens, 67.2 tok/s, 14 s
+[strata] answering: 945 of max 2048 tokens, 66.8 tok/s, 15 s
+[strata] answering: 1015 of max 2048 tokens, 67.0 tok/s, 16 s
+[strata] answering: 1096 of max 2048 tokens, 67.8 tok/s, 17 s
+[strata] answering: 1159 of max 2048 tokens, 67.5 tok/s, 18 s
+[strata] answering: 1225 of max 2048 tokens, 67.4 tok/s, 19 s
+[strata] answering: 1291 of max 2048 tokens, 67.3 tok/s, 20 s
+[strata] answering: 1356 of max 2048 tokens, 67.2 tok/s, 21 s
+[strata] answering: 1425 of max 2048 tokens, 67.2 tok/s, 22 s
+[strata] answering: 1492 of max 2048 tokens, 67.2 tok/s, 23 s
+[strata] answering: 1555 of max 2048 tokens, 66.9 tok/s, 24 s
+[strata] answering: 1627 of max 2048 tokens, 67.1 tok/s, 25 s
+[strata] answering: 1685 of max 2048 tokens, 66.7 tok/s, 26 s
+[strata] answering: 1752 of max 2048 tokens, 66.7 tok/s, 27 s
+[strata] answering: 1819 of max 2048 tokens, 66.7 tok/s, 28 s
+[strata] answering: 1900 of max 2048 tokens, 67.2 tok/s, 29 s
+[strata] answering: 1967 of max 2048 tokens, 67.1 tok/s, 30 s
+[strata] answering: 2029 of max 2048 tokens, 66.9 tok/s, 31 s
+strata serve: prompt 104 tokens = 0 reused + 104 read in 1086 ms (95.8 tok/s), 2048 generated in 30708 ms (66.7 tok/s), drafts accepted 919 of 1840, 1 checkpoints
+strata serve: checkpoint pool: this request took 1 checkpoint ready from the pool and allocated 0 fresh
+[strata] done: 2048 tokens in 32 s (66.7 tok/s) (length, cancel=False), expert cache 92.4% hit (+0.2% of the routed experts over PCIe)strata serve: decode expert cache hit rate: 92.4% (1314106 hits / 1421636 lookups); 3484 more read by the GPU over PCIe or from another GPU (0.2% of all 1425120 routed)
+
+strata serve: asynchronous adaptive tier: 10699 rounds, 162631 experts swapped in, 25.2 ms per round (start to flip, between windows) (arena, copy-in only, batch 0, wait 1, pick inline 0.09 ms/round)
+strata serve: suffix drafts: 32 windows, 40 of 64 drafts accepted
+strata serve: lookup chain: 4 of 1129 windows, 0 of 8 chained drafts accepted
+
+[strata] stopping (Ctrl+C again to end the engine at once) ...
+strata serve: expert profile saved to /home/wuxxin/.local/state/strata/local-chat-strata-profile.bin (exit)
+[strata] stopped

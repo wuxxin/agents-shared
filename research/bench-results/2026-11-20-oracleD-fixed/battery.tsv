@@ -1,0 +1,4 @@
+arm	cell	config	ttft_p50	gen_rates	prefill_reads
+notier	2	drafting=mtp spec=4 draft_model=- f16=env-only	reuse=0.0% ttft=53455 ms prompt_n=140072 pres gate=None reuse=0.0% ttft=54181 ms prompt_n=140072 pres gate=None 	-	parklab-A
+tier	2	drafting=mtp spec=4 draft_model=- f16=env-only	reuse=100.0% ttft=2535 ms prompt_n=21 pressur gate=True reuse=100.0% ttft=2152 ms prompt_n=21 pressur gate=True 	-	parklab-B
+tier-par2	2	drafting=mtp spec=4 draft_model=- f16=env-only	reuse=100.0% ttft=3418 ms prompt_n=21 pressur gate=None reuse=100.0% ttft=3039 ms prompt_n=21 pressur gate=None 	-	parklab-C

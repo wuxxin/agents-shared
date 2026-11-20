@@ -1,0 +1,36 @@
+Oracle D pre-flight (plan §5):
+  [ ] Pulse is stopped.
+  [ ] The omp bridge is disabled (OMP_BRIDGE_SETTINGS=/dev/null).
+  [ ] The driving omp session and all its subagents use DeepSeek Flash,
+      not the local model under test.
+  [ ] This script drives an idle local engine; no omp session is served by it.
+  [ ] The arm's configuration is applied (restart done by the operator).
+Recorded background: unrecorded — state which services were running
+engine: 0.1.62 · share_prefix=small
+[cell A/1] warming A1-35b576 ...
+[cell A/1] warm done: ttft=58614 ms wall=59030 ms
+[cell A/1] worker 1/9 done
+[cell A/1] worker 2/9 done
+[cell A/1] worker 3/9 done
+[cell A/1] worker 4/9 done
+[cell A/1] worker 5/9 done
+[cell A/1] worker 6/9 done
+[cell A/1] worker 7/9 done
+[cell A/1] worker 8/9 done
+[cell A/1] worker 9/9 done
+[cell A/1] probing main ...
+[cell A/1] reuse=0.0% ttft=53455 ms prompt_n=140072 pressure=True gate=None
+[cell A/2] warming A2-99d167 ...
+[cell A/2] warm done: ttft=53690 ms wall=53941 ms
+[cell A/2] worker 1/9 done
+[cell A/2] worker 2/9 done
+[cell A/2] worker 3/9 done
+[cell A/2] worker 4/9 done
+[cell A/2] worker 5/9 done
+[cell A/2] worker 6/9 done
+[cell A/2] worker 7/9 done
+[cell A/2] worker 8/9 done
+[cell A/2] worker 9/9 done
+[cell A/2] probing main ...
+[cell A/2] reuse=0.0% ttft=54181 ms prompt_n=140072 pressure=True gate=None
+wrote research/bench-results/2026-11-20-oracleD-fixed/park-notier/cells.jsonl and research/bench-results/2026-11-20-oracleD-fixed/park-notier/summary.md

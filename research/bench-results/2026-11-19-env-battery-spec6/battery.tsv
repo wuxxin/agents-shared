@@ -1,0 +1,7 @@
+arm	cell	config	ttft_p50	gen_rates	prefill_reads
+base	1	drafting=mtp spec=4 draft_model=- f16=env-only	?	66.7 67.6 70.1 	read in 989 ms (106.2 tok/s);read in 1047 ms (99.3 tok/s);read in 1080 ms (97.2 tok/s);
+base	2	drafting=mtp spec=4 draft_model=- f16=env-only	?	68.6 69.4 69.9 	read in 1097 ms (94.8 tok/s);read in 1054 ms (99.6 tok/s);read in 1085 ms (95.9 tok/s);
+base	3	drafting=mtp spec=4 draft_model=- f16=env-only	?	67.7 69.8 71.6 	read in 1090 ms (95.4 tok/s);read in 1058 ms (98.3 tok/s);read in 90 ms (55.7 tok/s);
+mtp-spec6-minp45	1	drafting=mtp spec=6 draft_model=- f16=env-only	?	66.8 67.7 70.3 	read in 1000 ms (104.0 tok/s);read in 1099 ms (94.6 tok/s);read in 1041 ms (99.9 tok/s);
+mtp-spec6-minp45	2	drafting=mtp spec=6 draft_model=- f16=env-only	?	66.2 67.7 68.6 	read in 1063 ms (97.8 tok/s);read in 1048 ms (100.2 tok/s);read in 1008 ms (103.1 tok/s);
+mtp-spec6-minp45	3	drafting=mtp spec=6 draft_model=- f16=env-only	?	66.8 68.1 70.0 	read in 1056 ms (98.4 tok/s);read in 1073 ms (96.9 tok/s);read in 1086 ms (95.8 tok/s);

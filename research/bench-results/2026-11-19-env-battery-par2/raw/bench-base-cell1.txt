@@ -1,0 +1,17 @@
+llama.cpp/qwen3.8-flash-next (qwen3.8-flash-next)
+  single-user · 1 concurrent · 2 runs
+  ✓ run 1/2 TTFT 940ms tok/s 65.7 gen 74.7/s in 96 out 512 total 7.8s
+  ✓ run 2/2 TTFT 100ms tok/s 79.1 gen 80.3/s in 96 out 512 total 6.5s
+    aggregate 71.5 tok/s over 14.3s wall
+  parallel · 4 concurrent · 4 runs
+  ✓ run 1/4 TTFT 865ms tok/s 66.5 gen 74.9/s in 96 out 512 total 7.7s
+  ✓ run 2/4 TTFT 8.0s tok/s 34.8 gen 76.1/s in 96 out 512 total 14.7s
+  ✓ run 3/4 TTFT 7.7s tok/s 35.3 gen 75.0/s in 97 out 512 total 14.5s
+  ✓ run 4/4 TTFT 8.3s tok/s 33.4 gen 73.3/s in 96 out 512 total 15.3s
+    aggregate 68.1 tok/s over 30.1s wall
+  prefill · 1 concurrent · 2 runs
+  ✓ run 1/2 TTFT 3.3s prefill 1871/s in 6.1K out 23 total 3.7s
+  ✓ run 2/2 TTFT 3.3s prefill 1872/s in 6.1K out 23 total 3.6s
+
+model                         TTFT   tok/s  TTFT@4  tok/s@4  agg@4  scale  prefill  cost/run
+llama.cpp/qwen3.8-flash-next  100ms  65.7   7.7s    34.8     68.1   1.0×   1871     $0.0009
