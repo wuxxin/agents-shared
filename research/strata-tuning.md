@@ -1094,3 +1094,20 @@ Oracle B 22k prefill, 2 cells per arm, engagement verified in the engine log (`S
 | `S5-C3-f16` | `STRATA_HIP_PROMPT_F16=1` | 2,695 / 2,679 / 2,685 / 2,607 tok/s | 2,667 |
 
 **Verdict: −1.3 %, keep it off.** Upstream enables this by default only on gfx103x (discrete RX 6000: "11–14 % faster" there) and gfx1103; `prompt_f16_resolve` leaves gfx1100 on the default path. Every f16 sample was below its base counterpart, and the route is explicitly not bit-identical, so there is no quality trade to accept either. See `bench-results/2026-11-20-c3-prompt-f16/ANALYSIS.md`.
+
+### 14.7 Upstream protocol baseline (`strata_bench.py`, engine 0.2.16)
+
+`strata_bench.py --url http://127.0.0.1:20080 --runs 3` (direct to the engine; router-side run pending a router restart). Output kept verbatim in `bench-results/2026-11-20-strata-bench-0.2.16/`.
+
+| Metric | Median (range) |
+|---|---|
+| chat decode | 62.0 tok/s (56.8–75.8, n=9) |
+| chat first token | 0.46 s |
+| 4K prompt | 1,293.7 tok/s, first token 3.14 s |
+| 16K prompt | 2,643.5 tok/s, first token 6.11 s |
+| agent cache hit | 71.26 % |
+| agent decode | 77.3 tok/s (45.9–90.0, n=15) |
+
+**Fixed-cost model (the useful finding):** fitting `t = fixed + tokens/rate` to the 4K/16K medians gives **marginal prefill ≈ 4,081 tok/s** and **≈2.16 s fixed per fresh prompt**, which predicts the 22k case at 7.6 s (measured 8.1–8.3 s). So "1.3k tok/s at 4K" is not slow prefill — it is 2.16 s of fixed work plus ~1 s of reading. This explains the 4K/16K rate inversion, the C0 22k figure (same fixed cost), and the ~2 s TTFT floor seen even on cached small requests.
+
+**Agent session:** re-read is a constant **1,642 tokens/turn** (29 % reuse on turn 1 → 82 % on turn 5), i.e. the checkpoint ladder recomputes a fixed suffix instead of the whole session — exactly what `--conversation-cache-rewind-keep` governs.
