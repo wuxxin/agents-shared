@@ -2741,6 +2741,24 @@ async def route_props(request: Request):
     )
 
 
+@app.get("/v1/status")
+@app.get("/status")
+async def route_status(request: Request):
+    """Pass the engine's /v1/status through (slots, concurrency, cache) so tooling
+    that measures the service — e.g. strata_bench.py — can go through the router
+    and still see engine state. Same shape as route_props: chat service only."""
+    config = resolve_config()
+    agent = extract_request_agent(request)
+    return await proxy_request(
+        f"{config['chat']}/v1/status",
+        request,
+        service="chat",
+        model="status",
+        agent=agent,
+        track_usage=False,
+    )
+
+
 @app.post("/tokenize")
 @app.post("/v1/tokenize")
 async def route_tokenize(request: Request):
