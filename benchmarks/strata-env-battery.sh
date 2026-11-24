@@ -39,7 +39,7 @@ Usage: $(basename "$0") [--out DIR] [--arms LIST] [--runs N] [--cells N] [--chec
 Runs Oracle A bench cells against several engine configurations.
 
 Options:
-  --out DIR     Output folder (default: research/bench-results/<date>-env-battery)
+  --out DIR     Output folder (default: benchmarks/results/<date>-env-battery)
   --arms LIST   Comma list: base, dflash2, dflash2-spec6, f16, spec6, mtp-spec6-minp45
   --runs N      Bench runs per cell (default 3)
   --cells N     Cells per arm, first discarded as warm-up (default 2)
@@ -102,7 +102,7 @@ done
 
 date_utc="$(date -u +%Y-%m-%d)"
 if [[ -z "$out_dir" ]]; then
-    out_dir="${AGENTS_SHARED}/research/bench-results/${date_utc}-env-battery"
+    out_dir="${AGENTS_SHARED}/benchmarks/results/${date_utc}-env-battery"
 fi
 mkdir -p "$out_dir/raw"
 

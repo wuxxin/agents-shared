@@ -1365,11 +1365,11 @@ cmd_test() {
     if [ "$benchmark" = "true" ]; then
         echo "Running chat benchmark via benchmark-helper.py..."
         local helper_script
-        helper_script="$(dirname "$0")/../scripts/benchmark-helper.py"
+        helper_script="$(dirname "$0")/../benchmarks/benchmark-helper.py"
         if [ -f "$helper_script" ]; then
             python3 "$helper_script" --mode chat --url "${base_url}" --model "${alias}" "${extra_args[@]}"
         else
-            echo "Warning: scripts/benchmark-helper.py not found, skipping benchmark."
+            echo "Warning: benchmarks/benchmark-helper.py not found, skipping benchmark."
         fi
     fi
 }

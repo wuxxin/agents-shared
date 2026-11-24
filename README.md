@@ -58,18 +58,19 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 
 ## Helper Utilities
 
-The repository contains several scripts under `scripts/` to assist with sandboxing, benchmarking, downloading models, and calibrating agent runtimes.
+The repository contains several scripts under `scripts/` to assist with sandboxing, downloading models, and calibrating agent runtimes, plus benchmark harnesses and results under `benchmarks/`.
 
-For details, see the [scripts/README.md](scripts/README.md).
+For details, see [scripts/README.md](scripts/README.md) and [benchmarks/README.md](benchmarks/README.md).
 
 ## Repository Structure
 
 - `README.md` — Agent/script instructions, default ports, and isolation requirements
 - `scripts/sandbox-ctl` — Generalized systemd/bubblewrap container launcher and environment manager (documentation: [scripts/sandbox-ctl.md](scripts/sandbox-ctl.md))
 - `assistants/` — Daemon control scripts (`*-ctl`) and configuration documentation
-- `scripts/` — Benchmarking, model downloader (`local-download.sh`), and utility tools
+- `scripts/` — Model downloader (`local-download.sh`), router, launchers, and utility tools
+- `benchmarks/` — Local inference and Strata benchmark scripts, comparative reports, and run results (`results/`)
 - `skills/` — Portable skill definitions
-- `research/` — Development activity reports, LLM adapter research, and benchmark notes
+- `research/` — Development activity reports, LLM adapter research, and notes
 - `scratch/` — Workspace for temporary files and checkout sources (`scratch/*-sources`)
 
 

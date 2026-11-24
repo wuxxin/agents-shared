@@ -777,7 +777,7 @@ cmd_test() {
         fi
 
         # Run TTS benchmark
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+        python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
             --mode tts \
             --url "http://${host}:${port}" \
             --model "qwen3-tts" \

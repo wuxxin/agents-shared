@@ -39,7 +39,7 @@ ternary 1.58-bit dense (Ternary-Bonsai-27B), 2-bit EschaMoE (Escha-W2). Small ho
   - LCHAT_SPECULATIVE="--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 4"
   - prefill **1744 t/s**, tokengen **107 t/s**
   - 17894.6 MB 
-  - Source: `assistants/local-benchmark.md`.
+  - Source: `benchmarks/local-benchmark.md`.
 
 #### Main Dense baseline - unsloth/Qwen3.8-27B-GGUF
 

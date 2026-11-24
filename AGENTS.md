@@ -7,7 +7,8 @@
   - Agents: Hermes, LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, ZeroClaw
   - Local inference services (chat, embedding, STT, TTS, rerank, image)
   - Signal Messenger Gateway
-- `scripts/` — Benchmarking (caching/throughput), token counting, and speed simulation tools.
+- `scripts/` — Sandboxing, model downloaders, local router, token counting, and speed simulation tools.
+- `benchmarks/` — Local inference and Strata benchmark scripts (`run-local-benchmark.py`, `benchmark-helper.py`, `strata-*.{sh,py}`), comparative reports (`local-benchmark.{md,json}`), and run archives (`results/`).
 - `skills/` - Skills for Assistents to deploy
 - `research/` — Development activity reports, LLM adapter research, and notes.
 - `scratch/` — Safe workspace for temp files, source checkouts (`scratch/*-sources`), and testing.
@@ -21,21 +22,21 @@
 - **Style:** `#!/usr/bin/env bash`, 4-space indent, `set -euo pipefail`, quote `"$var"`, use `$(...)`, `lowercase_vars`, `UPPERCASE_CONSTANTS`.
 - **Lint & Format:**
   ```bash
-  shellcheck scripts/*.sh && shfmt -i 4 -w scripts/*.sh
+  shellcheck scripts/*.sh benchmarks/*.sh && shfmt -i 4 -w scripts/*.sh benchmarks/*.sh
   ```
 
 ### Python Scripts (`.py`)
 - **Style:** `#!/usr/bin/env python3`, 4-space indent, type hints, `snake_case` (functions/vars), `PascalCase` (classes), triple-quote docstrings, explicit exception handling.
 - **Lint, Test & Utility Commands:**
   ```bash
-  ruff check scripts/*.py scripts/test/*.py
-  ruff format scripts/*.py scripts/test/*.py
-  ty check scripts/*.py scripts/test/*.py
+  ruff check scripts/*.py benchmarks/*.py tests/*.py
+  ruff format scripts/*.py benchmarks/*.py tests/*.py
+  ty check scripts/*.py benchmarks/*.py tests/*.py
   pytest tests/test_file.py::test_function -v
 
   # Benchmarks & Activity Updates
-  python3 scripts/run-local-benchmark.py --configs hip,vulkan,cpu --services all --mock
-  python3 scripts/run-local-benchmark.py --configs hip,vulkan,cpu --services all --report scratch/test.md --data scratch/test.json
+  python3 benchmarks/run-local-benchmark.py --configs hip,vulkan,cpu --services all --mock
+  python3 benchmarks/run-local-benchmark.py --configs hip,vulkan,cpu --services all --report scratch/test.md --data scratch/test.json
   python3 scripts/update-activity.py [--write]  # Updates research/weekly-devel-activity.md
   ```
 
@@ -46,8 +47,8 @@
 - **Docs Maintenance:** Update `README.md`, `assistants/*-ctl.md`, and `scripts/` whenever script behaviors or ports change. Update the "## Sandboxing Architecture" section if isolation profiles change.
 
 ### Local Inference Benchmarking Rules
-- **Script Sync:** Update `scripts/run-local-benchmark.py` whenever local service outputs, performance formats, or env variable prefixes (`LLM_` -> `LCHAT_`, `EMBED_` -> `LMBD_`) change.
-- **Report Protection:** Running `--mock` auto-redirects outputs to `scratch/local-benchmark-mock.*`. For custom tests, explicitly pass `--report scratch/test.md --data scratch/test.json` to prevent overwriting production reports in `assistants/`.
+- **Script Sync:** Update `benchmarks/run-local-benchmark.py` whenever local service outputs, performance formats, or env variable prefixes (`LLM_` -> `LCHAT_`, `EMBED_` -> `LMBD_`) change.
+- **Report Protection:** Running `--mock` auto-redirects outputs to `scratch/local-benchmark-mock.*`. For custom tests, explicitly pass `--report scratch/test.md --data scratch/test.json` to prevent overwriting production reports in `benchmarks/`.
 
 ### Sandboxing Discipline
 

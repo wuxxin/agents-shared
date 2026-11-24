@@ -135,7 +135,7 @@ def run_test(case):
     # Run completions benchmark
     bench_cmd = [
         "python3",
-        "scripts/benchmark-helper.py",
+        "benchmarks/benchmark-helper.py",
         "--mode",
         "completion",
         "--url",

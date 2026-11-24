@@ -3,7 +3,7 @@
 
 Runs chat, text embedding, reranking, STT, and TTS benchmarks across
 HIP, Vulkan, CPU, and Special configurations. Parses output stats
-and writes a comprehensive comparative report in assistants/local-benchmark.md.
+and writes a comprehensive comparative report in benchmarks/local-benchmark.md.
 """
 
 import argparse
@@ -2188,14 +2188,14 @@ def main() -> None:
     parser.add_argument(
         "--report",
         type=str,
-        default=os.path.join(REPO_ROOT, "assistants", "local-benchmark.md"),
-        help="Path to write the output markdown report (default: assistants/local-benchmark.md)",
+        default=os.path.join(REPO_ROOT, "benchmarks", "local-benchmark.md"),
+        help="Path to write the output markdown report (default: benchmarks/local-benchmark.md)",
     )
     parser.add_argument(
         "--data",
         type=str,
-        default=os.path.join(REPO_ROOT, "assistants", "local-benchmark.json"),
-        help="Path to the JSON database/cache file (default: assistants/local-benchmark.json)",
+        default=os.path.join(REPO_ROOT, "benchmarks", "local-benchmark.json"),
+        help="Path to the JSON database/cache file (default: benchmarks/local-benchmark.json)",
     )
     parser.add_argument(
         "--use-router",
@@ -2215,9 +2215,9 @@ def main() -> None:
 
     if args.mock:
         # Redirect outputs to scratch directory so we don't overwrite production files during testing
-        if args.report == os.path.join(REPO_ROOT, "assistants", "local-benchmark.md"):
+        if args.report == os.path.join(REPO_ROOT, "benchmarks", "local-benchmark.md"):
             args.report = os.path.join(REPO_ROOT, "scratch", "local-benchmark-mock.md")
-        if args.data == os.path.join(REPO_ROOT, "assistants", "local-benchmark.json"):
+        if args.data == os.path.join(REPO_ROOT, "benchmarks", "local-benchmark.json"):
             args.data = os.path.join(REPO_ROOT, "scratch", "local-benchmark-mock.json")
 
     target_configs = [c.strip().lower() for c in args.configs.split(",")]

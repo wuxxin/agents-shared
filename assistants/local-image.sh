@@ -515,7 +515,7 @@ cmd_test() {
         fi
 
         # Run image generation benchmark
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+        python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
             --mode image \
             --url "${base_url}" \
             --model "z-image-turbo" \

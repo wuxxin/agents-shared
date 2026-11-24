@@ -543,7 +543,7 @@ cmd_test() {
         fi
 
         # Run STT benchmark
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+        python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
             --mode stt \
             --url "http://${host}:${port}" \
             --model "${model_alias}" \

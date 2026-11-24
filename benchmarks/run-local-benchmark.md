@@ -63,7 +63,7 @@ For services using `llama-server`, a warmup API call is sent first. This ensures
 ### 5. Benchmark Execution
 The script executes the service control script with the `test` action and benchmark-specific arguments:
 - e.g., `local-embedding.sh test --benchmark --repeat 1`
-- The control scripts delegate performance measurement to `scripts/benchmark-helper.py` which runs realistic payloads (e.g., embedding paragraphs from `benchmark-context.md`).
+- The control scripts delegate performance measurement to `benchmarks/benchmark-helper.py` which runs realistic payloads (e.g., embedding paragraphs from `benchmark-context.md`).
 - **Output Generation**: The target testing scripts (`benchmark-helper.py` and `llama-cache-test.py`) now support an `--output-format json` flag natively to decouple human-readable stdout strings from machine-readable parsing.
 - **GPU Registry**: Instead of brittle numeric regex detection on device string prefixes (e.g., assuming `0` is always a discrete GPU), the script invokes `GLOBAL_GPU_REGISTRY`. This correlates `rocm-smi` hardware enumeration with `llama.cpp` subsystems, ensuring accurate memory measurement metrics across differing Vulkan and HIP numbering conventions.
 - **iGPU Handling**: Specific configurations, such as running `hip` tests on the integrated Renoir graphics (which lacks proper ROCm driver support), are detected through the registry using an internal GFX ID matching table (`is_igpu`), and skipped gracefully.
@@ -71,8 +71,8 @@ The script executes the service control script with the `test` action and benchm
 ### 6. Metric Extraction & Resource Capture
 - **CPU Footprint:** Measures resident set size (RSS) memory of processes matching the service pattern.
 - **GPU Footprint:** Reads VRAM usage again right before stopping the service and subtracts the baseline VRAM.
-- **JSON Cache State:** Saves the structured results to `assistants/local-benchmark.json`. If a test is aborted or skipped, previous valid results are preserved.
-- **Markdown Report:** Renders a clean table comparison and a detailed metrics list into `assistants/local-benchmark.md`.
+- **JSON Cache State:** Saves the structured results to `benchmarks/local-benchmark.json`. If a test is aborted or skipped, previous valid results are preserved.
+- **Markdown Report:** Renders a clean table comparison and a detailed metrics list into `benchmarks/local-benchmark.md`.
 - **Server Error Capture:** Actively monitors the stdout/stderr streams of running server processes, extracts lines containing `"error"` (case-insensitive), saves all matched lines in the JSON database under `"errors"`, and reports the total error count along with the top 10 captured error lines in the markdown report.
 
 ---
@@ -83,16 +83,16 @@ Invoking `run-local-benchmark.py` without arguments prints the usage instruction
 
 ```bash
 # Display help and usage instructions
-python3 scripts/run-local-benchmark.py
+python3 benchmarks/run-local-benchmark.py
 
 # Test only HIP and Vulkan backends for Embedding and Reranker
-python3 scripts/run-local-benchmark.py --configs hip,vulkan --services embedding,rerank
+python3 benchmarks/run-local-benchmark.py --configs hip,vulkan --services embedding,rerank
 
 # Run completions/FIM benchmark on the currently running configurations
-python3 scripts/run-local-benchmark.py --configs running --services completion
+python3 benchmarks/run-local-benchmark.py --configs running --services completion
 
 # Dry-run (mock mode) to verify report formatting and script parsing logic on all services
-python3 scripts/run-local-benchmark.py --mock --services all
+python3 benchmarks/run-local-benchmark.py --mock --services all
 ```
 
 ### Options
@@ -104,5 +104,5 @@ python3 scripts/run-local-benchmark.py --mock --services all
 | `--hip-devices` | `ROCm0` | Comma-separated list of HIP/ROCm devices or `all`. |
 | `--vulkan-devices` | `Vulkan0` | Comma-separated list of Vulkan devices or `all`. |
 | `--mock` | `False` | Run in simulation mode (does not start servers or run actual tests). |
-| `--report` | `assistants/local-benchmark.md` | Path to write the output markdown report. |
-| `--data` | `assistants/local-benchmark.json` | Path to the JSON database/cache file. |
+| `--report` | `benchmarks/local-benchmark.md` | Path to write the output markdown report. |
+| `--data` | `benchmarks/local-benchmark.json` | Path to the JSON database/cache file. |

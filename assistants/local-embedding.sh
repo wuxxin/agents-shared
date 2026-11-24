@@ -762,7 +762,7 @@ cmd_test() {
             hindsight_arg=(--hindsight)
         fi
 
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+        python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
             --mode embedding \
             --url "${base_url}" \
             --model "${alias}" \

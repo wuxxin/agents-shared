@@ -745,7 +745,7 @@ cmd_test() {
         fi
 
         # Qwen3-Reranker serves via /v1/rerank; benchmark as reranking workload
-        python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+        python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
             --mode rerank \
             --url "${base_url}" \
             --model "${alias}" \

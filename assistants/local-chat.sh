@@ -1102,7 +1102,7 @@ cmd_test() {
             fi
 
             echo "=== Running Chat Benchmark ==="
-            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+            python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
                 --mode chat \
                 --url "${base_url}" \
                 --model "${alias}" \
@@ -1119,7 +1119,7 @@ cmd_test() {
         if [ "${LMBD_ENABLED}" = "true" ] && [ "$skip_embedding" = "false" ]; then
             local e_alias="${LMBD_ALIAS:-qwen3-embedding}"
             echo "=== Running Embedding Benchmark ==="
-            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+            python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
                 --mode embedding \
                 --url "${base_url}" \
                 --model "${e_alias}" \
@@ -1145,7 +1145,7 @@ cmd_test() {
             fi
 
             echo "=== Running Completion Benchmark ==="
-            python3 "$(dirname "$0")/../scripts/benchmark-helper.py" \
+            python3 "$(dirname "$0")/../benchmarks/benchmark-helper.py" \
                 --mode completion \
                 --url "${base_url}" \
                 --model "${c_alias}" \
