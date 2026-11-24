@@ -103,6 +103,7 @@ Copies the `sandbox-ctl` executable script itself to `~/.local/bin/sandbox-ctl` 
 ### `system <target> <install|uninstall|status|cat>`
 
 Manages host system configurations required for advanced features such as Polkit rules:
+
 - **Target `sandbox-sudo.rules`**: Installs or removes `/etc/polkit-1/rules.d/40-sandbox-sudo.rules` to configure the 5-minute sliding window in-memory authorization cache for sandbox privilege escalation (`sudo` and `pkexec`).
 - **Actions**:
   - `install`: Writes the Polkit rule file to `/etc/polkit-1/rules.d/40-sandbox-sudo.rules` (elevating via sudo/pkexec if needed).
@@ -112,6 +113,7 @@ Manages host system configurations required for advanced features such as Polkit
 ### `install [--no-git-config] [--new-config] [--new-config-from <path>] [--no-start]`
 
 Sets up:
+
 - the persistent sandbox home directory (`~/.local/sandbox/<app_name>`)
 - the workspace (`~/agent-private/<app_name>`)
 - creates/copies the environment configuration file (`~/.config/systemd/user/<app_name>.env`), establishes the symlink in `~/.local/bin/<app_name>`, generates the systemd user service unit file, and creates desktop files if `LAUNCHER_GUI=true` is configured.
@@ -124,6 +126,7 @@ Sets up:
 ### `uninstall`
 
 Stops, disables, and removes the systemd user service file, launcher symlink `~/.local/bin/<app_name>`, and desktop entries.
+
 - **Sandboxed Uninstall Hooks**: Executes all commands listed in `LAUNCHER_UNINSTALL_CMDS` sequentially **inside the sandbox** to clean up installed modules or tools before removing configuration. Persistent data directories and environment files are preserved.
 
 ### `destroy`
@@ -142,6 +145,7 @@ Prints the systemd service unit file and environment configuration file contents
 ### `selftest`
 
 Runs automated sanity checks and diagnostic tests for the application:
+
 1. **Config & Service File Audits**: Verifies that environment files and systemd service unit files exist and checks for raw/unresolved specifier strings (`%h`, `%H`, etc.).
 2. **Systemd Service Unit Status**: Queries and displays the systemd user service unit status via `systemctl --user status`.
 3. **Engine Diagnostic Execution**: Executes inline container diagnostics for **both execution engines** (`bwrap` and `systemd` if reachable):
@@ -160,12 +164,14 @@ Spawns an interactive shell (`${SHELL:-/bin/bash} -l`) inside the sandbox under 
 ### `hotshell`
 
 Spawns an interactive shell with elevated hot privileges and runtime access overrides:
+
 - **SSH Agent Auto-Discovery & Forwarding**: Automatically discovers host SSH agent sockets across candidate paths (`gcr/ssh`, `keyring/ssh`, `gnupg/S.gpg-agent.ssh`, `ssh-agent.socket`, `/tmp/agent.*`) and sets `DISABLE_SSH_AUTH="false"`. In Bubblewrap, automatically creates the parent socket directory before binding.
 - **Systemd & DBus Access**: Overrides `DISABLE_DBUS="false"` and `DISABLE_SYSTEMD="false"`, bind-mounting `$XDG_RUNTIME_DIR/bus` and `$XDG_RUNTIME_DIR/systemd` so `systemctl --user` commands can reach the user daemon.
 - **KVM Access**: Automatically bind-mounts `/dev/kvm` into the sandbox if `/dev/kvm` exists and is readable/writable by the current user.
 - **User Podman Access**: Automatically overrides `DISABLE_USER_PODMAN="false"`, bind-mounting host rootless Podman socket (`$XDG_RUNTIME_DIR/podman/podman.sock`) and ensuring default `containers.conf` is configured.
 - **KeePassXC Browser Socket Integration**: Overrides `DISABLE_KEEPASSXC_BROWSER_SOCKET="false"`, bind-mounting host KeePassXC encrypted BrowserServer socket (`${XDG_RUNTIME_DIR}/app/org.keepassxc.KeePassXC/org.keepassxc.KeePassXC.BrowserServer` and `${XDG_RUNTIME_DIR}/org.keepassxc.KeePassXC.BrowserServer`) into the container and exporting `KEEPASSXC_BROWSER_SOCKET_PATH` if present on host.
 - **Composite Indicators**: Dynamic prompt indicator reflecting active capability flags:
+
   | Mode | CLI Switch | Indicator (`SANDBOX_NAME`) |
   | :--- | :--- | :--- |
   | Default Hot Shell | `hotshell <app>` | `<app_name> 🟣` |
@@ -175,6 +181,7 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
   | All-Access Hot Shell | `hotshell --all-access <app>` | `<app_name> 🚨` |
   | All-Access + Sudo | `hotshell --all-access --sudo <app>` | `<app_name> 🚨⚡` |
   | All-Access + GUI + Sudo | `hotshell --all-access --gui --sudo <app>` | `<app_name> 🚨🎨⚡` |
+
 - **`--gui` Option (Opt-in Wayland & Desktop Integration)**:
   - **Syntax**: `sandbox-ctl hotshell --gui <app_name> [args...]`
   - **Behavior**: Activates Wayland and X11/Xwayland display forwarding (`$WAYLAND_DISPLAY`, `$DISPLAY`, `$XAUTHORITY`), audio (Pipewire/PulseAudio), DRI/GPU acceleration device nodes, and shared IPC inside the shell. If an X11 `DISPLAY` is detected, runs `xhost +si:localuser:root` so root-escalated GUI applications can render to the host Xwayland display.
@@ -189,9 +196,11 @@ Spawns an interactive shell with elevated hot privileges and runtime access over
   - **Host Filesystem Access**: Mounts host `$HOME` read/write at `~/real_home` and creates a convenience symlink at `~/real_<username>`, exporting `$REAL_HOME="$HOME/real_home"`. Automatically maps host working directories outside the sandbox container home into `~/real_home/<subpath>`.
   - **Security Warning**: `--all-access` is an **intentional circumvention** of sandbox containment. Any modifications performed under `~/real_home` directly mutate host files, and unconfined access to `/run/user/<id>` exposes user daemon IPC endpoints without sandbox isolation.
 - **Visual Alert**: Sets `SANDBOX_NAME="<app_name> 🚨"` and emits an alert banner on terminal startup.
+
 ### `guishell`
 
 Spawns an interactive shell configured for graphical and hardware-accelerated applications:
+
 - **Display & Audio Overrides**: Automatically forces `DISABLE_WAYLAND="false"`, `DISABLE_X11="false"`, `DISABLE_AUDIO="false"`, `DISABLE_HARDWARE="false"`, `DISABLE_IPC_SHARE="false"`, `DISABLE_XDG_RUNTIME="false"`, and `DISABLE_DBUS="false"`.
 - **Indicator**: Sets `SANDBOX_NAME="<app_name> 🎨"`.
 
@@ -216,6 +225,7 @@ Inside unprivileged container sandboxes, traditional in-container `sudo` and `pk
 By default, Polkit associates temporary authorizations (`auth_admin_keep`) strictly with the caller's process subject (`unix-process:PID`). Because each CLI command runs under an ephemeral newly-spawned PID that terminates upon command exit, Polkit's default cache expires immediately when the process dies.
 
 To achieve seamless, continuous developer workflows without prompting on every command, `sandbox-ctl` provides an in-memory sliding-window Polkit rule managed via:
+
 ```bash
 sandbox-ctl system sandbox-sudo.rules install
 sandbox-ctl system sandbox-sudo.rules status
@@ -252,6 +262,7 @@ sandbox-ctl system sandbox-sudo.rules uninstall
 ### Nested Bubblewrap (`bwrap`)
 
 Nested `bwrap` execution works out of the box in default sandboxes across both `systemd` and `bwrap` engines:
+
 - **Systemd Engine**: In systemd transient units, `RestrictSUIDSGID=no` is set so systemd does not install a seccomp BPF filter on `openat2(2)`. Bubblewrap relies on `openat2(..., RESOLVE_IN_ROOT)` for path verification and executes cleanly without requiring elevated capabilities or unconfined privileges.
 - **Bubblewrap Engine**: Outer `bwrap` containers preserve unprivileged user namespace nesting (`CLONE_NEWUSER`), allowing inner `bwrap` containers to create unprivileged sandboxes transparently.
 
@@ -263,6 +274,7 @@ Nested `bwrap` execution works out of the box in default sandboxes across both `
 ### Environment Identifiers & Shell Prompt Integration
 
 `sandbox-ctl` automatically injects identity environment variables into every sandboxed session:
+
 - **`SANDBOX_NAME`**: Set to the target application name (e.g. `opencode`), or overridden to `<app_name> 🟣` in `hotshell`, `<app_name> 🚨` in `hotshell --all-access`, and `<app_name> 🎨` in `guishell`.
 - **`SANDBOX_ENGINE`**: Set to the active engine (`systemd` or `bwrap`).
 - **`SANDBOX`**: Set to the target application name (`opencode`).
@@ -436,6 +448,7 @@ KeePassXC's browser integration enforces security restrictions to prevent malici
 ## Podman Integration
 
 To run OCI container workflows (`podman run`, `podman build`, `podman ps`) inside the sandbox without weakening sandbox containment:
+
 - **Architecture**: Uses the client-server remote mode communicating over the host's rootless Podman UNIX socket (`$XDG_RUNTIME_DIR/podman/podman.sock`).
 - **Hardening Preservation**: Because container management executes on the host via the host's rootless systemd service, the sandbox process requires no host device nodes (`/dev/fuse`, `/dev/net/tun`), no capability bounding overrides, and no `NoNewPrivileges=no` relaxations.
 - **Enabling**:
