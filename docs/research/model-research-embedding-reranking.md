@@ -167,7 +167,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 #### Embedding: pplx-embed
 
 - **URL**: https://huggingface.co/perplexity-ai/pplx-embed-context-v1-0.6b
-- **PDF**: [2602.11151v2.pdf](2602.11151v2.pdf) (Source: Table 2, Page 6, "nDCG@10 on the MIRACLRetrievalHardNegatives task per language").
+- **PDF**: [2602.11151v2.pdf](papers/2602.11151v2.pdf) (Source: Table 2, Page 6, "nDCG@10 on the MIRACLRetrievalHardNegatives task per language").
 - **Architecture**: Bidirectional Encoder (built on a Qwen3 backbone modified via diffusion-based pretraining to operate bidirectionally).
 - **Format & Size**: Float16/BFloat16 Safetensors, ~1.2 GB disk size.
 - **Total GPU Usage**: Serviced under TEI with 8 parallel requests @ 8K context (total tokens: 65,536). No KV cache. Expected VRAM: **~1.95 GB VRAM** (Weight baseline: ~1.2 GB, CUDA overhead: ~400 MB, linear activation memory under Flash Attention: ~350 MB).
@@ -187,7 +187,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 #### Embedding: BAAI/bge-m3
 
 - **URL**: https://huggingface.co/BAAI/bge-m3
-- **PDF**: [2402.03216v5.pdf](2402.03216v5.pdf)
+- **PDF**: [2402.03216v5.pdf](papers/2402.03216v5.pdf)
 - **Architecture**: Bidirectional Encoder (Encoder-only, Bi-Encoder).
 - **Format & Size**: Float16 Safetensors, ~1.14 GB disk size.
 - **Total GPU Usage**: Serviced under TEI with 8 parallel requests @ 8K context (total tokens: 65,536). No KV cache. Expected VRAM: **~1.89 GB VRAM** (Weight baseline: ~1.14 GB, CUDA overhead: ~400 MB, linear activation memory under Flash Attention: ~350 MB).
@@ -357,7 +357,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 #### Reranking: jinaai/jina-reranker-v3
 
 - **URL**: https://huggingface.co/jinaai/jina-reranker-v3
-- **PDF**: [2509.25085v4.pdf](2509.25085v4.pdf)
+- **PDF**: [2509.25085v4.pdf](papers/2509.25085v4.pdf)
 - **Architecture**: Causal Cross-Encoder (built on Qwen3-0.6B transformer backbone, uses "Last but Not Late" (LBNL) causal self-attention interaction over query and multiple documents, with a lightweight MLP projector head).
 - **Format & Size**: Float16 Safetensors, ~1.2 GB disk size (600M parameters).
 - **Total GPU Usage**: Serviced under TEI with 8 parallel requests @ 8K context (total tokens: 65,536). No KV cache. Expected VRAM: **~2.05 GB VRAM** (Weight baseline: ~1.2 GB, CUDA overhead: ~400 MB, linear activation memory under Flash Attention: ~450 MB).

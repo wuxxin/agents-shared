@@ -35,7 +35,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: Natively routes voice uploads to local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Kokoro-82M ONNX / Qwen3-tts (`local-text-to-speech` on port 20095).
 - **Agent Client Protocol**: Yes — Native stdio-based ACP server via `zeroclaw-acp-bridge` and a dedicated `Acp` (Code) pane in the `zerocode` TUI.
 - **Agent to Agent Protocol**: Yes — Built-in peer-to-peer delegation via the `delegate` tool, restricted by shared risk profiles and `delegation_policy` configurations.
-- **Detailed Guide & Onboarding**: [zeroclaw-ctl.md](assistants/zeroclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [zeroclaw.md](zeroclaw.md)
 
 
 ### IronClaw
@@ -55,7 +55,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: Local STT via OpenAI-compatible transcription endpoint (`local-speech-to-text` on port 20090). No native TTS support.
 - **Agent Client Protocol**: Yes — Configurable external coding agents using ACP commands (e.g. `ironclaw acp add goose`).
 - **Agent to Agent Protocol**: Yes — Orchestrator/worker pattern for RPC-based sub-agent execution, and NEAR AI multi-agent routing.
-- **Detailed Guide & Onboarding**: [ironclaw-ctl.md](assistants/ironclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [ironclaw.md](ironclaw.md)
 
 ### Hermes
 - **Major Features**: Messaging Gateway designed for agent-to-agent and agent-to-human integration. Features an OpenAI-compatible API and a Dashboard Web UI. Supports graceful shutdowns and nested container execution.
@@ -73,7 +73,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090). No native TTS support.
 - **Agent Client Protocol (ACP)**: Yes — Native stdio-based ACP server adapter (`acp_adapter/server.py`) for editor integrations (VS Code, Zed, JetBrains).
 - **Agent to Agent Protocol**: Yes — Supports spawning isolated subagents for parallel workstreams and calling tools/subagents via RPC.
-- **Detailed Guide & Onboarding**: [hermes-ctl.md](assistants/hermes-ctl.md)
+- **Detailed Guide & Onboarding**: [hermes.md](hermes.md)
 
 ### NanoBot
 - **Major Features**: Lightweight python service built with `uv` featuring an onboarding setup wizard, a structured two-stage memory system ("Dream"), and Bubblewrap tool confinement.
@@ -91,7 +91,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090). No native local TTS.
 - **Agent Client Protocol (ACP)**: No ACP support.
 - **Agent to Agent Protocol**: Yes — Background subagent spawning (`SubagentManager`) communicating asynchronously via the message bus (`MessageBus` / `InboundMessage` system injection).
-- **Detailed Guide & Onboarding**: [nanobot-ctl.md](assistants/nanobot-ctl.md)
+- **Detailed Guide & Onboarding**: [nanobot.md](nanobot.md)
 
 ### LibreFang
 - **Major Features**: Hardened Agent OS daemon providing isolated execution environments and coordinating complex multi-agent workflows. It is a community fork of the former OpenFang project.
@@ -110,7 +110,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: Local STT via local Whisper server (`local-speech-to-text` on port 20090) and local TTS via Kokoro-82M ONNX / Qwen3-tts (`local-text-to-speech` on port 20095).
 - **Agent Client Protocol**: Yes — Bridges the runtime to the Agent Client Protocol (ACP) for editor integrations (stdio or Unix socket).
 - **Agent to Agent Protocol**: Yes — Spawns subagents isolated with bubblewrap (`bwrap`), passing context via `SubagentContext` for context inheritance.
-- **Detailed Guide & Onboarding**: [librefang-ctl.md](assistants/librefang-ctl.md)
+- **Detailed Guide & Onboarding**: [librefang.md](librefang.md)
 
 
 ### PicoClaw
@@ -130,7 +130,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: Local STT by defining an ASR provider pointing to the local whisper-server on port 20090. No native TTS engine; requires an external MCP TTS tool.
 - **Agent Client Protocol**: No native ACP support.
 - **Agent to Agent Protocol**: Yes — Supports `spawn` (asynchronous background subagents via goroutines) and `delegate` (synchronous targeted subagents) tools, with target allowlist validation.
-- **Detailed Guide & Onboarding**: [picoclaw-ctl.md](assistants/picoclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [picoclaw.md](picoclaw.md)
 
 ### NanoClaw
 - **Major Features**: Node.js webhook server designed for securely executing containerized runtime tools and managing agent workspaces.
@@ -149,7 +149,7 @@ Each assistant in this repository is managed by a dedicated shell wrapper script
 - **STT/TTS Support**: No native STT/TTS in the core daemon, but easily integrated via custom tools/skills calling `local-speech-to-text` (port 20090) and `local-text-to-speech` (port 20095).
 - **Agent Client Protocol**: No native ACP support.
 - **Agent to Agent Protocol**: Yes — supported via target-agent routing on `messages_out`. An agent-runner can set `channel_type: 'agent'`, `platform_id` to the target agent group ID, and `thread_id` to a target session ID. The host reads this, validates permissions, and writes a `messages_in` row to the target session's DB.
-- **Detailed Guide & Onboarding**: [nanoclaw-ctl.md](assistants/nanoclaw-ctl.md)
+- **Detailed Guide & Onboarding**: [nanoclaw.md](nanoclaw.md)
 
 
 ## Shared Control Commands

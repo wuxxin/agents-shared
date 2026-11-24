@@ -47,30 +47,30 @@ The repository includes **`sandbox-ctl`** (`scripts/sandbox-ctl`), a generalized
 - **System Configuration Manager**:
   - `sandbox-ctl system sandbox-sudo.rules <install|status|cat|uninstall>`: Automated management of host Polkit rules.
 
-For complete usage styles, environment options, and architecture details, see **[scripts/sandbox-ctl.md](scripts/sandbox-ctl.md)**.
+For complete usage styles, environment options, and architecture details, see **[docs/tools/sandbox-ctl.md](docs/tools/sandbox-ctl.md)**.
 
 ## Assistant/Agent Services
 
 Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
 
-- See [assistants/agents.md](assistants/agents-ctl.md) for general usage and common configuration options.
-- See [Current Weekly Development Status](research/weekly-devel-activity.md) for GIT development.
+- See [Assistants Common Guide](docs/assistants/index.md) for general usage and common configuration options.
+- See [Current Weekly Development Status](docs/research/weekly-devel-activity.md) for GIT development.
 
 ## Helper Utilities
 
 The repository contains several scripts under `scripts/` to assist with sandboxing, downloading models, and calibrating agent runtimes, plus benchmark harnesses and results under `benchmarks/`.
 
-For details, see [scripts/README.md](scripts/README.md) and [benchmarks/README.md](benchmarks/README.md).
+For details, see [docs/tools/index.md](docs/tools/index.md) and [docs/benchmarks/index.md](docs/benchmarks/index.md).
 
 ## Repository Structure
 
 - `README.md` — Agent/script instructions, default ports, and isolation requirements
-- `scripts/sandbox-ctl` — Generalized systemd/bubblewrap container launcher and environment manager (documentation: [scripts/sandbox-ctl.md](scripts/sandbox-ctl.md))
-- `assistants/` — Daemon control scripts (`*-ctl`) and configuration documentation
+- `docs/` — MkDocs documentation site (`make docs` / `make docs-serve`) covering inference, assistants, integrations, tools, benchmarks, and research
+- `scripts/sandbox-ctl` — Generalized systemd/bubblewrap container launcher and environment manager (documentation: [docs/tools/sandbox-ctl.md](docs/tools/sandbox-ctl.md))
+- `assistants/` — Daemon control scripts (`*-ctl`, `local-*.sh`)
 - `scripts/` — Model downloader (`local-download.sh`), router, launchers, and utility tools
 - `benchmarks/` — Local inference and Strata benchmark scripts, comparative reports, and run results (`results/`)
 - `skills/` — Portable skill definitions
-- `research/` — Development activity reports, LLM adapter research, and notes
 - `scratch/` — Workspace for temporary files and checkout sources (`scratch/*-sources`)
 
 
@@ -122,68 +122,68 @@ flowchart LR
 - **Features**: Chat completions (`20080`) service
     - serving the main model with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens). 
     - optionally serving a code completion model (`qwen-coder-fim`) with native Fill-in-the-Middle (FIM) support for editor tab completion.
-- Documentation: [local-chat.md](assistants/local-chat.md)
+- Documentation: [chat.md](docs/inference/chat.md) (and [chat-strata.md](docs/inference/chat-strata.md))
 
 ### Local Embedding Services
 - **Description**: Manages persistent text embedding servers (`local-embedding.sh`). Supports two backend engines: TEI (`text-embeddings-router` using `pplx-embed-context-v1-0.6b` by default) and `llama-server` (GGUF).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Standalone text embedding server (`20082`) with mean pooling, ROCm GPU offloading, dynamic batching, and systemd sitecustomize helper patch.
-- Documentation: [local-embedding.md](assistants/local-embedding.md)
+- Documentation: [embedding.md](docs/inference/embedding.md)
 
 ### Local Reranking Services
 - **Description**: Manages persistent `llama-server` instances for document reranking (`local-rerank.sh`). 
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in cpu only mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
 - **Features**: Rerank Service (`20086`) services.
-- Documentation:  [local-rerank.md](assistants/local-rerank.md)
+- Documentation: [rerank.md](docs/inference/rerank.md)
 
 ### Local Speech-to-Text
 - **Description**: Manages a persistent `whisper-server` instance for speech-to-text (STT) transcription. Serves an OpenAI-compatible audio transcription API on port 20090.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated synthesis (unless run in cpu only mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
 - **Features**: audio transcoding using `ffmpeg`.
-- Documentation: [local-speech-to-text.md](assistants/local-speech-to-text.md)
+- Documentation: [speech-to-text.md](docs/inference/speech-to-text.md)
 
 ### Local Text-to-Speech
 - **Description**: Manages persistent Text-to-Speech (TTS) voice synthesis services exposing an OpenAI-compatible audio synthesis API on port 20095. Defaults to **Kokoro-82M ONNX** (`scripts/kokoro-ctl.py`), with optional **Qwen3-TTS** (`qwen3-tts-server`) GGUF serving.
 - **Sandboxing**: Runs purely on CPU with AVX2 MLAS acceleration, consuming **0 MB discrete GPU VRAM** and ~350 MB host RAM. Enforces `ProtectSystem=strict` with sandbox isolation.
 - **Features**: 4.6× – 5.1× real-time synthesis, native accent-free German (`df_victoria`, `dm_martin`) and English (`af_heart`, `am_adam`) voice lineups, length-indexed style embedding lookup (`voice[L-1]`), voice blending, multi-speaker inline dialogue, silence pauses, chunked streaming, OGG/Opus compressed output, in-process audio playback via `python-sounddevice`, and OpenAI API fallback cascades.
-- Documentation: [local-text-to-speech.md](assistants/local-text-to-speech.md)
+- Documentation: [text-to-speech.md](docs/inference/text-to-speech.md)
 
 ### Local Image Services
 - **Description**: Manages a persistent `sd-server` instance for image generation. Serves an OpenAI-compatible image generation API on port 20100.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd` for GPU-accelerated generation (unless run in `cpu` mode). Enforces `ProtectSystem=strict` while restricting filesystem access to the home directory and read-only system files.
 - **Features**: Generates images using the `z_image_turbo-Q8_0.gguf` model with options for sampler steps, CFG scale, and backend routing.
-- Documentation: [local-image.md](assistants/local-image.md)
+- Documentation: [image.md](docs/inference/image.md)
 
 ### Local Memory Service
 - **Description**: Manages a persistent Hindsight memory instance served by `hindsight-api` (port 28888) with a dedicated background task worker sidecar `hindsight-worker` serving a control plane / metrics HTTP server on port 28889 (`local-memory.sh`).
 - **Sandboxing**: Enforces `ProtectSystem=strict` with `PrivateDevices=yes` and standard systemd hardening. Restricts filesystem access to the home directory (`BindPaths=%h`).
 - **Features**: Long-term temporal, semantic, and entity-graph memory engine offloading embeddings, LLM reasoning, and reranking to `local-router` (port 21080) and PostgreSQL (`pgvector` + `pgroonga`). Worker control plane port configurable via `HINDSIGHT_API_WORKER_HTTP_PORT` (set to 0 to disable).
-- Documentation: [local-memory.md](assistants/local-memory.md)
+- Documentation: [memory.md](docs/inference/memory.md)
 
 ### Local Combined Inference Router
 - **Description**: Manages a persistent FastAPI web application served by `uvicorn` that aggregates all underlying local inference services into a single OpenAI-compatible entrypoint (`local-router.sh`).
 - **Sandboxing**: Enforces `ProtectSystem=strict` with `PrivateDevices=yes` (no GPU access required). Restricts filesystem access to the home directory (`BindPaths=%h`) and standard system directories read-only.
 - **Features**: OpenAI-compatible routing for chat completions, embeddings, reranking, transcription, speech, and image generation. Comprehensive token usage tracking, estimated cost calculation, static HTTP error code logging (`errors_streaming` / `errors_post`), pre-formatted ASCII table reporting (`/usage?format=text`), scrapable Prometheus metrics (`/metrics`), startup synchronization checking, default model fallback routing, and graceful OpenAI-format gateway error propagation.
-- Documentation: [local-router.md](assistants/local-router.md)
+- Documentation: [router.md](docs/inference/router.md)
 
 ### Local Inference Coordinator
 - **Description**: Coordinator and wrapper script to manage the installation, state, and activation of all 7 local services (`local-inference.sh`).
 - **Sandboxing**: Not a system service itself, but executes individual service scripts which utilize systemd user sandboxing.
 - **Features**: Bulk installation, uninstall, lifecycle control (start, stop, restart), status reports, combined logs, and automatic propagation of environment overrides (e.g. LRR_OVERRIDE) to target services.
-- Documentation: [local-inference.md](assistants/local-inference.md)
+- Documentation: [inference/index.md](docs/inference/index.md)
 
 ### Signal Integration
 - **Description**: Connects agents to Signal. Runs a `signal-cli` daemon exposing both TCP and HTTP JSON-RPC interfaces. It also provides an optional Go-based REST API wrapper for robust, HTTP-based polling/webhook integrations (like linking LibreFang).
 - **Sandboxing**: Standard filesystem hardening, but disables `MemoryDenyWriteExecute` because the underlying JVM (Java) requires it for JIT compilation. 
 - **Features**: Account linking via QR code, dual daemon interfaces, and isolated home directory execution to prevent contamination.
-- Documentation: [signal-ctl.md](assistants/signal-ctl.md)
+- Documentation: [signal.md](docs/integrations/signal.md)
 
 The following assistants have native Signal channel integration available in their source code:
-- [Hermes](assistants/hermes-ctl.md)
-- [IronClaw](assistants/ironclaw-ctl.md)
-- [LibreFang](assistants/librefang-ctl.md)
-- [NanoBot](assistants/nanobot-ctl.md)
-- [ZeroClaw](assistants/zeroclaw-ctl.md)
+- [Hermes](docs/assistants/hermes.md)
+- [IronClaw](docs/assistants/ironclaw.md)
+- [LibreFang](docs/assistants/librefang.md)
+- [NanoBot](docs/assistants/nanobot.md)
+- [ZeroClaw](docs/assistants/zeroclaw.md)
 
 To configure them, refer to their specific configuration sections in their respective control guides.
 
@@ -191,6 +191,6 @@ To configure them, refer to their specific configuration sections in their respe
 - **Description**: Manages a persistent, confined Syncthing file synchronization daemon.
 - **Sandboxing**: Standard systemd strict filesystem confinement with a transient tmpfs home, mapping only configured directories. Exposes the host configuration and state directories.
 - **Features**: Decentralized and secure background file synchronization for agent workspaces and shared data.
-- **Documentation**: [syncthing-ctl.md](assistants/syncthing-ctl.md)
+- **Documentation**: [syncthing.md](docs/integrations/syncthing.md)
 
 

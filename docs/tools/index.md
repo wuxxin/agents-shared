@@ -1,14 +1,15 @@
 # Helper Utilities
 
-- **[local-download.sh](local-download.sh)**: Intelligent downloader for local AI models (LLMs, Embeddings, Reranker, Whisper STT) featuring caching, Hugging Face Hub downloads, and automated GGUF quantization.
-- **[download-helper.py](download-helper.py)**: Python helper utility supporting model MTP tensor merging (`merge-mtp`) and agent skills context generation (`benchmark-context`).
-- **[sandbox-ctl](sandbox-ctl)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
-- **[antigravity-launcher.sh](antigravity-launcher.sh)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
-- **[strata-launcher.py](strata-launcher.py)**: runtime half of the strata service — `assistants/local-chat-strata.sh install` copies it next to the unit as `~/.config/systemd/user/local-chat-strata-launcher.py`. Supervises the engine (start, readiness, idle unload, SIGUSR1/2 save-restore, CLEAR_CACHE); it builds no argv and reads no knobs, because `generate_config_json()` owns both.
-- **[local-router.py](local-router.py)**: Combined local inference router application serving unified OpenAI-compatible routes, token tracking, estimated cost metrics, and Prometheus scrapable endpoints.
-- **[benchmarks/](../benchmarks/README.md)**: Local inference and Strata benchmark scripts, reports, and results.
-- **[tests/](../tests/)**: Automated test suite directory housing integration and performance test scripts (`test-local-router-usage.py`, `test-local-memory.py`, `test-fim-perf.py`).
-- **[tiktoken_count.py](tiktoken_count.py)** / **[tiktoken_tps_sim.py](tiktoken_tps_sim.py)**: Calibrates timeout thresholds and measures token counts of input texts using OpenAI-compatible counts.
+- **`scripts/local-download.sh`**: Intelligent downloader for local AI models (LLMs, Embeddings, Reranker, Whisper STT) featuring caching, Hugging Face Hub downloads, and automated GGUF quantization.
+- **`scripts/download-helper.py`**: Python helper utility supporting model MTP tensor merging (`merge-mtp`) and agent skills context generation (`benchmark-context`).
+- **[`sandbox-ctl`](sandbox-ctl.md)**: A flexible, generalized wrapper for running any command-line or graphical binary inside a hardened Bubblewrap sandbox with X11/Wayland support, Pipewire/PulseAudio sound, and SSH agent forwarding.
+- **[`antigravity-launcher.sh`](antigravity-launcher.md)**: A customized Bubblewrap sandbox wrapper specifically configured for running the Antigravity IDE (and other Electron applications) securely.
+- **[`kpxc-secret`](kpxc-secret.md)**: KeePassXC secret helper utility.
+- **`scripts/strata-launcher.py`**: runtime half of the strata service — `assistants/local-chat-strata.sh install` copies it next to the unit as `~/.config/systemd/user/local-chat-strata-launcher.py`. Supervises the engine (start, readiness, idle unload, SIGUSR1/2 save-restore, CLEAR_CACHE); it builds no argv and reads no knobs, because `generate_config_json()` owns both.
+- **[`local-router.py`](../inference/router.md)**: Combined local inference router application serving unified OpenAI-compatible routes, token tracking, estimated cost metrics, and Prometheus scrapable endpoints.
+- **[Benchmarks](../benchmarks/index.md)**: Local inference and Strata benchmark scripts, reports, and results.
+- **`tests/`**: Automated test suite directory housing integration and performance test scripts (`test-local-router-usage.py`, `test-local-memory.py`, `test-fim-perf.py`).
+- **`scripts/tiktoken_count.py`** / **`scripts/tiktoken_tps_sim.py`**: Calibrates timeout thresholds and measures token counts of input texts using OpenAI-compatible counts.
 
 
 ## `local-download.sh`
@@ -67,6 +68,6 @@ Simulates token-per-second (TPS) throughput for various models to help calibrate
 
 FastAPI web application that unifies local inference services into a single OpenAI-compatible port (21080). Operates token tracking, cost estimations, text tables (`/usage?format=text`), and Prometheus scraping endpoints (`/metrics`).
 
-Documentation: [local-router.md](../assistants/local-router.md)
+Documentation: [router.md](../inference/router.md)
 
 

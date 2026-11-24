@@ -2,7 +2,7 @@
 
 `local-chat.sh` manages the local `llama-server` systemd user service (`local-chat.service`), serving the Chat/Vision LLM and optionally the text embedding model in a combined multi-model setup.
 
-Note: Text embeddings can be served combined directly within this service instance on port 20080 (enabled by default), or separately via the standalone [local-embedding.md](local-embedding.md) service.
+Note: Text embeddings can be served combined directly within this service instance on port 20080 (enabled by default), or separately via the standalone [embedding.md](embedding.md) service.
 
 When combined embedding mode is enabled, a **port mirror sidecar** automatically mirrors port `20082` → `20080` via `socat`, ensuring clients configured for the standalone embedding port work transparently.
 

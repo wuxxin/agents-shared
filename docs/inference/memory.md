@@ -2,7 +2,7 @@
 
 `local-memory.sh` manages the standalone Hindsight memory API server systemd user service (`local-memory.service`), running the Hindsight FastAPI memory server served by `hindsight-api` on port `28888` alongside a dedicated task worker sidecar (`hindsight-worker`) serving a control plane / metrics server on port `28889` and a Next.js Control Plane Web UI sidecar (`hindsight-control-plane`) on port `8890`. It provides long-term temporal, semantic, and entity-graph memory for local agents.
 
-- **Control Wrapper**: [assistants/local-memory.sh](assistants/local-memory.sh)
+- **Control Wrapper**: `assistants/local-memory.sh`
 
 ---
 

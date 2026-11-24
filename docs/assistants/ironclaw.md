@@ -2,7 +2,7 @@
 
 This guide describes configuration, onboarding, and integration features specific to the IronClaw Reborn Agent runtime environment.
 
-For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents-ctl.md).
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](index.md).
 
 - **Source Code**: [GitHub - nearai/ironclaw](https://github.com/nearai/ironclaw)
 - **Arch/AUR Packages**:

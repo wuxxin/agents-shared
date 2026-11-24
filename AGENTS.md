@@ -2,15 +2,19 @@
 
 ## Repository Structure
 
-- `README.md` — Agent/script instructions, default ports, and isolation requirements.
-- `assistants/` — Lifecycle control scripts (`*-ctl`) and documentation (`*-ctl.md`) for:
-  - Agents: Hermes, LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, ZeroClaw
-  - Local inference services (chat, embedding, STT, TTS, rerank, image)
-  - Signal Messenger Gateway
+- `README.md` — Agent/script instructions, default ports, and isolation requirements (included as `docs/index.md`).
+- `docs/` — MkDocs documentation site (`make docs` / `make docs-serve`):
+  - `docs/inference/` — Local inference service documentation (chat, embedding, STT, TTS, rerank, image, memory, router)
+  - `docs/assistants/` — Assistant control guides (Hermes, LibreFang, NanoBot, NanoClaw, PicoClaw, IronClaw, ZeroClaw)
+  - `docs/integrations/` — Integration service guides (Signal, Syncthing)
+  - `docs/tools/` — Utility & sandboxing guides (`sandbox-ctl`, `antigravity-launcher`, `kpxc-secret`)
+  - `docs/benchmarks/` — MkDocs wrappers including `benchmarks/*.md`
+  - `docs/research/` — Development activity reports, LLM adapter research, Strata notes, and `papers/` PDFs
+  - `docs/assets/` — Documentation images and screenshots
+- `assistants/` — Lifecycle control scripts (`*-ctl`, `local-*.sh`) for agents, local inference services, and integrations.
 - `scripts/` — Sandboxing, model downloaders, local router, token counting, and speed simulation tools.
 - `benchmarks/` — Local inference and Strata benchmark scripts (`run-local-benchmark.py`, `benchmark-helper.py`, `strata-*.{sh,py}`), comparative reports (`local-benchmark.{md,json}`), and run archives (`results/`).
 - `skills/` - Skills for Assistents to deploy
-- `research/` — Development activity reports, LLM adapter research, and notes.
 - `scratch/` — Safe workspace for temp files, source checkouts (`scratch/*-sources`), and testing.
 
 ## Code Style & Commands
@@ -37,14 +41,14 @@
   # Benchmarks & Activity Updates
   python3 benchmarks/run-local-benchmark.py --configs hip,vulkan,cpu --services all --mock
   python3 benchmarks/run-local-benchmark.py --configs hip,vulkan,cpu --services all --report scratch/test.md --data scratch/test.json
-  python3 scripts/update-activity.py [--write]  # Updates research/weekly-devel-activity.md
+  python3 scripts/update-activity.py [--write]  # Updates docs/research/weekly-devel-activity.md
   ```
 
 ## Operating Guidelines
 
 ### Workspace & Documentation
 - **Workspace Isolation:** Use `scratch/` for temporary files, research, and git checkouts (`scratch/*-sources`). Always use the top-level repository root `scratch/`: if checked out independently, use its own root `scratch/`; if checked out as a git submodule, use the parent repository's root `scratch/`.
-- **Docs Maintenance:** Update `README.md`, `assistants/*-ctl.md`, and `scripts/` whenever script behaviors or ports change. Update the "## Sandboxing Architecture" section if isolation profiles change.
+- **Docs Maintenance:** Update `README.md` and `docs/` (`docs/assistants/`, `docs/inference/`, `docs/integrations/`, `docs/tools/`) whenever script behaviors or ports change. Update the "## Sandboxing Architecture" section if isolation profiles change.
 
 ### Local Inference Benchmarking Rules
 - **Script Sync:** Update `benchmarks/run-local-benchmark.py` whenever local service outputs, performance formats, or env variable prefixes (`LLM_` -> `LCHAT_`, `EMBED_` -> `LMBD_`) change.
@@ -52,7 +56,7 @@
 
 ### Sandboxing Discipline
 
-**Check:** if env `SANDBOX_NAME` or `SANDBOX` is set read `submodules/agents-shared/scripts/sandbox-ctl.md` how to behave and use.
+**Check:** if env `SANDBOX_NAME` or `SANDBOX` is set read `submodules/agents-shared/docs/tools/sandbox-ctl.md` how to behave and use.
 
 **If sandboxed:**
 - **Restriction:** Do **NOT** execute systemd service management commands (`systemctl start/stop/restart/status`).

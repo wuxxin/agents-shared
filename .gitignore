@@ -1,3 +1,5 @@
 .fresh
+.venv/
+build/
 scratch/
 __pycache__

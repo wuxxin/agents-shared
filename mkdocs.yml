@@ -1,0 +1,73 @@
+site_name: Agents Shared Infrastructure
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - include-markdown
+
+markdown_extensions:
+  - smarty
+  - toc:
+      permalink: "#"
+  - pymdownx.magiclink
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Overview: index.md
+  - Local Inference:
+      - Coordinator: inference/index.md
+      - Router: inference/router.md
+      - Chat (llama.cpp): inference/chat.md
+      - Chat (Strata): inference/chat-strata.md
+      - Embedding: inference/embedding.md
+      - Reranking: inference/rerank.md
+      - Speech-to-Text: inference/speech-to-text.md
+      - Text-to-Speech: inference/text-to-speech.md
+      - Kokoro C++ Notes: inference/kokoro-cpp.md
+      - Image Generation: inference/image.md
+      - Memory (Hindsight): inference/memory.md
+  - Assistants:
+      - Common Guide: assistants/index.md
+      - Hermes: assistants/hermes.md
+      - IronClaw: assistants/ironclaw.md
+      - LibreFang: assistants/librefang.md
+      - NanoBot: assistants/nanobot.md
+      - NanoClaw: assistants/nanoclaw.md
+      - PicoClaw: assistants/picoclaw.md
+      - ZeroClaw: assistants/zeroclaw.md
+  - Integrations:
+      - Signal: integrations/signal.md
+      - Syncthing: integrations/syncthing.md
+  - Tools & Sandboxing:
+      - Overview: tools/index.md
+      - sandbox-ctl: tools/sandbox-ctl.md
+      - Antigravity Launcher: tools/antigravity-launcher.md
+      - KeePassXC Secret Helper: tools/kpxc-secret.md
+  - Benchmarks:
+      - Overview: benchmarks/index.md
+      - Local Benchmark Runner: benchmarks/run-local-benchmark.md
+      - Local Benchmark Report: benchmarks/local-benchmark.md
+  - Research:
+      - Weekly Activity: research/weekly-devel-activity.md
+      - Agent Evidence: research/agent-evidence.md
+      - Hindsight Config: research/hindsight-config.md
+      - Model Research (Chat): research/model-research-chat.md
+      - Model Research (Embedding & Reranking): research/model-research-embedding-reranking.md
+      - Model Research (TTS & STT): research/model-research-tts-stt.md
+      - Embedding & Reranking Engines: research/embedding-reranking-engines.md
+      - TEI Embedding: research/tei-embedding.md
+      - TEI Reranker: research/tei-reranker.md
+      - Strata Linux Host: research/strata-linux-host.md
+      - Strata Machine Crashes: research/strata-machine-crashes.md
+      - Strata Tuning: research/strata-tuning.md
+      - Strata v0.2.16 Adoption Plan: research/strata-v0.2.16-adoption-plan.md
+      - Plans:
+          - Local Router Live Endpoint: research/plans/local-router-live-endpoint-plan.md
+  - Backlog & TODO: TODO.md

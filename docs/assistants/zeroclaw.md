@@ -2,7 +2,7 @@
 
 This guide describes configuration, onboarding, and integration features specific to the ZeroClaw Agent OS daemon.
 
-For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents-ctl.md).
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](index.md).
 
 - **Source Code**: [GitHub - zeroclaw-labs/zeroclaw](https://github.com/zeroclaw-labs/zeroclaw)
 - **Arch/AUR Packages**: `zeroclaw` (AUR, Rust source compilation), `zeroclaw-bin` (AUR, prebuilt binary distribution), `zeroclaw-git` (AUR, git-based).
@@ -256,7 +256,7 @@ Any dotted path in `config.toml` can be overridden by setting an environment var
   ```
 
 ### Locating Configuration Properties in Source Code
-1. **Source Schema Definition**: Open the configuration schema module at [schema.rs](scratch/zeroclaw/crates/zeroclaw-config/src/schema.rs) and inspect the `Config` struct (and its nested types) that derive `Configurable`.
+1. **Source Schema Definition**: Open the configuration schema module at `scratch/zeroclaw/crates/zeroclaw-config/src/schema.rs` and inspect the `Config` struct (and its nested types) that derive `Configurable`.
 2. **How to Search**:
    - ZeroClaw uses struct definitions where fields map to TOML keys. Dynamic model fields and aliases are stored in hash maps or resolved properties.
    - To find configuration fields, search in the config crate for struct fields matching the key. Note that ZeroClaw maps snake_case properties to kebab-case in the config schema natively (e.g. `api_key` maps to `api-key`). Search using ripgrep:

@@ -6,7 +6,7 @@ The service supports two backend engines via the `LMBD_ENGINE` configuration par
 1. **Llama-Server Engine (`LMBD_ENGINE=llama`, Default)**: Serves GGUF embedding models using `llama-server` (from `llama.cpp`). Default model: Qwen3-Embedding-0.6B Q8_0 GGUF with 1 × 8K kv context (benchmarked: 2.01 GB VRAM, 8,211 t/s hindsight throughput).
 2. **TEI Engine (`LMBD_ENGINE=tei`, ABANDONED)**: Serves native safetensors models using Hugging Face's `text-embeddings-inference`. Kept for reference only; not actively used.
 
-Note: Text embeddings can also be served combined inside the [local-chat.md](local-chat.md) service on port 20080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 20082 should be disabled.
+Note: Text embeddings can also be served combined inside the [chat.md](chat.md) service on port 20080 (enabled by default). When running in combined mode, the standalone `local-embedding` service on port 20082 should be disabled.
 
 - **Source Code**: [HuggingFace - text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference) / [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **AUR Packages**: `tei-rocm` / `text-embeddings-inference` (TEI) and `llama.cpp-cuda` / `llama.cpp-hip` / `llama.cpp` (llama-server)

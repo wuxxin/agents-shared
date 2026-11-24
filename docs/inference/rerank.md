@@ -1,6 +1,6 @@
 # Local Document Reranking Service Guide
 
-> Requires **libggml-git-hip >= 10148**. Model downloaded via [local-download.sh](local-download.sh).
+> Requires **libggml-git-hip >= 10148**. Model downloaded via `scripts/local-download.sh`.
 
 `local-rerank.sh` manages the local `llama-server` systemd user service (`local-rerank.service`), serving the Text Reranker model (`Qwen3-Reranker-0.6B`). The model uses generative ranking with rank pooling and a binary yes/no classification head: it scores relevance based on the logit probability of "yes" vs "no" at the end of the query+document sequence. Clients POST query + documents to `/v1/rerank` and receive relevance scores directly.
 

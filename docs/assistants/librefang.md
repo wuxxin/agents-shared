@@ -2,7 +2,7 @@
 
 This guide describes configuration, onboarding, and integration features specific to the LibreFang assistant.
 
-For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](agents-ctl.md).
+For shared commands, variable expansion rules, sidecars supervision, temporary file cleanups, and unified sandboxing profiles, see the general [Agent Service Guide](index.md).
 
 - **Source Code**: [GitHub - librefang/librefang](https://github.com/librefang/librefang)
 - **Arch/AUR Packages**: `librefang-git` (latest git-based package that provides the client and server binary `/usr/bin/librefang`).
@@ -219,7 +219,7 @@ The application environment override file (`.librefang/.env`) is loaded after `l
 LibreFang does **not** feature an arbitrary, dynamic environment override mapping mechanism (such as `ZEROCLAW_*` key-path parsers). Instead, configuration parameters must be managed directly in the TOML configuration file or via the CLI.
 
 ### Locating Configuration Properties in Source Code
-1. **Source Schema Definition**: Open the configuration types module at [types.rs](scratch/librefang/crates/librefang-types/src/config/types.rs) and inspect the `UserConfig` struct (and its nested types).
+1. **Source Schema Definition**: Open the configuration types module at `scratch/librefang/crates/librefang-types/src/config/types.rs` and inspect the `UserConfig` struct (and its nested types).
 2. **How to Search**:
    - To find config fields, inspect the types file or query it. You can search using ripgrep:
      ```bash
