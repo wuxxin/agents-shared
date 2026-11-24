@@ -53,6 +53,17 @@ For complete usage styles, environment options, and architecture details, see **
 
 Each assistant in this repository is managed by a dedicated shell wrapper script (`assistants/<assistant>-ctl`) adhering to standard design and lifecycle management guidelines.
 
+
+| Agent | Language | Default Port(s) | Description |
+| :--- | :---: | :---: | :--- |
+| **[ZeroClaw](#zeroclaw)** | Rust | [42617](http://localhost:42617) | ZeroClaw Gateway |
+| **[IronClaw](#ironclaw)** | Rust | [28080](http://localhost:28080) | IronClaw Web Gateway & HTTP Webhooks |
+| **[LibreFang](#librefang)** | Rust | [4545](http://localhost:4545) | LibreFang daemon API (HTTP) |
+| **[Hermes](#hermes)** | Python | [8642](http://localhost:8642), [9119](http://localhost:9119) | Hermes Gateway (API: 8642, UI: 9119) |
+| **[NanoBot](#nanobot)** | Python | [8790](http://localhost:8790) | NanoBot Gateway API |
+| **[PicoClaw](#picoclaw)** | Go | [18790](http://localhost:18790), [18800](http://localhost:18800) | Gateway (HTTP/Webhook) & Launcher Web UI |
+| **[NanoClaw](#nanoclaw)** | TypeScript | [3000](http://localhost:3000) | Webhook Server |
+
 - See [Assistants Common Guide](docs/assistants/index.md) for general usage and common configuration options.
 - See [Current Weekly Development Status](docs/research/weekly-devel-activity.md) for GIT development.
 
