@@ -1,4 +1,4 @@
-# Local Inference and Memory Service Agents Ecosystem, Agents Included
+# Local Inference and Agents Service Ecosystem, Sandboxed Agents included
 
 This repository contains orchestration for deploying sandboxed local AI assistants and developer runtimes using local inference services.
 
@@ -10,8 +10,8 @@ It provides **`sandbox-ctl`** (a generalized systemd and bubblewrap container la
 
 | Service | Default Port(s) | Description / Protocol |
 |---------------|-----------------|------------------------|
-| **[Local Chat/Vision](#local-chat-services)** | [20080](http://localhost:20080) | Llama-server serving Chat/Vision LLM (embeddings disabled) |
-| **[Local Embedding](#local-embedding-services)** | [20082](http://localhost:20082) | TEI (`text-embeddings-router`) or `llama-server` serving Text Embeddings |
+| **[Local Chat/Vision](#local-chat-services)** | [20080](http://localhost:20080) | Strata-Engine or Llama-server serving Chat/Vision LLM |
+| **[Local Embedding](#local-embedding-services)** | [20082](http://localhost:20082) | llama-server or TEI (text-embeddings-router) serving Text Embeddings |
 | **[Local Reranking](#local-reranking-services)** | [20086](http://localhost:20086) | Llama-server serving Document Reranking |
 | **[Local Speech to Text](#local-speech-to-text)** | [20090](http://localhost:20090) | Whisper-server audio transcription API (HTTP) |
 | **[Local Text to Speech](#local-text-to-speech)** | [20095](http://localhost:20095) | Kokoro-82M ONNX (default) or Qwen3-TTS audio synthesis API (HTTP) |
@@ -117,7 +117,7 @@ flowchart LR
 ## Local Inference and Integrations
 
 ### Local Chat Services
-- **Description**: Manages persistent `llama-server` instances for chat/vision LLM completions (`local-chat.sh`).
+- **Description**: Manages persistent `llama-server` or `strata-engine` instances for chat/vision LLM completions (`local-chat.sh`, `local-chat-strata.sh`).
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Chat completions (`20080`) service
     - serving the main model with 3 parallel slots (80,000 tokens context size each, total 240,000 tokens). 
@@ -125,7 +125,7 @@ flowchart LR
 - Documentation: [chat.md](docs/inference/chat.md) (and [chat-strata.md](docs/inference/chat-strata.md))
 
 ### Local Embedding Services
-- **Description**: Manages persistent text embedding servers (`local-embedding.sh`). Supports two backend engines: TEI (`text-embeddings-router` using `pplx-embed-context-v1-0.6b` by default) and `llama-server` (GGUF).
+- **Description**: Manages persistent text embedding servers (`local-embedding.sh`). Supports two backend engines:  `llama-server` (GGUF) and  TEI `text-embeddings-router`.
 - **Sandboxing**: Requires `PrivateDevices=no` to access `/dev/dri` and `/dev/kfd`. Enforces `ProtectSystem=strict` while bind-mounting the user's home configuration and granting read-write access to `/data/public/machine-learning`.
 - **Features**: Standalone text embedding server (`20082`) with mean pooling, ROCm GPU offloading, dynamic batching, and systemd sitecustomize helper patch.
 - Documentation: [embedding.md](docs/inference/embedding.md)
