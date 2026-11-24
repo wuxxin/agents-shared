@@ -1,4 +1,4 @@
-# Local Inference and Agents Service Ecosystem, Sandboxed Agents included
+# **Local Inference** And Sandboxed **Agents Service** Infrastructure
 
 This repository contains orchestration for deploying sandboxed local AI assistants and developer runtimes using local inference services.
 
