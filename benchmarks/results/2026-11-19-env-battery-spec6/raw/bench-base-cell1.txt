@@ -1,7 +1,0 @@
-llama.cpp/qwen3.8-flash-next (qwen3.8-flash-next)
-  ✓ run 1/3 TTFT 1.0s tok/s 64.6 gen 66.7/s in 105 out 2K total 31.7s
-  ✓ run 2/3 TTFT 31.4s tok/s 33.2 gen 67.6/s in 105 out 2K total 1m1s
-  ✓ run 3/3 TTFT 32.6s tok/s 33.1 gen 70.1/s in 104 out 2K total 1m1s
-
-model                         TTFT p50  p95    decode  cost/run
-llama.cpp/qwen3.8-flash-next  31.4s     32.6s  33.2    $0.0025

@@ -1111,3 +1111,29 @@ Oracle B 22k prefill, 2 cells per arm, engagement verified in the engine log (`S
 **Fixed-cost model (the useful finding):** fitting `t = fixed + tokens/rate` to the 4K/16K medians gives **marginal prefill ≈ 4,081 tok/s** and **≈2.16 s fixed per fresh prompt**, which predicts the 22k case at 7.6 s (measured 8.1–8.3 s). So "1.3k tok/s at 4K" is not slow prefill — it is 2.16 s of fixed work plus ~1 s of reading. This explains the 4K/16K rate inversion, the C0 22k figure (same fixed cost), and the ~2 s TTFT floor seen even on cached small requests.
 
 **Agent session:** re-read is a constant **1,642 tokens/turn** (29 % reuse on turn 1 → 82 % on turn 5), i.e. the checkpoint ladder recomputes a fixed suffix instead of the whole session — exactly what `--conversation-cache-rewind-keep` governs.
+
+## 15. Engine `0.2.21.1` Upgrade Notes (Pending C0 Re-Verification)
+
+**Prepared:** 2026-11-24 — upgrading `strata-engine-git-hip` from `0.2.16.r4.g58ee322-1` (engine `0.1.62`) to `0.2.21.1.r0.g2af30cc-1` (engine `0.1.67`, Control `0.1.68`, +770 commits across `v0.2.17`–`v0.2.21.1`).
+
+### Key runtime & config changes adopted
+
+- **Persistent SSD spill tier (`--conversation-spill-persist`, `LCHAT_STRATA_CONV_SPILL_PERSIST=true`):** parked conversations evicted to NVMe now live under `~/.cache/user-cache/conv-spill/fp-<model-fingerprint>/` and survive engine restarts and reboots. Strata natively enforces the `--conversation-spill-mib 24576` cap via LRU, drops superseded snapshots instead of spilling them (`#6833`), and cleans stale fingerprint folders at startup.
+- **No idle model unload; idle RAM cache clear instead:** `LCHAT_STRATA_IDLE_UNLOAD=0` keeps model weights warm in VRAM indefinitely. `LCHAT_STRATA_IDLE_CACHE_CLEAR=3600` (in `scripts/strata-launcher.py`) runs `CLEAR_CACHE` after 1 h idle.
+- **Upgraded `CLEAR_CACHE` patch (spill-then-clear):** `strata-clear-cache.patch` now evicts parked RAM conversations through `conversations.evict_oldest()` (pushing them into the persistent SSD tier via `evict_sink`), waits for `spill_writer->wait_idle()` + `spill_reclaim()`, shrinks idle segment pools, and trims the host heap — reclaiming ~8–16 GiB RAM on idle or S3 suspend without losing parked contexts.
+- **Legacy NVMe janitor removed:** `_run_prune()`, `LCHAT_STRATA_USER_CACHE_MAX_*`, and default `LCHAT_STRATA_SLOT_SAVE_PATH` are retired so nothing deletes `.session` files behind Strata's persistent spill index.
+- **Dead flag cleanup & new knobs:** removed `STRATA_DENSE_MMQ=1` (no-op since 0.2.16, warns in 0.2.17+, `#6269`); exposed opt-in `LCHAT_STRATA_BATCH_MTP_FUSED` (`STRATA_BATCH_MTP_FUSED=1`) for `LCHAT_STRATA_PARALLEL > 1`.
+- **Upstream engine changes to re-benchmark in C0:** `STRATA_POOL_DEP=1` is now default ON (per-expert CPU pool dependency queue), Linux HIP disables NUMA balancing on engine memory (`#4866`), RDNA3 Wave-2 WMMA/LDS decode + Unsloth dispatch landed, and `STRATA_GR_FUSED` is fixed on HIP (`#6730`). Re-run C0 warm gate to check whether the −4.5 % decode delta from §14.2 recovers.
+- **Package build scope (B1):** package now ships `strata`, `strata-vision-hip` (GPU), `strata-vision` (real CPU fallback), `strata-q36`, `strata-inkling`, `strata-hy4`, and CLI utilities (`strata-gguf`, `strata-dequant`, `strata-plan`).
+
+### 15.1 Session 6 Verification & Tuning Results (`v0.2.21.1` / engine `0.1.67`, 2026-11-25)
+
+| Test ID | Configuration | Oracle A Decode (2K gen, warm) | Oracle B 22K Prefill (engine log) | Notes / Verdict |
+|---|---|---|---|---|
+| `S6-C0` | `0.2.21.1` live service (`base`) | `74.6 / 76.2 / 72.2` (med **74.6 tok/s**) | `2,687.3 / 2,672.4 tok/s` | **PASS** — recovers the −4.5% `0.2.16` decode delta (+5.7% vs `0.2.16`, +0.9% vs `0.1.61`). Park cost 84–91 ms. |
+| `S6-R6-base` | `0.2.21.1` exclusive GPU (`base`) | `71.8 / 75.3 / 79.0` (med **75.3 tok/s**) | `2,703.6 / 2,676.2 tok/s` | Exclusive-GPU Round 6 baseline; 48/48 layers on fused prompt kernels. |
+| `S6-R6-gr-fused` | `STRATA_GR_FUSED=1` | **`75.4 / 76.4 / 77.9`** (med **76.4 tok/s**) | — | **ADOPTED (+1.5% median, +3.6 tok/s floor)**; zero crashes after `#6730/#6760` HIP fix. |
+| `S6-R6-pf-iq2s` | `STRATA_PF_FUSED_IQ2S=1` | `69.5 / 73.5 / 78.5` | `2,699.5 / 2,672.0 tok/s` | **SKIP** — no-op on `gfx1100` (already 48/48 fused); flag is `gfx12`-only. |
+| `S6-SPILL` | `SIGUSR1` `CLEAR_CACHE` + `--conversation-spill-persist` | — | — | **VERIFIED** — flushed 8,926-token (330 MiB) parked conv to `fp-825c7f4b4b76c785/conv-1.session` in 344.8 ms (`CLEARED 1`); next restart adopted `1 conversation, 330 MiB`. |
+| `S6-MIX-p1` | `parallel=1` (mixed: 54K `omp` + 2×8K `side` + 4×1K `lifeos`, 2,008 out) | **79.0–89.2 tok/s**; agg **48.71 tok/s** (41.23 s wall) | **2,747 tok/s** (53.9K in 19.63 s) | **WINNER** — 8,323 VRAM expert slots, full `--spec 4` MTP clears burst 20% faster than `p2-bmtp`. |
+| `S6-MIX-p2` | `parallel=2` + `STRATA_BATCH_MTP=1` + `STRATA_BATCH_MTP_FUSED=1` | 19.8–41.0 tok/s; agg **40.56 tok/s** (49.51 s wall) | 2,465 tok/s (53.9K in 21.88 s) | **KEEP OFF** — loses 804 VRAM expert slots (−1.53 GiB), amplifies CPU misses across concurrent streams, and caps MTP to 1 proposal/slot. |

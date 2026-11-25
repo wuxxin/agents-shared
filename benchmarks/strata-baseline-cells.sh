@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 URL="http://127.0.0.1:20080"
-MODEL="qwen3.8-flash-next"
+MODEL="llama.cpp/qwen3.8-flash-next"
 CELLS="A,B"
 OUT=""
 BACKGROUND="unrecorded - state which services were running"
@@ -15,7 +15,7 @@ FORCE=0
 usage() {
     cat <<'USAGE'
 usage: strata-baseline-cells.sh [--out NAME] [--cells A,B] [--background TEXT] [--force]
-  --out NAME         benchmarks/results subdirectory (default: <UTC-date>-gfx1100-<engine>)
+  --out NAME         ../scratch/benchmark-results subdirectory (default: <UTC-date>-gfx1100-<engine>)
   --cells LIST       A = generation decode cell, B = deep-context cold-prefill cell
   --background TEXT  what was running during the run (recorded verbatim in README)
   --force            re-run cells whose output already exists
@@ -57,7 +57,7 @@ engine="$(printf '%s' "$status_json" | jq -r '.engine // "unknown"')"
 gpu="$(printf '%s' "$status_json" | jq -r '.machine.gpu | "\(.name // "?") \(.total_mib // "?")MiB"')"
 date_tag="$(date -u +%F)"
 OUT="${OUT:-${date_tag}-gfx1100-${engine}}"
-DIR="$REPO_ROOT/benchmarks/results/$OUT"
+DIR="$REPO_ROOT/scratch/benchmark-results/$OUT"
 RAW="$DIR/raw"
 mkdir -p "$RAW"
 

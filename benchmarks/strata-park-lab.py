@@ -1415,8 +1415,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def default_out(arm: str) -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return (
-        Path(__file__).resolve().parent
-        / "results"
+        Path(__file__).resolve().parent.parent
+        / "scratch"
+        / "benchmark-results"
         / f"{stamp}-gfx1100-park-lab-{arm}"
     )
 

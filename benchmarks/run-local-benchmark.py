@@ -2202,6 +2202,12 @@ def main() -> None:
         action="store_true",
         help="Use the router service URL (http://127.0.0.1:21080) for all services instead of individual ports (useful for --configs running)",
     )
+    parser.add_argument(
+        "--chat-backend",
+        choices=["auto", "strata", "llama"],
+        default="auto",
+        help="Chat backend script to use for 'chat' service: auto (detect running strata or LCHAT_STRATA_ENABLED), strata (local-chat-strata.sh), or llama (local-chat.sh)",
+    )
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -2212,6 +2218,45 @@ def main() -> None:
     router_host = os.environ.get("LROUT_HOST", "127.0.0.1")
     router_port = int(os.environ.get("LROUT_PORT", "21080"))
     router_url = f"http://{router_host}:{router_port}"
+
+    def _detect_strata_chat() -> bool:
+        if args.chat_backend == "strata":
+            return True
+        if args.chat_backend == "llama":
+            return False
+        if os.environ.get("LCHAT_STRATA_ENABLED", "").strip().lower() in ("1", "true", "yes"):
+            return True
+        try:
+            if subprocess.run(
+                ["pgrep", "-f", "local-chat-strata-launcher|strata --serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode == 0:
+                return True
+        except OSError:
+            pass
+        probe_urls = [f"{router_url}/v1/models"] if args.use_router else ["http://127.0.0.1:20080/v1/models"]
+        for purl in probe_urls:
+            try:
+                import urllib.request
+                with urllib.request.urlopen(purl, timeout=2.0) as resp:
+                    if '"owned_by": "strata"' in resp.read().decode("utf-8", errors="ignore"):
+                        return True
+            except Exception:
+                pass
+        strata_env = os.path.join(SYSTEMD_USER_DIR, "local-chat-strata.env")
+        llama_env = os.path.join(SYSTEMD_USER_DIR, "local-chat.env")
+        return os.path.exists(strata_env) and not os.path.exists(llama_env)
+
+    if _detect_strata_chat():
+        SERVICES["chat"] = {
+            "script": os.path.join(REPO_ROOT, "assistants", "local-chat-strata.sh"),
+            "env_file": os.path.join(SYSTEMD_USER_DIR, "local-chat-strata.env"),
+            "port": 20080,
+            "proc_pattern": "strata.*--serve|local-chat-strata-launcher",
+        }
+        print("ℹ️  Chat backend resolved to: strata (local-chat-strata.sh)")
 
     if args.mock:
         # Redirect outputs to scratch directory so we don't overwrite production files during testing

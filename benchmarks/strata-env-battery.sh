@@ -20,7 +20,7 @@ SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
 ENV_FILE="${SYSTEMD_USER_DIR}/local-chat-strata.env"
 LAUNCHER="${SYSTEMD_USER_DIR}/local-chat-strata-launcher.py"
 CONFIG="${SYSTEMD_USER_DIR}/local-chat-strata-config.json"
-MODEL="${LCHAT_BATTERY_MODEL:-qwen3.8-flash-next}"
+MODEL="${LCHAT_BATTERY_MODEL:-llama.cpp/qwen3.8-flash-next}"
 ENDPOINT="http://127.0.0.1:20080"
 
 out_dir=""
@@ -39,7 +39,7 @@ Usage: $(basename "$0") [--out DIR] [--arms LIST] [--runs N] [--cells N] [--chec
 Runs Oracle A bench cells against several engine configurations.
 
 Options:
-  --out DIR     Output folder (default: benchmarks/results/<date>-env-battery)
+  --out DIR     Output folder (default: ../scratch/benchmark-results/<date>-env-battery)
   --arms LIST   Comma list: base, dflash2, dflash2-spec6, f16, spec6, mtp-spec6-minp45
   --runs N      Bench runs per cell (default 3)
   --cells N     Cells per arm, first discarded as warm-up (default 2)
@@ -102,7 +102,7 @@ done
 
 date_utc="$(date -u +%Y-%m-%d)"
 if [[ -z "$out_dir" ]]; then
-    out_dir="${AGENTS_SHARED}/benchmarks/results/${date_utc}-env-battery"
+    out_dir="${AGENTS_SHARED}/scratch/benchmark-results/${date_utc}-env-battery"
 fi
 mkdir -p "$out_dir/raw"
 
@@ -115,6 +115,13 @@ arm_keys() {
     spec6) echo "LCHAT_STRATA_SPEC=6" ;;
     mtp-spec6-minp45) echo "LCHAT_STRATA_SPEC=6 LCHAT_STRATA_SPEC_MIN_P=0.45" ;;
     parallel2) echo "LCHAT_STRATA_PARALLEL=2" ;;
+    # Round 6 (v0.2.21.1 / engine 0.1.67 gfx1100) arms
+    gr-fused) echo "STRATA_GR_FUSED=1" ;;
+    gr-rdna) echo "STRATA_GR_RDNA=1" ;;
+    hip-fast-dec) echo "STRATA_HIP_FAST_DEC=1" ;;
+    dot-x4) echo "STRATA_DOT_X4=1" ;;
+    pool-dep0) echo "STRATA_POOL_DEP=0" ;;
+    pf-iq2s) echo "STRATA_PF_FUSED_IQ2S=1" ;;
     # Oracle D (park-lab) arms: the config is per mechanism, the park arm is per request shape
     notier) echo "LCHAT_STRATA_CONV_SPILL_DIR=" ;;
     tier) echo "" ;;
@@ -239,7 +246,8 @@ stop_engine() {
         sleep 1
     done
     pkill -f '/usr/lib/strata/engine/strata --serve' 2>/dev/null || true
-    sleep 2
+    # Allow ROCm KFD/amdgpu VMM page-table teardown to settle before next arm
+    sleep 6
 }
 
 park_arm() {
@@ -269,17 +277,28 @@ for arm in ${arms//,/ }; do
     # Source the env file into the engine's environment: systemd does this via
     # EnvironmentFile=, a direct launch does not, and env-only knobs (e.g.
     # STRATA_HIP_PROMPT_F16) would otherwise never reach the engine.
-    (
-        set -a
-        # shellcheck disable=SC1090
-        source "$ENV_FILE"
-        set +a
-        exec python3 "$LAUNCHER"
-    ) >"$log" 2>&1 &
-    launcher_pid=$!
-    if ! wait_ready "$launcher_pid"; then
-        echo "  engine did not become ready; see ${log}" >&2
+    local_ready=0
+    for attempt in 1 2; do
+        (
+            set -a
+            # shellcheck disable=SC1090
+            source "$ENV_FILE"
+            set +a
+            exec python3 "$LAUNCHER"
+        ) >"$log" 2>&1 &
+        launcher_pid=$!
+        if wait_ready "$launcher_pid"; then
+            local_ready=1
+            break
+        fi
         stop_engine "$launcher_pid"
+        if [[ "$attempt" == "1" ]]; then
+            echo "  engine start attempt 1 failed (KFD VMM race?); retrying after 10s cooldown..." >&2
+            sleep 10
+        fi
+    done
+    if [[ "$local_ready" != "1" ]]; then
+        echo "  engine did not become ready after 2 attempts; see ${log}" >&2
         printf '%s\t0\t%s\tNOT_READY\t-\t-\n' "$arm" "$summary" >>"$tsv"
         continue
     fi

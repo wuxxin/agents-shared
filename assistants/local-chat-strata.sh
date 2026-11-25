@@ -39,7 +39,6 @@ export STRATA_PF_PAD=1
 export STRATA_PF_FUSED=1
 export STRATA_PF_F16=1
 export STRATA_PF_DM16=1
-export STRATA_DENSE_MMQ=1
 export STRATA_HC_UPMIX=1
 export STRATA_PF_HCDOWN=1
 export STRATA_CVEC_FUSE=1
@@ -71,6 +70,7 @@ export STRATA_PLE_BATCH=1
 export STRATA_SMALL_UNR=3
 export STRATA_GR_Q32_G=2
 export STRATA_GR_Q8_PFS=1
+export STRATA_GR_FUSED=1
 export STRATA_HEAD_MIX_MULTI=1
 export STRATA_FUSE_HITS=1
 export STRATA_FUSE_WAIT=1
@@ -123,12 +123,14 @@ load_env() {
     local env_lchat_conv_park_gain="${LCHAT_STRATA_CONV_CACHE_PARK_GAIN:-}"
     local env_lchat_conv_spill_dir="${LCHAT_STRATA_CONV_SPILL_DIR:-}"
     local env_lchat_conv_spill_mib="${LCHAT_STRATA_CONV_SPILL_MIB:-}"
+    local env_lchat_conv_spill_persist="${LCHAT_STRATA_CONV_SPILL_PERSIST:-}"
     local env_lchat_spec="${LCHAT_STRATA_SPEC:-}"
     local env_lchat_spec_min_p="${LCHAT_STRATA_SPEC_MIN_P:-}"
     local env_lchat_suffix_draft="${LCHAT_STRATA_SUFFIX_DRAFT:-}"
     local env_lchat_lookup_chain="${LCHAT_STRATA_LOOKUP_CHAIN:-}"
     local env_lchat_drafting="${LCHAT_STRATA_DRAFTING:-}"
     local env_lchat_draft_model="${LCHAT_STRATA_DRAFT_MODEL:-}"
+    local env_lchat_batch_mtp_fused="${LCHAT_STRATA_BATCH_MTP_FUSED:-}"
     local env_lchat_adapt_async="${LCHAT_STRATA_ADAPT_ASYNC:-}"
     local env_lchat_adapt_every="${LCHAT_STRATA_ADAPT_EVERY:-}"
     local env_lchat_adapt_swaps="${LCHAT_STRATA_ADAPT_SWAPS:-}"
@@ -146,8 +148,7 @@ load_env() {
     local env_lchat_aliases="${LCHAT_STRATA_ALIASES:-}"
     local env_lchat_extra_args="${LCHAT_STRATA_EXTRA_ARGS:-}"
     local env_lchat_idle_unload="${LCHAT_STRATA_IDLE_UNLOAD:-}"
-    local env_lchat_user_cache_max_gib="${LCHAT_STRATA_USER_CACHE_MAX_GIB:-}"
-    local env_lchat_user_cache_max_age_days="${LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS:-}"
+    local env_lchat_idle_cache_clear="${LCHAT_STRATA_IDLE_CACHE_CLEAR:-}"
 
     # Default server settings (matching local-chat on port 20080 for drop-in replacement)
     LCHAT_STRATA_PORT=20080
@@ -196,11 +197,13 @@ load_env() {
     LCHAT_STRATA_CONV_CACHE_PARK_GAIN=2048
     LCHAT_STRATA_CONV_SPILL_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/user-cache/conv-spill"
     LCHAT_STRATA_CONV_SPILL_MIB=24576
+    LCHAT_STRATA_CONV_SPILL_PERSIST=true
     LCHAT_STRATA_SPEC=4
     LCHAT_STRATA_SPEC_MIN_P=0.58
     LCHAT_STRATA_SUFFIX_DRAFT=3
     LCHAT_STRATA_LOOKUP_CHAIN=2
     LCHAT_STRATA_DRAFTING="mtp"
+    LCHAT_STRATA_BATCH_MTP_FUSED=0
     LCHAT_STRATA_ADAPT_ASYNC=1
     LCHAT_STRATA_ADAPT_EVERY=1
     LCHAT_STRATA_ADAPT_SWAPS=160
@@ -208,15 +211,14 @@ load_env() {
     LCHAT_STRATA_KV="k8v4"
     LCHAT_STRATA_KV_RESIDENT=0
     LCHAT_STRATA_KV_GROW=true
-    LCHAT_STRATA_SLOT_SAVE_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/user-cache"
+    LCHAT_STRATA_SLOT_SAVE_PATH=""
     LCHAT_STRATA_EXPERT_CACHE="auto"
     LCHAT_STRATA_VRAM_RESERVE_MIB=576
     LCHAT_STRATA_PLE_IO="ram"
     LCHAT_STRATA_SPEED="faster"
     LCHAT_STRATA_EXPERT_PROFILE_SAVE="${STRATA_STATE_DIR}/${SERVICE_NAME}-profile.bin"
-    LCHAT_STRATA_IDLE_UNLOAD=3600
-    LCHAT_STRATA_USER_CACHE_MAX_GIB=25
-    LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS=3
+    LCHAT_STRATA_IDLE_UNLOAD=0
+    LCHAT_STRATA_IDLE_CACHE_CLEAR=3600
     # Default vision settings
     LCHAT_STRATA_VISION=true
     LCHAT_STRATA_VISION_TOKENS=1024
@@ -270,12 +272,14 @@ load_env() {
     LCHAT_STRATA_CONV_CACHE_PARK_GAIN="${env_lchat_conv_park_gain:-${LCHAT_STRATA_CONV_CACHE_PARK_GAIN}}"
     LCHAT_STRATA_CONV_SPILL_DIR="${env_lchat_conv_spill_dir:-${LCHAT_STRATA_CONV_SPILL_DIR}}"
     LCHAT_STRATA_CONV_SPILL_MIB="${env_lchat_conv_spill_mib:-${LCHAT_STRATA_CONV_SPILL_MIB}}"
+    LCHAT_STRATA_CONV_SPILL_PERSIST="${env_lchat_conv_spill_persist:-${LCHAT_STRATA_CONV_SPILL_PERSIST}}"
     LCHAT_STRATA_SPEC="${env_lchat_spec:-${LCHAT_STRATA_SPEC}}"
     LCHAT_STRATA_SPEC_MIN_P="${env_lchat_spec_min_p:-${LCHAT_STRATA_SPEC_MIN_P}}"
     LCHAT_STRATA_SUFFIX_DRAFT="${env_lchat_suffix_draft:-${LCHAT_STRATA_SUFFIX_DRAFT}}"
     LCHAT_STRATA_LOOKUP_CHAIN="${env_lchat_lookup_chain:-${LCHAT_STRATA_LOOKUP_CHAIN}}"
     LCHAT_STRATA_DRAFTING="${env_lchat_drafting:-${LCHAT_STRATA_DRAFTING}}"
     LCHAT_STRATA_DRAFT_MODEL="${env_lchat_draft_model:-${LCHAT_STRATA_DRAFT_MODEL:-}}"
+    LCHAT_STRATA_BATCH_MTP_FUSED="${env_lchat_batch_mtp_fused:-${LCHAT_STRATA_BATCH_MTP_FUSED}}"
     LCHAT_STRATA_ADAPT_ASYNC="${env_lchat_adapt_async:-${LCHAT_STRATA_ADAPT_ASYNC}}"
     LCHAT_STRATA_ADAPT_EVERY="${env_lchat_adapt_every:-${LCHAT_STRATA_ADAPT_EVERY}}"
     LCHAT_STRATA_ADAPT_SWAPS="${env_lchat_adapt_swaps:-${LCHAT_STRATA_ADAPT_SWAPS}}"
@@ -297,8 +301,11 @@ load_env() {
     LCHAT_STRATA_CHAT_TEMPLATE_KWARGS="${env_lchat_chat_template_kwargs:-${LCHAT_STRATA_CHAT_TEMPLATE_KWARGS}}"
     LCHAT_STRATA_EXTRA_ARGS="${env_lchat_extra_args:-${LCHAT_STRATA_EXTRA_ARGS}}"
     LCHAT_STRATA_IDLE_UNLOAD="${env_lchat_idle_unload:-${LCHAT_STRATA_IDLE_UNLOAD}}"
-    LCHAT_STRATA_USER_CACHE_MAX_GIB="${env_lchat_user_cache_max_gib:-${LCHAT_STRATA_USER_CACHE_MAX_GIB}}"
-    LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS="${env_lchat_user_cache_max_age_days:-${LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS}}"
+    LCHAT_STRATA_IDLE_CACHE_CLEAR="${env_lchat_idle_cache_clear:-${LCHAT_STRATA_IDLE_CACHE_CLEAR}}"
+    if [[ "${LCHAT_STRATA_BATCH_MTP_FUSED:-0}" =~ ^(1|true|yes)$ ]]; then
+        export STRATA_BATCH_MTP=1
+        export STRATA_BATCH_MTP_FUSED=1
+    fi
 }
 
 # Parse --env KEY=VALUE from arguments, export them in memory, and build systemd-run --setenv options.
@@ -520,6 +527,8 @@ if conv_spill_dir:
         "--conversation-spill-dir", conv_spill_dir,
         "--conversation-spill-mib", get_env("LCHAT_STRATA_CONV_SPILL_MIB", "24576"),
     ])
+    if get_env("LCHAT_STRATA_CONV_SPILL_PERSIST", "true").lower() in ("true", "1", "yes"):
+        engine_args.append("--conversation-spill-persist")
 kv_grow = get_env("LCHAT_STRATA_KV_GROW", "true").lower() in ("true", "1", "yes")
 kv_resident = int(get_env("LCHAT_STRATA_KV_RESIDENT", "0") or "0")
 if kv_grow:
@@ -848,9 +857,12 @@ LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB=6144
 LCHAT_STRATA_CONV_CACHE_MIN_TOKENS=4096
 LCHAT_STRATA_CONV_CACHE_PARK_GAIN=2048
 
-# Conversation-cache SSD tier: parked conversations the RAM tier evicts are written here (empty dir = off)
+# Conversation-cache SSD tier: parked conversations the RAM tier evicts are written here (empty dir = off).
+# With LCHAT_STRATA_CONV_SPILL_PERSIST=true, Strata persists entries across restarts/reboots under
+# <dir>/fp-<model-fingerprint>/ and manages the cap natively via LRU (no external janitor needed).
 LCHAT_STRATA_CONV_SPILL_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/user-cache/conv-spill"
 LCHAT_STRATA_CONV_SPILL_MIB=24576
+LCHAT_STRATA_CONV_SPILL_PERSIST=true
 
 # Speculative decoding tokens, threshold, and drafter selection
 # drafting: mtp (default) | dflash2 | off. dflash2 needs a pack from
@@ -860,6 +872,8 @@ LCHAT_STRATA_DRAFTING="mtp"
 LCHAT_STRATA_DRAFT_MODEL=""
 # Engine batch slots ("parallel"); 1 = single-slot (default). >1 needs VRAM headroom.
 LCHAT_STRATA_PARALLEL=1
+# Fused batched MTP drafting (opt-in, 1 = set STRATA_BATCH_MTP_FUSED=1 when LCHAT_STRATA_PARALLEL > 1)
+LCHAT_STRATA_BATCH_MTP_FUSED=0
 LCHAT_STRATA_SPEC=4
 LCHAT_STRATA_SPEC_MIN_P=0.58
 LCHAT_STRATA_SUFFIX_DRAFT=3
@@ -869,18 +883,18 @@ LCHAT_STRATA_ADAPT_EVERY=1
 LCHAT_STRATA_ADAPT_SWAPS=160
 LCHAT_STRATA_ADAPT_DECAY="0.97"
 
-# KV cache quantization, elastic VRAM growth (HIP VMM), and Tier-3 NVMe slot offload
+# KV cache quantization and elastic VRAM growth (HIP VMM)
 LCHAT_STRATA_KV="k8v4"
 LCHAT_STRATA_KV_GROW=true
 LCHAT_STRATA_KV_RESIDENT=0
-LCHAT_STRATA_SLOT_SAVE_PATH="${HOME}/.cache/user-cache"
+# Legacy manual /slots save dir (empty = disabled; rely exclusively on --conversation-spill-persist)
+LCHAT_STRATA_SLOT_SAVE_PATH=""
 
-# Model idle unload timeout in seconds without requests (default: 3600 = 1 hour; 0 to disable)
-LCHAT_STRATA_IDLE_UNLOAD=3600
+# Model idle unload timeout in seconds (0 = disabled; keep model warm in VRAM)
+LCHAT_STRATA_IDLE_UNLOAD=0
 
-# NVMe Janitor cache limits
-LCHAT_STRATA_USER_CACHE_MAX_GIB=25
-LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS=3
+# Idle RAM conversation-cache clear timer in seconds (flushes parked RAM -> persistent SSD spill and trims host heap; 0 = off)
+LCHAT_STRATA_IDLE_CACHE_CLEAR=3600
 LCHAT_STRATA_EXPERT_CACHE="auto"
 LCHAT_STRATA_VRAM_RESERVE_MIB=576
 # Routing profile and adaptive persistence
@@ -917,7 +931,6 @@ STRATA_PF_PAD=1
 STRATA_PF_FUSED=1
 STRATA_PF_F16=1
 STRATA_PF_DM16=1
-STRATA_DENSE_MMQ=1
 STRATA_HC_UPMIX=1
 STRATA_PF_HCDOWN=1
 STRATA_CVEC_FUSE=1
@@ -949,6 +962,7 @@ STRATA_PLE_BATCH=1
 STRATA_SMALL_UNR=3
 STRATA_GR_Q32_G=2
 STRATA_GR_Q8_PFS=1
+STRATA_GR_FUSED=1
 STRATA_HEAD_MIX_MULTI=1
 STRATA_FUSE_HITS=1
 STRATA_FUSE_WAIT=1
@@ -992,8 +1006,8 @@ write_service_file() {
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
     export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
     export LCHAT_STRATA_EXPERT_PROFILE LCHAT_STRATA_EXPERT_PROFILE_SAVE
-    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_CONV_SPILL_DIR LCHAT_STRATA_CONV_SPILL_MIB
-    export LCHAT_STRATA_USER_CACHE_MAX_GIB LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS
+    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_IDLE_CACHE_CLEAR LCHAT_STRATA_CONV_SPILL_DIR LCHAT_STRATA_CONV_SPILL_MIB LCHAT_STRATA_CONV_SPILL_PERSIST
+    export LCHAT_STRATA_BATCH_MTP_FUSED
 
     # Generate 48-row tuned hipBLASLt table for gfx1100 in state dir
     generate_hipblaslt_table >"${TUNING_TABLE_FILE}"
@@ -1292,17 +1306,31 @@ cmd_test() {
     local port="${LCHAT_STRATA_PORT:-20080}"
     local alias="${LCHAT_STRATA_ALIAS:-qwen3.8-flash-next}"
     local base_url="http://${host}:${port}"
-    echo "Using endpoint base: ${base_url}"
+    local context_file="${LOCAL_MODELS_DIR:-/data/public/machine-learning/models}/benchmark-context.md"
 
     local benchmark=false
     local extra_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
         --benchmark) benchmark=true ;;
+        --url)
+            base_url="$2"
+            shift
+            ;;
+        --model)
+            alias="$2"
+            shift
+            ;;
+        --context)
+            context_file="$2"
+            shift
+            ;;
         *) extra_args+=("$1") ;;
         esac
         shift
     done
+
+    echo "Using endpoint base: ${base_url}"
 
     wait_for_endpoint "${base_url}/v1/models" 30 2 "local-chat-strata" || return 1
 
@@ -1367,7 +1395,7 @@ cmd_test() {
         local helper_script
         helper_script="$(dirname "$0")/../benchmarks/benchmark-helper.py"
         if [ -f "$helper_script" ]; then
-            python3 "$helper_script" --mode chat --url "${base_url}" --model "${alias}" "${extra_args[@]}"
+            python3 "$helper_script" --mode chat --url "${base_url}" --model "${alias}" --context "${context_file}" "${extra_args[@]}"
         else
             echo "Warning: benchmarks/benchmark-helper.py not found, skipping benchmark."
         fi
@@ -1394,7 +1422,7 @@ cmd_cat() {
     export LCHAT_STRATA_PCIE_FRAC LCHAT_STRATA_PLE_IO LCHAT_STRATA_ALIAS LCHAT_STRATA_ALIASES
     export LCHAT_STRATA_TOKENIZER_DIR LCHAT_STRATA_CHAT_TEMPLATE_KWARGS
     export LCHAT_STRATA_EXPERT_PROFILE LCHAT_STRATA_EXPERT_PROFILE_SAVE
-    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_CONV_SPILL_DIR LCHAT_STRATA_CONV_SPILL_MIB
+    export LCHAT_STRATA_IDLE_UNLOAD LCHAT_STRATA_IDLE_CACHE_CLEAR LCHAT_STRATA_CONV_SPILL_DIR LCHAT_STRATA_CONV_SPILL_MIB LCHAT_STRATA_CONV_SPILL_PERSIST LCHAT_STRATA_BATCH_MTP_FUSED
     echo "=== Service File: ${SERVICE_FILE} ==="
     generate_service_file
     echo ""

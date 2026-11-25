@@ -13,8 +13,9 @@ Responsibilities (and deliberately nothing else):
   sees them even when the unit's EnvironmentFile lacks a knob,
 - applies memory limits (RLIMIT_MEMLOCK) for the HIP allocator,
 - reads `-config.json` (written at install time) for argv, env and cwd,
-- supervises the engine: start, readiness, idle unload, SIGUSR1/2
-  save/restore + CLEAR_CACHE, and teardown.
+- supervises the engine: start, readiness, idle RAM cache clear (flushing
+  parked conversations to Strata's persistent SSD spill tier), SIGUSR1/2
+  pre-suspend reclaim, and teardown.
 
 What it does NOT do, by design:
 
@@ -45,7 +46,6 @@ os.environ.setdefault("STRATA_PF_PAD", "1")
 os.environ.setdefault("STRATA_PF_FUSED", "1")
 os.environ.setdefault("STRATA_PF_F16", "1")
 os.environ.setdefault("STRATA_PF_DM16", "1")
-os.environ.setdefault("STRATA_DENSE_MMQ", "1")
 os.environ.setdefault("STRATA_HC_UPMIX", "1")
 os.environ.setdefault("STRATA_PF_HCDOWN", "1")
 os.environ.setdefault("STRATA_CVEC_FUSE", "1")
@@ -77,6 +77,7 @@ os.environ.setdefault("STRATA_PLE_BATCH", "1")
 os.environ.setdefault("STRATA_SMALL_UNR", "3")
 os.environ.setdefault("STRATA_GR_Q32_G", "2")
 os.environ.setdefault("STRATA_GR_Q8_PFS", "1")
+os.environ.setdefault("STRATA_GR_FUSED", "1")
 os.environ.setdefault("STRATA_HEAD_MIX_MULTI", "1")
 os.environ.setdefault("STRATA_FUSE_HITS", "1")
 os.environ.setdefault("STRATA_FUSE_WAIT", "1")
@@ -103,6 +104,9 @@ os.environ.setdefault("STRATA_RESIDENT_HEADROOM_GIB", "0")
 os.environ.setdefault("STRATA_SH_STREAM", "0")
 if "LCHAT_STRATA_DEVICE" in os.environ:
     os.environ.setdefault("HIP_VISIBLE_DEVICES", os.environ["LCHAT_STRATA_DEVICE"])
+if os.environ.get("LCHAT_STRATA_BATCH_MTP_FUSED", "").strip().lower() in ("1", "true", "yes"):
+    os.environ.setdefault("STRATA_BATCH_MTP", "1")
+    os.environ.setdefault("STRATA_BATCH_MTP_FUSED", "1")
 
 # Set host memory limits to unlimited
 for limit in (resource.RLIMIT_MEMLOCK, resource.RLIMIT_AS, resource.RLIMIT_DATA):
@@ -161,150 +165,122 @@ def _hooked_conv_poll(self, path, start):
     return _orig_conv_poll(self, path, start)
 strata_server.ConvCacheLog.poll = _hooked_conv_poll
 
-# Hook Service initialization to capture active service instance
+# Hook Service initialization to capture active service instance and start idle RAM-cache-clear timer
+
+_clear_lock = threading.Lock()
+
+
+def _clear_ram_cache(reason: str) -> bool:
+    """Flush parked RAM conversations to Strata's persistent SSD spill tier and trim host heap.
+
+    Leaves the model weights warm in VRAM. Safe to call from both SIGUSR1 (pre-suspend)
+    and the idle cache-clear timer.
+    """
+    svc = getattr(strata_server, "_active_svc", None)
+    if not svc or not svc.loaded():
+        return False
+    engine = getattr(svc, "engine", None)
+    if not engine or not getattr(engine, "proc", None) or not engine.proc.stdin:
+        return False
+    if not _clear_lock.acquire(blocking=False):
+        return False
+    try:
+        with engine._exclusive_control():
+            engine.proc.stdin.write("CLEAR_CACHE\n")
+            engine.proc.stdin.flush()
+            try:
+                resp = engine.lines.get(timeout=30.0)
+                sys.stderr.write(f"[strata-launcher] {reason}: CLEAR_CACHE response: {resp.strip()!r}\n")
+                return True
+            except Exception as e:
+                sys.stderr.write(f"[strata-launcher] {reason}: lines.get error: {e}\n")
+                return False
+    except Exception as e:
+        sys.stderr.write(f"[strata-launcher] {reason}: CLEAR_CACHE error: {e}\n")
+        return False
+    finally:
+        _clear_lock.release()
+
+
+def _start_idle_cache_clear_timer() -> None:
+    try:
+        idle_s = float(os.environ.get("LCHAT_STRATA_IDLE_CACHE_CLEAR", "3600") or "0")
+    except ValueError:
+        idle_s = 0.0
+    if idle_s <= 0:
+        return
+    sys.stderr.write(f"[strata-launcher] idle RAM cache clear armed: {idle_s:.0f} s (flushes parked RAM -> persistent SSD spill)\n")
+
+    def _loop() -> None:
+        last_cleared_req = -1.0
+        poll_s = max(5.0, min(30.0, idle_s / 4.0))
+        while True:
+            time.sleep(poll_s)
+            svc = getattr(strata_server, "_active_svc", None)
+            if not svc or not svc.loaded():
+                continue
+            with svc.status_lock:
+                if svc.status.get("busy") or svc.status.get("queued"):
+                    continue
+            last_req = float(getattr(svc, "last_request_at", 0.0) or 0.0)
+            ref_ts = last_req or float(getattr(svc, "started_at", 0.0) or 0.0)
+            if last_req <= 0.0 or last_req <= last_cleared_req:
+                continue
+            if time.time() - ref_ts < idle_s:
+                continue
+            if not svc.fifo.acquire(blocking=False):
+                continue
+            try:
+                with svc.status_lock:
+                    if svc.status.get("busy") or svc.status.get("queued"):
+                        continue
+                if _clear_ram_cache(f"idle {idle_s:.0f}s"):
+                    last_cleared_req = last_req
+            finally:
+                svc.fifo.release()
+
+    threading.Thread(target=_loop, daemon=True, name="strata-idle-clear").start()
+
 
 _orig_svc_init = strata_server.Service.__init__
 def _hooked_svc_init(self, *a, **kw):
     _orig_svc_init(self, *a, **kw)
     strata_server._active_svc = self
+    _start_idle_cache_clear_timer()
 strata_server.Service.__init__ = _hooked_svc_init
 
-# Watermarked, event-driven NVMe user-cache Janitor
-def _run_prune():
-    svc = getattr(strata_server, "_active_svc", None)
-    cache_dir = getattr(svc, "slot_save_path", None) if svc else None
-    if not cache_dir or not os.path.isdir(cache_dir):
-        return
-    try:
-        if hasattr(os, "nice"):
-            try:
-                os.nice(19)
-            except OSError:
-                pass
-        max_quota = int(os.environ.get("LCHAT_STRATA_USER_CACHE_MAX_GIB", "25")) * (1024**3)
-        max_age = float(os.environ.get("LCHAT_STRATA_USER_CACHE_MAX_AGE_DAYS", "3")) * 86400.0
-        now = time.time()
-        files = []
-        total_bytes = 0
 
-        def _add(path, st):
-            files.append({"path": path, "size": st.st_size, "last_access": max(st.st_atime, st.st_mtime)})
-            return st.st_size
-
-        # Saved slot sessions (flat, .bin) and the conversation cache's SSD tier (conv-*/conv-<n>.session inside
-        # per-process folders).  Only files are collected; the folders themselves are never removed here - the engine
-        # creates and reclaims them.
-        try:
-            for entry in os.scandir(cache_dir):
-                if entry.name.endswith(".bin") and entry.is_file(follow_symlinks=False):
-                    try:
-                        total_bytes += _add(entry.path, entry.stat(follow_symlinks=False))
-                    except OSError:
-                        pass
-        except OSError:
-            pass
-        spill_dir = os.environ.get("LCHAT_STRATA_CONV_SPILL_DIR", "").strip() or os.path.join(cache_dir, "conv-spill")
-        spill_dir = os.path.expanduser(os.path.expandvars(spill_dir))
-        if os.path.isdir(spill_dir) and not os.path.islink(spill_dir):
-            try:
-                for ns in os.scandir(spill_dir):
-                    if not ns.is_dir(follow_symlinks=False):
-                        continue
-                    for entry in os.scandir(ns.path):
-                        if entry.name.endswith(".session") and entry.is_file(follow_symlinks=False):
-                            try:
-                                total_bytes += _add(entry.path, entry.stat(follow_symlinks=False))
-                            except OSError:
-                                pass
-            except OSError:
-                pass
-        # 1. Prune expired files (> max_age)
-        retained = []
-        for f in files:
-            if now - f["last_access"] > max_age:
-                try:
-                    os.remove(f["path"])
-                    total_bytes -= f["size"]
-                except OSError:
-                    pass
-            else:
-                retained.append(f)
-        # 2. Prune by LRU if exceeding high watermark (max_quota)
-        if total_bytes > max_quota:
-            retained.sort(key=lambda x: x["last_access"])
-            low_watermark = int(max_quota * 0.8)
-            for f in retained:
-                if total_bytes <= low_watermark:
-                    break
-                try:
-                    os.remove(f["path"])
-                    total_bytes -= f["size"]
-                except OSError:
-                    pass
-    except Exception as e:
-        sys.stderr.write(f"[strata-janitor] error: {e}\n")
-
-def _trigger_prune():
-    threading.Thread(target=_run_prune, daemon=True).start()
-
-# Hook slot_action to trigger prune on save and update atime on restore
-_orig_slot_action = strata_server.Service.slot_action
-def _hooked_slot_action(self, slot, action, filename):
-    res = _orig_slot_action(self, slot, action, filename)
-    if action == "save":
-        _trigger_prune()
-    elif action == "restore" and self.slot_save_path and filename:
-        p = os.path.join(self.slot_save_path, filename)
-        if os.path.exists(p):
-            try:
-                os.utime(p, None)
-            except OSError:
-                pass
-    return res
-strata_server.Service.slot_action = _hooked_slot_action
-
-# Signal handlers for pre-suspend save & reclaim (SIGUSR1) and post-suspend restore (SIGUSR2)
+# Signal handlers for pre-suspend RAM cache flush & reclaim (SIGUSR1) and optional post-suspend restore (SIGUSR2).
+# Persistent SSD spill (--conversation-spill-persist) is managed natively by Strata's own LRU (--conversation-spill-mib);
+# no external NVMe janitor is run.
 def _handle_sigusr1(signum, frame):
     svc = getattr(strata_server, "_active_svc", None)
-    if svc and hasattr(svc, "slot_action") and svc.loaded():
-        try:
-            code, body = svc.slot_action("0", "save", "suspend-session.bin")
-            sys.stderr.write(f"[strata-launcher] SIGUSR1: session saved ({code})\n")
-        except Exception as e:
-            sys.stderr.write(f"[strata-launcher] SIGUSR1 save error: {e}\n")
-        engine = getattr(svc, "engine", None)
-        if engine and hasattr(engine, "proc") and engine.proc and engine.proc.stdin:
+    if svc and svc.loaded():
+        if getattr(svc, "slot_save_path", None) and hasattr(svc, "slot_action"):
             try:
-                with engine._exclusive_control():
-                    engine.proc.stdin.write("CLEAR_CACHE\n")
-                    engine.proc.stdin.flush()
-                    try:
-                        resp = engine.lines.get(timeout=5.0)
-                        sys.stderr.write(f"[strata-launcher] SIGUSR1: CLEAR_CACHE response: {resp.strip()!r}\n")
-                    except Exception as e:
-                        sys.stderr.write(f"[strata-launcher] SIGUSR1: lines.get error: {e}\n")
+                code, _body = svc.slot_action("0", "save", "suspend-session.bin")
+                sys.stderr.write(f"[strata-launcher] SIGUSR1: session saved ({code})\n")
             except Exception as e:
-                sys.stderr.write(f"[strata-launcher] SIGUSR1 CLEAR_CACHE error: {e}\n")
+                sys.stderr.write(f"[strata-launcher] SIGUSR1 save error: {e}\n")
+        _clear_ram_cache("SIGUSR1")
         try:
             with open("/tmp/strata-reclaimed", "w") as f:
                 f.write("ok\n")
         except OSError:
             pass
-        _trigger_prune()
+
+
 def _handle_sigusr2(signum, frame):
     svc = getattr(strata_server, "_active_svc", None)
-    if svc and hasattr(svc, "slot_action"):
+    if svc and getattr(svc, "slot_save_path", None) and hasattr(svc, "slot_action"):
+        save_path = os.path.join(svc.slot_save_path, "suspend-session.bin")
+        if not os.path.exists(save_path):
+            return
         try:
             if not svc.loaded():
                 svc.load()
-            code, body = svc.slot_action("0", "restore", "suspend-session.bin")
+            code, _body = svc.slot_action("0", "restore", "suspend-session.bin")
             sys.stderr.write(f"[strata-launcher] SIGUSR2: session restored ({code})\n")
-            save_path = os.path.join(svc.slot_save_path, "suspend-session.bin") if svc.slot_save_path else None
-            if save_path and os.path.exists(save_path):
-                try:
-                    os.utime(save_path, None)
-                except OSError:
-                    pass
         except Exception as e:
             sys.stderr.write(f"[strata-launcher] SIGUSR2 restore error: {e}\n")
 

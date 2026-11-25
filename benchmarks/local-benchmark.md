@@ -1,6 +1,6 @@
 # LLM Caching Optimization Benchmarks
 
-**Benchmark Run Time:** `2026-09-02 15:02:29`
+**Benchmark Run Time:** `2026-11-25 01:32:51`
 
 ## Local Inference Services Benchmarks
 
@@ -14,10 +14,10 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 | [**HIP-COMBI-ROCM0**](#hip-combi-rocm0-configuration-details) | chat_hip-combi-ROCm0 | ROCm0 | Layers: 999 | 55195.27 ms | 562.39 t/s | 255.74 ms | 101.32 t/s | 66.77 t/s | 0.00 ms | 0.00 t/s | 20346.8 MB | 81.4 MB |
 | [**HIP-ROCM0**](#hip-rocm0-configuration-details) | chat_hip-ROCm0 | ROCm0 | Layers: 999 | 18026.50 ms | 1722.74 t/s | 116.27 ms | 89.26 t/s | 63.88 t/s | 0.00 ms | 0.00 t/s | 18872.9 MB | 79.8 MB |
 | [**VULKAN-VULKAN0**](#vulkan-vulkan0-configuration-details) | chat_vulkan-Vulkan0 | Vulkan0 | Layers: 999 (Context: 20%) | 72105.11 ms | 80.85 t/s | 1657.46 ms | 15.69 t/s | 12.22 t/s | 0.00 ms | 0.00 t/s | 14416.1 MB | 63.4 MB |
-| [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | chat_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 17804.84 ms | **1744.19 t/s** | 142.95 ms | 141.65 t/s | 107.04 t/s | 0.00 ms | 0.00 t/s | 17894.6 MB | 63.8 MB |
+| [**VULKAN-VULKAN1**](#vulkan-vulkan1-configuration-details) | chat_vulkan-Vulkan1 | Vulkan1 | Layers: 999 | 17804.84 ms | 1744.19 t/s | 142.95 ms | 141.65 t/s | **107.04 t/s** | 0.00 ms | 0.00 t/s | 17894.6 MB | 63.8 MB |
 | [**CPU**](#cpu-configuration-details) | chat_cpu | none | Layers: 0 (Context: 5%) | 41745.44 ms | 35.62 t/s | 576.59 ms | 16.04 t/s | 12.01 t/s | 0.00 ms | 0.00 t/s | 0.1 MB | 63.1 MB |
 | [**CPU-BLAS**](#cpu-blas-configuration-details) | chat_cpu-blas | BLAS | Layers: 0 (Context: 5%) | 41882.37 ms | 35.50 t/s | 582.41 ms | 16.89 t/s | 12.00 t/s | 0.00 ms | 0.00 t/s | 0.1 MB | 63.4 MB |
-| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 18451.80 ms | 1682.93 t/s | 115.34 ms | 108.02 t/s | **109.43 t/s** | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
+| [**RUNNING**](#running-configuration-details) | chat_running | running on host | unknown | 11442.28 ms | **2713.88 t/s** | 195.57 ms | 86.87 t/s | 80.91 t/s | 0.00 ms | 0.00 t/s | -n.a.- | -n.a.- |
 
 #### Text Embedding (`local-embedding`)
 | Configuration | Test Name | GPU | Special Setting | Embedding Throughput | Embedding Latency (Avg) | Embedding GPU Mem | Embedding CPU Mem |
@@ -139,7 +139,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       255.74 ms
   - Prefill Speed:        74.29 tokens/sec
@@ -201,7 +201,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS="portmirror"`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         7.77 s
   - Avg Throughput:       5851.93 tokens/sec
@@ -269,7 +269,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Errors Count:** 1
 - **Top Errors:**
   - `[34m0.31.724.982[0m [31mE srv    operator(): http client error: Connection handling canceled`
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       116.27 ms
   - Prefill Speed:        180.61 tokens/sec
@@ -320,7 +320,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         4.19 s
   - Avg Throughput:       10858.97 tokens/sec
@@ -379,7 +379,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS=""`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       29.02 ms
   - Generation Speed:     194.34 tokens/sec
@@ -424,7 +424,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Reranking Time:   612.47 ms
   - Avg Docs Throughput:  16.33 docs/sec
@@ -454,7 +454,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Errors Count:** 1
 - **Top Errors:**
   - `Warning: STT Transcription text mismatch (garbled output)`
-- **Package Version:** `1.9.3-dev (978113305)`
+- **Package Version:** `1.9.6-dev (ca19af244)`
 - **Metrics:**
   - Avg Transcribe Time:  -fail- VALIDATION
   - Avg Real-Time Factor (RTF): -fail- VALIDATION (-fail- VALIDATION faster than real-time)
@@ -510,7 +510,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-830-50d6405+, commit 50d64056`
+- **Package Version:** `master-1106-532d2c1+, commit 532d2c15`
 - **Metrics:**
   - Avg Generation Time:  7.43 seconds
 
@@ -572,7 +572,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       1657.46 ms
   - Prefill Speed:        12.67 tokens/sec
@@ -623,7 +623,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         53.47 s
   - Avg Throughput:       850.22 tokens/sec
@@ -682,7 +682,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS=""`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       26.35 ms
   - Generation Speed:     240.11 tokens/sec
@@ -727,7 +727,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Reranking Time:   6278.25 ms
   - Avg Docs Throughput:  1.59 docs/sec
@@ -755,7 +755,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `1.9.3-dev (978113305)`
+- **Package Version:** `1.9.6-dev (ca19af244)`
 - **Metrics:**
   - Avg Transcribe Time:  5.57 seconds
   - Avg Real-Time Factor (RTF): 0.1238 (8.1x faster than real-time)
@@ -811,7 +811,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-830-50d6405+, commit 50d64056`
+- **Package Version:** `master-1106-532d2c1+, commit 532d2c15`
 - **Metrics:**
   - Avg Generation Time:  92.76 seconds
 
@@ -873,7 +873,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       142.95 ms
   - Prefill Speed:        146.91 tokens/sec
@@ -924,7 +924,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         7.45 s
   - Avg Throughput:       6098.09 tokens/sec
@@ -984,7 +984,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS=""`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       15.30 ms
   - Generation Speed:     254.03 tokens/sec
@@ -1029,7 +1029,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Reranking Time:   861.75 ms
   - Avg Docs Throughput:  11.60 docs/sec
@@ -1057,7 +1057,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `1.9.3-dev (978113305)`
+- **Package Version:** `1.9.6-dev (ca19af244)`
 - **Metrics:**
   - Avg Transcribe Time:  0.88 seconds
   - Avg Real-Time Factor (RTF): 0.0195 (51.4x faster than real-time)
@@ -1115,7 +1115,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-830-50d6405+, commit 50d64056`
+- **Package Version:** `master-1106-532d2c1+, commit 532d2c15`
 - **Metrics:**
   - Avg Generation Time:  6.96 seconds
 
@@ -1175,7 +1175,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       576.59 ms
   - Prefill Speed:        36.42 tokens/sec
@@ -1226,7 +1226,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         292.15 s
   - Avg Throughput:       140.20 tokens/sec
@@ -1286,7 +1286,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS=""`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       37.61 ms
   - Generation Speed:     37.82 tokens/sec
@@ -1331,7 +1331,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Reranking Time:   15104.88 ms
   - Avg Docs Throughput:  0.66 docs/sec
@@ -1359,7 +1359,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `1.9.3-dev (978113305)`
+- **Package Version:** `1.9.6-dev (ca19af244)`
 - **Metrics:**
   - Avg Transcribe Time:  12.14 seconds
   - Avg Real-Time Factor (RTF): 0.2698 (3.7x faster than real-time)
@@ -1417,7 +1417,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-830-50d6405+, commit 50d64056`
+- **Package Version:** `master-1106-532d2c1+, commit 532d2c15`
 - **Metrics:**
   - Avg Generation Time:  282.65 seconds
 
@@ -1477,7 +1477,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       582.41 ms
   - Prefill Speed:        36.06 tokens/sec
@@ -1528,7 +1528,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         291.36 s
   - Avg Throughput:       140.58 tokens/sec
@@ -1588,7 +1588,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LOCAL_SIDECARS=""`
   - `LOCAL_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       37.54 ms
   - Generation Speed:     37.82 tokens/sec
@@ -1633,7 +1633,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Reranking Time:   14795.03 ms
   - Avg Docs Throughput:  0.68 docs/sec
@@ -1661,7 +1661,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `1.9.3-dev (978113305)`
+- **Package Version:** `1.9.6-dev (ca19af244)`
 - **Metrics:**
   - Avg Transcribe Time:  16.94 seconds
   - Avg Real-Time Factor (RTF): 0.3765 (2.7x faster than real-time)
@@ -1717,7 +1717,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-830-50d6405+, commit 50d64056`
+- **Package Version:** `master-1106-532d2c1+, commit 532d2c15`
 - **Metrics:**
   - Avg Generation Time:  281.93 seconds
 
@@ -1859,58 +1859,136 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
 - **Execution Target:** `RUNNING`
 - **GPU Memory Used:** -n.a.-
 - **CPU Memory Used:** -n.a.-
-- **Benchmark Running Time:** 28.54 s
+- **Benchmark Running Time:** 25.23 s
 - **Active Environment Settings:**
-  - `GGML_VK_DISABLE_MMVQ="1"`
-  - `LCHAT_ALIAS="qwen3"`
-  - `LCHAT_CACHE_TYPE_K="q4_0"`
-  - `LCHAT_CACHE_TYPE_V="q4_0"`
-  - `LCHAT_CHAT_TEMPLATE_FILE=""`
-  - `LCHAT_CHAT_TEMPLATE_KWARGS="{"enable_thinking": true}"`
-  - `LCHAT_CTX_SIZE="240384"`
-  - `LCHAT_DEVICE="vulkan1"`
-  - `LCHAT_EXTRA_ARGS="--temp 0.6 --top-k 20 --repeat-penalty 1.1"`
-  - `LCHAT_HOST="127.0.0.1"`
-  - `LCHAT_MMPROJ="/data/public/machine-learning/models/vision-text/BigBang-v1-mmproj-f16.gguf"`
-  - `LCHAT_MODEL="/data/public/machine-learning/models/vision-text/BigBang-v1-IQ4_XS.gguf"`
-  - `LCHAT_MTP=""`
-  - `LCHAT_N_GPU_LAYERS="999"`
-  - `LCHAT_PARALLEL="2"`
-  - `LCHAT_PORT="20080"`
-  - `LCHAT_SIDECARS=""`
-  - `LCHAT_SIDECAR_PORTMIRROR_CMD="bash -c 'if [ \"\${LMBD_ENABLED}\" = \"true\" ]; then exec socat TCP-LISTEN:\${LMBD_MIRROR_PORT:-20082},fork,reuseaddr TCP:\${LCHAT_HOST:-127.0.0.1}:\${LCHAT_PORT:-20080}; else exec sleep infinity; fi'"`
-  - `LCHAT_SPECULATIVE="--spec-type draft-mtp --spec-draft-n-max 4 --spec-draft-type-k q4_0 --spec-draft-type-v q4_0"`
-  - `LCHAT_THREADS="4"`
-  - `LCOMP_ALIAS="qwen-coder-fim"`
-  - `LCOMP_CACHE_TYPE_K="q4_0"`
-  - `LCOMP_CACHE_TYPE_V="q4_0"`
-  - `LCOMP_CTX_SIZE="8192"`
-  - `LCOMP_ENABLED="false"`
-  - `LCOMP_EXTRA_ARGS=""`
-  - `LCOMP_MODEL="/data/public/machine-learning/models/completion/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"`
-  - `LCOMP_PARALLEL="2"`
-  - `LMBD_ALIAS="qwen3-embedding"`
-  - `LMBD_CACHE_TYPE_K="q8_0"`
-  - `LMBD_CACHE_TYPE_V="q8_0"`
-  - `LMBD_CTX_SIZE="16384"`
-  - `LMBD_ENABLED="false"`
-  - `LMBD_EXTRA_ARGS="--flash-attn on"`
-  - `LMBD_MIRROR_PORT="20082"`
-  - `LMBD_MODEL="/data/public/machine-learning/models/embedding/Qwen3-Embedding-0.6B-Q8_0.gguf"`
-  - `LMBD_PARALLEL="2"`
-  - `LMBD_UBATCH_SIZE="16384"`
+  - `HSA_USERPTR_FOR_PAGED_MEM="1"`
+  - `LCHAT_STRATA_ADAPT_ASYNC="1"`
+  - `LCHAT_STRATA_ADAPT_DECAY="0.97"`
+  - `LCHAT_STRATA_ADAPT_EVERY="1"`
+  - `LCHAT_STRATA_ADAPT_SWAPS="160"`
+  - `LCHAT_STRATA_ALIAS="qwen3.8-flash-next"`
+  - `LCHAT_STRATA_ALIASES="qwen3.8-flash-next-swift15,qwen3.8-moe,swift-1.5,qwen3.8,qwen3"`
+  - `LCHAT_STRATA_BATCH_MTP_FUSED="0"`
+  - `LCHAT_STRATA_CHAT_TEMPLATE_KWARGS="{"enable_thinking": true}"`
+  - `LCHAT_STRATA_CONV_CACHE_MIB="16384"`
+  - `LCHAT_STRATA_CONV_CACHE_MIN_FREE_MIB="6144"`
+  - `LCHAT_STRATA_CONV_CACHE_MIN_TOKENS="4096"`
+  - `LCHAT_STRATA_CONV_CACHE_PARK_GAIN="2048"`
+  - `LCHAT_STRATA_CONV_CACHE_SLOTS="8"`
+  - `LCHAT_STRATA_CONV_SPILL_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/user-cache/conv-spill"`
+  - `LCHAT_STRATA_CONV_SPILL_MIB="24576"`
+  - `LCHAT_STRATA_CONV_SPILL_PERSIST="true"`
+  - `LCHAT_STRATA_DEVICE="0"`
+  - `LCHAT_STRATA_DRAFTING="mtp"`
+  - `LCHAT_STRATA_DRAFT_MODEL=""`
+  - `LCHAT_STRATA_ESP="/usr/share/strata/terminal/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf"`
+  - `LCHAT_STRATA_ESP_LAYERS="4 44"`
+  - `LCHAT_STRATA_ESP_SCALE="1.0"`
+  - `LCHAT_STRATA_EXPERT_CACHE="auto"`
+  - `LCHAT_STRATA_EXPERT_PROFILE="/usr/share/strata/terminal/data/expert-profile.bin"`
+  - `LCHAT_STRATA_EXPERT_PROFILE_SAVE="${HOME}/.local/state/strata/local-chat-strata-profile.bin"`
+  - `LCHAT_STRATA_EXPERT_RAM_BUDGET="42000"`
+  - `LCHAT_STRATA_EXTRA_ARGS=""`
+  - `LCHAT_STRATA_HOST="127.0.0.1"`
+  - `LCHAT_STRATA_IDLE_CACHE_CLEAR="3600"`
+  - `LCHAT_STRATA_IDLE_UNLOAD="0"`
+  - `LCHAT_STRATA_KV="k8v4"`
+  - `LCHAT_STRATA_KV_GROW="true"`
+  - `LCHAT_STRATA_KV_RESIDENT="0"`
+  - `LCHAT_STRATA_LOOKUP_CHAIN="2"`
+  - `LCHAT_STRATA_MAX_CONTEXT="240384"`
+  - `LCHAT_STRATA_MMPROJ="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/mmproj-Swift-Qwen3.8-Flash-Next-BF16.gguf"`
+  - `LCHAT_STRATA_MODEL="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"`
+  - `LCHAT_STRATA_MTP="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/mtp/rt"`
+  - `LCHAT_STRATA_MTP_VOCAB=""`
+  - `LCHAT_STRATA_PACK="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/packs/swift-iq3_s"`
+  - `LCHAT_STRATA_PARALLEL="1"`
+  - `LCHAT_STRATA_PCIE_FRAC="0.20"`
+  - `LCHAT_STRATA_PLE_IO="ram"`
+  - `LCHAT_STRATA_PLE_MODEL="${LOCAL_MODELS_DIR}/strata/swift15_iq3s/models/swift-IQ3_S/Swift-Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"`
+  - `LCHAT_STRATA_PORT="20080"`
+  - `LCHAT_STRATA_PREFILL="24576"`
+  - `LCHAT_STRATA_PROMPT_CACHE="6"`
+  - `LCHAT_STRATA_REPEAT_PENALTY="1.1"`
+  - `LCHAT_STRATA_SLOT_SAVE_PATH=""`
+  - `LCHAT_STRATA_SPEC="4"`
+  - `LCHAT_STRATA_SPEC_MIN_P="0.58"`
+  - `LCHAT_STRATA_SUFFIX_DRAFT="3"`
+  - `LCHAT_STRATA_TEMPERATURE="0.6"`
+  - `LCHAT_STRATA_TOKENIZER_DIR="/data/public/machine-learning/models/strata/swift15_iq3s/tok_runtime"`
+  - `LCHAT_STRATA_TOP_K="20"`
+  - `LCHAT_STRATA_TOP_P="0.95"`
+  - `LCHAT_STRATA_VISION="true"`
+  - `LCHAT_STRATA_VISION_TOKENS="1024"`
+  - `LCHAT_STRATA_VRAM_RESERVE_MIB="576"`
+  - `LOCAL_MODELS_DIR="/data/public/machine-learning/models"`
+  - `PYTHONUNBUFFERED="1"`
+  - `STRATA_ARENA_RELEASE="0"`
+  - `STRATA_ATTN_LANECELL="1"`
+  - `STRATA_ATTN_MERGE_V2="1"`
+  - `STRATA_CVEC_FUSE="1"`
+  - `STRATA_DATA_DIR="/usr/share/strata/terminal/data"`
+  - `STRATA_EMB_REUSE_ACCOUNT="1"`
+  - `STRATA_EXPERT_V2="1"`
+  - `STRATA_FUSE_HEAD_GR="1"`
+  - `STRATA_FUSE_HITS="1"`
+  - `STRATA_FUSE_WAIT="1"`
+  - `STRATA_GDN_CONVL2="2"`
+  - `STRATA_GDN_HEAD="1"`
+  - `STRATA_GDN_NOY="1"`
+  - `STRATA_GDN_PP="2"`
+  - `STRATA_GDN_SPLIT="1"`
+  - `STRATA_GR_FUSED="1"`
+  - `STRATA_GR_Q32_G="2"`
+  - `STRATA_GR_Q8_PFS="1"`
+  - `STRATA_HC_UPMIX="1"`
+  - `STRATA_HEAD_MIX_MULTI="1"`
+  - `STRATA_HIP_WMMA="1"`
+  - `STRATA_LFUSE="1"`
+  - `STRATA_MEMORY_LIMIT_MIB="0"`
+  - `STRATA_MMVF_ROWS="1"`
+  - `STRATA_NORM_ROPE="1"`
+  - `STRATA_PA_FAST="1"`
+  - `STRATA_PF_DM16="1"`
+  - `STRATA_PF_F16="1"`
+  - `STRATA_PF_FUSED="1"`
+  - `STRATA_PF_GEMM="1"`
+  - `STRATA_PF_HCDOWN="1"`
+  - `STRATA_PF_HC_REGION="1"`
+  - `STRATA_PF_PAD="1"`
+  - `STRATA_PLE_BATCH="1"`
+  - `STRATA_PLE_COMPACT="1"`
+  - `STRATA_PLE_COPY_STREAM="1"`
+  - `STRATA_PREFILL_AUTO_MAX="24576"`
+  - `STRATA_PREFILL_RING="512"`
+  - `STRATA_PREFILL_ROUTED_STREAM="1"`
+  - `STRATA_PREFILL_WARM="1"`
+  - `STRATA_Q8_PACKED="1"`
+  - `STRATA_QFUSE="1"`
+  - `STRATA_REQUEST_LINES="1"`
+  - `STRATA_RESIDENT_HEADROOM_GIB="0"`
+  - `STRATA_SCORES_THREAD="1"`
+  - `STRATA_SELECT_WMMA="1"`
+  - `STRATA_SH_STREAM="0"`
+  - `STRATA_SLOT_RAM_RESERVE_GIB="8"`
+  - `STRATA_SMALL_UNR="3"`
+  - `STRATA_SPEC_COST="1"`
+  - `STRATA_TOOLS_DIR="/usr/share/strata/terminal/tools"`
+  - `STRATA_TSUM="1"`
+  - `STRATA_VERIFY_QDEDUP="1"`
+  - `STRATA_WMMA_GEMM="1"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
-  - TTFT (Prefill):       115.34 ms
-  - Prefill Speed:        164.73 tokens/sec
-  - Generation Speed:     108.02 tokens/sec
+  - TTFT (Prefill):       195.57 ms
+  - Prefill Speed:        97.15 tokens/sec
+  - Generation Speed:     86.87 tokens/sec
 - **Generation (Phase 2):**
   - Avg Completion Tokens: 1024.0
-  - Avg TTFT (Prefill):   18451.80 ms
-  - Avg Prefill Speed:    1682.93 tokens/sec
-  - Avg Generation Speed: 109.43 tokens/sec
-  - Avg Decode Time:      9.36 s
+  - Avg TTFT (Prefill):   11442.28 ms
+  - Avg Prefill Speed:    2713.88 tokens/sec
+  - Avg Generation Speed: 80.91 tokens/sec
+  - Avg Decode Time:      12.66 s
 - **Vision Description (Phase 4):**
   - Avg TTFT (Prefill):   0.00 ms
   - Avg Generation Speed: 0.00 tokens/sec
@@ -1946,7 +2024,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Time/Run:         53.21 s
   - Avg Throughput:       854.42 tokens/sec
@@ -2003,7 +2081,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LMBD_PARALLEL="2"`
   - `LMBD_UBATCH_SIZE="16384"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Warmup (Phase 0):**
   - TTFT (Prefill):       -n.a.-
   - Generation Speed:     -n.a.-
@@ -2057,7 +2135,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"`
   - `TRUST_REMOTE_CODE="true"`
 - **Errors Count:** 0
-- **Package Version:** `0.3.0-dev (build 10642, commit 925e117994)`
+- **Package Version:** `1.0.0-dev (build 12554, commit 7fce5439fe)`
 - **Metrics:**
   - Avg Reranking Time:   6438.88 ms
   - Avg Docs Throughput:  1.55 docs/sec
@@ -2084,7 +2162,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LSTT_PORT="20090"`
   - `LSTT_THREADS="8"`
 - **Errors Count:** 0
-- **Package Version:** `1.9.3-dev (978113305)`
+- **Package Version:** `1.9.6-dev (ca19af244)`
 - **Metrics:**
   - Avg Transcribe Time:  8.53 seconds
   - Avg Real-Time Factor (RTF): 0.1895 (5.3x faster than real-time)
@@ -2137,7 +2215,7 @@ We ran local benchmarks for text embedding, text-to-speech (TTS), speech-to-text
   - `LIMG_THREADS="8"`
   - `LIMG_VAE="/data/public/machine-learning/models/image/ae.safetensors"`
 - **Errors Count:** 0
-- **Package Version:** `master-830-50d6405+, commit 50d64056`
+- **Package Version:** `master-1106-532d2c1+, commit 532d2c15`
 - **Metrics:**
   - Avg Generation Time:  90.53 seconds
 
