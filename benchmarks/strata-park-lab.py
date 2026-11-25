@@ -18,7 +18,7 @@ The engine is never started, restarted or reconfigured here.  Arms A/B/C are
 engine configurations: the plan prints the restart command the operator runs
 between arms.  Arms D/E send the per-request fields themselves.
 
-See docs/research/strata-v0.2.16-adoption-plan.md §5 for the protocol, arms and
+See docs/research/strata-tuning.md §8 for the Oracle D protocol, arms and
 gate.  Results: <out>/cells.jsonl (one JSON row per cell, appended) and
 <out>/summary.md (per-arm medians and gate verdict, regenerated from every row
 in cells.jsonl so several arms can share one output directory).

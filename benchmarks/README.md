@@ -8,7 +8,7 @@ Benchmark harnesses, comparative reports, and run archives for local inference s
 - **`benchmark-helper.py`**: Unified workload driver invoked by `assistants/local-*.sh test --benchmark` and `tests/test-fim-perf.py`.
 - **`strata-baseline-cells.sh`**: Captures paired Strata benchmark cells (`omp bench` Oracle A/B against the live chat service on port 20080) with per-cell journal slices and a README skeleton under `scratch/benchmark-results/`.
 - **`strata-env-battery.sh`**: Runs Oracle A bench cells or Oracle D park-lab workloads across multiple Strata engine configurations by rewriting the env file per arm and restarting the launcher directly.
-- **`strata-park-lab.py`**: Oracle D park-churn driver (`docs/research/strata-v0.2.16-adoption-plan.md` §5) — warms a ~120k-token conversation, fires K prefix-sharing subagent conversations, probes the main conversation, and records reuse %, TTFT, and `/metrics` deltas per arm (A–E).
+- **`strata-park-lab.py`**: Oracle D park-churn driver (`docs/research/strata-tuning.md` §8) — warms a ~120k-token conversation, fires K prefix-sharing subagent conversations, probes the main conversation, and records reuse %, TTFT, and `/metrics` deltas per arm (A–E).
 
 ## Reports & Results
 
