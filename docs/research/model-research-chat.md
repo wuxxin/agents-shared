@@ -547,7 +547,7 @@ distractors), and **AA-Omniscience non-hallucination** (factual discipline at lo
 
 ### Baseline: unsloth/Qwen3.8-27B-GGUF
 
-Baseline reference, quant sizes and benchmark rows for the 27B dense class are in [`model-research.md`](model-research.md#main-dense-models). Per-model detail below.
+Baseline reference, quant sizes and benchmark rows for the 27B dense class are in [Main Dense models](#main-dense-models). Per-model detail below.
 
 ### Qwen3.6-27B-Fable-Fusion-711 (DavidAU)
 
@@ -856,5 +856,5 @@ for tool-calling and JSON work, and embedded-MTP GGUFs are the cheapest availabl
 Non-listed models quantized by the community with ROCmFPX / ROCmFP4 (chadrock-35B, Laguna-S-2.1,
 Qwen3.6-40B-Deckard, Tess-4-27B, ThinkingCap-27B, Ling-3.0-flash, Leanstral-1.5-119B,
 AEON-Ultimate-27B) are catalogued with base models, architectures and repository sizes in
-[`model-research-chat.md`](model-research-chat.md#community-builds-candidates-rocmfpx--rocmfp4).
+[Community Builds candidates (ROCmFPX / ROCmFP4)](#community-builds-candidates-rocmfpx-rocmfp4).
 None of them carries benchmarks, and none is endorsed by the ROCmFPX project.

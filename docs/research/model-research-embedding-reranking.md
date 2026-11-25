@@ -9,7 +9,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 #### Recommended Embedding Candidates
 *Criteria: MTEB German Retrieval > 60, TEI Native or Python.*
 
-*Note on VRAM: Because these models are served under TEI in single-forward-pass mode (no autoregressive generation), they do not allocate a KV cache. VRAM scales with model weights plus transient attention activations (quadratic in context length). See [Architecture & KV Cache reference](#embedding-model-architectures-attention-kv-cache--vram-scaling) for detailed scaling analysis.*
+*Note on VRAM: Because these models are served under TEI in single-forward-pass mode (no autoregressive generation), they do not allocate a KV cache. VRAM scales with model weights plus transient attention activations (quadratic in context length). See [Architecture & KV Cache reference](#embedding-reranking-model-architectures-attention-kv-cache-vram-scaling) for detailed scaling analysis.*
 
 ##### Gold Tier (Context Window > 8K tokens)
 1. **[jina-embeddings-v5-text-small](https://huggingface.co/jinaai/jina-embeddings-v5-text-small)** (677M parameters)
@@ -135,7 +135,7 @@ Based on Hindsight's retrieval requirements, the best model configurations satis
 - **Agentic Use**: High-capacity semantic memory retrieval over large context windows.
 - **Max CTX**: 32,768 (32K) tokens.
 - **Output Types**: 1024-dimensional dense vectors.
-- **Other features (not) available**: No bidirectional context during encoding (due to causal self-attention), which can sometimes affect representation quality compared to encoder-only architectures, but excels at long-context retrieval without chunk limits. When served via `llama-server`, requires a pre-allocated KV cache per slot (see [Architecture & KV Cache reference](#embedding-model-architectures-attention-kv-cache--vram-scaling)).
+- **Other features (not) available**: No bidirectional context during encoding (due to causal self-attention), which can sometimes affect representation quality compared to encoder-only architectures, but excels at long-context retrieval without chunk limits. When served via `llama-server`, requires a pre-allocated KV cache per slot (see [Architecture & KV Cache reference](#embedding-reranking-model-architectures-attention-kv-cache-vram-scaling)).
 - **Fits expected hindsight usage of embedding**: Yes. Excellent context capacity (32K), GGUF format enables hybrid CPU/GPU offloading on resource-constrained setups.
 - **TEI Support & Native**: **No** (Causal decoder backbone, requires GGUF in `llama-server` or Python wrappers as TEI's Candle Rust backend does not support causal embedding layer loading natively).
 - **MTEB Leaderboard Multilingual**: Mean(task): ~60.1.

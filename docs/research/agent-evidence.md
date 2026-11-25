@@ -39,11 +39,11 @@ This file contains exact files, line numbers, directory names, and commands used
   - **Emoji Reaction / Vision / STT**: Unsupported.
 
 ### B. Reborn Engine
-- **Host-Mediated MCP Runtime**: Composes host-mediated MCP runtime and bundles `nearai` MCP extension [FEATURE_PARITY.md:L341](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/FEATURE_PARITY.md#L341).
-- **Persistent Tool Approvals**: Reborn stores `AlwaysAllow` approval policies [FEATURE_PARITY.md:L342](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/FEATURE_PARITY.md#L342).
-- **Slack Events Routing**: `ironclaw-reborn serve` handles events, slash-commands, and pairing panels [FEATURE_PARITY.md:L838](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/FEATURE_PARITY.md#L838).
-- **EventStreamManager**: Transport-neutral event stream for `/events` and `/ws` [FEATURE_PARITY.md:L51](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/FEATURE_PARITY.md#L51).
-- **Trace Commons**: Opt-in runtime capture queue and credit notices via `TraceClientHost` [FEATURE_PARITY.md:L274](file:///home/wuxxin/agent-shared/code/agents-shared/scratch/ironclaw/FEATURE_PARITY.md#L274).
+- **Host-Mediated MCP Runtime**: Composes host-mediated MCP runtime and bundles `nearai` MCP extension (`ironclaw/FEATURE_PARITY.md:L341`).
+- **Persistent Tool Approvals**: Reborn stores `AlwaysAllow` approval policies (`ironclaw/FEATURE_PARITY.md:L342`).
+- **Slack Events Routing**: `ironclaw-reborn serve` handles events, slash-commands, and pairing panels (`ironclaw/FEATURE_PARITY.md:L838`).
+- **EventStreamManager**: Transport-neutral event stream for `/events` and `/ws` (`ironclaw/FEATURE_PARITY.md:L51`).
+- **Trace Commons**: Opt-in runtime capture queue and credit notices via `TraceClientHost` (`ironclaw/FEATURE_PARITY.md:L274`).
 
 ---
 

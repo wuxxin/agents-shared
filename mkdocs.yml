@@ -3,6 +3,9 @@ site_name: Agents Shared Infrastructure
 theme:
   name: material
 
+extra_css:
+  - stylesheets/extra.css
+
 plugins:
   - search
   - include-markdown
@@ -30,7 +33,7 @@ nav:
       - Reranking: inference/rerank.md
       - Speech-to-Text: inference/speech-to-text.md
       - Text-to-Speech: inference/text-to-speech.md
-      - Kokoro C++ Notes: inference/kokoro-cpp.md
+      - Kokoro C++ Notes: research/kokoro-cpp.md
       - Image Generation: inference/image.md
       - Memory (Hindsight): inference/memory.md
   - Assistants:

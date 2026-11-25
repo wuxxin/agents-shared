@@ -15,3 +15,7 @@ https://huggingface.co/gradium/phonon-40m-multilingual/tree/main
     - Fail-safe abort: if access is denied or database is locked, exit launch with error code 1.
   + Provide standalone companion helper `scripts/kpxc-secret` for URI parsing (`kpxc://[group/]entry[:field]`, TOTP, custom `KPH:` fields, export, and run wrappers).
   + Update `cmd_cat`, `cmd_selftest`, and default `.env` template in `cmd_install` for `LAUNCHER_SECRETS`.
+
++ docs: Migrate from Material for MkDocs (EOL May 5, 2027) to **Zensical** (https://zensical.org/docs/compatibility/mkdocs/migration/)
+  + Tested `zensical 0.1.3` with existing `mkdocs.yml` (`-c -s`): builds cleanly in `1.74s` with 0 warnings; Mermaid, search, and `docs/stylesheets/extra.css` work out of the box.
+  + Staying on MkDocs Material for now because Zensical `0.1.3`'s `include-markdown` adapter ignores `rewrite-relative-urls` (so `docs/...` links in `../README.md` included via `docs/index.md` emit `href="docs/..."` and 404 on the homepage). Revisit once Zensical implements relative URL rewriting or `docs/index.md` is decoupled from `README.md`.
